@@ -7,6 +7,7 @@ import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import urllib.parse
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -113,46 +114,64 @@ def send_bulk_whatsapp_alerts(alert_patients: list, month_label: str) -> dict:
 
 
 def build_ward_report_html(alert_patients: list, month_label: str, year: str) -> str:
-    """Build HTML ward report for email."""
+    """Build rich HTML ward report with summary stats and embedded WhatsApp buttons."""
+    import urllib.parse
+    hb_count = sum(1 for ap in alert_patients if any("Hb" in a for a in ap["alerts"]))
+    alb_count = sum(1 for ap in alert_patients if any("Albumin" in a for a in ap["alerts"]))
+    phos_count = sum(1 for ap in alert_patients if any("Phosphorus" in a for a in ap["alerts"]))
+
     rows = ""
     for ap in alert_patients:
         p = ap["patient"]
-        alerts_html = "".join(
-            f'<span style="display:inline-block;background:#ffe6e6;color:#c62828;'
-            f'border:1px solid #ffcccc;border-radius:3px;padding:1px 6px;'
-            f'margin:1px;font-size:12px">{a}</span>'
-            for a in ap["alerts"]
-        )
+        
+        # Color-coded lab rendering
+        alerts_html = ""
+        for a in ap["alerts"]:
+            alerts_html += f'<span style="display:inline-block;background:#ffe6e6;color:#c62828;border:1px solid #ffcccc;border-radius:3px;padding:2px 8px;margin:2px;font-size:12px">{a}</span>'
+        
+        # Generate WhatsApp Button for Email
+        msg = build_whatsapp_message(p.name, ap["alerts"], month_label)
+        clean_no = p.contact_no.strip().replace(" ", "").replace("-", "").lstrip("0")
+        if not clean_no.startswith("+"): clean_no = "91" + clean_no
+        wa_link = f"https://wa.me/{clean_no}?text={urllib.parse.quote(msg)}"
+        
         rows += (
             f"<tr>"
-            f'<td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:500">{p.name}</td>'
-            f'<td style="padding:8px 12px;border-bottom:1px solid #eee;color:#888;font-size:12px">{p.hid_no}</td>'
-            f'<td style="padding:8px 12px;border-bottom:1px solid #eee">{p.access_type or "-"}</td>'
-            f'<td style="padding:8px 12px;border-bottom:1px solid #eee">{alerts_html}</td>'
-            f'<td style="padding:8px 12px;border-bottom:1px solid #eee;color:#555;font-size:12px">{p.contact_no or "-"}</td>'
+            f'<td style="padding:12px 15px;border-bottom:1px solid #eee;font-weight:600">{p.name}</td>'
+            f'<td style="padding:12px 15px;border-bottom:1px solid #eee">{p.access_type or "-"}</td>'
+            f'<td style="padding:12px 15px;border-bottom:1px solid #eee">{alerts_html}</td>'
+            f'<td style="padding:12px 15px;border-bottom:1px solid #eee;text-align:center">'
+            f'<a href="{wa_link}" style="background:#25d366;color:#fff;text-decoration:none;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:bold">📲 Send</a>'
+            f'</td>'
             f"</tr>"
         )
 
     generated = datetime.now().strftime("%d %b %Y %H:%M")
-    return f"""<html><body style="font-family:Arial,sans-serif;background:#f4f7fa;margin:0;padding:20px">
-<div style="max-width:800px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
-  <div style="background:#007bff;color:#fff;padding:24px 28px">
-    <h1 style="margin:0;font-size:1.4em">{CLINIC_NAME}</h1>
-    <p style="margin:6px 0 0;opacity:.85">HD Alert Report — {month_label} {year}</p>
+    return f"""<html><body style="font-family:Arial,sans-serif;background:#f4f7fa;margin:0;padding:20px;color:#333">
+<div style="max-width:850px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.1)">
+  <div style="background:#1a237e;color:#fff;padding:35px 40px">
+    <h1 style="margin:0;font-size:1.4em;letter-spacing:1px">{CLINIC_NAME}</h1>
+    <p style="margin:8px 0 0;opacity:.8;font-size:1.1em">Clinical Ward Report — {month_label} {year}</p>
   </div>
-  <div style="padding:24px 28px">
-    <p style="color:#555">{len(alert_patients)} patients require clinical review:</p>
-    <table style="width:100%;border-collapse:collapse;font-size:0.88em;margin-top:16px">
-      <thead><tr style="background:#007bff;color:#fff">
-        <th style="padding:10px 12px;text-align:left">Patient</th>
-        <th style="padding:10px 12px;text-align:left">HID</th>
-        <th style="padding:10px 12px;text-align:left">Access</th>
-        <th style="padding:10px 12px;text-align:left">Alerts</th>
-        <th style="padding:10px 12px;text-align:left">Contact</th>
+  <div style="padding:35px 40px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:35px;background:#f8f9fa;padding:20px;border-radius:8px;border:1px solid #eee">
+      <div style="text-align:center"><div style="font-size:0.8em;color:#666">Hb ALERTS</div><div style="font-size:1.4em;font-weight:bold;color:#c62828">{hb_count}</div></div>
+      <div style="text-align:center"><div style="font-size:0.8em;color:#666">ALBUMIN ALERTS</div><div style="font-size:1.4em;font-weight:bold;color:#1a73e8">{alb_count}</div></div>
+      <div style="text-align:center"><div style="font-size:0.8em;color:#666">PHOS ALERTS</div><div style="font-size:1.4em;font-weight:bold;color:#2e7d32">{phos_count}</div></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-top:20px">
+      <thead><tr style="background:#f1f3f4;color:#555">
+        <th style="padding:12px 15px;text-align:left;font-size:11px;text-transform:uppercase">Patient</th>
+        <th style="padding:12px 15px;text-align:left;font-size:11px;text-transform:uppercase">Access</th>
+        <th style="padding:12px 15px;text-align:left;font-size:11px;text-transform:uppercase">Flagged Lab Alerts</th>
+        <th style="padding:12px 15px;text-align:center;font-size:11px;text-transform:uppercase">WhatsApp</th>
       </tr></thead>
       <tbody>{rows}</tbody>
     </table>
-    <p style="color:#888;font-size:0.78em;margin-top:24px">Generated: {generated} — {CLINIC_NAME}</p>
+    <div style="margin-top:40px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:11px;text-align:center">
+      Generated automatically by HD Dashboard Sentinel on {generated}.<br/>
+      Privacy Notice: Report intended for clinical staff only.
+    </div>
   </div>
 </div>
 </body></html>"""
@@ -273,3 +292,19 @@ def send_schedule_email(patient_name: str, email: str, slots: list) -> tuple:
     except Exception as e:
         logger.error(f"Failed to send schedule: {e}")
         return False, str(e)
+
+
+def generate_all_whatsapp_links(alert_patients: list, month_label: str) -> list:
+    """Generate pre-filled wa.me links for all alert patients for manual sending."""
+    links = []
+    for ap in alert_patients:
+        p = ap["patient"]
+        if not p.contact_no: continue
+        
+        message = build_whatsapp_message(p.name, ap["alerts"], month_label)
+        clean_no = str(p.contact_no).strip().replace(" ", "").replace("-", "").lstrip("0")
+        if not clean_no.startswith("+"): clean_no = "91" + clean_no
+        
+        wa_link = f"https://wa.me/{clean_no}?text={urllib.parse.quote(message)}"
+        links.append({"name": p.name, "link": wa_link})
+    return links

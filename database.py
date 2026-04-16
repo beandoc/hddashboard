@@ -54,7 +54,27 @@ class Patient(Base):
     created_by = Column(String)
     clinical_remarks = Column(Text)
 
+    # Research Baseline Context (Intelligence 5.0)
+    dialysis_vintage_months = Column(Integer, default=0)
+    primary_diagnosis = Column(String)      # DM, HTN, GN
+    comorbidity_cvd = Column(Boolean, default=False)   # Cardiovascular
+    comorbidity_cvsd = Column(Boolean, default=False)  # Cerebrovascular
+    hyperparathyroidism = Column(Boolean, default=False) # 2o Hyperparathyroidism
+
     records = relationship("MonthlyRecord", back_populates="patient", cascade="all, delete-orphan")
+    transfusions = relationship("BloodTransfusion", back_populates="patient", cascade="all, delete-orphan")
+
+
+class BloodTransfusion(Base):
+    __tablename__ = "blood_transfusions"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"))
+    transfusion_date = Column(Date, nullable=False)
+    units = Column(Integer, default=1)
+    reason = Column(String, nullable=True) # e.g. "Acute Hb drop", "Pre-op"
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient", back_populates="transfusions")
 
 
 class MonthlyRecord(Base):
@@ -76,7 +96,8 @@ class MonthlyRecord(Base):
     serum_ferritin = Column(Float)                  # ng/mL
     tsat = Column(Float)                            # %
     serum_iron = Column(Float)                      # µg/dL
-    epo_mircera_dose = Column(String)               # dose + frequency
+    epo_mircera_dose = Column(String)               # text description
+    epo_weekly_units = Column(Float)                # numeric weekly units (e.g. 4000)
 
     # Mineral Metabolism
     calcium = Column(Float)                         # mg/dL (uncorrected)
@@ -96,6 +117,15 @@ class MonthlyRecord(Base):
 
     # Clinical Notes
     issues = Column(Text)
+
+    # Intelligence 5.0 Baseline Extras
+    bp_sys = Column(Integer)
+    bp_dia = Column(Integer)
+    crp = Column(Float)         # C-Reactive Protein (Inflammation)
+    urr = Column(Float)         # Urea Reduction Rate (Adequacy)
+    mcv = Column(Float)         # Mean Corpuscular Volume
+    hb_hematocrit = Column(Float) # Hematocrit (%)
+    iron_iv_supplement = Column(Boolean, default=False)
 
     patient = relationship("Patient", back_populates="records")
 

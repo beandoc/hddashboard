@@ -53,7 +53,7 @@
                 </div>
                 <div class="form-group">
                     <label>IDWG (kg)</label>
-                    <input type="number" step="0.1" name="idwg" value="{{ record.idwg if record else '' }}">
+                    <input type="number" step="0.1" name="idwg" min="0" max="15" value="{{ record.idwg if record else '' }}">
                 </div>
                 <div class="form-group">
                     <label>Entered By</label>
@@ -63,7 +63,7 @@
                 <div class="section-title">Anemia & Iron</div>
                 <div class="form-group">
                     <label>Hemoglobin (g/dL)</label>
-                    <input type="number" step="0.1" name="hb" value="{{ record.hb if record else '' }}">
+                    <input type="number" step="0.1" name="hb" min="0" max="25" value="{{ record.hb if record else '' }}">
                 </div>
                 <div class="form-group">
                     <label>Serum Ferritin (ng/mL)</label>
@@ -74,7 +74,11 @@
                     <input type="number" step="1" name="tsat" value="{{ record.tsat if record else '' }}">
                 </div>
                 <div class="form-group">
-                    <label>EPO / Mircera Dose</label>
+                    <label>EPO Units/Week (Total)</label>
+                    <input type="number" step="1" name="epo_weekly_units" placeholder="e.g. 4000" value="{{ '%.0f'|format(record.epo_weekly_units) if record and record.epo_weekly_units else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>EPO Brand/Dose Description</label>
                     <input type="text" name="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else '' }}">
                 </div>
 

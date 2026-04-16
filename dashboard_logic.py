@@ -33,12 +33,17 @@ def get_month_label(month_str):
     except:
         return month_str
 
-def get_prev_month_str(month_str):
-    y, m = map(int, month_str.split("-"))
-    if m == 1:
-        return f"{y-1}-12"
-    else:
-        return f"{y}-{m-1:02d}"
+def get_prev_month_str(month_str, months_ago=1):
+    try:
+        y, m = map(int, month_str.split("-"))
+        # total_months: current month starts at 1, year*12 + m
+        # then subtract months_ago
+        total_months = y * 12 + (m - 1) - months_ago
+        target_y = total_months // 12
+        target_m = (total_months % 12) + 1
+        return f"{target_y}-{target_m:02d}"
+    except:
+        return month_str
 
 def compute_dashboard(db: Session, month_str: str):
     patients = db.query(Patient).filter(Patient.is_active == True).all()
@@ -210,10 +215,51 @@ def compute_dashboard(db: Session, month_str: str):
                 metrics["elevated_liver"]["names"].append(p.name)
                 row["alerts"].append("Elevated LFTs")
 
+            # EPO Responsiveness Index (ERI)
+            m3_month_str = get_prev_month_str(month_str, 3)
+            m3_r = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id, MonthlyRecord.record_month == m3_month_str).first()
+            
+            if r.hb and m3_r and m3_r.hb and r.epo_weekly_units:
+                hb_diff = r.hb - m3_r.hb
+                units_1k = r.epo_weekly_units / 1000.0
+                eri = hb_diff / units_1k if units_1k > 0 else 0
+                row["eri"] = round(eri, 3)
+                
+                # Flag poor response: Hb not rising (diff < 0.2) despite high EPO (>= 4000 units)
+                if hb_diff < 0.2 and r.epo_weekly_units >= 4000:
+                    if "poor_epo_response" not in metrics: metrics["poor_epo_response"] = {"count": 0, "names": []}
+                    metrics["poor_epo_response"]["count"] += 1
+                    metrics["poor_epo_response"]["names"].append(p.name)
+                    row["alerts"].append("Poor EPO Response")
+            else:
+                row["eri"] = None
+
             # Trends for chart
             metrics["trend_hb"].append({"patient": p.name, "previous": prev_r.hb if prev_r else None, "current": r.hb})
             metrics["trend_albumin"].append({"patient": p.name, "previous": prev_r.albumin if prev_r else None, "current": r.albumin})
             metrics["trend_phosphorus"].append({"patient": p.name, "previous": prev_r.phosphorus if prev_r else None, "current": r.phosphorus})
+
+            # --- PREDICTIVE Hb TRAJECTORY (ML) ---
+            try:
+                import numpy as np
+                from sklearn.linear_model import LinearRegression
+                
+                # Sort records by date for prediction
+                sorted_recs = sorted(p.records, key=lambda x: x.record_month)
+                all_hb = [rec.hb for rec in sorted_recs if rec.hb is not None]
+                if len(all_hb) >= 3:
+                    X = np.arange(len(all_hb)).reshape(-1, 1)
+                    y = np.array(all_hb)
+                    model = LinearRegression().fit(X, y)
+                    prediction = model.predict([[len(all_hb)]])[0]
+                    row["projected_hb"] = round(float(prediction), 2)
+                    
+                    if prediction < 10.0:
+                        row["alerts"].append("🔮 Projected Hb < 10")
+                else:
+                    row["projected_hb"] = None
+            except Exception:
+                row["projected_hb"] = None
 
         patient_rows.append(row)
 

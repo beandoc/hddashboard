@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ patient.name }} — Timeline</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+:root {
+  --blue:#007bff; --red:#c62828; --green:#2e7d32; --orange:#e65100;
+  --gold:#f57f17; --purple:#6a1b9a; --teal:#00695c;
+  --bg:#f4f7fa; --white:#fff; --border:#eee;
+  --shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Roboto',sans-serif; background:var(--bg); color:#333; }
+
+/* NAV */
+nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:100; }
+nav a { color:rgba(255,255,255,0.7); text-decoration:none; font-size:0.78rem; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; }
+nav a:hover { color:#fff; background:rgba(255,255,255,0.12); }
+
+/* PATIENT BANNER */
+.banner { background:var(--blue); color:#fff; padding:20px 28px; }
+.banner-inner { max-width:1400px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.banner-name { font-size:1.6em; font-weight:700; margin-bottom:4px; }
+.banner-meta { font-size:0.85em; opacity:0.85; }
+.banner-badges { display:flex; gap:12px; flex-wrap:wrap; }
+.badge { background:rgba(255,255,255,0.15); border-radius:8px; padding:10px 16px; text-align:center; min-width:90px; }
+.badge-val { font-size:1.3em; font-weight:700; }
+.badge-lbl { font-size:0.68em; opacity:0.8; margin-top:2px; text-transform:uppercase; letter-spacing:0.05em; }
+
+/* PAGE */
+.page { max-width:1400px; margin:0 auto; padding:24px 20px 60px; }
+
+/* SECTION */
+.section-title { font-size:0.72em; text-transform:uppercase; letter-spacing:0.1em; color:#888; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid var(--border); margin-top:32px; }
+
+/* INSIGHT CARDS */
+.insights-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; margin-bottom:8px; }
+.insight-card { background:var(--white); border-radius:10px; padding:18px; box-shadow:var(--shadow); border-left:4px solid var(--blue); }
+.insight-card.risk-HIGH   { border-color:var(--red); background:#fff8f8; }
+.insight-card.risk-MODERATE { border-color:var(--orange); background:#fff9f5; }
+.insight-card.risk-LOW    { border-color:var(--green); }
+.insight-card.risk-MINIMAL { border-color:#1565c0; }
+.insight-label { font-size:0.68em; text-transform:uppercase; letter-spacing:0.08em; color:#888; margin-bottom:6px; }
+.insight-value { font-size:1.5em; font-weight:700; color:#333; }
+.insight-value.red { color:var(--red); }
+.insight-value.orange { color:var(--orange); }
+.insight-value.green { color:var(--green); }
+.insight-sub { font-size:0.78em; color:#666; margin-top:6px; line-height:1.4; }
+.trend-arrow { font-size:1.1em; margin-left:4px; }
+.arrow-up   { color:var(--green); }
+.arrow-down { color:var(--red); }
+.arrow-flat { color:#888; }
+
+/* TARGET SCORE */
+.score-wrap { display:flex; align-items:center; gap:16px; background:var(--white); border-radius:10px; padding:18px 24px; box-shadow:var(--shadow); margin-bottom:8px; }
+.score-circle { width:70px; height:70px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.6em; font-weight:700; color:#fff; flex-shrink:0; }
+.score-details { flex:1; }
+.score-label { font-size:1.1em; font-weight:600; }
+.score-sub { font-size:0.8em; color:#666; margin-top:4px; }
+.score-checks { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.check-tag { font-size:0.7em; padding:3px 8px; border-radius:3px; }
+.check-ok  { background:#e8f5e9; color:var(--green); }
+.check-bad { background:#ffebee; color:var(--red); }
+.check-na  { background:#f5f5f5; color:#aaa; }
+
+/* CHARTS GRID */
+.charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.charts-grid.three { grid-template-columns:1fr 1fr 1fr; }
+.chart-card { background:var(--white); border-radius:10px; padding:18px; box-shadow:var(--shadow); }
+.chart-card h3 { font-size:0.8em; text-transform:uppercase; letter-spacing:0.07em; color:#888; margin-bottom:4px; }
+.chart-card .chart-sub { font-size:0.72em; color:#bbb; margin-bottom:8px; }
+.chart-div { width:100%; height:220px; }
+
+/* RISK FACTORS */
+.risk-list { list-style:none; margin-top:8px; }
+.risk-list li { font-size:0.82em; padding:4px 0; display:flex; align-items:center; gap:6px; }
+.risk-list li::before { content:"⚠"; font-size:0.9em; }
+
+/* DATA TABLE */
+.data-table-wrap { background:var(--white); border-radius:10px; box-shadow:var(--shadow); overflow:auto; }
+table { width:100%; border-collapse:collapse; font-size:0.8em; }
+thead tr { background:var(--blue); color:#fff; }
+th { padding:10px 12px; text-align:left; font-size:0.7em; text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap; }
+tbody tr { border-bottom:1px solid var(--border); }
+tbody tr:hover { background:#f9fbff; }
+td { padding:8px 12px; font-family:monospace; }
+.val-ok   { color:var(--green); }
+.val-bad  { color:var(--red); font-weight:600; }
+.val-warn { color:var(--orange); }
+.val-none { color:#ddd; }
+
+/* COMPLETENESS */
+.completeness-bar { display:flex; align-items:center; gap:10px; margin:4px 0; }
+.completeness-bar .label { font-size:0.75em; width:120px; color:#555; }
+.bar-track { flex:1; background:#eee; border-radius:4px; height:8px; }
+.bar-fill { height:100%; border-radius:4px; background:var(--blue); }
+.bar-pct { font-size:0.72em; color:#888; width:32px; text-align:right; }
+
+/* CONFIDENCE BADGE */
+.conf { display:inline-block; font-size:0.65em; padding:1px 6px; border-radius:3px; margin-left:6px; vertical-align:middle; }
+.conf.high     { background:#e8f5e9; color:var(--green); }
+.conf.moderate { background:#fff3e0; color:var(--orange); }
+.conf.low      { background:#fce4ec; color:var(--red); }
+
+@media(max-width:900px) {
+  .charts-grid { grid-template-columns:1fr; }
+  .charts-grid.three { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/">← Dashboard</a>
+  <div style="display:flex;gap:4px">
+    <a href="/patients">Patients</a>
+    <a href="/entry">Data Entry</a>
+  </div>
+</nav>
+
+<!-- PATIENT BANNER -->
+<div class="banner">
+  <div class="banner-inner">
+    <div>
+      <div class="banner-name">{{ patient.name }}</div>
+      <div class="banner-meta">
+        {{ patient.hid_no }} &nbsp;·&nbsp;
+        {{ patient.sex or "—" }} &nbsp;·&nbsp;
+        {{ patient.diagnosis or "—" }}<br/>
+        Access: {{ patient.access_type or "—" }} &nbsp;·&nbsp;
+        HD since: {{ patient.hd_wef_date.strftime("%b %Y") if patient.hd_wef_date else "—" }}
+      </div>
+    </div>
+    <div class="banner-badges">
+      {% if analytics.available %}
+        {% set ts = analytics.target_score %}
+        {% if ts %}
+        <div class="badge">
+          <div class="badge-val">{{ analytics.target_score }}/10</div>
+          <div class="badge-lbl">Target Score</div>
+        </div>
+        {% endif %}
+        {% set dr = analytics.deterioration_risk %}
+        {% if dr.available %}
+        <div class="badge">
+          <div class="badge-val">{{ dr.risk_level }}</div>
+          <div class="badge-lbl">Risk Level</div>
+        </div>
+        {% endif %}
+        <div class="badge">
+          <div class="badge-val">{{ analytics.chart_data.months | length }}</div>
+          <div class="badge-lbl">Months Data</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+{% if not analytics.available %}
+  <div style="text-align:center;padding:60px;color:#888">
+    <p style="font-size:1.2em">No monthly records found for this patient.</p>
+    <p style="margin-top:8px"><a href="/entry/{{ patient.id }}" style="color:var(--blue)">Enter first record →</a></p>
+  </div>
+{% else %}
+
+  <!-- TARGET ACHIEVEMENT SCORE -->
+  {% if analytics.target_score %}
+  <div class="section-title">Target Achievement Score</div>
+  {% set ts_score = analytics.target_score %}
+  {% set score_color = "#2e7d32" if ts_score >= 7 else ("#e65100" if ts_score >= 4 else "#c62828") %}
+  <div class="score-wrap">
+    <div class="score-circle" style="background:{{ score_color }}">{{ ts_score }}</div>
+    <div class="score-details">
+      <div class="score-label">Overall Clinical Status</div>
+      <div class="score-sub">Based on latest bloodwork and intradialytic markers</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ML INSIGHTS -->
+  <div class="section-title">Predictive Analytics Insights</div>
+  <div class="insights-grid">
+
+    <!-- Hb Trajectory -->
+    {% set hb = analytics.hb_trajectory %}
+    {% if hb.available and hb.next_predicted %}
+    <div class="insight-card {% if hb.alert %}risk-HIGH{% endif %}">
+      <div class="insight-label">Predicted Hb — Next Month
+        <span class="conf {{ hb.confidence | lower }}">{{ hb.confidence }}</span>
+      </div>
+      <div class="insight-value {% if hb.alert %}red{% elif hb.next_predicted >= 10 %}green{% endif %}">
+        {{ hb.next_predicted }} g/dL
+        <span class="trend-arrow {% if hb.direction == '↑' %}arrow-up{% elif hb.direction == '↓' %}arrow-down{% else %}arrow-flat{% endif %}">{{ hb.direction }}</span>
+      </div>
+      <div class="insight-sub">{{ hb.message }} · Based on {{ hb.n_points }} data points</div>
+    </div>
+    {% endif %}
+
+    <!-- Albumin Decline -->
+    {% set alb = analytics.albumin_risk %}
+    {% if alb.available and alb.predicted %}
+    <div class="insight-card {% if alb.alert %}risk-HIGH{% endif %}">
+      <div class="insight-label">Albumin Trajectory (2nd month forecast)</div>
+      <div class="insight-value {% if alb.alert %}red{% else %}green{% endif %}">
+        {{ alb.predicted }} g/dL
+      </div>
+      <div class="insight-sub">
+        {% if alb.alert %}⚠ Risk of severe nutritional decline.{% else %}Nutritional status stable.{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- EPO Response -->
+    {% set epo = analytics.epo_response %}
+    {% if epo.available %}
+    <div class="insight-card {% if epo.class == 'danger' %}risk-HIGH{% elif epo.class == 'warning' %}risk-MODERATE{% endif %}">
+      <div class="insight-label">EPO Response Status</div>
+      <div class="insight-value {{ 'red' if epo.hypo_response else 'green' }}">
+        {{ epo.status }}
+      </div>
+      <div class="insight-sub">{{ epo.message }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Iron Status -->
+    {% set iron = analytics.iron_status %}
+    {% if iron.available %}
+    <div class="insight-card">
+      <div class="insight-label">Iron Status Classification</div>
+      <div class="insight-value" style="font-size:1.1em;color:{{ iron.color }}">{{ iron.status }}</div>
+      <div class="insight-sub">{{ iron.message or 'Iron stores are adequate.' }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Deterioration Risk -->
+    {% set dr = analytics.deterioration_risk %}
+    {% if dr.available %}
+    <div class="insight-card risk-{{ dr.level }}">
+      <div class="insight-label">Deterioration Risk Score</div>
+      <div class="insight-value">
+        {{ dr.level }} ({{ dr.score }}/10)
+      </div>
+      <div class="insight-sub">Composite risk from multiple clinical factors</div>
+      {% if dr.factors %}
+      <ul class="risk-list">
+        {% for f in dr.factors %}<li>{{ f }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- CHARTS -->
+  <div class="section-title">Parameter Trends</div>
+
+  <!-- Row 1: Hb + EPO Dose Response -->
+  <div class="charts-grid" style="margin-bottom:16px">
+    <div class="chart-card">
+      <h3>Hemoglobin (g/dL)</h3>
+      <div class="chart-sub">Target: 10–12 g/dL · Dashed = predicted</div>
+      <div class="chart-div" id="chartHb"></div>
+    </div>
+    <div class="chart-card">
+      <h3>EPO Dose Response</h3>
+      <div class="chart-sub">Hb (line) vs EPO dose (bars) — dose-response visualisation</div>
+      <div class="chart-div" id="chartEpo"></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Iron Panel + Ca/Phos -->
+  <div class="charts-grid" style="margin-bottom:16px">
+    <div class="chart-card">
+      <h3>Iron Panel — Ferritin & TSAT</h3>
+      <div class="chart-sub">Ferritin (left axis) · TSAT% (right axis)</div>
+      <div class="chart-div" id="chartIron"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Calcium & Phosphorus (mg/dL)</h3>
+      <div class="chart-sub">Dual plot with threshold lines</div>
+      <div class="chart-div" id="chartCaPhos"></div>
+    </div>
+  </div>
+
+  <!-- RAW DATA TABLE -->
+  <div class="section-title">Monthly Data — All Records</div>
+  <div class="data-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th><th>IDWG</th><th>Hb</th><th>Ferritin</th>
+          <th>TSAT%</th><th>Ca</th><th>Phos</th><th>Albumin</th>
+          <th>iPTH</th><th>Vit D</th><th>EPO Dose</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set cd = analytics.chart_data %}
+        {% for i in range(cd.months | length) %}
+        <tr>
+          <td style="font-weight:600;color:var(--blue)">{{ cd.months[i] }}</td>
+          <td>{{ "%.1f"|format(cd.idwg[i]) if cd.idwg[i] else "—" }}</td>
+          <td>{{ "%.1f"|format(cd.hb[i]) if cd.hb[i] else "—" }}</td>
+          <td>{{ "%.0f"|format(cd.serum_ferritin[i]) if cd.serum_ferritin[i] else "—" }}</td>
+          <td>{{ "%.0f"|format(cd.tsat[i]) if cd.tsat[i] else "—" }}</td>
+          <td>{{ "%.1f"|format(cd.calcium[i]) if cd.calcium[i] else "—" }}</td>
+          <td>{{ "%.1f"|format(cd.phosphorus[i]) if cd.phosphorus[i] else "—" }}</td>
+          <td>{{ "%.1f"|format(cd.albumin[i]) if cd.albumin[i] else "—" }}</td>
+          <td>{{ "%.0f"|format(cd.ipth[i]) if cd.ipth[i] else "—" }}</td>
+          <td>{{ "%.0f"|format(cd.vit_d[i]) if cd.vit_d[i] else "—" }}</td>
+          <td style="font-size:0.8em;color:#666">{{ cd.epo_dose_raw[i] or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+{% endif %}
+</div>
+
+<script>
+{% if analytics.available %}
+const CD   = {{ analytics.chart_data | tojson }};
+const HBT  = {{ analytics.hb_trajectory | tojson }};
+
+const FONT = { family:"'Roboto',sans-serif", size:11 };
+const LAYOUT_BASE = {
+  paper_bgcolor:"transparent", plot_bgcolor:"transparent",
+  margin:{ t:10, b:35, l:50, r:10 },
+  font: FONT,
+  legend:{ orientation:"h", x:0, y:-0.15, font:FONT },
+};
+
+function nullFill(arr) {
+  return arr.map(v => (v === null || v === undefined) ? null : v);
+}
+
+function threshLine(x, y_val, color, name, dash="dot") {
+  return {
+    type:"scatter", x:x,
+    y: x.map(() => y_val),
+    mode:"lines", name:name,
+    line:{ color:color, width:1.2, dash:dash },
+    hoverinfo:"skip",
+  };
+}
+
+const months = CD.months;
+
+// ── Hb Chart ──
+(function() {
+  const traces = [{
+    type:"scatter", x:months, y:nullFill(CD.hb),
+    mode:"lines+markers", name:"Hb",
+    line:{ color:"#c62828", width:2.5 },
+    marker:{ size:8, color:"#c62828" },
+    hovertemplate:"%{x}: <b>%{y} g/dL</b><extra></extra>",
+  }, threshLine(months, 10, "#e57373", "Min 10"), threshLine(months, 12, "#81c784", "Max 12")];
+
+  if (HBT.next_predicted) {
+    const nextMonth = "Predicted";
+    traces.push({
+      type:"scatter",
+      x:[months[months.length-1], nextMonth],
+      y:[CD.hb[CD.hb.length-1], HBT.next_predicted],
+      mode:"lines+markers", name:"Predicted",
+      line:{ color:"#c62828", width:1.5, dash:"dot" },
+      marker:{ color:"#ef9a9a", size:8, symbol:"diamond" },
+      hovertemplate:"%{x}: <b>%{y} g/dL</b> (predicted)<extra></extra>",
+    });
+  }
+
+  Plotly.newPlot("chartHb", traces, {
+    ...LAYOUT_BASE,
+    yaxis:{ title:"Hb (g/dL)", range:[5, 15], gridcolor:"#f0f0f0" },
+    xaxis:{ gridcolor:"#f5f5f5" },
+  }, { displayModeBar:false, responsive:true });
+})();
+
+// ── EPO Dose Response ──
+(function() {
+  Plotly.newPlot("chartEpo", [{
+    type:"bar", x:months, y:nullFill(CD.epo_dose),
+    name:"EPO Dose", yaxis:"y2",
+    marker:{ color:"rgba(100,181,246,0.5)" },
+  }, {
+    type:"scatter", x:months, y:nullFill(CD.hb),
+    name:"Hb", mode:"lines+markers",
+    line:{ color:"#c62828", width:2.5 },
+  }], {
+    ...LAYOUT_BASE,
+    yaxis:{ title:"Hb (g/dL)", range:[5,15], gridcolor:"#f0f0f0" },
+    yaxis2:{ title:"EPO Units", overlaying:"y", side:"right", gridcolor:"transparent" },
+    barmode:"overlay",
+  }, { displayModeBar:false, responsive:true });
+})();
+
+// ── Iron Panel ──
+(function() {
+  Plotly.newPlot("chartIron", [{
+    type:"scatter", x:months, y:nullFill(CD.serum_ferritin),
+    name:"Ferritin", mode:"lines+markers",
+    line:{ color:"#f57f17", width:2.5 },
+  }, {
+    type:"scatter", x:months, y:nullFill(CD.tsat),
+    name:"TSAT%", mode:"lines+markers", yaxis:"y2",
+    line:{ color:"#1565c0", width:2, dash:"dot" },
+  }], {
+    ...LAYOUT_BASE,
+    yaxis:{ title:"Ferritin (ng/mL)", gridcolor:"#f0f0f0" },
+    yaxis2:{ title:"TSAT (%)", overlaying:"y", side:"right", range:[0,60], gridcolor:"transparent" },
+  }, { displayModeBar:false, responsive:true });
+})();
+
+// ── Ca + Phosphorus ──
+(function() {
+  Plotly.newPlot("chartCaPhos", [{
+    type:"scatter", x:months, y:nullFill(CD.calcium),
+    name:"Calcium", mode:"lines+markers",
+    line:{ color:"#00695c", width:2 },
+  }, {
+    type:"scatter", x:months, y:nullFill(CD.phosphorus),
+    name:"Phosphorus", mode:"lines+markers",
+    line:{ color:"#6a1b9a", width:2 },
+  }, threshLine(months, 8.5, "#80cbc4", "Ca min"),
+     threshLine(months, 5.5, "#ce93d8", "Phos max")], {
+    ...LAYOUT_BASE,
+    yaxis:{ title:"mg/dL", gridcolor:"#f0f0f0" },
+  }, { displayModeBar:false, responsive:true });
+})();
+
+{% endif %}
+</script>
+</body>
+</html>
