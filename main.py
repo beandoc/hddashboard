@@ -50,6 +50,7 @@ def run_migrations():
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvd BOOLEAN DEFAULT FALSE",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvsd BOOLEAN DEFAULT FALSE",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS hyperparathyroidism BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS epo_weekly_units FLOAT",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS bp_sys INTEGER",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS bp_dia INTEGER",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS crp FLOAT",
