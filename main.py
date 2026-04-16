@@ -45,14 +45,14 @@ def run_migrations():
     """Force-add missing clinical columns directly via raw engine connection."""
     from sqlalchemy import text
     migrations = [
+        "ALTER TABLE variable_definitions ADD COLUMN IF NOT EXISTS alert_direction VARCHAR",
+        "ALTER TABLE variable_definitions ADD COLUMN IF NOT EXISTS decimal_places INTEGER DEFAULT 1",
+        "ALTER TABLE variable_values ADD COLUMN IF NOT EXISTS entered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS dialysis_vintage_months INTEGER DEFAULT 0",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS primary_diagnosis VARCHAR",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvd BOOLEAN DEFAULT FALSE",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvsd BOOLEAN DEFAULT FALSE",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS hyperparathyroidism BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE variable_definitions ADD COLUMN IF NOT EXISTS alert_direction VARCHAR",
-        "ALTER TABLE variable_definitions ADD COLUMN IF NOT EXISTS decimal_places INTEGER DEFAULT 1",
-        "ALTER TABLE variable_values ADD COLUMN IF NOT EXISTS entered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS target_dry_weight FLOAT",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS epo_weekly_units FLOAT",
@@ -65,15 +65,19 @@ def run_migrations():
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS iron_iv_supplement BOOLEAN DEFAULT FALSE"
     ]
     
-    from sqlalchemy import text
+    # 1. RAPID PHYSICAL SYNC (Raw SQL)
     try:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             for m in migrations:
                 try:
                     conn.execute(text(m))
-                except Exception as e:
-                    print(f"Migration skip (likely exists): {m} -> {e}")
-        
+                except Exception:
+                    pass # Skip if exists
+    except Exception as e:
+        print(f"Physical sync error: {e}")
+
+    # 2. ORM REGISTRATION & SEEDING (SQLAlchemy)
+    try:
         from database import Base
         Base.metadata.create_all(bind=engine)
         db = SessionLocal()
@@ -81,7 +85,7 @@ def run_migrations():
         db.close()
         return True
     except Exception as e:
-        print(f"Migration CRITICAL ERROR: {e}")
+        print(f"ORM Seeding error: {e}")
         return False
 
 # Create tables on startup
