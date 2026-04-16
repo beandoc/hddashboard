@@ -32,7 +32,7 @@ app = FastAPI(title="HD Dashboard")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex="https://.*\.vercel\.app|https://.*\.onrender\.com|http://localhost:.*",
+    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.onrender\.com|http://localhost:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

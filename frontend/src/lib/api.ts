@@ -1,4 +1,6 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Support hidden spaces in Vercel env vars
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE = rawApiUrl.trim().replace(/\/$/, ""); 
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE}${endpoint}`;
