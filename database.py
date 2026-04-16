@@ -118,6 +118,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String)
     role = Column(String, default="nurse") # admin, doctor, nurse
+    is_active = Column(Boolean, default=True)
 
 
 def get_db():

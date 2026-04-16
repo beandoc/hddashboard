@@ -542,7 +542,8 @@ def migrate_db():
         ("patients", "updated_by", "VARCHAR"),
         ("monthly_records", "target_dry_weight", "FLOAT"),
         ("monthly_records", "updated_at", "TIMESTAMP"),
-        ("monthly_records", "entered_by", "VARCHAR")
+        ("monthly_records", "entered_by", "VARCHAR"),
+        ("users", "is_active", "BOOLEAN DEFAULT TRUE")
     ]
     for table, col, col_type in migrations:
         try:
