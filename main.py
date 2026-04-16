@@ -87,30 +87,26 @@ def login_page(request: Request):
 def login(request: Request, db: Session = Depends(get_db), username: str = Form(...), password: str = Form(...)):
     user = db.query(User).filter(User.username == username).first()
     
-    # Force JSON if it's a cross-origin request (standard for Vercel -> Render)
+    # Return JSON for all fetch/ajax/vercel requests
+    accept = request.headers.get("accept", "")
     origin = request.headers.get("origin", "")
-    is_api_call = origin and "localhost" not in origin
-    is_ajax = "application/json" in request.headers.get("accept", "")
+    is_json_request = "application/json" in accept or "vercel" in origin
 
     if not user or not pwd_context.verify(password, user.hashed_password):
-        msg = "Invalid clinical credentials. Please check your username/password."
-        if is_api_call or is_ajax: return JSONResponse({"success": False, "detail": msg}, status_code=401)
-        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
+        detail = "Invalid clinical credentials. Please check your username/password."
+        if is_json_request: return JSONResponse({"success": False, "detail": detail}, status_code=401)
+        return templates.TemplateResponse("login.html", {"request": request, "error": detail})
     
     if not user.is_active:
-        msg = "Your clinical account has been deactivated."
-        if is_api_call or is_ajax: return JSONResponse({"success": False, "detail": msg}, status_code=403)
-        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
+        detail = "Your clinical account is inactive. Please contact support."
+        if is_json_request: return JSONResponse({"success": False, "detail": detail}, status_code=403)
+        return templates.TemplateResponse("login.html", {"request": request, "error": detail})
 
-    # Set session
     request.session["user"] = user.username
     request.session["role"] = user.role
     
-    if is_api_call or is_ajax:
-        return JSONResponse({
-            "success": True, 
-            "user": {"username": user.username, "role": user.role}
-        })
+    if is_json_request:
+        return JSONResponse({"success": True, "user": {"username": user.username, "role": user.role}})
     
     return RedirectResponse(url="/", status_code=303)
 

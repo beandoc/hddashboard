@@ -17,7 +17,9 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // Since our FastAPI uses Form data for login, we send as URLSearchParams
+      console.log(`DEBUG: Target API BASE: ${API_BASE}`);
+      console.log(`DEBUG: Full URL: ${API_BASE}/login`);
+      
       const formData = new URLSearchParams();
       formData.append("username", username);
       formData.append("password", password);
@@ -33,13 +35,21 @@ export default function LoginPage() {
       });
 
       if (response.ok) {
+        console.log("DEBUG: Login response was OK.");
         router.push("/");
       } else {
-        const data = await response.json().catch(() => ({}));
-        setError(data.detail || `Login failed (Status: ${response.status})`);
+        const text = await response.text();
+        console.log(`DEBUG: Server rejected with ${response.status}. Body:`, text);
+        try {
+          const data = JSON.parse(text);
+          setError(data.detail || `Clinical access denied (Status: ${response.status})`);
+        } catch (e) {
+          setError(`Server Error (Status: ${response.status}). Check Console logs.`);
+        }
       }
-    } catch (err) {
-      setError("Connection failed. Service might be starting up...");
+    } catch (err: any) {
+      console.error("DEBUG: Request failed entirely:", err);
+      setError(`Connection failed: ${err.message || "Network Error"}. Please check if the clinical backend is awake.`);
     } finally {
       setLoading(false);
     }
