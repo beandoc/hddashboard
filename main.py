@@ -85,18 +85,25 @@ def login_page(request: Request):
 
 @app.post("/login")
 def login(request: Request, db: Session = Depends(get_db), username: str = Form(...), password: str = Form(...)):
+    # Emergency ensure admin exists (if neon was just initialized)
+    if username == "admin" and not db.query(User).filter(User.username == "admin").first():
+        admin = User(username="admin", full_name="System Admin", hashed_password=pwd_context.hash("admin123"), role="admin")
+        db.add(admin); db.commit()
+
     user = db.query(User).filter(User.username == username).first()
     
-    # Check if request is from the new React frontend (it usually sends Accept: application/json or similar)
+    # Check if request prefers JSON
     is_json = "application/json" in request.headers.get("accept", "") or "vercel" in request.headers.get("origin", "")
 
     if not user or not pwd_context.verify(password, user.hashed_password):
-        if is_json: return JSONResponse({"success": False, "detail": "Invalid credentials"}, status_code=401)
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid clinical credentials"})
+        msg = "Invalid clinical credentials"
+        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=401)
+        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
     
     if not user.is_active:
-        if is_json: return JSONResponse({"success": False, "detail": "Account deactivated"}, status_code=403)
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Account deactivated by admin"})
+        msg = "Account deactivated by admin"
+        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=403)
+        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
 
     request.session["user"] = user.username
     request.session["role"] = user.role
@@ -240,6 +247,28 @@ def entry_form(patient_id: int, request: Request, month: Optional[str] = None, d
     month_str = month or get_current_month_str()
     rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == month_str).first()
     return templates.TemplateResponse("entry_form.html", {"request": request, "patient": p, "record": rec, "month_str": month_str, "month_label": get_month_label(month_str), "user": user})
+
+@app.post("/api/entries/bulk")
+def api_bulk_entries(records: List[dict], db: Session = Depends(get_db), user: User = Depends(nurse_or_admin)):
+    for r in records:
+        pid = r.get("patient_id")
+        m_str = r.get("record_month")
+        if not pid or not m_str: continue
+        
+        rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == pid, MonthlyRecord.record_month == m_str).first()
+        if not rec:
+            rec = MonthlyRecord(patient_id=pid, record_month=m_str)
+            db.add(rec)
+        
+        # Mapping frontend fields to backend
+        rec.hb = float(r.get("hb")) if r.get("hb") else None
+        rec.idwg = float(r.get("idwg")) if r.get("idwg") else None
+        rec.phosphorus = float(r.get("phosphorus")) if r.get("phosphorus") else None
+        rec.albumin = float(r.get("albumin")) if r.get("albumin") else None
+        rec.updated_at = datetime.utcnow()
+    
+    db.commit()
+    return {"success": True, "count": len(records)}
 
 @app.post("/entry/{patient_id}")
 def save_entry(patient_id: int, db: Session = Depends(get_db), user: User = Depends(nurse_or_admin),

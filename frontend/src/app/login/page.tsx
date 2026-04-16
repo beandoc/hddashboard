@@ -27,6 +27,7 @@ export default function LoginPage() {
         body: formData,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json",
         },
         credentials: "include",
       });
@@ -34,10 +35,11 @@ export default function LoginPage() {
       if (response.ok) {
         router.push("/");
       } else {
-        setError("Invalid credentials. Please try again.");
+        const data = await response.json().catch(() => ({}));
+        setError(data.detail || `Login failed (Status: ${response.status})`);
       }
     } catch (err) {
-      setError("Connection failed. Is the backend running?");
+      setError("Connection failed. Service might be starting up...");
     } finally {
       setLoading(false);
     }
