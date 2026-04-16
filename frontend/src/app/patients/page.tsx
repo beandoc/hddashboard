@@ -24,6 +24,13 @@ export default function PatientsPage() {
       .finally(() => setLoading(false));
   }, [search]);
 
+  const manualWhatsApp = (p: any) => {
+    const slots = [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3].filter(Boolean).join(", ");
+    const message = `*Hospital HD Schedule:*\nHello ${p.name}, your dialysis slots are: ${slots || 'Not set'}. Please arrive 15 mins early.`;
+    const url = `https://wa.me/${p.contact?.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  };
+
   const sendSchedule = async (id: number) => {
     try {
       const res = await apiFetch(`/api/send-schedule/${id}`, { method: "POST" });
@@ -90,10 +97,10 @@ export default function PatientsPage() {
                   <td className="px-6 py-5 bg-gray-50/50 border-y border-transparent group-hover:bg-indigo-50/50 group-hover:border-indigo-100 transition-all font-bold text-gray-500 text-sm tabular-nums">{p.contact || '—'}</td>
                   <td className="px-6 py-5 bg-gray-50/50 rounded-r-[1.2rem] border-y border-r border-transparent group-hover:bg-indigo-50/50 group-hover:border-indigo-100 transition-all text-right">
                     <div className="flex items-center justify-end gap-2">
-                       <button 
-                        onClick={() => sendSchedule(p.id)}
-                        title="Send Schedule"
-                        className="p-3 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-xl transition-all"
+                      <button 
+                        onClick={() => manualWhatsApp(p)}
+                        title="Open WhatsApp Web (Free)"
+                        className="p-3 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-xl transition-all border border-emerald-100"
                       >
                         <MessageCircle size={18} />
                       </button>

@@ -11,7 +11,8 @@ import {
   Menu, 
   X,
   PlusCircle,
-  Bell
+  Bell,
+  MessageSquareText
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -85,7 +86,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <button 
             onClick={() => {
-              // Handle logout logic if needed, simplify for now
+              const url = `https://wa.me/9665183839?text=Hello Doctor, I have a question regarding the HD Dashboard.`;
+              window.open(url, "_blank");
+            }}
+            className="flex items-center gap-3 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all text-indigo-100"
+          >
+            <MessageSquareText size={16} />
+            Contact Admin
+          </button>
+          <button 
+            onClick={() => {
+              // Handle logout logic
               window.location.href = "/login";
             }}
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-indigo-200 hover:text-white hover:bg-white/10 transition-all font-medium"
