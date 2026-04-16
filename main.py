@@ -89,8 +89,18 @@ def startup():
 def dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     if request.method == "HEAD":
         return HTMLResponse(content="", status_code=200)
+    
+    # Brute-force migration check on first access
+    run_migrations()
+    
     month_str = month or get_current_month_str()
-    data = compute_dashboard(db, month_str)
+    try:
+        data = compute_dashboard(db, month_str)
+    except Exception as e:
+        print(f"Dashboard compute error: {e}")
+        # Fallback to empty data to prevent 500
+        data = {"metrics": {}, "patient_rows": [], "month_label": month_str}
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "data": data,
