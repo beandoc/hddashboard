@@ -197,7 +197,8 @@ def update_patient(patient_id: int, request: Request, db: Session = Depends(get_
     p.diagnosis = diagnosis; p.access_type = access_type; p.dry_weight = dry_weight
     p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
     p.hep_b_status = hep_b_status; p.hep_b_date = p_date(hep_b_date); p.pneumococcal_date = p_date(pneumococcal_date)
-        p.whatsapp_notify = whatsapp_notify; p.mail_trigger = mail_trigger
+    p.whatsapp_notify = whatsapp_notify
+    p.mail_trigger = mail_trigger
     p.updated_by = "system"; p.updated_at = datetime.utcnow() # Changed user.username to "system"
     db.commit()
     return RedirectResponse(url="/patients", status_code=303)
@@ -290,7 +291,7 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), # Removed user de
     rec.target_dry_weight = target_dry_weight; rec.idwg = idwg; rec.hb = hb; rec.serum_ferritin = serum_ferritin; rec.tsat = tsat
     rec.serum_iron = serum_iron; rec.epo_mircera_dose = epo_mircera_dose
     rec.calcium = calcium; rec.phosphorus = phosphorus; rec.alkaline_phosphate = alkaline_phosphate
-        rec.albumin = albumin; rec.ast = ast; rec.alt = alt; rec.vit_d = vit_d; rec.ipth = ipth
+    rec.albumin = albumin; rec.ast = ast; rec.alt = alt; rec.vit_d = vit_d; rec.ipth = ipth
     rec.av_daily_calories = av_daily_calories; rec.av_daily_protein = av_daily_protein
     rec.issues = issues; rec.entered_by = "system"; rec.timestamp = datetime.utcnow() # Changed user.username to "system"
     db.commit()
