@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Optional
 import json
 
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog
+from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, generate_all_whatsapp_links
 from ml_analytics import run_patient_analytics, run_cohort_analytics
@@ -22,16 +22,43 @@ app = FastAPI(title="HD Dashboard")
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-
 @app.get("/health")
 def health_check():
     """Render health check endpoint — also used by UptimeRobot to prevent sleep."""
+    from datetime import datetime
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
-# Create tables on startup
+def run_migrations():
+    """Auto-add new clinical columns if they don't exist (Fixes 500 errors)."""
+    from sqlalchemy import text
+    db = SessionLocal()
+    migrations = [
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS dialysis_vintage_months INTEGER DEFAULT 0",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS primary_diagnosis VARCHAR",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvd BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvsd BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS hyperparathyroidism BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS bp_sys INTEGER",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS bp_dia INTEGER",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS crp FLOAT",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS urr FLOAT",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS mcv FLOAT",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS hb_hematocrit FLOAT",
+        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS iron_iv_supplement BOOLEAN DEFAULT FALSE"
+    ]
+    for m in migrations:
+        try:
+            db.execute(text(m))
+            db.commit()
+        except Exception:
+            db.rollback()
+    db.close()
+
+# Create tables and run migrations on startup
 @app.on_event("startup")
 def startup():
     create_tables()
+    run_migrations()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
