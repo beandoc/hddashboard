@@ -49,6 +49,7 @@ def compute_dashboard(db: Session, month_str: str):
         "total": len(patients),
         "male": len([p for p in patients if p.sex == "Male"]),
         "female": len([p for p in patients if p.sex == "Female"]),
+        "unknown_sex": len([p for p in patients if p.sex not in ["Male", "Female"]]),
         "todays_hd": {"count": 0, "names": []},
         "high_idwg": {"count": 0, "names": []},
         "low_albumin": {"count": 0, "names": []},

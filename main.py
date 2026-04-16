@@ -157,7 +157,7 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
         # Robust Fallback to prevent Jinja2 500 errors
         data = {
             "metrics": {
-                "total": 0, "male": 0, "female": 0,
+                "total": 0, "male": 0, "female": 0, "unknown_sex": 0,
                 "todays_hd": {"count": 0, "names": []},
                 "high_idwg": {"count": 0, "names": []},
                 "low_albumin": {"count": 0, "names": []},
