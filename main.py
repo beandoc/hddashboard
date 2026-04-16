@@ -85,30 +85,33 @@ def login_page(request: Request):
 
 @app.post("/login")
 def login(request: Request, db: Session = Depends(get_db), username: str = Form(...), password: str = Form(...)):
-    # Emergency ensure admin exists (if neon was just initialized)
-    if username == "admin" and not db.query(User).filter(User.username == "admin").first():
-        admin = User(username="admin", full_name="System Admin", hashed_password=pwd_context.hash("admin123"), role="admin")
-        db.add(admin); db.commit()
-
     user = db.query(User).filter(User.username == username).first()
     
-    # Check if request prefers JSON
-    is_json = "application/json" in request.headers.get("accept", "") or "vercel" in request.headers.get("origin", "")
+    # Force JSON if it's a cross-origin request (standard for Vercel -> Render)
+    origin = request.headers.get("origin", "")
+    is_api_call = origin and "localhost" not in origin
+    is_ajax = "application/json" in request.headers.get("accept", "")
 
     if not user or not pwd_context.verify(password, user.hashed_password):
-        msg = "Invalid clinical credentials"
-        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=401)
+        msg = "Invalid clinical credentials. Please check your username/password."
+        if is_api_call or is_ajax: return JSONResponse({"success": False, "detail": msg}, status_code=401)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
     
     if not user.is_active:
-        msg = "Account deactivated by admin"
-        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=403)
+        msg = "Your clinical account has been deactivated."
+        if is_api_call or is_ajax: return JSONResponse({"success": False, "detail": msg}, status_code=403)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
 
+    # Set session
     request.session["user"] = user.username
     request.session["role"] = user.role
     
-    if is_json: return JSONResponse({"success": True, "user": {"username": user.username, "role": user.role}})
+    if is_api_call or is_ajax:
+        return JSONResponse({
+            "success": True, 
+            "user": {"username": user.username, "role": user.role}
+        })
+    
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/logout")
@@ -433,11 +436,20 @@ def change_password(request: Request, db: Session = Depends(get_db), user: User 
 @app.on_event("startup")
 def startup():
     create_tables()
-    # Create default admin if none exists
-    db = next(get_db())
-    if not db.query(User).filter(User.username == "admin").first():
-        admin = User(username="admin", full_name="System Admin", hashed_password=pwd_context.hash("admin123"), role="admin")
-        db.add(admin); db.commit()
+    db = SessionLocal()
+    # Ensure admin exists
+    admin_user = db.query(User).filter(User.username == "admin").first()
+    if not admin_user:
+        admin = User(
+            username="admin", 
+            full_name="System Admin", 
+            hashed_password=pwd_context.hash("admin123"), 
+            role="admin",
+            is_active=True
+        )
+        db.add(admin)
+        db.commit()
+    db.close()
 
     scheduler = BackgroundScheduler()
     def auto_report():
