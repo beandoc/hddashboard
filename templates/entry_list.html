@@ -20,6 +20,11 @@
         th { background:#007bff; color:white; }
         .status-done { color: #28a745; font-weight: bold; }
         .status-pending { color: #e67e22; }
+        .shift-btn { 
+            background:#eee; border:none; border-radius:6px; padding:8px 16px; 
+            cursor:pointer; font-size:0.85em; transition:all .2s; 
+        }
+        .shift-btn.active { background:#1a237e; color:#fff; font-weight:bold; }
     </style>
 </head>
 <body>
@@ -39,20 +44,31 @@
             <label>Change Month:</label>
             <input type="month" value="{{ month_str }}" onchange="location.href='/entry?month='+this.value">
         </div>
-        <table>
+
+        <!-- Shift Filter UI -->
+        <div style="display:flex;gap:10px;justify-content:center;margin-bottom:20px;">
+            <button onclick="filterShift('All')" class="shift-btn active" data-shift="All">Show All</button>
+            <button onclick="filterShift('Morning')" class="shift-btn" data-shift="Morning">Morning (सकाळी)</button>
+            <button onclick="filterShift('Afternoon')" class="shift-btn" data-shift="Afternoon">Afternoon (दुपारी)</button>
+            <button onclick="filterShift('Evening')" class="shift-btn" data-shift="Evening">Evening (संध्याकाळी)</button>
+        </div>
+
+        <table id="entryTable">
             <thead>
                 <tr>
                     <th>HID</th>
                     <th>Patient Name</th>
+                    <th>Slots</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for p in patients %}
-                <tr>
+                <tr data-slots="{{ p.hd_slot_1 }} {{ p.hd_slot_2 }} {{ p.hd_slot_3 }}">
                     <td>{{ p.hid_no }}</td>
                     <td>{{ p.name }}</td>
+                    <td style="font-size:0.75em;color:#888;">{{ p.hd_slot_1 or "" }} {{ p.hd_slot_2 or "" }}</td>
                     <td>
                         {% if p.id in existing_ids %}
                             <span class="status-done">✓ Completed</span>
@@ -72,6 +88,24 @@
     </div>
 
     <script>
+        function filterShift(shift) {
+            // Update buttons
+            document.querySelectorAll('.shift-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.shift === shift);
+            });
+
+            // Filter rows
+            const rows = document.querySelectorAll('#entryTable tbody tr');
+            rows.forEach(row => {
+                const slots = row.dataset.slots || "";
+                if (shift === 'All' || slots.includes(shift)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        }
+
         // Show a success toast if redirected after save
         const params = new URLSearchParams(window.location.search);
         if (params.get("saved") === "1") {
