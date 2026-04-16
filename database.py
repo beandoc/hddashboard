@@ -48,8 +48,8 @@ class Patient(Base):
     whatsapp_notify = Column(Boolean, default=False)
     mail_trigger = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
-    created_by = Column(String)
     updated_by = Column(String)
+    clinical_remarks = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -349,8 +349,46 @@ def api_patient_detail(patient_id: int, db: Session = Depends(get_db), user: Use
         "contact": p.contact_no, "diagnosis": p.diagnosis, 
         "access": p.access_type, "dry_weight": p.dry_weight,
         "slots": [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3],
-        "whatsapp_notify": p.whatsapp_notify
+        "whatsapp_notify": p.whatsapp_notify,
+        "clinical_remarks": p.clinical_remarks or ""
     }
+
+class PatientData(BaseModel):
+    name: str
+    contact: Optional[str] = ""
+    age: Optional[int] = None
+    gender: Optional[str] = "Male"
+    diagnosis: Optional[str] = ""
+    hd_slot_1: Optional[str] = ""
+    hd_slot_2: Optional[str] = ""
+    hd_slot_3: Optional[str] = ""
+    is_active: Optional[bool] = True
+    clinical_remarks: Optional[str] = ""
+
+@app.post("/api/patients")
+def api_create_patient(data: PatientData, db: Session = Depends(get_db), user: User = Depends(admin_only)):
+    p = Patient(
+        name=data.name, contact_no=data.contact, sex=data.gender, 
+        diagnosis=data.diagnosis, hd_slot_1=data.hd_slot_1, 
+        hd_slot_2=data.hd_slot_2, hd_slot_3=data.hd_slot_3,
+        is_active=data.is_active, clinical_remarks=data.clinical_remarks,
+        created_by=user.username
+    )
+    db.add(p)
+    db.commit()
+    return {"id": p.id, "success": True}
+
+@app.put("/api/patients/{patient_id}")
+def api_update_patient(patient_id: int, data: PatientData, db: Session = Depends(get_db), user: User = Depends(admin_only)):
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p: raise HTTPException(status_code=404)
+    p.name = data.name; p.contact_no = data.contact; p.sex = data.gender
+    p.diagnosis = data.diagnosis; p.hd_slot_1 = data.hd_slot_1
+    p.hd_slot_2 = data.hd_slot_2; p.hd_slot_3 = data.hd_slot_3
+    p.is_active = data.is_active; p.clinical_remarks = data.clinical_remarks
+    p.updated_by = user.username; p.updated_at = datetime.utcnow()
+    db.commit()
+    return {"success": True}
 
 @app.get("/api/patients/{patient_id}/timeline")
 def api_patient_timeline(patient_id: int, db: Session = Depends(get_db), user: User = Depends(any_staff)):

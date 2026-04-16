@@ -21,6 +21,7 @@ export default function PatientFormPage() {
     hd_slot_1: "",
     hd_slot_2: "",
     hd_slot_3: "",
+    clinical_remarks: "",
     is_active: true
   });
   const [loading, setLoading] = useState(isEdit);
@@ -148,7 +149,7 @@ export default function PatientFormPage() {
               <Clock size={20} /> Treatment Schedule (HD Slots)
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
               {[1, 2, 3].map(num => (
                 <div key={num} className="space-y-3">
                   <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest px-1">HD Slot {num}</label>
@@ -173,6 +174,16 @@ export default function PatientFormPage() {
                   </select>
                 </div>
               ))}
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-indigo-300 uppercase tracking-widest px-1">Clinical Background & Remarks</label>
+              <textarea 
+                value={(formData as any).clinical_remarks}
+                onChange={e => setFormData({...formData, clinical_remarks: e.target.value})}
+                className="w-full p-6 bg-white border-2 border-transparent rounded-3xl focus:border-[#1a237e] outline-hidden transition-all text-gray-900 font-medium shadow-sm min-h-[150px]"
+                placeholder="Enter detailed clinical notes, permanent issues, or treatment background..."
+              />
             </div>
           </div>
 
