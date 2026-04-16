@@ -26,8 +26,12 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/health")
 def health_check():
-    """Render health check endpoint — also used by UptimeRobot to prevent sleep."""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    """Diagnostic health check with version fingerprint."""
+    return {
+        "status": "ok", 
+        "version": "6.0.1-STABLE",
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 @app.get("/migrate-db")
 def manual_migrate():
