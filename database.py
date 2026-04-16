@@ -153,27 +153,33 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
 
-class DynamicVariableDefinition(Base):
-    __tablename__ = "dynamic_variable_definitions"
+class VariableDefinition(Base):
+    __tablename__ = "variable_definitions"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True) # e.g. 'kt_v'
     display_name = Column(String) # e.g. 'Kt/V'
     unit = Column(String)
     category = Column(String) # e.g. 'Adequacy'
+    data_type = Column(String, default="numeric") # 'numeric' or 'text'
+    decimal_places = Column(Integer, default=2)
     threshold_low = Column(Float, nullable=True)
     threshold_high = Column(Float, nullable=True)
     target_low = Column(Float, nullable=True)
     target_high = Column(Float, nullable=True)
-    is_active = Column(Boolean, default=True)
     description = Column(Text)
+    show_in_dashboard = Column(Boolean, default=False)
+    show_in_timeline = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
 
-class DynamicVariableValue(Base):
-    __tablename__ = "dynamic_variable_values"
+class VariableValue(Base):
+    __tablename__ = "variable_values"
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
-    variable_id = Column(Integer, ForeignKey("dynamic_variable_definitions.id"), index=True)
+    variable_id = Column(Integer, ForeignKey("variable_definitions.id"), index=True)
     record_month = Column(String, index=True) # YYYY-MM
-    value = Column(Float)
+    value_num = Column(Float)
+    value_text = Column(Text)
+    entered_by = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 

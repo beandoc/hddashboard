@@ -13,24 +13,24 @@ from datetime import date, datetime
 from typing import Optional
 import json
 
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal, VariableDefinition, VariableValue
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, generate_all_whatsapp_links
 from ml_analytics import run_patient_analytics, run_cohort_analytics
-import dynamic_vars
+from dynamic_vars import (get_all_variables, get_patient_variable_history, upsert_variable_value, seed_preset_variables)
 
 app = FastAPI(title="HD Dashboard")
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 @app.get("/health")
 def health_check():
     """Render health check endpoint — also used by UptimeRobot to prevent sleep."""
-    from datetime import datetime
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 def run_migrations():
-    """Auto-add new clinical columns if they don't exist (Fixes 500 errors)."""
+    """Auto-add new clinical columns and tables if they don't exist."""
     from sqlalchemy import text
     db = SessionLocal()
     migrations = [
@@ -54,15 +54,17 @@ def run_migrations():
         except Exception:
             db.rollback()
     
-    # Also seed default dynamic variables
+    # Create dynamic tables if missing and seed
     try:
-        dynamic_vars.seed_default_variables(db)
+        from database import Base, engine
+        Base.metadata.create_all(bind=engine)
+        seed_preset_variables(db)
     except Exception as e:
-        print(f"Seeding error: {e}")
+        print(f"Startup logic error: {e}")
         
     db.close()
 
-# Create tables and run migrations on startup
+# Create tables on startup
 @app.on_event("startup")
 def startup():
     create_tables()
@@ -84,7 +86,7 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
         "data": data,
         "month_str": month_str,
         "current_month": get_current_month_str(),
-        "user": {"role": "admin", "full_name": "Doctor"} # Safety dummy for templates
+        "user": {"role": "admin", "full_name": "Doctor"}
     })
 
 
@@ -321,12 +323,6 @@ def save_entry(
     av_daily_protein: Optional[float] = Form(None),
     issues: str = Form(""),
 ):
-    # Clinical Validation
-    if idwg and idwg > 15.0:
-        raise HTTPException(status_code=400, detail=f"IDWG error: {idwg} is clinically invalid. Max allowed is 15kg.")
-    if hb and hb > 25.0:
-        raise HTTPException(status_code=400, detail=f"Hemoglobin error: {hb} is clinically invalid. Max allowed is 25g/dL.")
-
     # Upsert: update if exists, else create
     rec = db.query(MonthlyRecord).filter(
         MonthlyRecord.patient_id == patient_id,
@@ -491,52 +487,182 @@ def patient_timeline(
     })
 
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# DYNAMIC VARIABLES (EAV SYSTEM)
+# DYNAMIC VARIABLE ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/variables", response_class=HTMLResponse)
 def variable_manager(request: Request, db: Session = Depends(get_db)):
-    """UI for defining vars and bulk entering data."""
-    from database import DynamicVariableDefinition
-    vars = db.query(DynamicVariableDefinition).filter(DynamicVariableDefinition.is_active == True).all()
+    """Variable manager UI — define variables, enter retrospective data."""
+    from dynamic_vars import get_all_variables
+    variables = get_all_variables(db, active_only=False)
+    patients  = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    patient_list = [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
+    vars_json    = [
+        {
+            "id": v.id, "name": v.name, "display_name": v.display_name,
+            "unit": v.unit, "category": v.category, "data_type": v.data_type,
+            "decimal_places": v.decimal_places,
+            "threshold_low": v.threshold_low, "threshold_high": v.threshold_high,
+            "target_low": v.target_low, "target_high": v.target_high,
+            "description": v.description,
+            "show_in_dashboard": v.show_in_dashboard,
+            "show_in_timeline": v.show_in_timeline,
+            "is_active": v.is_active,
+        }
+        for v in variables
+    ]
+    from dashboard_logic import get_current_month_str
+    current = get_current_month_str()
+    # Fixed year calculation:
+    curr_yr_int = int(current[:4])
+    prev_year = f"{curr_yr_int-1}-{current[5:]}"
+    
     return templates.TemplateResponse("variable_manager.html", {
-        "request": request,
-        "variables": vars,
+        "request":       request,
+        "variables":     variables,
+        "variables_json": vars_json,
+        "patients":      patient_list,
+        "default_from":  prev_year,
+        "default_to":    current,
         "user": {"role": "admin", "full_name": "Doctor"}
     })
 
-@app.get("/api/variables")
-def get_variables(db: Session = Depends(get_db)):
-    from database import DynamicVariableDefinition
-    vars = db.query(DynamicVariableDefinition).all()
-    return vars
 
-@app.get("/api/variable-data-grid/{variable_id}")
-def get_variable_grid(variable_id: int, start: str, end: str, db: Session = Depends(get_db)):
-    # Helper to generate month list
-    try:
-        s_yr, s_mo = map(int, start.split('-'))
-        e_yr, e_mo = map(int, end.split('-'))
-        months = []
-        curr_yr, curr_mo = s_yr, s_mo
-        while (curr_yr < e_yr) or (curr_yr == e_yr and curr_mo <= e_mo):
-            months.append(f"{curr_yr}-{curr_mo:02d}")
-            curr_mo += 1
-            if curr_mo > 12: curr_mo = 1; curr_yr += 1
-        
-        grid = dynamic_vars.get_variable_data_grid(db, variable_id, months)
-        return {"months": months, "grid": grid}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+@app.post("/api/variables")
+def create_variable(payload: dict, db: Session = Depends(get_db)):
+    """Create a new custom variable definition."""
+    from database import VariableDefinition
+    existing = db.query(VariableDefinition).filter(
+        VariableDefinition.name == payload.get("name")
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Variable '{payload['name']}' already exists.")
+    v = VariableDefinition(**{k: payload.get(k) for k in [
+        "name","display_name","unit","category","data_type","decimal_places",
+        "threshold_low","threshold_high","target_low","target_high",
+        "description","show_in_dashboard","show_in_timeline"
+    ] if payload.get(k) is not None})
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+    return {"id": v.id, "message": "Variable created"}
 
-@app.post("/api/variable-values/{variable_id}")
-async def save_variable_grid(variable_id: int, request: Request, db: Session = Depends(get_db)):
-    data = await request.json() # list of {patient_id, month, value}
-    dynamic_vars.save_variable_values(db, variable_id, data)
-    return {"status": "ok"}
 
-@app.get("/api/analytics/dynamic/{variable_id}")
-def get_dynamic_analytics(variable_id: int, db: Session = Depends(get_db)):
-    data = dynamic_vars.get_dynamic_variable_analytics(db, variable_id)
-    return data
+@app.put("/api/variables/{var_id}")
+def update_variable(var_id: int, payload: dict, db: Session = Depends(get_db)):
+    """Update an existing variable definition."""
+    from database import VariableDefinition
+    v = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not v:
+        raise HTTPException(status_code=404)
+    for field in ["display_name","unit","category","data_type","decimal_places",
+                  "threshold_low","threshold_high","target_low","target_high",
+                  "description","show_in_dashboard","show_in_timeline"]:
+        if field in payload:
+            setattr(v, field, payload[field])
+    db.commit()
+    return {"message": "Updated"}
+
+
+@app.post("/api/variables/{var_id}/toggle")
+def toggle_variable(var_id: int, db: Session = Depends(get_db)):
+    """Activate or deactivate a variable."""
+    from database import VariableDefinition
+    v = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not v:
+        raise HTTPException(status_code=404)
+    v.is_active = not v.is_active
+    db.commit()
+    return {"is_active": v.is_active}
+
+
+@app.post("/api/variables/value")
+def save_variable_value(payload: dict, db: Session = Depends(get_db)):
+    """Upsert a single variable value for a patient-month."""
+    upsert_variable_value(
+        db=db,
+        patient_id=payload["patient_id"],
+        month_str=payload["record_month"],
+        variable_id=payload["variable_id"],
+        value_num=payload.get("value_num"),
+        value_text=payload.get("value_text"),
+        entered_by=payload.get("entered_by", ""),
+    )
+    return {"message": "Saved"}
+
+
+@app.get("/api/variables/{var_id}/values")
+def get_variable_values(
+    var_id: int,
+    from_month: str = None,
+    to_month: str = None,
+    db: Session = Depends(get_db)
+):
+    """Get all values for a variable, optionally filtered by month range."""
+    from database import VariableValue
+    q = db.query(VariableValue).filter(VariableValue.variable_id == var_id)
+    if from_month:
+        q = q.filter(VariableValue.record_month >= from_month)
+    if to_month:
+        q = q.filter(VariableValue.record_month <= to_month)
+    rows = q.all()
+    # Return as {patient_id: {month: value}}
+    result = {}
+    for r in rows:
+        pid = str(r.patient_id)
+        if pid not in result:
+            result[pid] = {}
+        result[pid][r.record_month] = r.value_num if r.value_num is not None else r.value_text
+    return JSONResponse(result)
+
+
+@app.get("/api/variables/{var_id}/summary")
+def get_variable_summary(var_id: int, db: Session = Depends(get_db)):
+    """Summary data for viewing: latest per patient + trend over time."""
+    from database import VariableDefinition, VariableValue
+    import numpy as np
+
+    vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not vdef:
+        raise HTTPException(status_code=404)
+
+    all_vals = db.query(VariableValue).filter(VariableValue.variable_id == var_id).all()
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
+
+    # Latest value per patient
+    patient_latest = {}
+    for v in all_vals:
+        if v.patient_id not in patient_latest or v.record_month > patient_latest[v.patient_id]["month"]:
+            patient_latest[v.patient_id] = {"month": v.record_month, "value": v.value_num}
+
+    patient_summary = []
+    for p in patients:
+        latest = patient_latest.get(p.id)
+        patient_summary.append({
+            "id": p.id, "name": p.name, "hid": p.hid_no,
+            "latest_value": latest["value"] if latest else None,
+            "latest_month": latest["month"] if latest else None,
+        })
+    patient_summary.sort(key=lambda x: (x["latest_value"] or 0), reverse=True)
+
+    # Monthly median trend
+    from collections import defaultdict
+    monthly = defaultdict(list)
+    for v in all_vals:
+        if v.value_num is not None:
+            monthly[v.record_month].append(v.value_num)
+
+    trend = []
+    for month in sorted(monthly.keys()):
+        vals = monthly[month]
+        trend.append({
+            "month":  month,
+            "median": round(float(np.median(vals)), 2),
+            "p25":    round(float(np.percentile(vals, 25)), 2),
+            "p75":    round(float(np.percentile(vals, 75)), 2),
+            "n":      len(vals),
+        })
+
+    return JSONResponse({"patients": patient_summary, "trend": trend})
