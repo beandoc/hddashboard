@@ -283,16 +283,17 @@ def api_bulk_entries(records: List[dict], db: Session = Depends(get_db), user: U
                 print(f"CRITICAL ALERT ERROR: {e}")
 
         import threading
+        p_obj = None # Initialize
         if rec.hb and rec.hb < 7.0:
-            p_obj = p_obj or db.query(Patient).filter(Patient.id == pid).first()
+            p_obj = db.query(Patient).filter(Patient.id == pid).first()
             threading.Thread(target=trigger_alerts, args=(p_obj.name, "Hemoglobin", rec.hb)).start()
         
         if rec.phosphorus and rec.phosphorus > 7.0:
-            p_obj = p_obj or db.query(Patient).filter(Patient.id == pid).first()
+            if not p_obj: p_obj = db.query(Patient).filter(Patient.id == pid).first()
             threading.Thread(target=trigger_alerts, args=(p_obj.name, "Serum Phosphorus", rec.phosphorus)).start()
         
         if rec.idwg and rec.idwg > 3.5:
-            p_obj = p_obj or db.query(Patient).filter(Patient.id == pid).first()
+            if not p_obj: p_obj = db.query(Patient).filter(Patient.id == pid).first()
             threading.Thread(target=trigger_alerts, args=(p_obj.name, "IDWG (Fluid Overload)", rec.idwg)).start()
     
     db.commit()
