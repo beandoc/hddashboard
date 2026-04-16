@@ -6,11 +6,12 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
 from pydantic import BaseModel
+from typing import Optional, List
 import json
 import re
 import statistics
 
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, User
+from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, User, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email
 from tasks import task_send_bulk_whatsapp, task_send_ward_email, task_send_schedule_reminder
@@ -93,16 +94,21 @@ def login_page(request: Request):
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse("login.html", {"request": request})
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
 @app.post("/login")
-def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
-    username = login_data.username
-    password = login_data.password
-    
-    # Emergency fallback check in case startup logic was missed
+async def login(request: Request, db: Session = Depends(get_db)):
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        data = await request.json()
+        username = data.get("username")
+        password = data.get("password")
+        is_json = True
+    else:
+        form = await request.form()
+        username = form.get("username")
+        password = form.get("password")
+        is_json = False
+
+    # Emergency fallback check for admin
     user = db.query(User).filter(User.username == username).first()
     if not user and username == "admin":
         admin = User(
@@ -117,18 +123,22 @@ def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_
         user = admin
 
     if not user or not pwd_context.verify(password, user.hashed_password):
-        return JSONResponse({"success": False, "detail": "Invalid clinical credentials. Please check your username/password."}, status_code=401)
+        msg = "Invalid clinical credentials. Please check your username/password."
+        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=401)
+        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
     
     if not user.is_active:
-        return JSONResponse({"success": False, "detail": "Clinical account inactive."}, status_code=403)
+        msg = "Clinical account inactive."
+        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=403)
+        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
 
     request.session["user"] = user.username
     request.session["role"] = user.role
     
-    return JSONResponse({
-        "success": True, 
-        "user": {"username": user.username, "role": user.role}
-    })
+    if is_json:
+        return JSONResponse({"success": True, "user": {"username": user.username, "role": user.role}})
+    
+    return RedirectResponse(url="/", status_code=303)
 
 @app.get("/logout")
 def logout(request: Request):
