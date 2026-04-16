@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -22,7 +22,7 @@ export default function LoginPage() {
       formData.append("username", username);
       formData.append("password", password);
 
-      const response = await fetch("http://localhost:8000/login", {
+      const response = await fetch(`${API_BASE}/login`, {
         method: "POST",
         body: formData,
         headers: {
