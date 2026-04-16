@@ -342,9 +342,9 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), # Removed user de
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/api/me")
-def api_me(user: User = Depends(get_current_user)):
-    if not user: return JSONResponse({"logged_in": False})
-    return {"logged_in": True, "username": user.username, "full_name": user.full_name, "role": user.role}
+def api_me(): # Removed user dep
+    # if not user: return JSONResponse({"logged_in": False})
+    return {"logged_in": False}
 
 @app.get("/api/patients")
 def api_patients(q: str = "", db: Session = Depends(get_db)): # Removed user dep
@@ -479,40 +479,11 @@ def api_cohort_trends(db: Session = Depends(get_db)): # Removed user dep
 # USER MANAGEMENT (ADMIN ONLY)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/admin/users", response_class=HTMLResponse)
-def user_management(request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only)):
-    users = db.query(User).all()
-    return templates.TemplateResponse("admin_users.html", {"request": request, "users": users, "user": user})
-
-@app.post("/admin/users/new")
-def create_user(request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only),
-                username: str = Form(...), full_name: str = Form(...), password: str = Form(...), role: str = Form(...)):
-    if db.query(User).filter(User.username == username).first():
-        raise HTTPException(status_code=400, detail="Username exists")
-    new_user = User(username=username, full_name=full_name, hashed_password=pwd_context.hash(password), role=role)
-    db.add(new_user); db.commit()
-    return RedirectResponse(url="/admin/users", status_code=303)
-
-@app.post("/admin/users/{user_id}/deactivate")
-def deactivate_user(user_id: int, db: Session = Depends(get_db), user: User = Depends(admin_only)):
-    target = db.query(User).filter(User.id == user_id).first()
-    if target and target.username != user.username:
-        target.is_active = False; db.commit()
-    return RedirectResponse(url="/admin/users", status_code=303)
-
-@app.get("/account/password", response_class=HTMLResponse)
-def change_password_page(request: Request, user: User = Depends(login_required)):
-    return templates.TemplateResponse("change_password.html", {"request": request, "user": user})
-
-@app.post("/account/password")
-def change_password(request: Request, db: Session = Depends(get_db), user: User = Depends(login_required),
-                    current_pw: str = Form(...), new_pw: str = Form(...), confirm_pw: str = Form(...)):
-    if not pwd_context.verify(current_pw, user.hashed_password):
-        return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": "Incorrect current password"})
-    if new_pw != confirm_pw:
-        return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": "Passwords do not match"})
-    user.hashed_password = pwd_context.hash(new_pw); db.commit()
-    return RedirectResponse(url="/", status_code=303)
+# @app.get("/admin/users", ...)
+# @app.post("/admin/users/new", ...)
+# @app.post("/admin/users/{user_id}/deactivate", ...)
+# @app.get("/account/password", ...)
+# @app.post("/account/password", ...)
 
 # ── SCHEDULER ──
 def migrate_db():
