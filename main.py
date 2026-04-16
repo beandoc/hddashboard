@@ -171,7 +171,7 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
 def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(doctor_or_admin)):
     month_str = month or get_current_month_str()
     data = compute_dashboard(db, month_str)
-    return JSONResponse(content=data)
+    return data
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PATIENTS
