@@ -230,6 +230,11 @@ def send_ward_email(alert_patients: list, month_label: str, year: str) -> tuple[
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_USER, DOCTOR_EMAIL, msg.as_string())
 
+        return True, "Ward report email sent successfully"
+    except Exception as e:
+        logger.error(f"Failed to send ward email: {e}")
+        return False, str(e)
+
 def get_date_for_slot(slot_str: str) -> str:
     """Convert 'Mon Morning' to '10 Apr' format for the current week."""
     import calendar
