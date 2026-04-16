@@ -19,6 +19,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+import threading
 
 app = FastAPI(title="HD Dashboard")
 
@@ -29,8 +30,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", "clinical-secret-99-super-harden")
 app.add_middleware(
     SessionMiddleware, 
     secret_key=SECRET_KEY,
-    same_site="none",
-    https_only=True
+    same_site="lax",
+    https_only=False
 )
 
 templates = Jinja2Templates(directory="templates")
@@ -543,7 +544,9 @@ def migrate_db():
         ("monthly_records", "target_dry_weight", "FLOAT"),
         ("monthly_records", "updated_at", "TIMESTAMP"),
         ("monthly_records", "entered_by", "VARCHAR"),
-        ("users", "is_active", "BOOLEAN DEFAULT TRUE")
+        ("users", "is_active", "BOOLEAN DEFAULT TRUE"),
+        ("patients", "created_by", "VARCHAR"),
+        ("patients", "clinical_remarks", "TEXT")
     ]
     for table, col, col_type in migrations:
         try:

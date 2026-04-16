@@ -51,6 +51,8 @@ class Patient(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(String)
+    created_by = Column(String)
+    clinical_remarks = Column(Text)
 
     records = relationship("MonthlyRecord", back_populates="patient", cascade="all, delete-orphan")
 
