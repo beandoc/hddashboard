@@ -532,7 +532,10 @@ def variable_manager(request: Request, db: Session = Depends(get_db)):
     from dynamic_vars import get_all_variables
     variables = get_all_variables(db, active_only=False)
     patients  = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    patient_list = [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
+    patient_list = [
+        {"id": p.id, "name": p.name, "hid": p.hid_no, "hd_slot_1": p.hd_slot_1, "hd_slot_2": p.hd_slot_2} 
+        for p in patients
+    ]
     vars_json    = [
         {
             "id": v.id, "name": v.name, "display_name": v.display_name,
