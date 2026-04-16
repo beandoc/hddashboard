@@ -30,9 +30,8 @@ def health_check():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
 def run_migrations():
-    """Auto-add new clinical columns and tables if they don't exist."""
+    """Force-add missing clinical columns directly via raw engine connection."""
     from sqlalchemy import text
-    db = SessionLocal()
     migrations = [
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS dialysis_vintage_months INTEGER DEFAULT 0",
         "ALTER TABLE patients ADD COLUMN IF NOT EXISTS primary_diagnosis VARCHAR",
@@ -47,22 +46,25 @@ def run_migrations():
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS hb_hematocrit FLOAT",
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS iron_iv_supplement BOOLEAN DEFAULT FALSE"
     ]
-    for m in migrations:
-        try:
-            db.execute(text(m))
-            db.commit()
-        except Exception:
-            db.rollback()
     
-    # Create dynamic tables if missing and seed
+    with engine.connect() as conn:
+        for m in migrations:
+            try:
+                conn.execute(text(m))
+                conn.commit()
+            except Exception as e:
+                print(f"Migration skip/error: {m} -> {e}")
+                conn.rollback()
+    
+    # Create dynamic tables and seed presets
     try:
-        from database import Base, engine
+        from database import Base
         Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
         seed_preset_variables(db)
+        db.close()
     except Exception as e:
-        print(f"Startup logic error: {e}")
-        
-    db.close()
+        print(f"Dynamic table init error: {e}")
 
 # Create tables on startup
 @app.on_event("startup")
