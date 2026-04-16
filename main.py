@@ -397,6 +397,15 @@ def save_entry(
         )
         db.add(rec)
     db.commit()
+
+    # CRITICAL CLINICAL SENTINEL: Auto-trigger alert if values are life-threatening
+    if hb and hb < 6.0:
+        from alerts import send_critical_clinical_alert
+        send_critical_clinical_alert(p.name, "Hemoglobin", hb)
+    if phosphorus and phosphorus > 8.0:
+        from alerts import send_critical_clinical_alert
+        send_critical_clinical_alert(p.name, "Phosphorus", phosphorus)
+
     return RedirectResponse(url=f"/entry?month={month_str}", status_code=303)
 
 
