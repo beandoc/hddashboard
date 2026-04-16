@@ -86,14 +86,22 @@ def login_page(request: Request):
 @app.post("/login")
 def login(request: Request, db: Session = Depends(get_db), username: str = Form(...), password: str = Form(...)):
     user = db.query(User).filter(User.username == username).first()
+    
+    # Check if request is from the new React frontend (it usually sends Accept: application/json or similar)
+    is_json = "application/json" in request.headers.get("accept", "") or "vercel" in request.headers.get("origin", "")
+
     if not user or not pwd_context.verify(password, user.hashed_password):
+        if is_json: return JSONResponse({"success": False, "detail": "Invalid credentials"}, status_code=401)
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid clinical credentials"})
     
     if not user.is_active:
+        if is_json: return JSONResponse({"success": False, "detail": "Account deactivated"}, status_code=403)
         return templates.TemplateResponse("login.html", {"request": request, "error": "Account deactivated by admin"})
 
     request.session["user"] = user.username
     request.session["role"] = user.role
+    
+    if is_json: return JSONResponse({"success": True, "user": {"username": user.username, "role": user.role}})
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/logout")
