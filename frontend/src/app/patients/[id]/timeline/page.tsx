@@ -88,7 +88,7 @@ export default function PatientTimelinePage() {
 
                 {entry.issues && (
                   <div className="mt-8 p-6 bg-gray-50 rounded-2xl border border-gray-100 italic text-gray-600 text-sm leading-relaxed">
-                    " {entry.issues} "
+                    &quot;{entry.issues}&quot;
                   </div>
                 )}
               </div>
