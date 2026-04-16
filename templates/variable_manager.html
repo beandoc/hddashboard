@@ -1,274 +1,765 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Clinical Variable Manager | HD Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-  <style>
-    :root {
-      --primary: #1a237e;
-      --accent: #3949ab;
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #1e293b;
-      --border: #e2e8f0;
-      --success: #10b981;
-      --danger: #ef4444;
-    }
-    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
-    
-    .app-nav { background: var(--primary); color: white; padding: 0 24px; height: 50px; display: flex; align-items: center; justify-content: space-between; }
-    .brand { font-weight: 600; font-size: 0.9rem; letter-spacing: 0.02em; }
-    .nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.8rem; margin-left: 15px; text-transform: uppercase; font-weight: 500; }
-    .nav-links a:hover { color: white; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Variable Manager — HD Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+:root {
+  --blue:#007bff; --red:#c62828; --green:#2e7d32; --orange:#e65100;
+  --bg:#f4f7fa; --white:#fff; --border:#eee; --ink:#1e2d3d;
+  --shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Roboto',sans-serif; background:var(--bg); color:var(--ink); }
 
-    .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-    .header { margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .header h1 { margin: 0; font-size: 1.8rem; font-weight: 700; color: var(--primary); }
-    .header p { margin: 5px 0 0; color: #64748b; font-size: 0.9rem; }
+nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:100; }
+nav .brand { color:rgba(255,255,255,0.7); font-size:0.85rem; }
+nav .links { display:flex; gap:4px; }
+nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+nav a:hover, nav a.active { color:#fff; background:rgba(255,255,255,0.12); }
 
-    .tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
-    .tab { padding: 10px 15px; cursor: pointer; font-weight: 500; font-size: 0.9rem; color: #64748b; border-bottom: 2px solid transparent; transition: all 0.2s; }
-    .tab.active { color: var(--primary); border-color: var(--primary); }
+.page { max-width:1300px; margin:0 auto; padding:24px 20px 60px; }
+.page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.page-header h1 { font-size:1.6em; font-weight:700; }
+.page-header p { font-size:0.85em; color:#666; margin-top:3px; }
 
-    .card { background: var(--card); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); padding: 24px; margin-bottom: 30px; }
+/* TABS */
+.tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:24px; }
+.tab-btn { background:none; border:none; padding:10px 24px; font-size:0.88em; font-weight:500; color:#888; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all .15s; font-family:'Roboto',sans-serif; }
+.tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
 
-    /* Variable Definitions Table */
-    .var-table { width: 100%; border-collapse: collapse; }
-    .var-table th { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); color: #64748b; font-size: 0.75rem; text-transform: uppercase; }
-    .var-table td { padding: 15px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-    .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
-    .badge-gray { background: #f1f5f9; color: #475569; }
+/* CARDS */
+.card { background:var(--white); border-radius:10px; box-shadow:var(--shadow); padding:22px 26px; margin-bottom:16px; }
+.card h2 { font-size:1em; font-weight:600; margin-bottom:16px; color:var(--ink); }
+.section-label { font-size:0.68em; text-transform:uppercase; letter-spacing:0.1em; color:#999; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid var(--border); }
 
-    /* Data Entry Grid */
-    .grid-controls { display: flex; gap: 15px; align-items: center; margin-bottom: 20px; }
-    .grid-container { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: white; }
-    .data-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    .data-grid th, .data-grid td { border: 1px solid #f1f5f9; padding: 0; }
-    .data-grid th { background: #f8fafc; padding: 10px; font-size: 0.75rem; font-weight: 600; text-align: center; }
-    .data-grid .name-col { width: 180px; text-align: left; padding: 10px; font-size: 0.85rem; font-weight: 500; position: sticky; left: 0; background: white; z-index: 10; border-right: 2px solid var(--border); }
-    .data-grid input { width: 100%; border: none; padding: 10px; text-align: center; font-family: inherit; font-size: 0.85rem; outline: none; transition: background 0.1s; }
-    .data-grid input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px var(--accent); }
-    .data-grid input.changed { background: #ecfdf5; }
+/* FORMS */
+.form-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+.form-grid.two { grid-template-columns:1fr 1fr; }
+.form-grid.four { grid-template-columns:1fr 1fr 1fr 1fr; }
+.span-2 { grid-column:span 2; }
+.span-3 { grid-column:span 3; }
+.field { display:flex; flex-direction:column; gap:5px; }
+label { font-size:0.72em; font-weight:500; color:#666; text-transform:uppercase; letter-spacing:0.05em; }
+input[type="text"], input[type="number"], select, textarea {
+  border:1.5px solid #ddd; border-radius:7px; padding:8px 12px;
+  font-family:'Roboto',sans-serif; font-size:0.88em; color:var(--ink);
+  background:var(--white); outline:none; transition:border-color .15s; width:100%;
+}
+input:focus, select:focus, textarea:focus { border-color:var(--blue); }
+textarea { resize:vertical; min-height:70px; }
+.hint { font-size:0.7em; color:#aaa; margin-top:3px; }
 
-    select, input[type="month"] { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; font-size: 0.85rem; outline: none; }
-    .btn { padding: 10px 20px; border-radius: 8px; font-weight: 500; font-size: 0.85rem; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-primary { background: var(--primary); color: white; }
-    .btn-primary:hover { background: var(--accent); }
-    .btn-success { background: var(--success); color: white; }
-    
-    #saveStatus { font-size: 0.8rem; font-weight: 500; }
-    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.7); z-index: 100; align-items: center; justify-content: center; font-weight: 600; color: var(--primary); }
-  </style>
+/* BUTTONS */
+.btn { display:inline-flex; align-items:center; gap:6px; padding:9px 20px; border-radius:7px; font-size:0.85em; font-weight:500; border:none; cursor:pointer; transition:all .18s; font-family:'Roboto',sans-serif; text-decoration:none; }
+.btn-primary { background:var(--blue); color:#fff; }
+.btn-primary:hover { background:#0056b3; }
+.btn-success { background:var(--green); color:#fff; }
+.btn-success:hover { background:#1b5e20; }
+.btn-danger { background:#ffebee; color:var(--red); border:1px solid #ffcdd2; }
+.btn-sm { padding:5px 12px; font-size:0.78em; }
+.btn-ghost { background:#f0f4ff; color:var(--blue); }
+
+/* VARIABLE CARDS GRID */
+.vars-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+.var-card { background:var(--white); border-radius:10px; box-shadow:var(--shadow); padding:18px; border-left:4px solid var(--blue); }
+.var-card .var-name { font-weight:600; font-size:0.95em; margin-bottom:3px; }
+.var-card .var-meta { font-size:0.75em; color:#888; margin-bottom:10px; }
+.var-card .var-thresholds { font-size:0.75em; color:#555; margin-bottom:12px; line-height:1.6; }
+.var-card .var-actions { display:flex; gap:8px; }
+.category-badge { display:inline-block; font-size:0.65em; padding:2px 7px; border-radius:3px; font-weight:500; margin-left:6px; }
+.cat-Lab     { background:#e3f2fd; color:#1565c0; }
+.cat-Vitals  { background:#e8f5e9; color:#2e7d32; }
+.cat-Clinical{ background:#fff3e0; color:#e65100; }
+.cat-Adequacy{ background:#f3e5f5; color:#6a1b9a; }
+.cat-Score   { background:#fce4ec; color:#c62828; }
+.cat-Other   { background:#f5f5f5; color:#555; }
+
+/* DATA ENTRY TABLE */
+.retro-table-wrap { overflow:auto; }
+.retro-table { width:100%; border-collapse:collapse; font-size:0.82em; }
+.retro-table thead tr { background:var(--blue); color:#fff; }
+.retro-table th { padding:10px 12px; text-align:left; font-size:0.72em; text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap; }
+.retro-table tbody tr { border-bottom:1px solid var(--border); }
+.retro-table tbody tr:hover { background:#f9fbff; }
+.retro-table td { padding:8px 10px; vertical-align:middle; }
+.patient-name-cell { font-weight:500; color:var(--ink); }
+.hid-cell { font-size:0.75em; color:#999; }
+.month-input { width:90px; border:1.5px solid #ddd; border-radius:5px; padding:5px 8px; font-family:'Roboto',sans-serif; font-size:0.85em; text-align:center; }
+.month-input:focus { border-color:var(--blue); outline:none; }
+.month-input.has-value { background:#f0f9f0; border-color:#81c784; }
+.month-input.alert-value { background:#fff3e0; border-color:#ffb74d; }
+
+/* TOAST */
+.toast { position:fixed; bottom:24px; right:24px; background:var(--green); color:#fff; padding:12px 20px; border-radius:8px; font-size:0.88em; z-index:999; box-shadow:0 4px 12px rgba(0,0,0,0.2); display:none; }
+.toast.error { background:var(--red); }
+
+/* MODAL */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:500; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--white); border-radius:12px; padding:28px 32px; max-width:560px; width:95%; box-shadow:0 8px 40px rgba(0,0,0,0.2); }
+.modal h3 { font-size:1.1em; margin-bottom:18px; }
+.modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+
+/* SEARCH */
+.search-row { display:flex; gap:10px; margin-bottom:16px; align-items:center; }
+.search-input { border:1.5px solid #ddd; border-radius:7px; padding:8px 14px; font-family:'Roboto',sans-serif; font-size:0.88em; outline:none; width:260px; }
+.search-input:focus { border-color:var(--blue); }
+
+/* STATUS INDICATOR */
+.save-status { font-size:0.75em; color:var(--green); margin-left:8px; display:none; }
+
+@media(max-width:768px) {
+  .form-grid { grid-template-columns:1fr 1fr; }
+  .form-grid.four { grid-template-columns:1fr 1fr; }
+}
+</style>
 </head>
 <body>
 
-<div class="app-nav">
-  <span class="brand">HD DASHBOARD | Clinical Intelligence</span>
-  <div class="nav-links">
+<nav>
+  <span class="brand">HD Dashboard — Variable Manager</span>
+  <div class="links">
     <a href="/">Dashboard</a>
-    <a href="/variables">Variables</a>
     <a href="/patients">Patients</a>
     <a href="/entry">Data Entry</a>
+    <a href="/variables" class="active">Variables</a>
   </div>
-</div>
+</nav>
 
-<div class="loading-overlay" id="loader">Processing Clinical Data...</div>
-
-<div class="container">
-  <div class="header">
+<div class="page">
+  <div class="page-header">
     <div>
-      <h1>Clinical Variable Manager</h1>
-      <p>Define new parameters and back-fill historical data for research analysis.</p>
+      <h1>🧬 Variable Manager</h1>
+      <p>Define new clinical variables and enter retrospective data — no coding required</p>
     </div>
-    <div id="saveStatus"></div>
-    <button class="btn btn-primary" onclick="window.location.reload()">
-      <span class="material-icons">refresh</span> Sync Definitions
-    </button>
+    <button class="btn btn-primary" onclick="openNewVarModal()">+ Define New Variable</button>
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('definitions')">Definitions</div>
-    <div class="tab" onclick="switchTab('bulk-entry')">Retrospective Entry</div>
+    <button class="tab-btn active" onclick="switchTab('defined')">Defined Variables</button>
+    <button class="tab-btn" onclick="switchTab('entry')">Retrospective Data Entry</button>
+    <button class="tab-btn" onclick="switchTab('view')">View Data by Variable</button>
   </div>
 
-  <!-- TAB 1: DEFINITIONS -->
-  <div id="definitions-view" class="card">
-    <table class="var-table">
-      <thead>
-        <tr>
-          <th>Variable</th>
-          <th>Category</th>
-          <th>Unit</th>
-          <th>Thresholds</th>
-          <th>Target Range</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for v in variables %}
-        <tr>
-          <td>
-            <strong>{{ v.display_name }}</strong><br/>
-            <small style="color:#64748b">{{ v.name }}</small>
-          </td>
-          <td><span class="badge badge-gray">{{ v.category }}</span></td>
-          <td>{{ v.unit or '—' }}</td>
-          <td>
-            <small>
-              Low: {{ v.threshold_low or '—' }}<br/>
-              High: {{ v.threshold_high or '—' }}
-            </small>
-          </td>
-          <td>
-            <small>
-              {{ v.target_low or '—' }} to {{ v.target_high or '—' }}
-            </small>
-          </td>
-          <td>
-            <span class="badge" style="background:#dcfce7; color:#166534">Active</span>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
-      <button class="btn btn-primary" onclick="alert('Manual Definition UI is being enabled. Please use the API or Seeder for now.')">
-        <span class="material-icons">add</span> Define New Variable
-      </button>
+  <!-- TAB 1: DEFINED VARIABLES -->
+  <div id="tab-defined" class="tab-panel active">
+    <div class="vars-grid" id="varsGrid">
+      {% for v in variables %}
+      <div class="var-card" id="varcard-{{ v.id }}">
+        <div class="var-name">
+          {{ v.display_name }}
+          <span class="category-badge cat-{{ v.category }}">{{ v.category }}</span>
+        </div>
+        <div class="var-meta">
+          {{ v.unit or "no unit" }} &nbsp;·&nbsp;
+          {{ v.data_type }} &nbsp;·&nbsp;
+          <span style="color:{% if v.is_active %}var(--green){% else %}#bbb{% endif %}">
+            {% if v.is_active %}active{% else %}inactive{% endif %}
+          </span>
+        </div>
+        <div class="var-thresholds">
+          {% if v.threshold_low %}⬇ Alert below {{ v.threshold_low }} {{ v.unit }}<br/>{% endif %}
+          {% if v.threshold_high %}⬆ Alert above {{ v.threshold_high }} {{ v.unit }}<br/>{% endif %}
+          {% if v.description %}<span style="color:#aaa">{{ v.description[:80] }}{% if v.description|length > 80 %}…{% endif %}</span>{% endif %}
+        </div>
+        <div class="var-actions">
+          <button class="btn btn-sm btn-ghost" onclick="editVariable({{ v.id }})">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="toggleVariable({{ v.id }}, {{ 'false' if v.is_active else 'true' }})">
+            {% if v.is_active %}Deactivate{% else %}Activate{% endif %}
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not variables %}
+      <div style="grid-column:span 3;text-align:center;padding:40px;color:#aaa">
+        No variables defined yet. Click "Define New Variable" to start.
+      </div>
+      {% endif %}
     </div>
   </div>
 
-  <!-- TAB 2: BULK ENTRY -->
-  <div id="bulk-entry-view" class="card" style="display: none;">
-    <div class="grid-controls">
-      <select id="varSelect">
-        <option value="">Select Variable...</option>
-        {% for v in variables %}
-        <option value="{{ v.id }}">{{ v.display_name }}</option>
-        {% endfor %}
-      </select>
-      
-      <label style="font-size: 0.8rem; color: #64748b;">From:</label>
-      <input type="month" id="startMonth" value="2024-11">
-      
-      <label style="font-size: 0.8rem; color: #64748b;">To:</label>
-      <input type="month" id="endMonth" value="2025-04">
-      
-      <button class="btn btn-primary" onclick="loadGrid()">
-        <span class="material-icons">grid_on</span> Load Data Grid
-      </button>
-      
-      <button class="btn btn-success" id="saveGridBtn" onclick="saveGrid()" disabled>
-        <span class="material-icons">save</span> Save All Changes
-      </button>
+  <!-- TAB 2: RETROSPECTIVE DATA ENTRY -->
+  <div id="tab-entry" class="tab-panel">
+    <div class="card">
+      <div class="section-label">Select Variable & Month Range</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Variable</label>
+          <select id="entryVarSelect" onchange="loadRetroTable()">
+            <option value="">— select variable —</option>
+            {% for v in variables %}
+            <option value="{{ v.id }}" data-unit="{{ v.unit }}" data-type="{{ v.data_type }}"
+                    data-low="{{ v.threshold_low or '' }}" data-high="{{ v.threshold_high or '' }}">
+              {{ v.display_name }} {% if v.unit %}({{ v.unit }}){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>From Month</label>
+          <input type="month" id="entryFromMonth" value="{{ default_from }}" onchange="loadRetroTable()"/>
+        </div>
+        <div class="field">
+          <label>To Month</label>
+          <input type="month" id="entryToMonth" value="{{ default_to }}" onchange="loadRetroTable()"/>
+        </div>
+      </div>
     </div>
 
-    <div class="grid-container">
-      <table class="data-grid" id="entryGrid">
-        <!-- Generated via Javascript -->
-      </table>
+    <div id="retroTableWrap" style="display:none">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div>
+            <span id="entryVarTitle" style="font-weight:600"></span>
+            <span class="save-status" id="autoSaveStatus">✓ Saved</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div class="search-row" style="margin:0">
+              <input type="text" class="search-input" placeholder="Search patient…"
+                     oninput="filterRetroTable(this.value)"/>
+            </div>
+            <button class="btn btn-success" onclick="saveAllValues()">💾 Save All</button>
+          </div>
+        </div>
+
+        <div class="retro-table-wrap">
+          <table class="retro-table" id="retroTable">
+            <thead>
+              <tr id="retroTableHead">
+                <th>Patient</th>
+                <!-- Month columns injected by JS -->
+              </tr>
+            </thead>
+            <tbody id="retroTableBody">
+              <!-- Rows injected by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:14px;font-size:0.78em;color:#888">
+          💡 Type values directly into cells. Click "Save All" or press Tab to auto-save.
+          Existing values shown in green. Leave blank for missing data.
+        </div>
+      </div>
     </div>
-    
-    <p style="font-size: 0.75rem; color: #64748b; margin-top: 15px;">
-      <span class="material-icons" style="font-size: 1rem; vertical-align: middle;">info</span> 
-      Cells auto-highlight when value is changed. Click 'Save All Changes' to commit to database.
-    </p>
+  </div>
+
+  <!-- TAB 3: VIEW DATA BY VARIABLE -->
+  <div id="tab-view" class="tab-panel">
+    <div class="card">
+      <div class="form-grid two">
+        <div class="field">
+          <label>Variable to View</label>
+          <select id="viewVarSelect" onchange="loadVariableChart()">
+            <option value="">— select variable —</option>
+            {% for v in variables %}
+            <option value="{{ v.id }}" data-name="{{ v.display_name }}" data-unit="{{ v.unit }}">
+              {{ v.display_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>View Type</label>
+          <select id="viewType" onchange="loadVariableChart()">
+            <option value="cohort">Cohort Distribution (all patients, latest month)</option>
+            <option value="trend">Unit Trend (median over time)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="viewChartWrap" style="display:none">
+      <div class="card">
+        <h2 id="viewChartTitle"></h2>
+        <div id="viewChart" style="height:350px"></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Patient Summary Table</h2>
+        <div class="retro-table-wrap">
+          <table class="retro-table" id="viewSummaryTable">
+            <thead><tr><th>Patient</th><th>HID</th><th id="viewSummaryValueHeader">Value</th><th>vs Threshold</th></tr></thead>
+            <tbody id="viewSummaryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
+<!-- NEW VARIABLE MODAL -->
+<div class="modal-overlay" id="newVarModal">
+  <div class="modal">
+    <h3 id="modalTitle">Define New Clinical Variable</h3>
+    <input type="hidden" id="editVarId" value=""/>
+
+    <div class="form-grid two" style="margin-bottom:14px">
+      <div class="field">
+        <label>Variable Name (short, no spaces) *</label>
+        <input type="text" id="newVarName" placeholder="e.g. crp, kt_v, transfusions"/>
+        <span class="hint">Used internally — lowercase, underscores only</span>
+      </div>
+      <div class="field">
+        <label>Display Name *</label>
+        <input type="text" id="newVarDisplayName" placeholder="e.g. C-Reactive Protein"/>
+      </div>
+    </div>
+
+    <div class="form-grid four" style="margin-bottom:14px">
+      <div class="field">
+        <label>Unit</label>
+        <input type="text" id="newVarUnit" placeholder="mg/L, %, kg…"/>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="newVarCategory">
+          <option>Lab</option>
+          <option>Vitals</option>
+          <option>Clinical</option>
+          <option>Adequacy</option>
+          <option>Score</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Data Type</label>
+        <select id="newVarDataType">
+          <option value="number">Number (decimal)</option>
+          <option value="integer">Integer (whole)</option>
+          <option value="text">Text</option>
+          <option value="boolean">Yes / No</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Decimal Places</label>
+        <input type="number" id="newVarDecimals" value="1" min="0" max="4"/>
+      </div>
+    </div>
+
+    <div class="form-grid four" style="margin-bottom:14px">
+      <div class="field">
+        <label>Alert if Below</label>
+        <input type="number" id="newVarThreshLow" placeholder="e.g. 10" step="any"/>
+        <span class="hint">Leave blank if not applicable</span>
+      </div>
+      <div class="field">
+        <label>Alert if Above</label>
+        <input type="number" id="newVarThreshHigh" placeholder="e.g. 5.5" step="any"/>
+      </div>
+      <div class="field">
+        <label>Target Min (green zone)</label>
+        <input type="number" id="newVarTargetLow" placeholder="optional" step="any"/>
+      </div>
+      <div class="field">
+        <label>Target Max (green zone)</label>
+        <input type="number" id="newVarTargetHigh" placeholder="optional" step="any"/>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:14px">
+      <label>Clinical Description / Notes</label>
+      <textarea id="newVarDesc" placeholder="What this variable measures, clinical significance, reference ranges…"></textarea>
+    </div>
+
+    <div class="form-grid two" style="margin-bottom:6px">
+      <div class="field">
+        <label style="flex-direction:row;align-items:center;gap:8px;text-transform:none;font-size:0.85em">
+          <input type="checkbox" id="newVarShowDash" checked/>
+          Show on main dashboard
+        </label>
+      </div>
+      <div class="field">
+        <label style="flex-direction:row;align-items:center;gap:8px;text-transform:none;font-size:0.85em">
+          <input type="checkbox" id="newVarShowTimeline" checked/>
+          Show on patient timeline
+        </label>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNewVarModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVariable()">Save Variable</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
 <script>
-  function switchTab(tabId) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-    
-    document.getElementById('definitions-view').style.display = tabId === 'definitions' ? 'block' : 'none';
-    document.getElementById('bulk-entry-view').style.display = tabId === 'bulk-entry' ? 'block' : 'none';
+// ── DATA FROM SERVER ──
+const ALL_PATIENTS = {{ patients | tojson }};
+const ALL_VARS     = {{ variables_json | tojson }};
+
+// ── TABS ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── TOAST ──
+function showToast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ── NEW VARIABLE MODAL ──
+function openNewVarModal() {
+  document.getElementById('editVarId').value = '';
+  document.getElementById('modalTitle').textContent = 'Define New Clinical Variable';
+  ['newVarName','newVarDisplayName','newVarUnit','newVarDesc',
+   'newVarThreshLow','newVarThreshHigh','newVarTargetLow','newVarTargetHigh']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('newVarCategory').value = 'Lab';
+  document.getElementById('newVarDataType').value = 'number';
+  document.getElementById('newVarDecimals').value = '1';
+  document.getElementById('newVarShowDash').checked = true;
+  document.getElementById('newVarShowTimeline').checked = true;
+  document.getElementById('newVarModal').classList.add('open');
+}
+
+function editVariable(varId) {
+  const v = ALL_VARS.find(x => x.id === varId);
+  if (!v) return;
+  document.getElementById('editVarId').value = varId;
+  document.getElementById('modalTitle').textContent = 'Edit Variable';
+  document.getElementById('newVarName').value = v.name;
+  document.getElementById('newVarDisplayName').value = v.display_name;
+  document.getElementById('newVarUnit').value = v.unit || '';
+  document.getElementById('newVarCategory').value = v.category;
+  document.getElementById('newVarDataType').value = v.data_type;
+  document.getElementById('newVarDecimals').value = v.decimal_places;
+  document.getElementById('newVarThreshLow').value = v.threshold_low || '';
+  document.getElementById('newVarThreshHigh').value = v.threshold_high || '';
+  document.getElementById('newVarTargetLow').value = v.target_low || '';
+  document.getElementById('newVarTargetHigh').value = v.target_high || '';
+  document.getElementById('newVarDesc').value = v.description || '';
+  document.getElementById('newVarShowDash').checked = v.show_in_dashboard;
+  document.getElementById('newVarShowTimeline').checked = v.show_in_timeline;
+  document.getElementById('newVarModal').classList.add('open');
+}
+
+function closeNewVarModal() {
+  document.getElementById('newVarModal').classList.remove('open');
+}
+
+async function saveVariable() {
+  const editId = document.getElementById('editVarId').value;
+  const payload = {
+    name:             document.getElementById('newVarName').value.trim().toLowerCase().replace(/\s+/g,'_'),
+    display_name:     document.getElementById('newVarDisplayName').value.trim(),
+    unit:             document.getElementById('newVarUnit').value.trim(),
+    category:         document.getElementById('newVarCategory').value,
+    data_type:        document.getElementById('newVarDataType').value,
+    decimal_places:   parseInt(document.getElementById('newVarDecimals').value) || 1,
+    threshold_low:    parseFloat(document.getElementById('newVarThreshLow').value) || null,
+    threshold_high:   parseFloat(document.getElementById('newVarThreshHigh').value) || null,
+    target_low:       parseFloat(document.getElementById('newVarTargetLow').value) || null,
+    target_high:      parseFloat(document.getElementById('newVarTargetHigh').value) || null,
+    description:      document.getElementById('newVarDesc').value.trim(),
+    show_in_dashboard: document.getElementById('newVarShowDash').checked,
+    show_in_timeline:  document.getElementById('newVarShowTimeline').checked,
+  };
+
+  if (!payload.name || !payload.display_name) {
+    showToast('Variable name and display name are required', true);
+    return;
   }
 
-  async function loadGrid() {
-    const varId = document.getElementById('varSelect').value;
-    const start = document.getElementById('startMonth').value;
-    const end = document.getElementById('endMonth').value;
-    
-    if (!varId) return alert('Select a variable first');
-    
-    const loader = document.getElementById('loader');
-    loader.style.display = 'flex';
-    
-    try {
-      const res = await fetch(`/api/variable-data-grid/${varId}?start=${start}&end=${end}`);
-      const data = await res.json();
-      renderGrid(data.months, data.grid);
-      document.getElementById('saveGridBtn').disabled = false;
-    } catch (e) {
-      alert('Error loading grid: ' + e);
-    } finally {
-      loader.style.display = 'none';
+  const url = editId ? `/api/variables/${editId}` : '/api/variables';
+  const method = editId ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method, headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(editId ? '✓ Variable updated' : '✓ Variable created');
+      closeNewVarModal();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast(data.detail || 'Error saving variable', true);
     }
+  } catch(e) {
+    showToast('Network error', true);
   }
+}
 
-  function renderGrid(months, rows) {
-    const grid = document.getElementById('entryGrid');
-    
-    let html = '<thead><tr><th class="name-col">Patient</th>';
-    months.forEach(m => {
-      // Format 2024-11 to Nov 24
-      const [y, mm] = m.split('-');
-      const date = new Date(y, mm-1);
-      const label = date.toLocaleString('default', { month: 'short' }) + ' ' + y.slice(2);
-      html += `<th>${label}</th>`;
-    });
-    html += '</tr></thead><tbody>';
-    
-    rows.forEach(row => {
-      html += `<tr><td class="name-col">${row.name}<br/><small style="color:#94a3b8">${row.hid}</small></td>`;
-      months.forEach(m => {
-        const val = row.values[m] !== null ? row.values[m] : '';
-        html += `<td><input type="text" data-pid="${row.id}" data-month="${m}" value="${val}" onchange="this.classList.add('changed')"></td>`;
-      });
-      html += '</tr>';
-    });
-    
-    html += '</tbody>';
-    grid.innerHTML = html;
+async function toggleVariable(varId, activate) {
+  const res = await fetch(`/api/variables/${varId}/toggle`, { method:'POST' });
+  if (res.ok) {
+    showToast(activate === 'true' ? 'Variable activated' : 'Variable deactivated');
+    setTimeout(() => location.reload(), 800);
   }
+}
 
-  async function saveGrid() {
-    const varId = document.getElementById('varSelect').value;
-    const status = document.getElementById('saveStatus');
-    const inputs = document.querySelectorAll('#entryGrid input.changed');
-    
-    if (inputs.length === 0) return alert('No changes detected');
-    
-    status.innerHTML = '<span style="color:var(--accent)">⏳ Saving...</span>';
-    
-    const updates = Array.from(inputs).map(i => ({
-      patient_id: parseInt(i.dataset.pid),
-      month: i.dataset.month,
-      value: i.value
-    }));
-    
-    try {
-      const res = await fetch(`/api/variable-values/${varId}`, {
+// ── RETROSPECTIVE DATA ENTRY TABLE ──
+let currentVarData = {};  // {patient_id: {month: value}}
+
+async function loadRetroTable() {
+  const varId = document.getElementById('entryVarSelect').value;
+  const fromM = document.getElementById('entryFromMonth').value;
+  const toM   = document.getElementById('entryToMonth').value;
+
+  if (!varId || !fromM || !toM) return;
+
+  const opt = document.getElementById('entryVarSelect').selectedOptions[0];
+  document.getElementById('entryVarTitle').textContent =
+    opt.text + ' — Retrospective Entry';
+  document.getElementById('retroTableWrap').style.display = 'block';
+
+  // Generate month range
+  const months = generateMonthRange(fromM, toM);
+
+  // Load existing values from server
+  const res = await fetch(`/api/variables/${varId}/values?from=${fromM}&to=${toM}`);
+  const existing = res.ok ? await res.json() : {};
+  currentVarData = existing;
+
+  // Build table header
+  const head = document.getElementById('retroTableHead');
+  head.innerHTML = '<th>Patient</th>' +
+    months.map(m => `<th style="text-align:center;min-width:90px">${m}</th>`).join('') +
+    '<th>Actions</th>';
+
+  // Build table body
+  const body = document.getElementById('retroTableBody');
+  body.innerHTML = ALL_PATIENTS.map(p => {
+    const cells = months.map(m => {
+      const val = existing[p.id]?.[m] ?? '';
+      const hasVal = val !== '' && val !== null && val !== undefined;
+      return `<td>
+        <input type="number" step="any"
+          class="month-input ${hasVal ? 'has-value' : ''}"
+          data-patient="${p.id}" data-month="${m}"
+          value="${hasVal ? val : ''}"
+          onchange="markChanged(this)"
+          onblur="autoSaveCell(this, ${varId})"
+          placeholder="—"/>
+      </td>`;
+    }).join('');
+
+    return `<tr data-name="${p.name.toLowerCase()}">
+      <td>
+        <div class="patient-name-cell">${p.name}</div>
+        <div class="hid-cell">${p.hid}</div>
+      </td>
+      ${cells}
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="clearRow(this, ${p.id})">Clear</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function generateMonthRange(from, to) {
+  const months = [];
+  let [fy, fm] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  while (fy < ty || (fy === ty && fm <= tm)) {
+    months.push(`${fy}-${String(fm).padStart(2,'0')}`);
+    fm++;
+    if (fm > 12) { fm = 1; fy++; }
+  }
+  return months;
+}
+
+function markChanged(input) {
+  input.style.borderColor = '#ffb74d';
+  input.classList.remove('has-value');
+}
+
+async function autoSaveCell(input, varId) {
+  const patientId = input.dataset.patient;
+  const month     = input.dataset.month;
+  const value     = input.value.trim();
+
+  if (value === '') return;  // Don't save empty on blur
+
+  try {
+    const res = await fetch('/api/variables/value', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_id: parseInt(patientId),
+        record_month: month,
+        variable_id: parseInt(varId),
+        value_num: parseFloat(value),
+      })
+    });
+
+    if (res.ok) {
+      input.classList.add('has-value');
+      input.style.borderColor = '';
+      // Brief save indicator
+      const s = document.getElementById('autoSaveStatus');
+      s.style.display = 'inline';
+      setTimeout(() => s.style.display = 'none', 1500);
+    }
+  } catch(e) {
+    showToast('Save failed', true);
+  }
+}
+
+async function saveAllValues() {
+  const varId = document.getElementById('entryVarSelect').value;
+  const inputs = document.querySelectorAll('#retroTableBody .month-input');
+  let saved = 0, errors = 0;
+
+  const promises = [];
+  inputs.forEach(input => {
+    if (input.value.trim() === '') return;
+    promises.push(
+      fetch('/api/variables/value', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      
-      if (res.ok) {
-        status.innerHTML = '<span style="color:var(--success)">✅ All changes saved</span>';
-        inputs.forEach(i => i.classList.remove('changed'));
-      } else {
-        status.innerHTML = '<span style="color:var(--danger)">❌ Save failed</span>';
-      }
-    } catch (e) {
-      status.innerHTML = '<span style="color:var(--danger)">❌ Error: ' + e + '</span>';
-    }
-  }
-</script>
+        body: JSON.stringify({
+          patient_id: parseInt(input.dataset.patient),
+          record_month: input.dataset.month,
+          variable_id: parseInt(varId),
+          value_num: parseFloat(input.value),
+        })
+      }).then(r => {
+        if (r.ok) { saved++; input.classList.add('has-value'); input.style.borderColor=''; }
+        else errors++;
+      })
+    );
+  });
 
+  await Promise.all(promises);
+  showToast(`✓ Saved ${saved} values${errors ? ` (${errors} errors)` : ''}`, errors > 0);
+}
+
+function clearRow(btn, patientId) {
+  const row = btn.closest('tr');
+  row.querySelectorAll('.month-input').forEach(i => {
+    i.value = '';
+    i.classList.remove('has-value');
+    i.style.borderColor = '';
+  });
+}
+
+function filterRetroTable(q) {
+  document.querySelectorAll('#retroTableBody tr').forEach(r => {
+    r.style.display = r.dataset.name.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// ── VIEW DATA ──
+async function loadVariableChart() {
+  const varId = document.getElementById('viewVarSelect').value;
+  const viewType = document.getElementById('viewType').value;
+  if (!varId) return;
+
+  const opt = document.getElementById('viewVarSelect').selectedOptions[0];
+  const varName = opt.dataset.name;
+  const varUnit = opt.dataset.unit;
+
+  const res = await fetch(`/api/variables/${varId}/summary`);
+  if (!res.ok) return;
+  const data = await res.json();
+
+  document.getElementById('viewChartWrap').style.display = 'block';
+  document.getElementById('viewChartTitle').textContent = varName;
+  document.getElementById('viewSummaryValueHeader').textContent =
+    `Latest Value ${varUnit ? '(' + varUnit + ')' : ''}`;
+
+  const FONT = { family:"'Roboto',sans-serif", size:11 };
+
+  if (viewType === 'cohort') {
+    // Box plot / bar of latest values per patient
+    const names  = data.patients.map(p => p.name);
+    const values = data.patients.map(p => p.latest_value);
+
+    // Filter out nulls for mapping marker colors
+    const vdef = ALL_VARS.find(x => x.id === parseInt(varId));
+    const markerColors = values.map(v => {
+      if (v === null) return '#ccc';
+      if (!vdef) return '#64b5f6';
+      if (vdef.threshold_high && v > vdef.threshold_high) return '#ef5350';
+      if (vdef.threshold_low  && v < vdef.threshold_low)  return '#ef5350';
+      return '#66bb6a';
+    });
+
+    Plotly.newPlot('viewChart', [{
+      type: 'bar',
+      x: names, y: values,
+      marker: { color: markerColors },
+      hovertemplate: '<b>%{x}</b><br>%{y} ' + varUnit + '<extra></extra>',
+    }], {
+      margin:{ t:20, b:100, l:60, r:20 },
+      paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      xaxis:{ tickangle:-45, gridcolor:'#f0f0f0' },
+      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' },
+      font: FONT,
+    }, { displayModeBar:false, responsive:true });
+
+    // Summary table
+    const tbody = document.getElementById('viewSummaryBody');
+    tbody.innerHTML = data.patients.map(p => {
+      const v = p.latest_value;
+      const isAlert = v && vdef && (
+        (vdef.threshold_high && v > vdef.threshold_high) ||
+        (vdef.threshold_low  && v < vdef.threshold_low)
+      );
+      return `<tr>
+        <td class="patient-name-cell">${p.name}</td>
+        <td class="hid-cell">${p.hid}</td>
+        <td style="font-family:monospace;color:${isAlert ? 'var(--red)' : 'var(--green)'}">
+          ${v !== null ? v : '—'}
+        </td>
+        <td>${isAlert ? '⚠ Alert' : (v !== null ? '✓ OK' : '—')}</td>
+      </tr>`;
+    }).join('');
+
+  } else {
+    // Median trend over time
+    Plotly.newPlot('viewChart', [{
+      type:'scatter',
+      x: data.trend.map(t => t.month),
+      y: data.trend.map(t => t.median),
+      mode:'lines+markers',
+      name:'Median',
+      line:{ color:'#007bff', width:2.5 },
+      marker:{ color:'#007bff', size:7 },
+      hovertemplate:'%{x}: <b>%{y}</b> ' + varUnit + '<extra></extra>',
+    }, {
+      type:'scatter',
+      x: data.trend.map(t => t.month),
+      y: data.trend.map(t => t.p75),
+      mode:'lines', name:'75th percentile',
+      line:{ color:'#90caf9', width:1, dash:'dot' },
+      hoverinfo:'skip',
+    }, {
+      type:'scatter',
+      x: data.trend.map(t => t.month),
+      y: data.trend.map(t => t.p25),
+      mode:'lines', name:'25th percentile',
+      line:{ color:'#90caf9', width:1, dash:'dot' },
+      fill:'tonexty', fillcolor:'rgba(144,202,249,0.15)',
+      hoverinfo:'skip',
+    }], {
+      margin:{ t:20, b:50, l:60, r:20 },
+      paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' },
+      xaxis:{ gridcolor:'#f0f0f0' },
+      font: FONT,
+      showlegend: true,
+    }, { displayModeBar:false, responsive:true });
+  }
+}
+</script>
 </body>
 </html>
