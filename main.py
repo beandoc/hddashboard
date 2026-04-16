@@ -173,6 +173,7 @@ def patient_timeline(patient_id: int, request: Request, db: Session = Depends(ge
 
     timeline_data = [{
         "month": r.record_month, "hb": r.hb, "alb": r.albumin, "phos": r.phosphorus,
+        "calcium": r.calcium, "ferritin": r.serum_ferritin, "tsat": r.tsat,
         "ipth": r.ipth, "vit_d": r.vit_d, "idwg": r.idwg, "epo": extract_epo(r.epo_mircera_dose)
     } for r in records]
 

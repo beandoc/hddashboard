@@ -63,16 +63,20 @@
         </div>
 
         <div class="chart-card">
+            <h3>Calcium & Phosphorus (Dual Plot)</h3>
+            <div id="calPhosChart" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Iron Panel (Ferritin & TSAT)</h3>
+            <div id="ironPanelChart" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
             <h3>Hemoglobin (g/dL)</h3>
             <div id="hbTimeline" class="chart-div"></div>
         </div>
         <div class="chart-card">
             <h3>Albumin (g/dL)</h3>
             <div id="albTimeline" class="chart-div"></div>
-        </div>
-        <div class="chart-card">
-            <h3>Phosphorus (mg/dL)</h3>
-            <div id="phosTimeline" class="chart-div"></div>
         </div>
         <div class="chart-card">
             <h3>iPTH (pg/mL)</h3>
@@ -92,73 +96,56 @@
         const data = {{ timeline_data | tojson }};
         const months = data.map(d => d.month);
 
-        const thresholds = {
-            hb: 10, alb: 3.5, phos: 5.5, ipth: 300, vit_d: 20, idwg: 2.5
-        };
-
         function createChart(divId, yData, title, threshold, color) {
             const trace = {
-                x: months,
-                y: yData,
-                type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: color, width: 3 },
-                marker: { size: 8 }
+                x: months, y: yData, type: 'scatter', mode: 'lines+markers',
+                line: { color: color, width: 3 }, marker: { size: 8 }
             };
-
             const layout = {
                 margin: { t: 10, b: 40, l: 40, r: 10 },
                 xaxis: { title: 'Month', tickangle: -45 },
                 yaxis: { title: title },
-                shapes: threshold ? [{
-                    type: 'line',
-                    xref: 'paper', x0: 0, x1: 1,
-                    yref: 'y', y0: threshold, y1: threshold,
-                    line: { color: 'red', width: 1.5, dash: 'dash' }
-                }] : []
+                shapes: threshold ? [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: threshold, y1: threshold, line: { color: 'red', width: 1.5, dash: 'dash' } }] : []
             };
-
             Plotly.newPlot(divId, [trace], layout, {responsive: true, displayModeBar: false});
         }
 
-        createChart('hbTimeline',   data.map(d => d.hb),   'g/dL', thresholds.hb, '#c62828');
-        createChart('albTimeline',  data.map(d => d.alb),  'g/dL', thresholds.alb, '#1a73e8');
-        createChart('phosTimeline', data.map(d => d.phos), 'mg/dL', thresholds.phos, '#2e7d32');
-        createChart('ipthTimeline', data.map(d => d.ipth), 'pg/mL', thresholds.ipth, '#ef6c00');
-        createChart('vitdTimeline', data.map(d => d.vit_d), 'ng/mL', thresholds.vit_d, '#0097a7');
-        createChart('idwgTimeline', data.map(d => d.idwg), 'kg', thresholds.idwg, '#7b1fa2');
+        createChart('hbTimeline',   data.map(d => d.hb),   'g/dL', 10, '#c62828');
+        createChart('albTimeline',  data.map(d => d.alb),  'g/dL', 3.5, '#1a73e8');
+        createChart('ipthTimeline', data.map(d => d.ipth), 'pg/mL', 300, '#ef6c00');
+        createChart('vitdTimeline', data.map(d => d.vit_d), 'ng/mL', 30, '#0097a7');
+        createChart('idwgTimeline', data.map(d => d.idwg), 'kg', 3.0, '#7b1fa2');
+
+        // Calcium & Phosphorus (Dual Axis)
+        Plotly.newPlot('calPhosChart', [
+            { x: months, y: data.map(d => d.calcium), name: 'Calcium', type: 'scatter', mode: 'lines+markers', line: { color: '#fb8c00' } },
+            { x: months, y: data.map(d => d.phos), name: 'Phos', type: 'scatter', mode: 'lines+markers', line: { color: '#2e7d32' } }
+        ], { margin: { t: 20, b: 50, l: 50, r: 10 }, legend: { orientation: 'h', y: 1.1 } });
+
+        // Iron Panel (Dual Axis)
+        Plotly.newPlot('ironPanelChart', [
+            { x: months, y: data.map(d => d.ferritin), name: 'Ferritin', type: 'scatter', marker: { color: '#546e7a' } },
+            { x: months, y: data.map(d => d.tsat), name: 'TSAT %', type: 'scatter', yaxis: 'y2', line: { color: '#039be5' } }
+        ], { 
+            margin: { t: 20, b: 50, l: 50, r: 50 },
+            yaxis: { title: 'ng/mL' },
+            yaxis2: { title: 'TSAT %', side: 'right', overlaying: 'y', showgrid: false },
+            legend: { orientation: 'h', y: 1.1 }
+        });
 
         // Combined EPO/Hb Chart
-        const epoTrace = {
-            x: months,
-            y: data.map(d => d.epo),
-            name: 'EPO Dose',
-            type: 'bar',
-            yaxis: 'y2',
-            marker: { color: '#e0e0e0' }
-        };
-
-        const hbTrace = {
-            x: months,
-            y: data.map(d => d.hb),
-            name: 'Hb',
-            type: 'scatter',
-            mode: 'lines+markers',
-            line: { color: '#c62828' }
-        };
-
-        const epoLayout = {
+        Plotly.newPlot('epoHbChart', [
+            { x: months, y: data.map(d => d.epo), name: 'EPO Dose', type: 'bar', yaxis: 'y2', marker: { color: '#bbdefb' } },
+            { x: months, y: data.map(d => d.hb), name: 'Hb', type: 'scatter', mode: 'lines+markers', line: { color: '#c62828' } }
+        ], { 
             margin: { t: 20, b: 50, l: 50, r: 50 },
             yaxis: { title: 'Hb (g/dL)', side: 'left' },
             yaxis2: { title: 'EPO Dose', side: 'right', overlaying: 'y', showgrid: false },
             legend: { orientation: 'h', y: 1.1 },
             xaxis: { tickangle: -45 }
-        };
-
-        Plotly.newPlot('epoHbChart', [epoTrace, hbTrace], epoLayout, {responsive: true});
+        });
 
         function sendSchedule(pid) {
-            if (!confirm("Send schedule reminder via WhatsApp?")) return;
             fetch('/api/send-schedule/' + pid, {method: 'POST'})
             .then(r => r.json())
             .then(d => alert(d.message))
