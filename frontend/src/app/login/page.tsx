@@ -17,18 +17,13 @@ export default function LoginPage() {
     setError("");
 
     try {
-      console.log(`DEBUG: Target API BASE: ${API_BASE}`);
-      console.log(`DEBUG: Full URL: ${API_BASE}/login`);
+      console.log(`DEBUG: Final JSON Login attempt at ${API_BASE}/login`);
       
-      const formData = new URLSearchParams();
-      formData.append("username", username);
-      formData.append("password", password);
-
       const response = await fetch(`${API_BASE}/login`, {
         method: "POST",
-        body: formData,
+        body: JSON.stringify({ username, password }),
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
           "Accept": "application/json",
         },
         credentials: "include",
