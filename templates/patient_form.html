@@ -4,23 +4,101 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ "Edit" if mode=="edit" else "New" }} Patient - HD Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <style>
-        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
-        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
-        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
-        .app-nav .nav-links { display:flex; gap:4px; }
-        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
-        .app-nav a:hover { color:#fff; background:rgba(255,255,255,0.12); }
-        header { background-color:#007bff; color:white; padding:20px 0; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-        .container { max-width:800px; margin:20px auto; padding:20px; background:white; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-        .form-group { margin-bottom:15px; }
-        label { display:block; margin-bottom:5px; font-weight:bold; }
-        input[type="text"], input[type="email"], input[type="date"], input[type="number"], select, textarea {
-            width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --text-header: #0f172a;
+            --radius: 12px;
+            --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
         }
-        .btn-submit { background:#28a745; color:white; padding:10px 20px; border:none; border-radius:5px; cursor:pointer; font-size:1em; }
-        .error { color: #dc3545; margin-bottom: 20px; }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; padding: 0; 
+            background-color: var(--bg-main); 
+            color: var(--text-main); 
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
+
+        .app-nav { 
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000; 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
+        .app-nav .nav-links { display: flex; gap: 8px; }
+        .app-nav a { 
+            color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; 
+            padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
+        }
+        .app-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .mobile-menu-btn { display: none; }
+
+        header { 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            color: white; padding: 40px 24px; text-align: center; 
+        }
+        header h1 { margin: 0; font-size: 1.8em; letter-spacing: -0.02em; }
+
+        .container { max-width: 800px; margin: 30px auto; padding: 0 24px; padding-bottom: 80px; }
+        
+        .form-card {
+            background: #fff; padding: 24px; border-radius: var(--radius);
+            margin-bottom: 24px; box-shadow: var(--shadow-md);
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+        .form-card h3 { 
+            margin-top: 0; margin-bottom: 20px; font-size: 1.1em; 
+            color: var(--text-header); display: flex; align-items: center; gap: 8px;
+        }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.02em; }
+        
+        input, select, textarea {
+            width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; 
+            border-radius: 10px; box-sizing: border-box; font-family: 'Inter', sans-serif;
+            font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;
+        }
+        input:focus, select:focus, textarea:focus { 
+            border-color: var(--primary); background: #fff; outline: none; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); 
+        }
+
+        .btn-submit { 
+            background: var(--primary); color: white; padding: 16px 32px; 
+            border: none; border-radius: var(--radius); cursor: pointer; 
+            font-size: 1em; font-weight: 700; width: 100%; transition: all 0.2s;
+            box-shadow: 0 4px 14px 0 rgba(14, 165, 233, 0.39);
+        }
+        .btn-submit:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* MOBILE DRAWER (standardized) */
+        .mobile-drawer {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
+            z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px;
+        }
+        .mobile-drawer.open { display: flex; }
+        .mobile-drawer a {
+            color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px;
+            background: rgba(255,255,255,0.05); font-weight: 600;
+        }
+
+        @media(max-width: 640px) {
+            .app-nav .nav-links { display: none; }
+            .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
+            .form-row { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -30,7 +108,23 @@
             <a href="/">Dashboard</a>
             <a href="/patients">Patients</a>
             <a href="/entry">Data Entry</a>
+            <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
+        <button class="mobile-menu-btn" onclick="toggleDrawer()">
+            <i class="material-icons">menu</i>
+        </button>
+    </div>
+
+    <!-- Mobile Nav Drawer -->
+    <div class="mobile-drawer" id="mobileDrawer">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <span class="brand" style="color:rgba(255,255,255,0.6)">Menu</span>
+            <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
+        </div>
+        <a href="/">Dashboard</a>
+        <a href="/entry">Data Entry</a>
+        <a href="/patients">Patients</a>
+        <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
     <header>
         <h1>{{ "Edit" if mode=="edit" else "Add New" }} Patient</h1>
@@ -40,46 +134,77 @@
             <div class="error">{{ error }}</div>
         {% endif %}
         <form method="POST">
-            <div class="form-group">
-                <label>HID Number</label>
-                <input type="text" name="hid_no" value="{{ patient.hid_no if patient else '' }}" required>
+            <div class="form-card">
+                <h3><i class="material-icons">person</i> Fundamental Data</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>HID Number</label>
+                        <input type="text" name="hid_no" value="{{ patient.hid_no if patient else '' }}" required placeholder="e.g. 12345">
+                    </div>
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" name="name" value="{{ patient.name if patient else '' }}" required placeholder="Legal Name">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Sex</label>
+                        <select name="sex" required>
+                            <option value="" disabled {{ 'selected' if not patient or not patient.sex }}>-- Select Gender --</option>
+                            <option value="Male" {{ 'selected' if patient and patient.sex == 'Male' else '' }}>Male</option>
+                            <option value="Female" {{ 'selected' if patient and patient.sex == 'Female' else '' }}>Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Number</label>
+                        <input type="text" name="contact_no" value="{{ patient.contact_no if patient else '' }}" placeholder="10 Digit Mobile" inputmode="tel">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Target Dry Weight (kg)</label>
+                        <input type="number" step="0.1" name="dry_weight" value="{{ patient.dry_weight if patient else '' }}" inputmode="decimal">
+                    </div>
+                    <div class="form-group">
+                        <label>Relation Context</label>
+                        <input type="text" name="relation_type" value="{{ patient.relation_type if patient else '' }}" placeholder="S/O, D/O, W/O Guardian">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Diagnosis / History</label>
+                    <textarea name="diagnosis" rows="3">{{ patient.diagnosis if patient else '' }}</textarea>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" name="name" value="{{ patient.name if patient else '' }}" required>
-            </div>
-            <div class="form-group">
-                <label>Sex</label>
-                <select name="sex" required>
-                    <option value="" disabled {{ 'selected' if not patient or not patient.sex }}>-- Select Gender --</option>
-                    <option value="Male" {{ 'selected' if patient and patient.sex == 'Male' else '' }}>Male</option>
-                    <option value="Female" {{ 'selected' if patient and patient.sex == 'Female' else '' }}>Female</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Contact Number (without +91)</label>
-                <input type="text" name="contact_no" value="{{ patient.contact_no if patient else '' }}">
-            </div>
-            <div class="form-group">
-                <label>Dry Weight (kg)</label>
-                <input type="number" step="0.1" name="dry_weight" value="{{ patient.dry_weight if patient else '' }}">
-            </div>
-            <div class="form-group">
-                <label>Diagnosis / Notes</label>
-                <textarea name="diagnosis">{{ patient.diagnosis if patient else '' }}</textarea>
-            </div>
-            <div class="form-group">
-                <label>Access Type</label>
-                <select name="access_type">
-                    <option value="AVF" {{ 'selected' if patient and patient.access_type == 'AVF' else '' }}>AVF</option>
-                    <option value="Right IJV Permcath" {{ 'selected' if patient and patient.access_type == 'Right IJV Permcath' else '' }}>Right IJV Permcath</option>
-                    <option value="Left IJV Permcath" {{ 'selected' if patient and patient.access_type == 'Left IJV Permcath' else '' }}>Left IJV Permcath</option>
-                    <option value="AV Graft" {{ 'selected' if patient and patient.access_type == 'AV Graft' else '' }}>AV Graft</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Relation (e.g., F/O, SELF)</label>
-                <input type="text" name="relation_type" value="{{ patient.relation_type if patient else '' }}">
+
+            <div class="form-card">
+                <h3><i class="material-icons">event_note</i> Dialysis Configuration</h3>
+                <div class="form-group">
+                    <label>Access Type</label>
+                    <select name="access_type">
+                        <option value="AVF" {{ 'selected' if patient and patient.access_type == 'AVF' else '' }}>Native AVF (Recommended)</option>
+                        <option value="Right IJV Permcath" {{ 'selected' if patient and patient.access_type == 'Right IJV Permcath' else '' }}>Right IJV Permcath</option>
+                        <option value="Left IJV Permcath" {{ 'selected' if patient and patient.access_type == 'Left IJV Permcath' else '' }}>Left IJV Permcath</option>
+                        <option value="AV Graft" {{ 'selected' if patient and patient.access_type == 'AV Graft' else '' }}>AV Graft</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary HD Slot</label>
+                        <select name="hd_slot_1">
+                            <option value="">-- No Slot --</option>
+                            <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_1 or '') }}>Morning (सकाळी)</option>
+                            <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_1 or '') }}>Afternoon (दुपारी)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Secondary HD Slot</label>
+                        <select name="hd_slot_2">
+                            <option value="">-- No Slot --</option>
+                            <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_2 or '') }}>Morning (सकाळी)</option>
+                            <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_2 or '') }}>Afternoon (दुपारी)</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div style="display:flex; gap:15px; margin-bottom:15px;">
@@ -101,41 +226,44 @@
                 </div>
             </div>
             
-            <hr style="margin:20px 0; border:0; border-top:1px solid #eee;" />
-            <h3>Vaccination Records</h3>
-            
-            <div style="display:flex; gap:15px; margin-bottom:15px;">
-                <div style="flex:1;">
-                    <label>Hep B Status</label>
-                    <select name="hep_b_status">
-                        <option value="">-- Select Status --</option>
-                        <option value="Immune" {{ 'selected' if patient and patient.hep_b_status == 'Immune' else '' }}>Immune (Titers > 100)</option>
-                        <option value="Non-Immune" {{ 'selected' if patient and patient.hep_b_status == 'Non-Immune' else '' }}>Non-Immune</option>
-                        <option value="In Progress" {{ 'selected' if patient and patient.hep_b_status == 'In Progress' else '' }}>Course In Progress</option>
-                        <option value="Unknown" {{ 'selected' if patient and patient.hep_b_status == 'Unknown' else '' }}>Unknown</option>
-                    </select>
+            <div class="form-card">
+                <h3><i class="material-icons">vaccines</i> Vaccination Sentinel</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Hep B Status</label>
+                        <select name="hep_b_status">
+                            <option value="">-- Select Status --</option>
+                            <option value="Immune" {{ 'selected' if patient and patient.hep_b_status == 'Immune' else '' }}>Immune (Titers > 100)</option>
+                            <option value="Non-Immune" {{ 'selected' if patient and patient.hep_b_status == 'Non-Immune' else '' }}>Non-Immune</option>
+                            <option value="In Progress" {{ 'selected' if patient and patient.hep_b_status == 'In Progress' else '' }}>Course In Progress</option>
+                            <option value="Unknown" {{ 'selected' if patient and patient.hep_b_status == 'Unknown' else '' }}>Unknown</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Dose/Titer Date</label>
+                        <input type="date" name="hep_b_date" value="{{ patient.hep_b_date if patient and patient.hep_b_date else '' }}">
+                    </div>
                 </div>
-                <div style="flex:1;">
-                    <label>Hep B Review/Dose Date</label>
-                    <input type="date" name="hep_b_date" value="{{ patient.hep_b_date if patient and patient.hep_b_date else '' }}">
+                <div class="form-group">
+                    <label>Last Pneumococcal Vaccine Date</label>
+                    <input type="date" name="pneumococcal_date" value="{{ patient.pneumococcal_date if patient and patient.pneumococcal_date else '' }}">
                 </div>
-            </div>
-            
-            <div class="form-group">
-                <label>Last Pneumococcal Vaccine Date</label>
-                <input type="date" name="pneumococcal_date" value="{{ patient.pneumococcal_date if patient and patient.pneumococcal_date else '' }}">
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer;">
+                        <input type="checkbox" name="whatsapp_notify" value="true" {{ 'checked' if patient and patient.whatsapp_notify else '' }} style="width:20px; height:20px;">
+                        <span>Enable WhatsApp Automated Notifications</span>
+                    </label>
+                </div>
             </div>
 
-            <hr style="margin:20px 0; border:0; border-top:1px solid #eee;" />
-            
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="whatsapp_notify" value="true" {{ 'checked' if patient and patient.whatsapp_notify else '' }}>
-                    Enable WhatsApp Notifications
-                </label>
-            </div>
-            <button type="submit" class="btn-submit">{{ "Update Patient" if mode=="edit" else "Create Patient" }}</button>
+            <button type="submit" class="btn-submit">{{ "Update Patient Profile" if mode=="edit" else "Finalize & Create Patient" }}</button>
         </form>
     </div>
+
+    <script>
+        function toggleDrawer() {
+            document.getElementById("mobileDrawer").classList.toggle("open");
+        }
+    </script>
 </body>
 </html>

@@ -5,23 +5,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinical Data Entry - {{ patient.name }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <style>
-        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
-        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
-        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
-        .app-nav .nav-links { display:flex; gap:4px; }
-        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
-        .app-nav a:hover { color:#fff; background:rgba(255,255,255,0.12); }
-        header { background-color:#1a237e; color:white; padding:15px 0; text-align:center; }
-        .container { max-width:900px; margin:20px auto; padding:30px; background:white; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-        .patient-info { background:#f8f9fa; padding:15px; border-radius:6px; margin-bottom:25px; border-left:4px solid #1a237e; }
-        .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px; }
-        .form-group { margin-bottom:15px; }
-        label { display:block; margin-bottom:5px; font-weight:600; color:#444; font-size:0.9em; }
-        input { width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box; }
-        .section-title { grid-column:1/-1; border-bottom:2px solid #eee; padding-bottom:5px; margin-top:10px; color:#1a237e; font-size:1.1em; }
-        .btn-save { background:#1a237e; color:white; padding:12px 30px; border:none; border-radius:6px; cursor:pointer; font-size:1em; font-weight:bold; margin-top:20px; width:100%; }
-        .btn-save:hover { background:#0d1440; }
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --text-header: #0f172a;
+            --radius: 16px;
+            --shadow-lg: 0 10px 25px -3px rgb(0 0 0 / 0.05);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; margin: 0; padding: 0; 
+            background-color: var(--bg-main); color: var(--text-main); 
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, .brand { font-family: 'Outfit', sans-serif; }
+
+        .app-nav { 
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 0 24px; height: 64px; position: sticky; top: 0; z-index: 1000; 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
+        .app-nav .nav-links { display: flex; gap: 8px; }
+        .app-nav a { 
+            color: rgba(255,255,255,0.7); text-decoration: none; 
+            font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
+        }
+        .app-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .mobile-menu-btn { display: none; }
+
+        header { 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            color: white; padding: 40px 20px; text-align: center; 
+        }
+        header h1 { margin: 0; font-size: 1.8em; letter-spacing: -0.02em; }
+
+        .container { max-width: 800px; margin: 20px auto; padding: 0 16px; padding-bottom: 100px; }
+        
+        .patient-summary {
+            background: #fff; padding: 20px; border-radius: var(--radius);
+            margin-bottom: 24px; border-left: 6px solid var(--primary);
+            box-shadow: var(--shadow-lg);
+        }
+        .patient-summary strong { color: var(--text-header); font-size: 1.1em; }
+
+        .form-section {
+            background: #fff; padding: 24px; border-radius: var(--radius);
+            margin-bottom: 24px; box-shadow: var(--shadow-lg);
+            border: 1px solid rgba(0,0,0,0.03);
+        }
+        .section-title { 
+            font-family: 'Outfit', sans-serif; font-size: 1.25em; 
+            font-weight: 700; color: var(--text-header); 
+            margin-bottom: 20px; padding-bottom: 8px;
+            border-bottom: 2px solid #f1f5f9;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.02em; }
+        
+        input { 
+            width: 100%; padding: 14px; border: 1px solid #e2e8f0; 
+            border-radius: 12px; box-sizing: border-box; font-size: 1rem;
+            font-family: 'Inter', sans-serif; transition: all 0.2s;
+            background: #f8fafc;
+        }
+        input:focus { border-color: var(--primary); background: #fff; outline: none; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); }
+
+        .btn-save { 
+            position: fixed; bottom: 20px; left: 20px; right: 20px; max-width: 760px; margin: 0 auto;
+            background: var(--primary); color: white; padding: 18px; border: none; 
+            border-radius: var(--radius); cursor: pointer; font-size: 1.1em; 
+            font-weight: 700; font-family: 'Outfit', sans-serif;
+            box-shadow: 0 10px 25px rgba(14, 165, 233, 0.4); z-index: 500;
+            transition: all 0.2s;
+        }
+        .btn-save:hover { background: var(--primary-dark); transform: translateY(-2px); }
+
+        /* MOBILE DRAWER (standardized) */
+        .mobile-drawer {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
+            z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px;
+        }
+        .mobile-drawer.open { display: flex; }
+        .mobile-drawer a {
+            color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px;
+            background: rgba(255,255,255,0.05); font-weight: 600;
+        }
+
+        @media(max-width: 640px) {
+            .app-nav .nav-links { display: none; }
+            .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
+            header h1 { font-size: 1.4em; }
+            .form-section { padding: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -31,91 +118,121 @@
             <a href="/">Dashboard</a>
             <a href="/patients">Patients</a>
             <a href="/entry">Data Entry</a>
+            <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
+        <button class="mobile-menu-btn" onclick="toggleDrawer()">
+            <i class="material-icons">menu</i>
+        </button>
+    </div>
+
+    <!-- Mobile Nav Drawer (standardized) -->
+    <div class="mobile-drawer" id="mobileDrawer">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <span class="brand" style="color:rgba(255,255,255,0.6)">Menu</span>
+            <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
+        </div>
+        <a href="/">Dashboard</a>
+        <a href="/entry">Data Entry</a>
+        <a href="/patients">Patients</a>
+        <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
     <header>
         <h1>Clinical Data Entry: {{ month_label }}</h1>
     </header>
     <div class="container">
-        <div class="patient-info">
+        <div class="patient-summary">
             <strong>Patient:</strong> {{ patient.name }} ({{ patient.hid_no }}) <br>
-            <strong>Access:</strong> {{ patient.access_type or 'Not specified' }}
+            <span style="font-size:0.9em; color:var(--text-muted);">Access: {{ patient.access_type or 'Not specified' }}</span>
         </div>
         
         <form method="POST">
             <input type="hidden" name="month_str" value="{{ month_str }}">
             
-            <div class="grid">
-                <div class="section-title">General</div>
-                <div class="form-group">
-                    <label>Target Dry Weight (kg)</label>
-                    <input type="number" step="0.1" name="target_dry_weight" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">vitals</i> General Vitals</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Target Dry Weight (kg)</label>
+                        <input type="number" step="0.1" name="target_dry_weight" inputmode="decimal" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>IDWG (kg)</label>
+                        <input type="number" step="0.1" name="idwg" min="0" max="15" inputmode="decimal" value="{{ record.idwg if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Entered By</label>
+                        <input type="text" name="entered_by" placeholder="Initial/Name" value="{{ record.entered_by if record else '' }}">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>IDWG (kg)</label>
-                    <input type="number" step="0.1" name="idwg" min="0" max="15" value="{{ record.idwg if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>Entered By</label>
-                    <input type="text" name="entered_by" value="{{ record.entered_by if record else '' }}">
-                </div>
+            </div>
 
-                <div class="section-title">Anemia & Iron</div>
-                <div class="form-group">
-                    <label>Hemoglobin (g/dL)</label>
-                    <input type="number" step="0.1" name="hb" min="0" max="25" value="{{ record.hb if record else '' }}">
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">opacity</i> Anemia & Iron</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Hemoglobin (g/dL)</label>
+                        <input type="number" step="0.1" name="hb" min="0" max="25" inputmode="decimal" value="{{ record.hb if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Serum Ferritin (ng/mL)</label>
+                        <input type="number" step="1" name="serum_ferritin" inputmode="numeric" value="{{ record.serum_ferritin if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>TSAT (%)</label>
+                        <input type="number" step="1" name="tsat" inputmode="numeric" value="{{ record.tsat if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>EPO Units/Week</label>
+                        <input type="number" step="1" name="epo_weekly_units" inputmode="numeric" placeholder="e.g. 4000" value="{{ '%.0f'|format(record.epo_weekly_units) if record and record.epo_weekly_units else '' }}">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>EPO Brand/Dose Description</label>
+                        <input type="text" name="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else '' }}">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Serum Ferritin (ng/mL)</label>
-                    <input type="number" step="1" name="serum_ferritin" value="{{ record.serum_ferritin if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>TSAT (%)</label>
-                    <input type="number" step="1" name="tsat" value="{{ record.tsat if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>EPO Units/Week (Total)</label>
-                    <input type="number" step="1" name="epo_weekly_units" placeholder="e.g. 4000" value="{{ '%.0f'|format(record.epo_weekly_units) if record and record.epo_weekly_units else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>EPO Brand/Dose Description</label>
-                    <input type="text" name="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else '' }}">
-                </div>
+            </div>
 
-                <div class="section-title">Bone & Mineral (BMMD)</div>
-                <div class="form-group">
-                    <label>Calcium (mg/dL)</label>
-                    <input type="number" step="0.1" name="calcium" value="{{ record.calcium if record else '' }}">
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">science</i> Bone & Mineral (BMMD)</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Calcium (mg/dL)</label>
+                        <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Phosphorus (mg/dL)</label>
+                        <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Alkaline Phosphate (U/L)</label>
+                        <input type="number" step="1" name="alkaline_phosphate" inputmode="numeric" value="{{ record.alkaline_phosphate if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>iPTH (pg/mL)</label>
+                        <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Vitamin D (ng/mL)</label>
+                        <input type="number" step="1" name="vit_d" inputmode="numeric" value="{{ record.vit_d if record else '' }}">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Phosphorus (mg/dL)</label>
-                    <input type="number" step="0.1" name="phosphorus" value="{{ record.phosphorus if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>Alkaline Phosphate (U/L)</label>
-                    <input type="number" step="1" name="alkaline_phosphate" value="{{ record.alkaline_phosphate if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>iPTH (pg/mL)</label>
-                    <input type="number" step="1" name="ipth" value="{{ record.ipth if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>Vitamin D (ng/mL)</label>
-                    <input type="number" step="1" name="vit_d" value="{{ record.vit_d if record else '' }}">
-                </div>
+            </div>
 
-                <div class="section-title">Nutrition & LFTs</div>
-                <div class="form-group">
-                    <label>Albumin (g/dL)</label>
-                    <input type="number" step="0.1" name="albumin" value="{{ record.albumin if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>Protein Intake (g/kg/d)</label>
-                    <input type="number" step="0.1" name="av_daily_protein" value="{{ record.av_daily_protein if record else '' }}">
-                </div>
-                <div class="form-group">
-                    <label>Issues / Clinical Notes</label>
-                    <input type="text" name="issues" value="{{ record.issues if record else '' }}" style="grid-column: 1 / -1;">
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">restaurant</i> Nutrition & LFTs</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Albumin (g/dL)</label>
+                        <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Protein Intake (g/kg/d)</label>
+                        <input type="number" step="0.1" name="av_daily_protein" inputmode="decimal" value="{{ record.av_daily_protein if record else '' }}">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Issues / Clinical Notes</label>
+                        <input type="text" name="issues" placeholder="Any complications..." value="{{ record.issues if record else '' }}">
+                    </div>
                 </div>
             </div>
             
@@ -167,6 +284,10 @@
             input.addEventListener('input', () => validate(input.name));
             validate(input.name); // Initial check
         });
+
+        function toggleDrawer() {
+            document.getElementById("mobileDrawer").classList.toggle("open");
+        }
     </script>
 </body>
 </html>

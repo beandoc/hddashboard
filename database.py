@@ -1,5 +1,4 @@
-import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -79,6 +78,9 @@ class BloodTransfusion(Base):
 
 class MonthlyRecord(Base):
     __tablename__ = "monthly_records"
+    __table_args__ = (
+        Index('idx_patient_month', 'patient_id', 'record_month'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
