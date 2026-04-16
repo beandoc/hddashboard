@@ -77,9 +77,13 @@ class MonthlyRecord(Base):
     av_daily_calories = Column(Float)               # kcal/day
     av_daily_protein = Column(Float)                # g/kg/day
 
-    # Liver
+    # Liver & Clinical Metrics
     ast = Column(Float)                             # IU/L
     alt = Column(Float)                             # IU/L
+    urr = Column(Float)                             # Urea Reduction Ratio (%)
+    epo_weekly_units = Column(Float)                # total units/week
+    bp_sys = Column(Float)                          # Systolic BP (mmHg)
+    crp = Column(Float)                             # C-Reactive Protein (mg/L)
 
     # Clinical Notes
     issues = Column(Text)

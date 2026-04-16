@@ -63,6 +63,7 @@ def compute_dashboard(db: Session, month_str: str):
         "low_protein": {"count": 0, "names": []},
         "elevated_liver": {"count": 0, "names": []},
         "non_avf": {"count": 0, "names": [], "types": {}},
+        "male": 0, "female": 0, "unknown_sex": 0,
         "trend_hb": [], "trend_albumin": [], "trend_phosphorus": []
     }
 
@@ -71,6 +72,12 @@ def compute_dashboard(db: Session, month_str: str):
     curr_day = {0:"Mon", 1:"Tue", 2:"Wed", 3:"Thu", 4:"Fri", 5:"Sat", 6:"Sun"}[today.weekday()]
 
     for p in patients:
+        # Demographic Tracking
+        s = str(p.sex).lower() if p.sex else "unknown"
+        if "male" in s: metrics["male"] += 1
+        elif "female" in s: metrics["female"] += 1
+        else: metrics["unknown_sex"] += 1
+
         r, prev_r, m3_r = records.get(p.id), prev_recs.get(p.id), m3_recs.get(p.id)
         row = {"id": p.id, "name": p.name, "hid": p.hid_no, "access": p.access_type, "has_record": r is not None, "alerts": []}
 
