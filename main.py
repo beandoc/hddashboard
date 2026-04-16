@@ -110,7 +110,8 @@ async def login(request: Request, db: Session = Depends(get_db),
         db.commit()
         user = admin
 
-    if not user or not pwd_context.verify(password, user.hashed_password):
+    # Safety truncation for bcrypt 72-byte limit
+    if not user or not pwd_context.verify(password[:72], user.hashed_password):
         msg = "Invalid clinical credentials."
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
     
@@ -504,7 +505,7 @@ def create_user(request: Request, db: Session = Depends(get_db), user: User = De
                 username: str = Form(...), full_name: str = Form(...), password: str = Form(...), role: str = Form(...)):
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=400, detail="Username exists")
-    new_user = User(username=username, full_name=full_name, hashed_password=pwd_context.hash(password), role=role)
+    new_user = User(username=username, full_name=full_name, hashed_password=pwd_context.hash(password[:72]), role=role)
     db.add(new_user); db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
@@ -522,11 +523,11 @@ def change_password_page(request: Request, user: User = Depends(login_required))
 @app.post("/account/password")
 def change_password(request: Request, db: Session = Depends(get_db), user: User = Depends(login_required),
                     current_pw: str = Form(...), new_pw: str = Form(...), confirm_pw: str = Form(...)):
-    if not pwd_context.verify(current_pw, user.hashed_password):
+    if not pwd_context.verify(current_pw[:72], user.hashed_password):
         return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": "Incorrect current password"})
     if new_pw != confirm_pw:
         return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": "Passwords do not match"})
-    user.hashed_password = pwd_context.hash(new_pw); db.commit()
+    user.hashed_password = pwd_context.hash(new_pw[:72]); db.commit()
     return RedirectResponse(url="/", status_code=303)
 
 # ── SCHEDULER ──
@@ -567,7 +568,7 @@ def startup():
         admin = User(
             username="admin", 
             full_name="System Admin", 
-            hashed_password=pwd_context.hash("admin123"), 
+            hashed_password=pwd_context.hash("admin123"[:72]), 
             role="admin",
             is_active=True
         )
