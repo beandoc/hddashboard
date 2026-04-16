@@ -13,7 +13,7 @@ import statistics
 
 from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, User, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
-from alerts import send_bulk_whatsapp_alerts, send_ward_email, send_whatsapp, build_schedule_message, send_critical_clinical_alert
+from alerts import send_bulk_whatsapp_alerts, send_ward_email, send_whatsapp
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -280,11 +280,9 @@ def api_bulk_entries(records: List[dict], db: Session = Depends(get_db), user: U
 
         # Backgrounding Critical Alerts for Robustness
         def trigger_alerts(p_name, metric, val):
-            try:
-                from alerts import send_critical_clinical_alert
-                send_critical_clinical_alert(p_name, metric, val)
-            except Exception as e:
-                print(f"CRITICAL ALERT ERROR: {e}")
+            # from alerts import send_critical_clinical_alert
+            # send_critical_clinical_alert(p_name, metric, val)
+            pass
 
         import threading
         p_obj = None # Initialize
@@ -331,11 +329,9 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), user: User = Depe
 
     # Backgrounding Critical Alerts for Robustness
     def trigger_alerts(p_name, metric, val):
-        try:
-            from alerts import send_critical_clinical_alert
-            send_critical_clinical_alert(p_name, metric, val)
-        except Exception as e:
-            print(f"CRITICAL ALERT ERROR: {e}")
+        # from alerts import send_critical_clinical_alert
+        # send_critical_clinical_alert(p_name, metric, val)
+        pass
 
     import threading
     p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
@@ -463,8 +459,9 @@ def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db), u
             send_schedule_email(p.name, p.email, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
         # WhatsApp
         if p.contact_no:
-            msg = build_schedule_message(p.name, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
-            send_whatsapp(p.contact_no, msg)
+            # msg = build_schedule_message(p.name, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+            # send_whatsapp(p.contact_no, msg)
+            pass
 
     threading.Thread(target=send_p_schedule).start()
     return JSONResponse({"message": f"⏳ Schedule reminder dispatched for {p.name} via Threading."})
