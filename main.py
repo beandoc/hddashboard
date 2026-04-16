@@ -533,7 +533,7 @@ def variable_manager(request: Request, db: Session = Depends(get_db)):
 @app.post("/api/variables")
 def create_variable(payload: dict, db: Session = Depends(get_db)):
     """Create a new custom variable definition."""
-    from database import VariableDefinition
+    from dynamic_vars import VariableDefinition
     existing = db.query(VariableDefinition).filter(
         VariableDefinition.name == payload.get("name")
     ).first()
@@ -553,7 +553,7 @@ def create_variable(payload: dict, db: Session = Depends(get_db)):
 @app.put("/api/variables/{var_id}")
 def update_variable(var_id: int, payload: dict, db: Session = Depends(get_db)):
     """Update an existing variable definition."""
-    from database import VariableDefinition
+    from dynamic_vars import VariableDefinition
     v = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
     if not v:
         raise HTTPException(status_code=404)
@@ -569,7 +569,7 @@ def update_variable(var_id: int, payload: dict, db: Session = Depends(get_db)):
 @app.post("/api/variables/{var_id}/toggle")
 def toggle_variable(var_id: int, db: Session = Depends(get_db)):
     """Activate or deactivate a variable."""
-    from database import VariableDefinition
+    from dynamic_vars import VariableDefinition
     v = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
     if not v:
         raise HTTPException(status_code=404)
@@ -601,7 +601,7 @@ def get_variable_values(
     db: Session = Depends(get_db)
 ):
     """Get all values for a variable, optionally filtered by month range."""
-    from database import VariableValue
+    from dynamic_vars import VariableValue
     q = db.query(VariableValue).filter(VariableValue.variable_id == var_id)
     if from_month:
         q = q.filter(VariableValue.record_month >= from_month)
@@ -621,7 +621,7 @@ def get_variable_values(
 @app.get("/api/variables/{var_id}/summary")
 def get_variable_summary(var_id: int, db: Session = Depends(get_db)):
     """Summary data for viewing: latest per patient + trend over time."""
-    from database import VariableDefinition, VariableValue
+    from dynamic_vars import VariableDefinition, VariableValue
     import numpy as np
 
     vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()

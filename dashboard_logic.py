@@ -244,8 +244,9 @@ def compute_dashboard(db: Session, month_str: str):
                 import numpy as np
                 from sklearn.linear_model import LinearRegression
                 
-                # Sort records by date for prediction
-                sorted_recs = sorted(p.records, key=lambda x: x.record_month)
+                # Sort records by date for prediction, handling potential null months
+                recs_with_months = [rec for rec in p.records if rec.record_month]
+                sorted_recs = sorted(recs_with_months, key=lambda x: x.record_month)
                 all_hb = [rec.hb for rec in sorted_recs if rec.hb is not None]
                 if len(all_hb) >= 3:
                     X = np.arange(len(all_hb)).reshape(-1, 1)
