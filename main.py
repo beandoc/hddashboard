@@ -74,6 +74,7 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
         "data": data,
         "month_str": month_str,
         "current_month": get_current_month_str(),
+        "user": {"role": "admin", "full_name": "Doctor"} # Safety dummy for templates
     })
 
 
