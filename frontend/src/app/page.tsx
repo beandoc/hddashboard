@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Shell from "@/components/Shell";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, API_BASE } from "@/lib/api";
 import { 
   Users, 
   Activity, 
@@ -57,7 +57,8 @@ export default function DashboardPage() {
           <AlertCircle size={40} className="text-red-500" />
         </div>
         <h3 className="text-xl font-black text-gray-900 mb-2">Connection Disrupted</h3>
-        <p className="text-gray-500 font-medium mb-8 max-w-sm">{error}</p>
+        <p className="text-gray-500 font-medium mb-2 max-w-sm">{error}</p>
+        <p className="text-[10px] text-gray-400 uppercase tracking-widest font-black mb-8">Targeting: {API_BASE}</p>
         <button 
           onClick={fetchData} 
           className="px-8 py-4 bg-[#1a237e] text-white font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-indigo-900 transition-all"
