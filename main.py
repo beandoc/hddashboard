@@ -27,18 +27,10 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="HD Dashboard")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MIDDLEWARE (Order is critical for Cross-Origin Sessions)
+# MIDDLEWARE (Order is critical: CORS first, then Session)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 1. Session Middleware (Lowest level)
-app.add_middleware(
-    SessionMiddleware, 
-    secret_key=os.getenv("SECRET_KEY", "clinical-secret-99-super-harden"),
-    same_site="none",
-    https_only=True
-)
-
-# 2. CORS Middleware (Applied after session)
+# 1. CORS Middleware (High-priority Preflight handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -50,7 +42,16 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["set-cookie"]
+    expose_headers=["set-cookie"],
+    max_age=600 # Cache preflight for 10 minutes
+)
+
+# 2. Session Middleware (Lowest level)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=os.getenv("SECRET_KEY", "clinical-secret-99-super-harden"),
+    same_site="none",
+    https_only=True
 )
 
 templates = Jinja2Templates(directory="templates")
