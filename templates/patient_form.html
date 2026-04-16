@@ -81,6 +81,25 @@
                 <label>Relation (e.g., F/O, SELF)</label>
                 <input type="text" name="relation_type" value="{{ patient.relation_type if patient else '' }}">
             </div>
+
+            <div style="display:flex; gap:15px; margin-bottom:15px;">
+                <div style="flex:1;">
+                    <label>HD Slot 1 (Shift)</label>
+                    <select name="hd_slot_1">
+                        <option value="">-- No Slot --</option>
+                        <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_1 or '') }}>Morning (सकाळी)</option>
+                        <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_1 or '') }}>Afternoon (दुपारी)</option>
+                    </select>
+                </div>
+                <div style="flex:1;">
+                    <label>HD Slot 2 (Shift)</label>
+                    <select name="hd_slot_2">
+                        <option value="">-- No Slot --</option>
+                        <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_2 or '') }}>Morning (सकाळी)</option>
+                        <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_2 or '') }}>Afternoon (दुपारी)</option>
+                    </select>
+                </div>
+            </div>
             
             <hr style="margin:20px 0; border:0; border-top:1px solid #eee;" />
             <h3>Vaccination Records</h3>
