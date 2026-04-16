@@ -36,8 +36,13 @@
         <h1>Patient Management</h1>
     </header>
     <div class="container">
-        <a href="/patients/new" class="btn">+ Add New Patient</a>
-        <table>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <a href="/patients/new" class="btn" style="margin:0;">+ Add New Patient</a>
+            <input type="text" id="patientSearch" placeholder="Search name, HID, or gender (e.g. 'Unknown')..." 
+                   style="padding:10px; border:1.5px solid #ddd; border-radius:6px; width:350px; outline:none;"
+                   oninput="filterPatients()">
+        </div>
+        <table id="patientTable">
             <thead>
                 <tr>
                     <th>HID No</th>
@@ -50,10 +55,13 @@
             </thead>
             <tbody>
                 {% for p in patients %}
-                <tr>
+                {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
+                <tr style="{{ 'background:#fff5f5;' if unknown_gender else '' }}">
                     <td>{{ p.hid_no }}</td>
                     <td>{{ p.name }}</td>
-                    <td>{{ p.sex }}</td>
+                    <td style="{{ 'color:#c62828;font-weight:600;' if unknown_gender else '' }}">
+                        {{ p.sex or 'Unknown' }}
+                    </td>
                     <td>{{ p.contact_no }}</td>
                     <td>{{ p.diagnosis }}</td>
                     <td class="actions">
@@ -70,6 +78,14 @@
         </table>
     </div>
     <script>
+        function filterPatients() {
+            const query = document.getElementById('patientSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#patientTable tbody tr');
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        }
         function showToast(msg, isError = false) {
             const toast = document.createElement("div");
             toast.textContent = msg;
