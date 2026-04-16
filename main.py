@@ -29,6 +29,14 @@ def health_check():
     """Render health check endpoint — also used by UptimeRobot to prevent sleep."""
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
+@app.get("/migrate-db")
+def manual_migrate():
+    """Manual rescue route to force database migration."""
+    success = run_migrations()
+    if success:
+        return {"status": "success", "message": "Database schema forced to current version."}
+    return JSONResponse(status_code=500, content={"status": "error", "message": "Migration failed. Check server logs."})
+
 def run_migrations():
     """Force-add missing clinical columns directly via raw engine connection."""
     from sqlalchemy import text
@@ -47,24 +55,24 @@ def run_migrations():
         "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS iron_iv_supplement BOOLEAN DEFAULT FALSE"
     ]
     
-    with engine.connect() as conn:
-        for m in migrations:
-            try:
-                conn.execute(text(m))
-                conn.commit()
-            except Exception as e:
-                print(f"Migration skip/error: {m} -> {e}")
-                conn.rollback()
-    
-    # Create dynamic tables and seed presets
+    from sqlalchemy import text
     try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            for m in migrations:
+                try:
+                    conn.execute(text(m))
+                except Exception as e:
+                    print(f"Migration skip (likely exists): {m} -> {e}")
+        
         from database import Base
         Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         seed_preset_variables(db)
         db.close()
+        return True
     except Exception as e:
-        print(f"Dynamic table init error: {e}")
+        print(f"Migration CRITICAL ERROR: {e}")
+        return False
 
 # Create tables on startup
 @app.on_event("startup")
