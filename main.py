@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
-from typing import Optional
+from pydantic import BaseModel
 import json
 import re
 import statistics
