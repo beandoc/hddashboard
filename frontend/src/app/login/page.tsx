@@ -105,6 +105,7 @@ export default function LoginPage() {
           
           <div className="mt-8 text-gray-400 text-[10px] uppercase tracking-widest font-medium">
             CH(SC) CLINICAL DATA DIVISION © 2026
+            <div className="mt-2 text-[#007bff] font-bold">v1.5 - NUCLEAR READY</div>
           </div>
         </div>
       </div>
