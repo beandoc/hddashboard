@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Optional
 import json
 
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal, engine
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, generate_all_whatsapp_links
 from ml_analytics import run_patient_analytics, run_cohort_analytics
