@@ -465,6 +465,41 @@ def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db), u
     return JSONResponse({"message": f"⏳ Schedule reminder dispatched via Threading."})
 
 
+@app.get("/alerts/whatsapp", response_class=HTMLResponse)
+def whatsapp_gateway(request: Request, month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(any_staff)):
+    month_str = month or get_current_month_str()
+    data = compute_dashboard(db, month_str)
+    
+    # Format patients for the gateway
+    import urllib.parse
+    from alerts import build_whatsapp_message, build_schedule_message
+    
+    alert_links = []
+    for row in data["patient_rows"]:
+        if row["alerts"]:
+            p = db.query(Patient).filter(Patient.id == row["id"]).first()
+            if p and p.contact_no:
+                msg = build_whatsapp_message(p.name, row["alerts"], data["month_label"])
+                clean_no = p.contact_no.strip().replace(" ", "").replace("-", "").lstrip("0")
+                if not clean_no.startswith("+"): clean_no = "91" + clean_no
+                link = f"https://wa.me/{clean_no}?text={urllib.parse.quote(msg)}"
+                alert_links.append({"name": p.name, "hid": p.hid_no, "link": link, "alerts": row["alerts"]})
+
+    schedule_links = []
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    for p in patients:
+        if p.contact_no:
+            msg = build_schedule_message(p.name, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+            clean_no = p.contact_no.strip().replace(" ", "").replace("-", "").lstrip("0")
+            if not clean_no.startswith("+"): clean_no = "91" + clean_no
+            link = f"https://wa.me/{clean_no}?text={urllib.parse.quote(msg)}"
+            schedule_links.append({"name": p.name, "hid": p.hid_no, "link": link})
+
+    return templates.TemplateResponse("whatsapp_links.html", {
+        "request": request, "alert_links": alert_links, "schedule_links": schedule_links,
+        "month_label": data["month_label"], "user": user
+    })
+
 @app.post("/api/send-email")
 def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     month_str = month or get_current_month_str()

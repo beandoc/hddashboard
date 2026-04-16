@@ -51,6 +51,7 @@
             <div class="form-group">
                 <label>Sex</label>
                 <select name="sex" required>
+                    <option value="" disabled {{ 'selected' if not patient or not patient.sex }}>-- Select Gender --</option>
                     <option value="Male" {{ 'selected' if patient and patient.sex == 'Male' else '' }}>Male</option>
                     <option value="Female" {{ 'selected' if patient and patient.sex == 'Female' else '' }}>Female</option>
                 </select>
