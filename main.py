@@ -73,11 +73,34 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+# Redundant section removed to avoid collisions with the HttpOnly Cookie engine below
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES: AUTH
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DIAGNOSTICS
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/health")
+def health_check():
+    """Heartbeat endpoint for UptimeRobot monitoring."""
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    # 1. Check Header (For Vercel/JWT)
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
+    # 1. Check HttpOnly Cookie (Superior Security)
+    token = request.cookies.get("access_token")
+    if token and token.startswith("Bearer "):
+        token = token.split(" ")[1]
+    
+    # 2. Check Header Fallback
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
+    if token:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
@@ -86,7 +109,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         except:
             pass
             
-    # 2. Check Session Fallback (For Local Templates)
+    # 3. Check Session Fallback (Local Templates)
     username = request.session.get("user")
     if username:
         return db.query(User).filter(User.username == username, User.is_active == True).first()
@@ -158,21 +181,28 @@ async def login(request: Request, db: Session = Depends(get_db)):
         if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=403)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
 
-    # Create Session (Legacy)
-    request.session["user"] = user.username
-    request.session["role"] = user.role
-    
-    # Create JWT (Modern)
+    # Create JWT
     access_token = create_access_token(data={"sub": user.username})
     
     if is_json:
-        return JSONResponse({
+        response = JSONResponse({
             "success": True, 
-            "access_token": access_token,
-            "token_type": "bearer",
+            "access_token": access_token, # Keep for backup
             "user": {"username": user.username, "role": user.role}
         })
+        # Set SECURE HttpOnly Cookie
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=604800  # 1 week
+        )
+        return response
     
+    # Session for local
+    request.session["user"] = user.username
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/logout")
