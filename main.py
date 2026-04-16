@@ -12,7 +12,11 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 from typing import Optional
 import json
-from passlib.context import CryptContext
+import logging
+
+# Setup Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("HD-Dashboard")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -148,9 +152,21 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
     try:
         data = compute_dashboard(db, month_str)
     except Exception as e:
-        print(f"Dashboard compute error: {e}")
-        # Fallback to empty data to prevent 500
-        data = {"metrics": {}, "patient_rows": [], "month_label": month_str}
+        logger.error(f"Dashboard compute error: {e}")
+        # Robust Fallback to prevent Jinja2 500 errors
+        data = {
+            "metrics": {
+                "total": 0, "male": 0, "female": 0,
+                "todays_hd": {"count": 0, "names": []},
+                "high_idwg": {"count": 0, "names": []},
+                "low_albumin": {"count": 0, "names": []},
+                "hb_drop_alert": {"count": 0, "names": []},
+                "trend_hb": [], "trend_albumin": [], "trend_phosphorus": []
+            },
+            "patient_rows": [],
+            "month_label": month_str,
+            "prev_month_label": "Previous Month"
+        }
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
