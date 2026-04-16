@@ -301,6 +301,12 @@ def api_bulk_entries(records: List[dict], db: Session = Depends(get_db), user: U
         rec.phosphorus = float(r.get("phosphorus")) if r.get("phosphorus") else None
         rec.albumin = float(r.get("albumin")) if r.get("albumin") else None
         rec.updated_at = datetime.utcnow()
+
+        # Critical Alert Trigger (Bulk)
+        if rec.hb and rec.hb <= 7.0:
+            from alerts import send_critical_hb_alert
+            p_obj = db.query(Patient).filter(Patient.id == pid).first()
+            send_critical_hb_alert(p_obj.name, rec.hb)
     
     db.commit()
     return {"success": True, "count": len(records)}
@@ -330,6 +336,13 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), user: User = Depe
     rec.av_daily_calories = av_daily_calories; rec.av_daily_protein = av_daily_protein
     rec.issues = issues; rec.entered_by = user.username; rec.timestamp = datetime.utcnow()
     db.commit()
+
+    # Critical Alert Trigger
+    if hb and hb <= 7.0:
+        from alerts import send_critical_hb_alert
+        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
+        send_critical_hb_alert(p_obj.name, hb)
+
     return RedirectResponse(url=f"/entry?month={month_str}&saved=1", status_code=303)
 
 # ─────────────────────────────────────────────────────────────────────────────

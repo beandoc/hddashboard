@@ -176,6 +176,41 @@ def build_ward_report_html(alert_patients: list, month_label: str, year: str) ->
     """
 
 
+def send_critical_hb_alert(patient_name: str, hb_level: float) -> tuple[bool, str]:
+    """Send an immediate emergency email for Hb <= 7.0."""
+    target_email = "chiin.says@gmail.com"
+    if not SMTP_USER or not SMTP_PASSWORD:
+        return False, "SMTP credentials missing"
+
+    try:
+        msg = MIMEMultipart()
+        msg["Subject"] = f"CRITICAL ALERT: Low Hemoglobin ({hb_level}) - {patient_name}"
+        msg["From"]    = f"HD Dashboard Alert <{SMTP_USER}>"
+        msg["To"]      = target_email
+        
+        body = (
+            f"Hello Doctor,\n\n"
+            f"A critical hemoglobin value has been entered for the following patient:\n\n"
+            f"Patient Name: {patient_name}\n"
+            f"Hemoglobin Level: {hb_level}\n\n"
+            f"Kindly verify reports and review immediately.\n\n"
+            f"---\n"
+            f"HD Dashboard Clinical Safeguard"
+        )
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, target_email, msg.as_string())
+
+        logger.info(f"🚨 CRITICAL ALERT SENT for {patient_name} (Hb: {hb_level})")
+        return True, "Alert Sent"
+    except Exception as e:
+        logger.error(f"Failed to send critical alert: {e}")
+        return False, str(e)
+
+
 def send_ward_email(alert_patients: list, month_label: str, year: str) -> tuple[bool, str]:
     """Send ward report email to the doctor/admin address."""
     if not SMTP_USER or not SMTP_PASSWORD or not DOCTOR_EMAIL:
