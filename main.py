@@ -302,11 +302,22 @@ def api_bulk_entries(records: List[dict], db: Session = Depends(get_db), user: U
         rec.albumin = float(r.get("albumin")) if r.get("albumin") else None
         rec.updated_at = datetime.utcnow()
 
-        # Critical Alert Trigger (Bulk)
-        if rec.hb and rec.hb <= 7.0:
-            from alerts import send_critical_hb_alert
-            p_obj = db.query(Patient).filter(Patient.id == pid).first()
-            send_critical_hb_alert(p_obj.name, rec.hb)
+        # Triple Sentinel Trigger (Bulk Entry)
+        p_obj = None
+        if rec.hb and rec.hb < 7.0:
+            from alerts import send_critical_clinical_alert
+            p_obj = p_obj or db.query(Patient).filter(Patient.id == pid).first()
+            send_critical_clinical_alert(p_obj.name, "Hemoglobin", rec.hb)
+        
+        if rec.phosphorus and rec.phosphorus > 7.0:
+            from alerts import send_critical_clinical_alert
+            p_obj = p_obj or db.query(Patient).filter(Patient.id == pid).first()
+            send_critical_clinical_alert(p_obj.name, "Serum Phosphorus", rec.phosphorus)
+        
+        if rec.idwg and rec.idwg > 3.5:
+            from alerts import send_critical_clinical_alert
+            p_obj = p_obj or db.query(Patient).filter(Patient.id == pid).first()
+            send_critical_clinical_alert(p_obj.name, "IDWG (Fluid Overload)", rec.idwg)
     
     db.commit()
     return {"success": True, "count": len(records)}
@@ -337,11 +348,21 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), user: User = Depe
     rec.issues = issues; rec.entered_by = user.username; rec.timestamp = datetime.utcnow()
     db.commit()
 
-    # Critical Alert Trigger
-    if hb and hb <= 7.0:
-        from alerts import send_critical_hb_alert
+    # Enhanced Critical Alert Tripwire
+    if hb is not None and hb < 7.0:
+        from alerts import send_critical_clinical_alert
         p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
-        send_critical_hb_alert(p_obj.name, hb)
+        send_critical_clinical_alert(p_obj.name, "Hemoglobin", hb)
+    
+    if phosphorus is not None and phosphorus > 7.0:
+        from alerts import send_critical_clinical_alert
+        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
+        send_critical_clinical_alert(p_obj.name, "Serum Phosphorus", phosphorus)
+
+    if idwg is not None and idwg > 3.5:
+        from alerts import send_critical_clinical_alert
+        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
+        send_critical_clinical_alert(p_obj.name, "IDWG (Fluid Overload)", idwg)
 
     return RedirectResponse(url=f"/entry?month={month_str}&saved=1", status_code=303)
 

@@ -176,26 +176,27 @@ def build_ward_report_html(alert_patients: list, month_label: str, year: str) ->
     """
 
 
-def send_critical_hb_alert(patient_name: str, hb_level: float) -> tuple[bool, str]:
-    """Send an immediate emergency email for Hb <= 7.0."""
+def send_critical_clinical_alert(patient_name: str, marker_name: str, value: float) -> tuple[bool, str]:
+    """Send an immediate emergency email for life-threatening lab values."""
     target_email = "chiin.says@gmail.com"
     if not SMTP_USER or not SMTP_PASSWORD:
         return False, "SMTP credentials missing"
 
     try:
         msg = MIMEMultipart()
-        msg["Subject"] = f"CRITICAL ALERT: Low Hemoglobin ({hb_level}) - {patient_name}"
+        msg["Subject"] = f"🚨 CRITICAL CLINICAL ALERT: {marker_name} ({value}) - {patient_name}"
         msg["From"]    = f"HD Dashboard Alert <{SMTP_USER}>"
         msg["To"]      = target_email
         
         body = (
             f"Hello Doctor,\n\n"
-            f"A critical hemoglobin value has been entered for the following patient:\n\n"
+            f"A CRITICAL clinical value has been detected for the following patient:\n\n"
             f"Patient Name: {patient_name}\n"
-            f"Hemoglobin Level: {hb_level}\n\n"
-            f"Kindly verify reports and review immediately.\n\n"
+            f"Clinical Parameter: {marker_name}\n"
+            f"Entered Value: {value}\n\n"
+            f"Kindly verify reports and review immediately. This value exceeds safe ward thresholds.\n\n"
             f"---\n"
-            f"HD Dashboard Clinical Safeguard"
+            f"HD Dashboard Clinical Sentinel"
         )
         msg.attach(MIMEText(body, "plain"))
 
@@ -204,7 +205,7 @@ def send_critical_hb_alert(patient_name: str, hb_level: float) -> tuple[bool, st
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_USER, target_email, msg.as_string())
 
-        logger.info(f"🚨 CRITICAL ALERT SENT for {patient_name} (Hb: {hb_level})")
+        logger.info(f"🚨 CRITICAL ALERT SENT: {patient_name} | {marker_name}: {value}")
         return True, "Alert Sent"
     except Exception as e:
         logger.error(f"Failed to send critical alert: {e}")
