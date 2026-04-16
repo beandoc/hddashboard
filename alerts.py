@@ -177,7 +177,7 @@ def build_ward_report_html(alert_patients: list, month_label: str, year: str) ->
 
 
 def send_critical_clinical_alert(patient_name: str, marker_name: str, value: float) -> tuple[bool, str]:
-    """Send an immediate emergency email for life-threatening lab values."""
+    """Send an immediate emergency alert for life-threatening values. [SYNTAX_FIX_V2]"""
     target_email = "chiin.says@gmail.com"
     if not SMTP_USER or not SMTP_PASSWORD:
         return False, "SMTP credentials missing"
