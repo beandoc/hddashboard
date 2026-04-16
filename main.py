@@ -13,8 +13,7 @@ import statistics
 
 from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, User, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
-from alerts import send_bulk_whatsapp_alerts, send_ward_email
-from tasks import task_send_bulk_whatsapp, task_send_ward_email, task_send_schedule_reminder
+from alerts import send_bulk_whatsapp_alerts, send_ward_email, send_whatsapp, build_schedule_message, send_critical_clinical_alert
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -437,8 +436,9 @@ def api_patient_timeline(patient_id: int, db: Session = Depends(get_db), user: U
 @app.post("/api/send-whatsapp")
 def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     month_str = month or get_current_month_str()
-    task_send_bulk_whatsapp.delay(month_str)
-    return JSONResponse({"message": "⏳ WhatsApp alert task queued."})
+    import threading
+    threading.Thread(target=send_bulk_whatsapp_alerts, args=(get_patients_needing_alerts(db, month_str), get_month_label(month_str))).start()
+    return JSONResponse({"message": "⏳ WhatsApp alert task queued via threading."})
 
 
 
@@ -449,23 +449,28 @@ def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db), u
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
     
-    # Send Trilingual Email if available
-    if p.email:
-        from alerts import send_schedule_email
-        send_schedule_email(p.name, p.email, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+    # Send WhatsApp/Email via direct threading
+    import threading
+    def send_p_schedule():
+        # Email
+        if p.email:
+            from alerts import send_schedule_email
+            send_schedule_email(p.name, p.email, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+        # WhatsApp
+        if p.contact_no:
+            msg = build_schedule_message(p.name, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+            send_whatsapp(p.contact_no, msg)
 
-    # Send WhatsApp via background task
-    if p.contact_no:
-        task_send_schedule_reminder.delay(patient_id)
-    
-    return JSONResponse({"message": f"⏳ Schedule reminder dispatched for {p.name} via Email/WhatsApp."})
+    threading.Thread(target=send_p_schedule).start()
+    return JSONResponse({"message": f"⏳ Schedule reminder dispatched for {p.name} via Threading."})
 
 
 @app.post("/api/send-email")
 def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     month_str = month or get_current_month_str()
-    task_send_ward_email.delay(month_str)
-    return JSONResponse({"message": "⏳ Ward report email task queued."})
+    import threading
+    threading.Thread(target=send_ward_email, args=(get_patients_needing_alerts(db, month_str), get_month_label(month_str), month_str[:4])).start()
+    return JSONResponse({"message": "⏳ Ward report email task queued via threading."})
 
 
 @app.get("/api/cohort-trends")
@@ -571,8 +576,14 @@ def startup():
 
     scheduler = BackgroundScheduler()
     def auto_report():
+        import threading
         m = get_current_month_str()
-        task_send_ward_email.delay(m)
+        db = SessionLocal()
+        try:
+            pts = get_patients_needing_alerts(db, m)
+            threading.Thread(target=send_ward_email, args=(pts, get_month_label(m), m[:4])).start()
+        finally:
+            db.close()
     scheduler.add_job(auto_report, CronTrigger(hour=8, minute=0))
     scheduler.start()
 
