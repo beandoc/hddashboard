@@ -62,22 +62,42 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # AUTHENTICATION & PERMISSIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
+import jwt
+
+SECRET_KEY = os.getenv("SECRET_KEY", "clinical-secret-99-super-harden")
+ALGORITHM = "HS256"
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=7)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    """Dependency to retrieve the logged-in user or return None."""
+    # 1. Check Header (For Vercel/JWT)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username = payload.get("sub")
+            if username:
+                return db.query(User).filter(User.username == username, User.is_active == True).first()
+        except:
+            pass
+            
+    # 2. Check Session Fallback (For Local Templates)
     username = request.session.get("user")
-    if not username:
-        return None
-    user = db.query(User).filter(User.username == username, User.is_active == True).first()
-    return user
+    if username:
+        return db.query(User).filter(User.username == username, User.is_active == True).first()
+    return None
 
 def login_required(user=Depends(get_current_user)):
-    """Ensure a user is logged in, or raise 401."""
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
     return user
 
 def require_role(roles: list):
-    """Factory for role-based access checks."""
     def role_checker(user: User = Depends(login_required)):
         if user.role not in roles:
             raise HTTPException(status_code=403, detail="Insufficient clinical permissions")
@@ -129,7 +149,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
         user = admin
 
     if not user or not pwd_context.verify(password, user.hashed_password):
-        msg = "Invalid clinical credentials. Please check your username/password."
+        msg = "Invalid clinical credentials."
         if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=401)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
     
@@ -138,11 +158,20 @@ async def login(request: Request, db: Session = Depends(get_db)):
         if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=403)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
 
+    # Create Session (Legacy)
     request.session["user"] = user.username
     request.session["role"] = user.role
     
+    # Create JWT (Modern)
+    access_token = create_access_token(data={"sub": user.username})
+    
     if is_json:
-        return JSONResponse({"success": True, "user": {"username": user.username, "role": user.role}})
+        return JSONResponse({
+            "success": True, 
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {"username": user.username, "role": user.role}
+        })
     
     return RedirectResponse(url="/", status_code=303)
 
@@ -377,8 +406,13 @@ def api_me(user: User = Depends(get_current_user)):
 
 @app.get("/api/patients")
 def api_patients(q: str = "", db: Session = Depends(get_db), user: User = Depends(any_staff)):
-    patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(20).all()
-    return [{"id": p.id, "name": p.name, "hid": p.hid_no, "sex": p.sex, "contact": p.contact_no, "diagnosis": p.diagnosis, "access": p.access_type} for p in patients]
+    patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(100).all()
+    return [{
+        "id": p.id, "name": p.name, "hid": p.hid_no, "sex": p.sex, 
+        "contact": p.contact_no, "diagnosis": p.diagnosis, 
+        "access": p.access_type,
+        "slots": [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3]
+    } for p in patients]
 
 @app.get("/api/patients/{patient_id}")
 def api_patient_detail(patient_id: int, db: Session = Depends(get_db), user: User = Depends(any_staff)):

@@ -30,7 +30,11 @@ export default function LoginPage() {
       });
 
       if (response.ok) {
-        console.log("DEBUG: Login response was OK.");
+        const data = await response.json();
+        if (data.access_token) {
+          localStorage.setItem("clinical_token", data.access_token);
+        }
+        console.log("DEBUG: Login successful. Clinical Token secured.");
         router.push("/");
       } else {
         const text = await response.text();

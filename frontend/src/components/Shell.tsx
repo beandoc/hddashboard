@@ -96,7 +96,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </button>
           <button 
             onClick={() => {
-              // Handle logout logic
+              if (typeof window !== "undefined") {
+                localStorage.removeItem("clinical_token");
+              }
               window.location.href = "/login";
             }}
             className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-indigo-200 hover:text-white hover:bg-white/10 transition-all font-medium"
