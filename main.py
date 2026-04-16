@@ -27,23 +27,16 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(title="HD Dashboard")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MIDDLEWARE (Order is critical: CORS first, then Session)
+# DIAGNOSTIC MIDDLEWARE (Allow All Origins to bypass CORS blocks)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 1. CORS Middleware (High-priority Preflight handler)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://hddashboardnephro.vercel.app",
-        "https://hddashboard.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:8000"
-      ],
+    allow_origin_regex="https://.*\.vercel\.app|https://.*\.onrender\.com|http://localhost:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["set-cookie"],
-    max_age=600 # Cache preflight for 10 minutes
+    expose_headers=["*"],
 )
 
 # 2. Session Middleware (Lowest level)
