@@ -607,9 +607,33 @@ def change_password(request: Request, db: Session = Depends(get_db), user: User 
     return RedirectResponse(url="/", status_code=303)
 
 # ── SCHEDULER ──
+def migrate_db():
+    from sqlalchemy import text
+    db = SessionLocal()
+    # Clinical columns to auto-ensure
+    migrations = [
+        ("patients", "relation_type", "VARCHAR"),
+        ("patients", "relation_name", "VARCHAR"),
+        ("patients", "hep_b_status", "VARCHAR"),
+        ("patients", "hep_b_date", "DATE"),
+        ("patients", "pneumococcal_date", "DATE"),
+        ("patients", "updated_by", "VARCHAR"),
+        ("monthly_records", "target_dry_weight", "FLOAT"),
+        ("monthly_records", "updated_at", "TIMESTAMP"),
+        ("monthly_records", "entered_by", "VARCHAR")
+    ]
+    for table, col, col_type in migrations:
+        try:
+            db.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+            db.commit()
+        except Exception:
+            db.rollback() 
+    db.close()
+
 @app.on_event("startup")
 def startup():
     create_tables()
+    migrate_db()
     db = SessionLocal()
     # Ensure admin exists
     admin_user = db.query(User).filter(User.username == "admin").first()
