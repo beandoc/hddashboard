@@ -26,27 +26,33 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="HD Dashboard")
 
-# Enable CORS
-# Note: For allow_credentials=True, we MUST specify the exact origins.
+# ─────────────────────────────────────────────────────────────────────────────
+# MIDDLEWARE (Order is critical for Cross-Origin Sessions)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# 1. Session Middleware (Lowest level)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=os.getenv("SECRET_KEY", "clinical-secret-99-super-harden"),
+    same_site="none",
+    https_only=True
+)
+
+# 2. CORS Middleware (Applied after session)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://hddashboardnephro.vercel.app",
+        "https://hddashboard.onrender.com",
         "http://localhost:3000",
         "http://localhost:8000"
-    ],
+      ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["set-cookie"]
 )
 
-# Enable Session with Cross-Site Cookie Support
-app.add_middleware(
-    SessionMiddleware, 
-    secret_key=os.getenv("SECRET_KEY", "clinical-secret-99"),
-    same_site="none",  # Required for Vercel -> Render cross-site cookies
-    https_only=True    # Required for same_site="none"
-)
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
