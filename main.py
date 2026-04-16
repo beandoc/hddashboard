@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 from typing import Optional
 import json
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal, engine
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
@@ -703,3 +706,51 @@ def get_variable_summary(var_id: int, db: Session = Depends(get_db)):
         })
 
     return JSONResponse({"patients": patient_summary, "trend": trend})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# USER MANAGEMENT (ADMIN)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def user_management(request: Request, db: Session = Depends(get_db)):
+    from database import User
+    users = db.query(User).order_by(User.role, User.username).all()
+    return templates.TemplateResponse("user_management.html", {
+        "request": request,
+        "users": users,
+        "current_user": {"role": "admin", "full_name": "Doctor"}
+    })
+
+@app.post("/admin/users/new")
+def create_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    full_name: str = Form(...),
+    role: str = Form("nurse"),
+    db: Session = Depends(get_db)
+):
+    from database import User
+    existing = db.query(User).filter(User.username == username).first()
+    if existing:
+        return RedirectResponse(url="/admin/users?error=Username+exists", status_code=303)
+    
+    hashed_pwd = pwd_context.hash(password)
+    new_user = User(
+        username=username,
+        hashed_password=hashed_pwd,
+        full_name=full_name,
+        role=role
+    )
+    db.add(new_user)
+    db.commit()
+    return RedirectResponse(url="/admin/users?saved=1", status_code=303)
+
+@app.post("/admin/users/{user_id}/toggle")
+def toggle_user(user_id: int, db: Session = Depends(get_db)):
+    from database import User
+    u = db.query(User).filter(User.id == user_id).first()
+    if u:
+        u.is_active = not u.is_active
+        db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
