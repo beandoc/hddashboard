@@ -15,9 +15,6 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ── CONFIGURATION (from .env) ──────────────────────────────────────────────
-TWILIO_SID     = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_AUTH    = os.getenv("TWILIO_AUTH_TOKEN", "")
-TWILIO_WA_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "")
 SMTP_HOST      = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT      = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER      = os.getenv("SMTP_USER", "")
@@ -53,63 +50,14 @@ def build_schedule_message(patient_name: str, slots: list) -> str:
     )
 
 
-def send_whatsapp(to_number: str, message: str) -> tuple:
-    """Send WhatsApp via Twilio. Returns (success: bool, detail: str)."""
-    if not TWILIO_SID or not TWILIO_AUTH or not TWILIO_WA_FROM:
-        logger.warning("Twilio credentials not configured")
-        return False, "Twilio not configured"
-
-    try:
-        from twilio.rest import Client
-        client = Client(TWILIO_SID, TWILIO_AUTH)
-        number = to_number.strip().replace(" ", "").replace("-", "")
-        if not number.startswith("+"):
-            number = "+91" + number.lstrip("0")
-        msg = client.messages.create(
-            from_=TWILIO_WA_FROM,
-            to=f"whatsapp:{number}",
-            body=message,
-        )
-        logger.info(f"WhatsApp sent to {number} SID={msg.sid}")
-        return True, msg.sid
-    except Exception as e:
-        logger.error(f"WhatsApp failed to {to_number}: {e}")
-        return False, str(e)
-
-
 def send_bulk_whatsapp_alerts(alert_patients: list, month_label: str) -> dict:
-    """Send WhatsApp to all flagged patients with notify=True."""
-    sent, failed, skipped = 0, 0, 0
-    results = []
-
-    for ap in alert_patients:
-        patient = ap["patient"]
-
-        if not patient.whatsapp_notify:
-            skipped += 1
-            continue
-
-        if not patient.contact_no:
-            skipped += 1
-            results.append({"name": patient.name, "status": "skipped-no-number"})
-            continue
-
-        message = build_whatsapp_message(patient.name, ap["alerts"], month_label)
-        success, detail = send_whatsapp(patient.contact_no, message)
-
-        if success:
-            sent += 1
-            results.append({"name": patient.name, "status": "sent", "sid": detail})
-        else:
-            failed += 1
-            results.append({"name": patient.name, "status": "failed", "error": detail})
-
+    """Prepare manual WhatsApp links for all flagged patients."""
+    links = generate_all_whatsapp_links(alert_patients, month_label)
     return {
-        "sent": sent,
-        "failed": failed,
-        "skipped": skipped,
-        "results": results,
-        "message": f"WhatsApp: {sent} sent, {failed} failed, {skipped} skipped.",
+        "mode": "manual",
+        "count": len(links),
+        "links": links,
+        "message": f"Prepared {len(links)} manual alert links."
     }
 
 
