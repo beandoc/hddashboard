@@ -65,8 +65,10 @@ def startup():
 # DASHBOARD
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    if request.method == "HEAD":
+        return HTMLResponse(content="", status_code=200)
     month_str = month or get_current_month_str()
     data = compute_dashboard(db, month_str)
     return templates.TemplateResponse("dashboard.html", {
