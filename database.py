@@ -110,6 +110,16 @@ class AlertLog(Base):
     message_preview = Column(Text)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String)
+    role = Column(String, default="nurse") # admin, doctor, nurse
+
+
 def get_db():
     db = SessionLocal()
     try:
