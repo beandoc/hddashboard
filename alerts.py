@@ -229,8 +229,56 @@ def send_ward_email(alert_patients: list, month_label: str, year: str) -> tuple[
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_USER, DOCTOR_EMAIL, msg.as_string())
 
-        logger.info(f"Ward report email sent to {DOCTOR_EMAIL}")
-        return True, f"Email sent to {DOCTOR_EMAIL}"
+def get_date_for_slot(slot_str: str) -> str:
+    """Convert 'Mon Morning' to '10 Apr' format for the current week."""
+    import calendar
+    from datetime import timedelta
+    days_map = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
+    try:
+        day_prefix = slot_str.split(" ")[0]
+        target_weekday = days_map.get(day_prefix)
+        if target_weekday is None: return ""
+        
+        today = datetime.now()
+        # Find the Monday of this week
+        start_of_week = today - timedelta(days=today.weekday())
+        target_date = start_of_week + timedelta(days=target_weekday)
+        return target_date.strftime("%d %b")
+    except:
+        return ""
+
+def send_schedule_email(patient_name: str, patient_email: str, slots: list) -> tuple[bool, str]:
+    """Send the trilingual HD schedule email."""
+    if not SMTP_USER or not SMTP_PASSWORD or not patient_email:
+        return False, "SMTP or Patient Email missing"
+
+    slot_dates = [f"{get_date_for_slot(s)} ({s})" for s in slots if s and get_date_for_slot(s)]
+    slot_text = "\n ".join(slot_dates) if slot_dates else "Schedule update pending / प्रलंबित विभाग"
+
+    try:
+        msg = MIMEMultipart()
+        msg["Subject"] = "Your Hemodialysis Schedule"
+        msg["From"]    = f"Nephro Dept CH(SC) <{SMTP_USER}>"
+        msg["To"]      = patient_email
+
+        body = (
+            f"Dear Dialysis Patient {patient_name},\n\n"
+            f"Please find the HD slots details for this week\n"
+            f"इस हफ्ते के लिए ये HD स्लॉट्स की तारीखें हैं।\n"
+            f"कृपया या आठवड्यासाठी एचडी स्लॉट तपशील शोधा\n\n"
+            f" {slot_text}\n\n"
+            f"Pl Note : Ensure you arrive 15 mins early.\n\n"
+            f"Regards, Nephro Dept CH(SC)"
+        )
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, patient_email, msg.as_string())
+
+        logger.info(f"📧 Trilingual Schedule sent to {patient_name} ({patient_email})")
+        return True, "Schedule Sent"
     except Exception as e:
-        logger.error(f"Email send failed: {e}")
+        logger.error(f"Failed to send schedule email: {e}")
         return False, str(e)

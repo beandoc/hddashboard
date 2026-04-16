@@ -438,16 +438,21 @@ def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db)
 
 @app.post("/api/send-schedule/{patient_id}")
 def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db), user: User = Depends(admin_only)):
-    """Send a specific patient their weekly HD schedule via WhatsApp."""
+    """Send a specific patient their weekly HD schedule via WhatsApp and Email."""
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
     
-    if not p.contact_no:
-        return JSONResponse({"message": "❌ No contact number recorded."}, status_code=400)
+    # Send Trilingual Email if available
+    if p.email:
+        from alerts import send_schedule_email
+        send_schedule_email(p.name, p.email, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+
+    # Send WhatsApp via background task
+    if p.contact_no:
+        task_send_schedule_reminder.delay(patient_id)
     
-    task_send_schedule_reminder.delay(patient_id)
-    return JSONResponse({"message": f"⏳ Schedule reminder queued for {p.name}."})
+    return JSONResponse({"message": f"⏳ Schedule reminder dispatched for {p.name} via Email/WhatsApp."})
 
 
 @app.post("/api/send-email")
