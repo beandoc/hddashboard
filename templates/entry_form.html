@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Data Entry - {{ patient.name }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <style>
+        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
+        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
+        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
+        .app-nav .nav-links { display:flex; gap:4px; }
+        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+        .app-nav a:hover { color:#fff; background:rgba(255,255,255,0.12); }
+        header { background-color:#1a237e; color:white; padding:15px 0; text-align:center; }
+        .container { max-width:900px; margin:20px auto; padding:30px; background:white; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+        .patient-info { background:#f8f9fa; padding:15px; border-radius:6px; margin-bottom:25px; border-left:4px solid #1a237e; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px; }
+        .form-group { margin-bottom:15px; }
+        label { display:block; margin-bottom:5px; font-weight:600; color:#444; font-size:0.9em; }
+        input { width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box; }
+        .section-title { grid-column:1/-1; border-bottom:2px solid #eee; padding-bottom:5px; margin-top:10px; color:#1a237e; font-size:1.1em; }
+        .btn-save { background:#1a237e; color:white; padding:12px 30px; border:none; border-radius:6px; cursor:pointer; font-size:1em; font-weight:bold; margin-top:20px; width:100%; }
+        .btn-save:hover { background:#0d1440; }
+    </style>
+</head>
+<body>
+    <div class="app-nav">
+        <span class="brand">CH(SC) · Nephrology Unit</span>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/patients">Patients</a>
+            <a href="/entry">Data Entry</a>
+        </div>
+    </div>
+    <header>
+        <h1>Clinical Data Entry: {{ month_label }}</h1>
+    </header>
+    <div class="container">
+        <div class="patient-info">
+            <strong>Patient:</strong> {{ patient.name }} ({{ patient.hid_no }}) <br>
+            <strong>Access:</strong> {{ patient.access_type or 'Not specified' }}
+        </div>
+        
+        <form method="POST">
+            <input type="hidden" name="month_str" value="{{ month_str }}">
+            
+            <div class="grid">
+                <div class="section-title">General</div>
+                <div class="form-group">
+                    <label>Target Dry Weight (kg)</label>
+                    <input type="number" step="0.1" name="target_dry_weight" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>IDWG (kg)</label>
+                    <input type="number" step="0.1" name="idwg" value="{{ record.idwg if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Entered By</label>
+                    <input type="text" name="entered_by" value="{{ record.entered_by if record else '' }}">
+                </div>
+
+                <div class="section-title">Anemia & Iron</div>
+                <div class="form-group">
+                    <label>Hemoglobin (g/dL)</label>
+                    <input type="number" step="0.1" name="hb" value="{{ record.hb if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Serum Ferritin (ng/mL)</label>
+                    <input type="number" step="1" name="serum_ferritin" value="{{ record.serum_ferritin if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>TSAT (%)</label>
+                    <input type="number" step="1" name="tsat" value="{{ record.tsat if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>EPO / Mircera Dose</label>
+                    <input type="text" name="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else '' }}">
+                </div>
+
+                <div class="section-title">Bone & Mineral (BMMD)</div>
+                <div class="form-group">
+                    <label>Calcium (mg/dL)</label>
+                    <input type="number" step="0.1" name="calcium" value="{{ record.calcium if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Phosphorus (mg/dL)</label>
+                    <input type="number" step="0.1" name="phosphorus" value="{{ record.phosphorus if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Alkaline Phosphate (U/L)</label>
+                    <input type="number" step="1" name="alkaline_phosphate" value="{{ record.alkaline_phosphate if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>iPTH (pg/mL)</label>
+                    <input type="number" step="1" name="ipth" value="{{ record.ipth if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Vitamin D (ng/mL)</label>
+                    <input type="number" step="1" name="vit_d" value="{{ record.vit_d if record else '' }}">
+                </div>
+
+                <div class="section-title">Nutrition & LFTs</div>
+                <div class="form-group">
+                    <label>Albumin (g/dL)</label>
+                    <input type="number" step="0.1" name="albumin" value="{{ record.albumin if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Protein Intake (g/kg/d)</label>
+                    <input type="number" step="0.1" name="av_daily_protein" value="{{ record.av_daily_protein if record else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Issues / Clinical Notes</label>
+                    <input type="text" name="issues" value="{{ record.issues if record else '' }}" style="grid-column: 1 / -1;">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-save">Save Record for {{ month_label }}</button>
+        </form>
+    </div>
+
+    <script>
+        const thresholds = {
+            hb: { bad: 10, warn: 11.5, type: 'low' },
+            phosphorus: { bad: 5.5, warn: 5.0, type: 'high' },
+            albumin: { bad: 2.5, warn: 3.5, type: 'low' },
+            tsat: { bad: 20, warn: 30, type: 'low' },
+            idwg: { bad: 2.5, warn: 2.0, type: 'high' }
+        };
+
+        function validate(field) {
+            const input = document.querySelector(`input[name="${field}"]`);
+            if (!input || !thresholds[field]) return;
+
+            const val = parseFloat(input.value);
+            const t = thresholds[field];
+
+            input.style.backgroundColor = '';
+            input.style.borderColor = '#ddd';
+
+            if (isNaN(val)) return;
+
+            if (t.type === 'low') {
+                if (val < t.bad) {
+                    input.style.backgroundColor = '#ffe6e6';
+                    input.style.borderColor = '#dc3545';
+                } else if (val < t.warn) {
+                    input.style.backgroundColor = '#fff3e0';
+                    input.style.borderColor = '#e67e22';
+                }
+            } else {
+                if (val > t.bad) {
+                    input.style.backgroundColor = '#ffe6e6';
+                    input.style.borderColor = '#dc3545';
+                } else if (val > t.warn) {
+                    input.style.backgroundColor = '#fff3e0';
+                    input.style.borderColor = '#e67e22';
+                }
+            }
+        }
+
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', () => validate(input.name));
+            validate(input.name); // Initial check
+        });
+    </script>
+</body>
+</html>

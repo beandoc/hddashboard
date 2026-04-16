@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HD Patients Data Dashboard CH(SC)</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+  <style>
+    body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; color:#333; }
+
+    /* App nav shell */
+    .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
+    .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
+    .app-nav .nav-links { display:flex; gap:4px; }
+    .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+    .app-nav a:hover,.app-nav a.active { color:#fff; background:rgba(255,255,255,0.12); }
+
+    /* Original header */
+    header { background-color:#007bff; color:white; padding:20px 0; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+    header h1 { margin:0; font-weight:700; font-size:2.5em; letter-spacing:1px; }
+    .header-sub { margin-top:10px; display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; }
+    .header-sub a { color:#fff; text-decoration:none; background:rgba(255,255,255,0.18); padding:5px 16px; border-radius:20px; font-size:0.82em; font-weight:500; transition:background .15s; }
+    .header-sub a:hover { background:rgba(255,255,255,0.3); }
+    .month-picker-wrap { display:flex; align-items:center; gap:7px; }
+    .month-picker-wrap label { font-size:0.8em; opacity:.8; }
+    .month-picker-wrap input[type="month"] { border:none; border-radius:20px; padding:4px 12px; font-family:'Roboto',sans-serif; font-size:0.82em; background:rgba(255,255,255,0.22); color:#fff; cursor:pointer; outline:none; }
+    .month-picker-wrap input[type="month"]::-webkit-calendar-picker-indicator { filter:invert(1); cursor:pointer; }
+
+    /* Dashboard grid */
+    .dashboard-grid { display:flex; flex-wrap:wrap; justify-content:space-evenly; gap:20px; padding:20px; max-width:1400px; margin:20px auto; }
+
+    /* Cards */
+    .card { background-color:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); padding:20px; text-align:center; display:flex; flex-direction:column; justify-content:flex-start; align-items:center; position:relative; cursor:pointer; flex-basis:calc(25% - 20px); max-width:calc(25% - 20px); min-width:200px; box-sizing:border-box; transition:transform .2s ease,box-shadow .2s ease; }
+    .card.highlight { background-color:#ffe6e6; border:1px solid #ffcccc; }
+    .card:hover { transform:translateY(-5px); box-shadow:0 4px 8px rgba(0,0,0,0.2); }
+    .card .icon { font-size:3em; margin-bottom:10px; color:#007bff; }
+    .card.highlight .icon { color:#dc3545; }
+    .card .value { font-size:2.5em; font-weight:bold; color:#333; }
+    .card.highlight .value { color:#dc3545; }
+    .card .title { font-size:1em; color:#555; margin-top:5px; }
+    .card.wide-card { flex-basis:calc(50% - 30px); max-width:calc(50% - 30px); justify-content:flex-start; }
+    .card .wide-card-header { display:flex; align-items:center; justify-content:center; width:100%; margin-bottom:10px; gap:8px; flex-wrap:wrap; }
+    .card .wide-card-header .icon { font-size:1.8em; margin-bottom:0; flex-shrink:0; }
+    .card .wide-card-header .title { font-size:1.1em; font-weight:bold; color:#333; margin:0; text-align:center; }
+    .card .wide-card-header .value { font-size:1.8em; font-weight:bold; color:#dc3545; margin-bottom:0; flex-shrink:0; }
+    .card .visible-list { margin-top:10px; list-style:none; padding:0 8px; font-size:0.9em; color:#444; max-height:220px; overflow-y:auto; text-align:left; width:100%; background-color:#f9f9f9; border-radius:4px; box-sizing:border-box; }
+    .card .visible-list li { margin-bottom:4px; padding:3px 0; border-bottom:1px solid #eee; }
+    .tooltip { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background-color:rgba(0,0,0,0.85); color:white; padding:8px 12px; border-radius:5px; font-size:0.85em; white-space:pre-line; opacity:0; visibility:hidden; transition:opacity .3s,visibility .3s; z-index:1000; pointer-events:none; max-width:300px; text-align:left; }
+    .tooltip::after { content:""; position:absolute; top:100%; left:50%; margin-left:-5px; border-width:5px; border-style:solid; border-color:rgba(0,0,0,0.85) transparent transparent transparent; }
+    .card:hover .tooltip { opacity:1; visibility:visible; }
+
+    /* Action bar */
+    .action-bar { max-width:1400px; margin:0 auto 4px; padding:0 20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .btn-wa { display:inline-flex; align-items:center; gap:7px; background:#25d366; color:#fff; border:none; border-radius:6px; padding:9px 20px; font-size:0.88em; font-weight:500; cursor:pointer; text-decoration:none; transition:background .15s; font-family:'Roboto',sans-serif; }
+    .btn-wa:hover { background:#1ebe5d; }
+    .btn-wa svg { width:17px; height:17px; fill:currentColor; flex-shrink:0; }
+    .btn-email { display:inline-flex; align-items:center; gap:7px; background:#1a73e8; color:#fff; border:none; border-radius:6px; padding:9px 20px; font-size:0.88em; font-weight:500; cursor:pointer; font-family:'Roboto',sans-serif; transition:background .15s; }
+    .btn-email:hover { background:#1558c0; }
+    .alert-status { font-size:0.82em; color:#555; }
+
+    /* Charts */
+    .chart-container { background-color:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); padding:20px; margin:20px auto; text-align:center; max-width:600px; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+    .chart-container h3 { margin-bottom:20px; color:#333; font-size:1.2em; }
+    .chart-content { width:100%; height:300px; }
+
+    /* Trend charts */
+    .trend-section-title { text-align:center; margin-top:40px; margin-bottom:0; color:#333; font-size:1.5em; font-weight:700; }
+    .trend-charts-section { display:flex; flex-wrap:wrap; justify-content:space-evenly; gap:20px; padding:20px; max-width:1400px; margin:20px auto; border-top:2px solid #e0e0e0; padding-top:30px; }
+    .trend-chart-wrapper { flex-basis:calc(33.33% - 20px); max-width:calc(33.33% - 20px); min-width:300px; box-sizing:border-box; background-color:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); padding:15px; text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+    .trend-chart-wrapper.hb-bg  { background-color:#ffe0e0; }
+    .trend-chart-wrapper.alb-bg { background-color:#e0f2ff; }
+    .trend-chart-wrapper.phos-bg{ background-color:#e0ffe0; }
+    .trend-chart-wrapper h3 { font-size:1.1em; margin-bottom:15px; }
+    .trend-chart-content { width:100%; height:250px; }
+    .patient-nav { display:flex; justify-content:space-between; align-items:center; width:100%; margin-top:10px; padding:0 5px; }
+    .patient-nav button { background:none; border:none; font-size:1.8em; color:#007bff; cursor:pointer; padding:0 5px; transition:color .2s ease; display:flex; align-items:center; }
+    .patient-nav button:hover:not(:disabled) { color:#0056b3; }
+    .patient-nav button:disabled { color:#ccc; cursor:not-allowed; }
+    .patient-name-display { font-weight:bold; font-size:1em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-grow:1; text-align:center; margin:0 10px; }
+
+    /* Patient table */
+    .table-section { max-width:1400px; margin:30px auto 50px; padding:0 20px; }
+    .table-section h2 { font-size:1.25em; margin-bottom:12px; color:#333; }
+    .table-toolbar { display:flex; gap:10px; margin-bottom:12px; align-items:center; }
+    .search-input { border:1.5px solid #ddd; border-radius:6px; padding:7px 14px; font-family:'Roboto',sans-serif; font-size:0.88em; outline:none; width:260px; transition:border-color .15s; }
+    .search-input:focus { border-color:#007bff; }
+    .table-wrap { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); overflow:auto; }
+    table { width:100%; border-collapse:collapse; font-size:0.82em; }
+    thead tr { background:#007bff; color:#fff; }
+    thead th { padding:11px 13px; text-align:left; font-size:0.72em; text-transform:uppercase; letter-spacing:0.06em; font-weight:500; white-space:nowrap; }
+    tbody tr { border-bottom:1px solid #eee; transition:background .1s; }
+    tbody tr:hover { background:#f0f6ff; }
+    tbody td { padding:9px 13px; vertical-align:middle; }
+    .cell-name { font-weight:500; }
+    .cell-hid { font-size:0.75em; color:#999; }
+    .val-ok   { color:#2e7d32; }
+    .val-warn { color:#e65100; font-weight:600; }
+    .val-bad  { color:#c62828; font-weight:700; }
+    .val-none { color:#bbb; }
+    .alert-tag { display:inline-block; font-size:0.7em; background:#ffe6e6; color:#c62828; border:1px solid #ffcccc; border-radius:3px; padding:1px 5px; margin:1px; }
+    .no-rec { font-size:0.75em; color:#e65100; background:#fff3e0; border-radius:3px; padding:2px 7px; }
+
+    /* Modal */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:500; align-items:center; justify-content:center; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:#fff; border-radius:10px; padding:28px 32px; max-width:500px; width:95%; box-shadow:0 8px 40px rgba(0,0,0,0.2); }
+    .modal h3 { font-size:1.2em; margin-bottom:16px; }
+    .modal-body { font-size:0.88em; color:#444; margin-bottom:20px; line-height:1.65; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; }
+    .btn-confirm { background:#25d366; color:#fff; border:none; border-radius:6px; padding:8px 20px; font-size:0.88em; cursor:pointer; font-family:'Roboto',sans-serif; }
+    .btn-cancel  { background:#eee; color:#333; border:none; border-radius:6px; padding:8px 16px; font-size:0.88em; cursor:pointer; font-family:'Roboto',sans-serif; }
+
+    /* Responsive */
+    @media(max-width:1200px) {
+      .card { flex-basis:calc(33.33% - 20px); max-width:calc(33.33% - 20px); }
+      .card.wide-card { flex-basis:calc(66.66% - 30px); max-width:calc(66.66% - 30px); }
+      .trend-chart-wrapper { flex-basis:calc(50% - 20px); max-width:calc(50% - 20px); }
+    }
+    @media(max-width:768px) {
+      .card { flex-basis:calc(50% - 20px); max-width:calc(50% - 20px); }
+      .card.wide-card,.chart-container,.trend-chart-wrapper { flex-basis:100%; max-width:100%; }
+      header h1 { font-size:1.8em; }
+    }
+    @media(max-width:480px) {
+      .card,.card.wide-card { flex-basis:100%; max-width:100%; }
+      header h1 { font-size:1.3em; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-nav">
+  <span class="brand">CH(SC) · Nephrology Unit</span>
+  <div class="nav-links">
+    <a href="/" class="active">Dashboard</a>
+    <a href="/patients">Patients</a>
+    <a href="/entry">Data Entry</a>
+    {% if user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
+    <a href="/logout" style="color:#ffc107">Logout</a>
+  </div>
+</div>
+
+<header>
+  <h1>HD Patients Data Dashboard CH(SC)</h1>
+  <div class="header-sub">
+    <div class="month-picker-wrap">
+      <label>Month:</label>
+      <input type="month" value="{{ month_str }}" onchange="location.href='/?month='+this.value"/>
+      <span id="liveIndicator" style="font-size:0.78em;opacity:0.8;font-family:monospace;margin-left:8px;">
+        ● Live
+      </span>
+    </div>
+    <a href="/entry">+ Enter Data</a>
+    <a href="/patients/new">+ New Patient</a>
+    <a href="/patients">All Patients</a>
+  </div>
+</header>
+
+<main>
+
+  <!-- METRIC CARDS -->
+  <div class="dashboard-grid">
+
+    {% set cards = [
+      {"icon":"👥","value":data.metrics.total,"title":"Total Patients","hl":False,"names":[],"wide":False},
+      {"icon":"♂️","value":data.metrics.male,"title":"Male","hl":False,"names":[],"wide":False},
+      {"icon":"♀️","value":data.metrics.female,"title":"Female","hl":False,"names":[],"wide":False},
+      {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False},
+      {"icon":"⚖️","value":data.metrics.high_idwg.count,"title":"IDWG > 2.5Kg","hl":data.metrics.high_idwg.count>0,"names":data.metrics.high_idwg.names,"wide":False},
+      {"icon":"📉","value":data.metrics.low_albumin.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.low_albumin.count>0,"names":data.metrics.low_albumin.names,"wide":False},
+      {"icon":"🦴","value":data.metrics.low_calcium.count,"title":"Corrected Calcium < 8.5mg/dL","hl":data.metrics.low_calcium.count>0,"names":data.metrics.low_calcium.names,"wide":False},
+      {"icon":"🧪","value":data.metrics.high_phosphorus.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.high_phosphorus.count>0,"names":data.metrics.high_phosphorus.names,"wide":False},
+      {"icon":"💊","value":data.metrics.iv_iron.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron.count>0,"names":data.metrics.iv_iron.names,"wide":True},
+      {"icon":"📅","value":data.metrics.todays_hd.count,"title":"Today's HD Patients","hl":False,"names":data.metrics.todays_hd.names,"wide":True},
+      {"icon":"🩸","value":data.metrics.hb_drop_alert.count,"title":"Drop in Hemoglobin Alert (> 1.5mg/dL)","hl":data.metrics.hb_drop_alert.count>0,"names":data.metrics.hb_drop_alert.names,"wide":True},
+      {"icon":"⏰","value":data.metrics.dialysis_intensification.count,"title":"Consider Dialysis Intensification","hl":data.metrics.dialysis_intensification.count>0,"names":data.metrics.dialysis_intensification.names,"wide":True},
+      {"icon":"🔬","value":data.metrics.high_ipth.count,"title":"iPTH > 300 pg/mL","hl":data.metrics.high_ipth.count>0,"names":data.metrics.high_ipth.names,"wide":True},
+      {"icon":"☀️","value":data.metrics.low_vit_d.count,"title":"Vit D < 20 ng/mL","hl":data.metrics.low_vit_d.count>0,"names":data.metrics.low_vit_d.names,"wide":False},
+      {"icon":"🍗","value":data.metrics.low_protein.count,"title":"Low Protein Intake","hl":data.metrics.low_protein.count>0,"names":data.metrics.low_protein.names,"wide":False},
+      {"icon":"🫀","value":data.metrics.elevated_liver.count,"title":"Elevated LFTs","hl":data.metrics.elevated_liver.count>0,"names":data.metrics.elevated_liver.names,"wide":False},
+    ] %}
+
+    {% for c in cards %}
+    <div class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}">
+      {% if c.wide %}
+        <div class="wide-card-header">
+          <span class="icon">{{ c.icon }}</span>
+          <span class="title">{{ c.title }}</span>
+          <span class="value">{{ c.value }}</span>
+        </div>
+        {% if c.names %}
+        <ul class="visible-list">
+          {% for n in c.names %}<li>{{ n }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+      {% else %}
+        <span class="icon">{{ c.icon }}</span>
+        <div class="value">{{ c.value }}</div>
+        <div class="title">{{ c.title }}</div>
+        {% if c.names %}
+          <div class="tooltip">{{ c.names | join('\n') }}</div>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+
+  </div>
+
+  <!-- ACTION BAR -->
+  <div class="action-bar">
+    <button class="btn-wa" onclick="openWaModal()">
+      <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Send WhatsApp Alerts
+    </button>
+    <button class="btn-email" onclick="sendEmailReport()">📧 Send Ward Report Email</button>
+    <span class="alert-status" id="alertStatus"></span>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="dashboard-grid">
+    <div class="chart-container">
+      <h3>Gender Distribution</h3>
+      <div class="chart-content" id="genderChart"></div>
+    </div>
+    <div class="chart-container">
+      <h3>Count of Non-AVF Access Types</h3>
+      <div class="chart-content" id="accessChart"></div>
+    </div>
+  </div>
+
+  <!-- TREND CHARTS -->
+  <h2 class="trend-section-title">Patient Trends for Alerted Conditions</h2>
+  <div class="trend-charts-section">
+    <div class="trend-chart-wrapper hb-bg">
+      <h3>Hemoglobin Trendline</h3>
+      <div id="hbTrendChart" class="trend-chart-content"></div>
+      <div class="patient-nav">
+        <button onclick="navigatePatient('hb',-1)" id="hbPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
+        <span id="hbPatientName" class="patient-name-display"></span>
+        <button onclick="navigatePatient('hb',1)" id="hbNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+      </div>
+    </div>
+    <div class="trend-chart-wrapper alb-bg">
+      <h3>Albumin Trendline</h3>
+      <div id="albTrendChart" class="trend-chart-content"></div>
+      <div class="patient-nav">
+        <button onclick="navigatePatient('alb',-1)" id="albPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
+        <span id="albPatientName" class="patient-name-display"></span>
+        <button onclick="navigatePatient('alb',1)" id="albNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+      </div>
+    </div>
+    <div class="trend-chart-wrapper phos-bg">
+      <h3>Phosphorus Trendline</h3>
+      <div id="phosTrendChart" class="trend-chart-content"></div>
+      <div class="patient-nav">
+        <button onclick="navigatePatient('phos',-1)" id="phosPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
+        <span id="phosPatientName" class="patient-name-display"></span>
+        <button onclick="navigatePatient('phos',1)" id="phosNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UNIT-WIDE TRENDS (PHASE 4) -->
+  <h2 class="trend-section-title">Unit-Wide Trends (Last 12 Months)</h2>
+  <div class="trend-charts-section" style="border-top: none; padding-top: 10px;">
+      <div style="width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+          <div class="chart-container" style="max-width: 100%; margin: 0;">
+              <h3>Median Hemoglobin</h3>
+              <div id="cohortHbChart" class="chart-content"></div>
+          </div>
+          <div class="chart-container" style="max-width: 100%; margin: 0;">
+              <h3>Median Albumin</h3>
+              <div id="cohortAlbChart" class="chart-content"></div>
+          </div>
+          <div class="chart-container" style="max-width: 100%; margin: 0;">
+              <h3>Median Phosphorus</h3>
+              <div id="cohortPhosChart" class="chart-content"></div>
+          </div>
+      </div>
+  </div>
+
+  <!-- PATIENT TABLE -->
+  <div class="table-section">
+    <h2>Patient Detail Table</h2>
+    <div class="table-toolbar">
+      <input type="text" class="search-input" placeholder="Search patient name or HID…" oninput="filterTable(this.value)"/>
+      <span style="font-size:0.82em;color:#888">{{ data.patient_rows|length }} patients · {{ data.month_label }} {{ month_str[:4] }}</span>
+    </div>
+    <div class="table-wrap">
+      <table id="patientTable">
+        <thead>
+            <th>Patient</th><th>Access</th><th>IDWG</th><th>Hb</th>
+            <th>Ferritin</th><th>TSAT%</th><th>Ca(corr)</th><th>Phos</th>
+            <th>Albumin</th><th>iPTH</th><th>Vit D</th><th>Protein</th>
+            <th>Alerts</th>{% if user.role != 'nurse' %}<th>Timeline</th>{% endif %}<th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.patient_rows %}
+          <tr>
+            <td><div class="cell-name">{{ row.name }}</div><div class="cell-hid">{{ row.hid }}</div></td>
+            <td>{{ row.access or "—" }}</td>
+            <td class="{{ 'val-bad' if row.idwg and row.idwg>2.5 else ('val-ok' if row.idwg else 'val-none') }}">{{ "%.1f"|format(row.idwg) if row.idwg else "—" }}</td>
+            <td class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}">{{ "%.1f"|format(row.hb) if row.hb else "—" }}</td>
+            <td class="{{ 'val-warn' if row.ferritin and row.ferritin>500 else ('val-ok' if row.ferritin else 'val-none') }}">{{ "%.0f"|format(row.ferritin) if row.ferritin else "—" }}</td>
+            <td class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
+            <td class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.5 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.1f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
+            <td class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}">{{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}</td>
+            <td class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}">{{ "%.1f"|format(row.albumin) if row.albumin else "—" }}</td>
+            <td class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}">{{ "%.0f"|format(row.ipth) if row.ipth else "—" }}</td>
+            <td class="{{ 'val-bad' if row.vit_d and row.vit_d<20 else ('val-ok' if row.vit_d else 'val-none') }}">{{ "%.0f"|format(row.vit_d) if row.vit_d else "—" }}</td>
+            <td class="{{ 'val-warn' if row.protein and row.protein<1.0 else ('val-ok' if row.protein else 'val-none') }}">{{ "%.1f"|format(row.protein) if row.protein else "—" }}</td>
+            <td>
+              {% if not row.has_record %}<span class="no-rec">No record</span>
+              {% else %}
+                {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
+                {% if not row.alerts %}<span style="color:#2e7d32;font-size:0.8em">✓ OK</span>{% endif %}
+              {% endif %}
+            </td>
+            {% if user.role != 'nurse' %}<td><a href="/patients/{{ row.id }}/timeline" style="color:#1a237e">📈 View</a></td>{% endif %}
+            <td><a href="/entry/{{ row.id }}?month={{ month_str }}" style="font-size:0.78em;color:#007bff;text-decoration:none">{{ "Edit" if row.has_record else "Enter" }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- WhatsApp Confirm Modal -->
+<div class="modal-overlay" id="waModal">
+  <div class="modal">
+    <h3>📲 Send WhatsApp Alerts</h3>
+    <div class="modal-body">
+      Sends a message to all patients with active alerts who have WhatsApp notifications enabled.<br/><br/>
+      <strong>Month:</strong> {{ data.month_label }} {{ month_str[:4] }}<br/>
+      <strong>Alert patients:</strong> <span id="modalAlertCount">calculating…</span><br/><br/>
+      Message preview:<br/>
+      <em style="color:#666">"Dear [Name], your HD review for {{ data.month_label }} shows [alerts]. Please contact the nephrology team for follow-up."</em>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeWaModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmSendWa()">Send Now</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PREV_MONTH = "{{ data.prev_month_label or 'Prev' }}";
+const CURR_MONTH = "{{ data.month_label }}";
+const MONTH_STR  = "{{ month_str }}";
+
+// ── TREND DATA (from server, sorted worst-first) ──
+const rawHb   = {{ data.metrics.trend_hb   | tojson }};
+const rawAlb  = {{ data.metrics.trend_albumin  | tojson }};
+const rawPhos = {{ data.metrics.trend_phosphorus | tojson }};
+
+// Filter exactly as original GAS index.html did
+const globalTrendData = {
+  hb:   rawHb.filter(p => p.current !== null && p.current < 9),
+  alb:  rawAlb.filter(p => p.current !== null && p.current < 2.5),
+  phos: rawPhos.filter(p => p.current !== null && p.current > 5.5),
+};
+const currentIdx = { hb:0, alb:0, phos:0 };
+
+// ── PLOTLY CHARTS ──
+const FONT = { family:"'Roboto',sans-serif", size:12 };
+
+// Gender Pie
+Plotly.newPlot("genderChart", [{
+  type:"pie",
+  values:[{{ data.metrics.male }}, {{ data.metrics.female }}],
+  labels:["Male","Female"],
+  marker:{ colors:["#4285F4","#EA4335"] },
+  hole:0.4,
+  textinfo:"percent+label",
+  hovertemplate:"<b>%{label}</b><br>%{value} patients<extra></extra>",
+}],{
+  margin:{t:20,b:60,l:20,r:20},
+  paper_bgcolor:"transparent", plot_bgcolor:"transparent",
+  legend:{ orientation:"h", x:0.2, y:-0.12 },
+  font: FONT,
+},{ displayModeBar:false, responsive:true });
+
+// Access Bar
+const accessTypes = {{ data.metrics.non_avf.types | tojson }};
+const aNames  = Object.keys(accessTypes);
+const aCounts = aNames.map(k => accessTypes[k].count);
+const aHover  = aNames.map(k => accessTypes[k].names.join("<br>"));
+if (aNames.length > 0) {
+  Plotly.newPlot("accessChart",[{
+    type:"bar", x:aCounts, y:aNames, orientation:"h",
+    marker:{ color:"#4285F4" },
+    text:aCounts, textposition:"auto",
+    hovertemplate:"<b>%{y}</b><br>%{x} patients<br>%{customdata}<extra></extra>",
+    customdata:aHover,
+  }],{
+    margin:{t:20,b:50,l:90,r:20},
+    paper_bgcolor:"transparent", plot_bgcolor:"transparent",
+    xaxis:{ title:"Number of Patients", gridcolor:"#eee" },
+    yaxis:{ automargin:true },
+    font: FONT,
+  },{ displayModeBar:false, responsive:true });
+} else {
+  document.getElementById("accessChart").innerHTML =
+    '<p style="color:#777;text-align:center;padding:90px 0">All patients on AVF</p>';
+}
+
+// ── TREND LINE CAROUSELS ──
+const trendCfg = {
+  hb:   { div:"hbTrendChart",   nameEl:"hbPatientName",   prevBtn:"hbPrevBtn",   nextBtn:"hbNextBtn",   color:"#EA4335", yTitle:"Hb (mg/dL)",        yMin:5,  yMax:15 },
+  alb:  { div:"albTrendChart",  nameEl:"albPatientName",  prevBtn:"albPrevBtn",  nextBtn:"albNextBtn",  color:"#4285F4", yTitle:"Albumin (g/dL)",     yMin:0,  yMax:5  },
+  phos: { div:"phosTrendChart", nameEl:"phosPatientName", prevBtn:"phosPrevBtn", nextBtn:"phosNextBtn", color:"#34A853", yTitle:"Phosphorus (mg/dL)", yMin:3,  yMax:8  },
+};
+
+function renderTrend(key) {
+  const cfg = trendCfg[key];
+  const arr = globalTrendData[key];
+  const idx = currentIdx[key];
+  const el  = document.getElementById(cfg.div);
+
+  if (!arr || arr.length === 0) {
+    el.innerHTML = '<p style="color:#777;text-align:center;padding:60px 0 0">No patients meeting criteria</p>';
+    document.getElementById(cfg.nameEl).textContent = "N/A";
+    document.getElementById(cfg.prevBtn).disabled = true;
+    document.getElementById(cfg.nextBtn).disabled = true;
+    return;
+  }
+  const d = arr[idx];
+  document.getElementById(cfg.nameEl).textContent = `${d.patient} (${idx+1}/${arr.length})`;
+  document.getElementById(cfg.prevBtn).disabled = (idx === 0);
+  document.getElementById(cfg.nextBtn).disabled = (idx === arr.length - 1);
+
+  Plotly.newPlot(cfg.div, [{
+    type:"scatter",
+    x:[PREV_MONTH, CURR_MONTH],
+    y:[d.previous, d.current],
+    mode:"lines+markers",
+    line:{ color:cfg.color, width:2.5 },
+    marker:{ color:cfg.color, size:9 },
+    hovertemplate:"%{x}: <b>%{y}</b><extra></extra>",
+  }],{
+    margin:{t:10,b:40,l:55,r:10},
+    paper_bgcolor:"transparent", plot_bgcolor:"transparent",
+    yaxis:{ title:{ text:cfg.yTitle, font:{size:11} }, range:[cfg.yMin,cfg.yMax], gridcolor:"rgba(0,0,0,0.08)" },
+    xaxis:{ gridcolor:"rgba(0,0,0,0.05)" },
+    showlegend:false, font: FONT,
+  },{ displayModeBar:false, responsive:true });
+}
+
+function navigatePatient(key, dir) {
+  const arr = globalTrendData[key];
+  const n = currentIdx[key] + dir;
+  if (n >= 0 && n < arr.length) { currentIdx[key] = n; renderTrend(key); }
+}
+
+renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
+
+// ── TABLE SEARCH ──
+function filterTable(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll("#patientTable tbody tr").forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(q) ? "" : "none";
+  });
+}
+
+// ── WHATSAPP MODAL ──
+function openWaModal() {
+  const count = document.querySelectorAll("#patientTable .alert-tag").length > 0
+    ? new Set([...document.querySelectorAll("#patientTable tbody tr")].filter(r => r.querySelector(".alert-tag")).map(r => r)).size
+    : 0;
+  document.getElementById("modalAlertCount").textContent = count + " patient(s)";
+  document.getElementById("waModal").classList.add("open");
+}
+function closeWaModal() { document.getElementById("waModal").classList.remove("open"); }
+function confirmSendWa() {
+  closeWaModal();
+  const s = document.getElementById("alertStatus");
+  s.textContent = "⏳ Sending WhatsApp messages…";
+  fetch(`/api/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
+    .then(r => r.json())
+    .then(d => { s.textContent = d.message || "✅ Done."; })
+    .catch(() => { s.textContent = "❌ Error — check server logs."; });
+}
+function sendEmailReport() {
+  const s = document.getElementById("alertStatus");
+  s.textContent = "⏳ Sending email report…";
+  fetch(`/api/send-email?month=${MONTH_STR}`, { method:"POST" })
+    .then(r => r.json())
+    .then(d => { s.textContent = d.message || "✅ Email sent."; })
+    .catch(() => { s.textContent = "❌ Email error."; });
+}
+
+// ── COHORT TRENDS (PHASE 4) ──
+function loadCohortTrends() {
+    fetch('/api/cohort-trends')
+    .then(r => r.json())
+    .then(data => {
+        const renderCohort = (divId, statKey, color) => {
+            const months = data.months;
+            const medians = data[statKey].map(s => s.median);
+            const p25 = data[statKey].map(s => s.p25);
+            const p75 = data[statKey].map(s => s.p75);
+
+            const traceMedian = {
+                x: months, y: medians,
+                name: 'Median', type: 'scatter', mode: 'lines+markers',
+                line: { color: color, width: 3 }
+            };
+
+            const traceIQR = {
+                x: months.concat(months.slice().reverse()),
+                y: p75.concat(p25.slice().reverse()),
+                fill: 'toself',
+                fillcolor: color.replace(')', ', 0.2)').replace('rgb', 'rgba'),
+                line: { color: 'transparent' },
+                name: '25-75th Percentile',
+                showlegend: false,
+                type: 'scatter'
+            };
+
+            Plotly.newPlot(divId, [traceIQR, traceMedian], {
+                margin: { t: 10, b: 40, l: 40, r: 10 },
+                xaxis: { tickangle: -45 },
+                showlegend: false,
+                paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+            }, { displayModeBar: false });
+        };
+
+        renderCohort('cohortHbChart', 'hb', 'rgb(198, 40, 40)');
+        renderCohort('cohortAlbChart', 'alb', 'rgb(26, 115, 232)');
+        renderCohort('cohortPhosChart', 'phos', 'rgb(46, 125, 50)');
+    });
+}
+loadCohortTrends();
+
+// ── REAL-TIME POLLING ──────────────────────────────────────────
+const POLL_INTERVAL_MS = 30000; // 30 seconds
+let lastDataSnapshot = null;
+let pollTimer = null;
+
+async function pollDashboard() {
+  try {
+    const res = await fetch(`/api/dashboard?month=${MONTH_STR}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const snapshot = JSON.stringify(data.metrics);
+
+    // Only re-render if something actually changed
+    if (snapshot !== lastDataSnapshot) {
+      lastDataSnapshot = snapshot;
+      refreshCards(data);
+      refreshTrendData(data);
+      showLiveIndicator();
+    }
+  } catch (e) {
+    console.warn("Poll failed:", e);
+  } finally {
+    pollTimer = setTimeout(pollDashboard, POLL_INTERVAL_MS);
+  }
+}
+
+function refreshCards(data) {
+  // Update each card value in-place without rebuilding the DOM
+  const m = data.metrics;
+
+  // Map of card title substrings → new values
+  const updates = {
+    "Total Patients":       m.total,
+    "Male":                 m.male,
+    "Female":               m.female,
+    "Non-AVF":              m.non_avf.count,
+    "IDWG":                 m.high_idwg.count,
+    "Albumin":              m.low_albumin.count,
+    "Corrected Calcium":    m.low_calcium.count,
+    "High Phosphorus":      m.high_phosphorus.count,
+    "IV Iron":              m.iv_iron.count,
+    "Today's HD":           m.todays_hd.count,
+    "Hemoglobin Alert":     m.hb_drop_alert.count,
+    "Dialysis Intensif":    m.dialysis_intensification.count,
+    "iPTH":                 m.high_ipth.count,
+    "Vit D":                m.low_vit_d.count,
+    "Low Protein":          m.low_protein.count,
+    "Elevated LFTs":        m.elevated_liver.count,
+  };
+
+  document.querySelectorAll(".card").forEach(card => {
+    const titleEl = card.querySelector(".title, .wide-card-header .title");
+    const valueEl = card.querySelector(".value, .wide-card-header .value");
+    if (!titleEl || !valueEl) return;
+
+    const titleText = titleEl.textContent.trim();
+    for (const [key, val] of Object.entries(updates)) {
+      if (titleText.includes(key)) {
+        const old = parseInt(valueEl.textContent);
+        if (old !== val) {
+          valueEl.textContent = val;
+          // Flash animation to draw attention
+          valueEl.style.transition = "color 0.3s";
+          valueEl.style.color = "#f39c12";
+          setTimeout(() => { valueEl.style.color = ""; }, 1200);
+        }
+      }
+    }
+  });
+}
+
+function refreshTrendData(data) {
+  // Update global trend arrays and re-render current patient
+  const newHb   = data.metrics.trend_hb.filter(p => p.current !== null && p.current < 9);
+  const newAlb  = data.metrics.trend_albumin.filter(p => p.current !== null && p.current < 2.5);
+  const newPhos = data.metrics.trend_phosphorus.filter(p => p.current !== null && p.current > 5.5);
+
+  globalTrendData.hb   = newHb;
+  globalTrendData.alb  = newAlb;
+  globalTrendData.phos = newPhos;
+
+  // Keep carousel index within bounds after data refresh
+  currentIdx.hb   = Math.min(currentIdx.hb,   Math.max(0, newHb.length   - 1));
+  currentIdx.alb  = Math.min(currentIdx.alb,  Math.max(0, newAlb.length  - 1));
+  currentIdx.phos = Math.min(currentIdx.phos, Math.max(0, newPhos.length - 1));
+
+  renderTrend("hb");
+  renderTrend("alb");
+  renderTrend("phos");
+}
+
+function showLiveIndicator() {
+  const el = document.getElementById("liveIndicator");
+  if (!el) return;
+  el.textContent = "● Live — updated " + new Date().toLocaleTimeString("en-GB");
+  el.style.color = "#27ae60";
+  setTimeout(() => { el.style.color = "#888"; }, 3000);
+}
+
+// Start polling when page loads
+pollDashboard();
+</script>
+</body>
+</html>

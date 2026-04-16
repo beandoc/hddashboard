@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Data Entry - HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <style>
+        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
+        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
+        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
+        .app-nav .nav-links { display:flex; gap:4px; }
+        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+        .app-nav a:hover,.app-nav a.active { color:#fff; background:rgba(255,255,255,0.12); }
+        header { background-color:#007bff; color:white; padding:20px 0; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+        .container { max-width:1000px; margin:20px auto; padding:0 20px; }
+        .month-picker { text-align:center; margin-bottom:20px; }
+        table { width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding:12px 15px; text-align:left; border-bottom:1px solid #eee; }
+        th { background:#007bff; color:white; }
+        .status-done { color: #28a745; font-weight: bold; }
+        .status-pending { color: #e67e22; }
+    </style>
+</head>
+<body>
+    <div class="app-nav">
+        <span class="brand">CH(SC) · Nephrology Unit</span>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/patients">Patients</a>
+            <a href="/entry" class="active">Data Entry</a>
+        </div>
+    </div>
+    <header>
+        <h1>Data Entry - {{ month_label }}</h1>
+    </header>
+    <div class="container">
+        <div class="month-picker">
+            <label>Change Month:</label>
+            <input type="month" value="{{ month_str }}" onchange="location.href='/entry?month='+this.value">
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>HID</th>
+                    <th>Patient Name</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in patients %}
+                <tr>
+                    <td>{{ p.hid_no }}</td>
+                    <td>{{ p.name }}</td>
+                    <td>
+                        {% if p.id in existing_ids %}
+                            <span class="status-done">✓ Completed</span>
+                        {% else %}
+                            <span class="status-pending">Pending</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/entry/{{ p.id }}?month={{ month_str }}" style="color:#007bff;text-decoration:none">
+                            {{ "Edit Data" if p.id in existing_ids else "Enter Data" }}
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Show a success toast if redirected after save
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("saved") === "1") {
+            const toast = document.createElement("div");
+            toast.textContent = "✅ Record saved successfully";
+            toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:#27ae60;
+                color:#fff;padding:12px 20px;border-radius:8px;font-size:0.9em;
+                z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.2)`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Management - HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <style>
+        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
+        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
+        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
+        .app-nav .nav-links { display:flex; gap:4px; }
+        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+        .app-nav a:hover,.app-nav a.active { color:#fff; background:rgba(255,255,255,0.12); }
+        header { background-color:#007bff; color:white; padding:20px 0; text-align:center; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+        .container { max-width:1200px; margin:20px auto; padding:0 20px; }
+        .btn { background:#007bff; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; display:inline-block; margin-bottom:20px; }
+        table { width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding:12px 15px; text-align:left; border-bottom:1px solid #eee; }
+        th { background:#007bff; color:white; }
+        tr:hover { background:#f9f9f9; }
+        .actions a { margin-right:10px; color:#007bff; text-decoration:none; }
+        .deactivate { color:#dc3545 !important; border:none; background:none; cursor:pointer; font-family:'Roboto'; font-size:1em; }
+    </style>
+</head>
+<body>
+    <div class="app-nav">
+        <span class="brand">CH(SC) · Nephrology Unit</span>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/patients" class="active">Patients</a>
+            <a href="/entry">Data Entry</a>
+        </div>
+    </div>
+    <header>
+        <h1>Patient Management</h1>
+    </header>
+    <div class="container">
+        <a href="/patients/new" class="btn">+ Add New Patient</a>
+        <table>
+            <thead>
+                <tr>
+                    <th>HID No</th>
+                    <th>Name</th>
+                    <th>Sex</th>
+                    <th>Contact</th>
+                    <th>Diagnosis</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in patients %}
+                <tr>
+                    <td>{{ p.hid_no }}</td>
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.sex }}</td>
+                    <td>{{ p.contact_no }}</td>
+                    <td>{{ p.diagnosis }}</td>
+                    <td class="actions">
+                        <a href="/patients/{{ p.id }}/timeline">Timeline</a>
+                        <button onclick="sendSchedule({{ p.id }})" class="btn-remind" style="background:#007bff; color:white; border:none; padding:4px 8px; border-radius:4px; font-size:0.8em; cursor:pointer;">Remind Schedule</button>
+                        <a href="/patients/{{ p.id }}/edit">Edit</a>
+                        <form action="/patients/{{ p.id }}/deactivate" method="POST" style="display:inline;">
+                            <button type="submit" class="deactivate" onclick="return confirm('Deactivate this patient?')">Deactivate</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script>
+        function showToast(msg, isError = false) {
+            const toast = document.createElement("div");
+            toast.textContent = msg;
+            toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:${isError ? '#e74c3c' : '#27ae60'};
+                color:#fff;padding:12px 24px;border-radius:8px;font-size:0.9em;font-weight:500;
+                z-index:999;box-shadow:0 6px 18px rgba(0,0,0,0.2);animation:slideIn 0.3s ease-out`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        const style = document.createElement('style');
+        style.textContent = `@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }`;
+        document.head.appendChild(style);
+
+        function sendSchedule(pid) {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = "⏳ Sending...";
+            btn.disabled = true;
+
+            fetch('/api/send-schedule/' + pid, {method: 'POST'})
+            .then(r => r.json())
+            .then(d => {
+                showToast(d.message);
+                btn.textContent = originalText;
+                btn.disabled = false;
+            })
+            .catch(() => {
+                showToast("❌ Connection error", true);
+                btn.textContent = originalText;
+                btn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>

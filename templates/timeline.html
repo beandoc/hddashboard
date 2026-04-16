@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Timeline - {{ patient.name }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
+        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
+        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
+        .app-nav .nav-links { display:flex; gap:4px; }
+        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+        .app-nav a:hover { color:#fff; background:rgba(255,255,255,0.12); }
+        
+        .header-panel { background:white; padding:30px; border-bottom:1px solid #e0e0e0; box-shadow:0 2px 4px rgba(0,0,0,0.05); }
+        .patient-header { max-width:1200px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px; }
+        .info-box h1 { margin:0; font-size:1.8em; color:#1a237e; }
+        .info-box p { margin:5px 0; color:#666; font-size:0.9em; }
+        .badge { display:inline-block; background:#e8eaf6; color:#1a237e; padding:3px 10px; border-radius:12px; font-size:0.8em; font-weight:bold; }
+
+        .charts-container { max-width:1200px; margin:20px auto; padding:0 20px; display:grid; grid-template-columns: 1fr 1fr; gap:20px; }
+        .chart-card { background:white; border-radius:10px; padding:15px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+        .chart-card.wide { grid-column: 1 / -1; }
+        .chart-card h3 { margin-top:0; color:#333; font-size:1em; border-bottom:1px solid #eee; padding-bottom:10px; }
+        .chart-div { width:100%; height:300px; }
+    </style>
+</head>
+<body>
+    <div class="app-nav">
+        <span class="brand">CH(SC) · Nephrology Unit</span>
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/patients">Patients</a>
+            <a href="/entry">Data Entry</a>
+        </div>
+    </div>
+
+    <div class="header-panel">
+        <div class="patient-header">
+            <div class="info-box">
+                <h1>{{ patient.name }} <span class="badge">{{ patient.hid_no }}</span></h1>
+                <p>Gender: {{ patient.sex }} | HD Start: {{ patient.hd_wef_date or '—' }}</p>
+                <button onclick="sendSchedule({{ patient.id }})" style="background:#007bff; color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; margin-top:10px;">📲 Send Schedule Reminder</button>
+            </div>
+            <div class="info-box">
+                <p><strong>Diagnosis:</strong> {{ patient.diagnosis or '—' }}</p>
+                <p><strong>Access Type:</strong> {{ patient.access_type or '—' }}</p>
+            </div>
+            <div class="info-box">
+                <p><strong>Viral Markers:</strong> {{ patient.viral_markers or '—' }}</p>
+                <p><strong>Contact:</strong> {{ patient.contact_no or '—' }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="charts-container">
+        <!-- Combined EPO/Hb Chart FIRST as it's the requested priority -->
+        <div class="chart-card wide">
+            <h3>EPO Dose Response (Hb vs EPO Dose)</h3>
+            <div id="epoHbChart" class="chart-div" style="height:400px;"></div>
+        </div>
+
+        <div class="chart-card">
+            <h3>Hemoglobin (g/dL)</h3>
+            <div id="hbTimeline" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Albumin (g/dL)</h3>
+            <div id="albTimeline" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Phosphorus (mg/dL)</h3>
+            <div id="phosTimeline" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
+            <h3>iPTH (pg/mL)</h3>
+            <div id="ipthTimeline" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
+            <h3>Vitamin D (ng/mL)</h3>
+            <div id="vitdTimeline" class="chart-div"></div>
+        </div>
+        <div class="chart-card">
+            <h3>IDWG (kg)</h3>
+            <div id="idwgTimeline" class="chart-div"></div>
+        </div>
+    </div>
+
+    <script>
+        const data = {{ timeline_data | tojson }};
+        const months = data.map(d => d.month);
+
+        const thresholds = {
+            hb: 10, alb: 3.5, phos: 5.5, ipth: 300, vit_d: 20, idwg: 2.5
+        };
+
+        function createChart(divId, yData, title, threshold, color) {
+            const trace = {
+                x: months,
+                y: yData,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: color, width: 3 },
+                marker: { size: 8 }
+            };
+
+            const layout = {
+                margin: { t: 10, b: 40, l: 40, r: 10 },
+                xaxis: { title: 'Month', tickangle: -45 },
+                yaxis: { title: title },
+                shapes: threshold ? [{
+                    type: 'line',
+                    xref: 'paper', x0: 0, x1: 1,
+                    yref: 'y', y0: threshold, y1: threshold,
+                    line: { color: 'red', width: 1.5, dash: 'dash' }
+                }] : []
+            };
+
+            Plotly.newPlot(divId, [trace], layout, {responsive: true, displayModeBar: false});
+        }
+
+        createChart('hbTimeline',   data.map(d => d.hb),   'g/dL', thresholds.hb, '#c62828');
+        createChart('albTimeline',  data.map(d => d.alb),  'g/dL', thresholds.alb, '#1a73e8');
+        createChart('phosTimeline', data.map(d => d.phos), 'mg/dL', thresholds.phos, '#2e7d32');
+        createChart('ipthTimeline', data.map(d => d.ipth), 'pg/mL', thresholds.ipth, '#ef6c00');
+        createChart('vitdTimeline', data.map(d => d.vit_d), 'ng/mL', thresholds.vit_d, '#0097a7');
+        createChart('idwgTimeline', data.map(d => d.idwg), 'kg', thresholds.idwg, '#7b1fa2');
+
+        // Combined EPO/Hb Chart
+        const epoTrace = {
+            x: months,
+            y: data.map(d => d.epo),
+            name: 'EPO Dose',
+            type: 'bar',
+            yaxis: 'y2',
+            marker: { color: '#e0e0e0' }
+        };
+
+        const hbTrace = {
+            x: months,
+            y: data.map(d => d.hb),
+            name: 'Hb',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { color: '#c62828' }
+        };
+
+        const epoLayout = {
+            margin: { t: 20, b: 50, l: 50, r: 50 },
+            yaxis: { title: 'Hb (g/dL)', side: 'left' },
+            yaxis2: { title: 'EPO Dose', side: 'right', overlaying: 'y', showgrid: false },
+            legend: { orientation: 'h', y: 1.1 },
+            xaxis: { tickangle: -45 }
+        };
+
+        Plotly.newPlot('epoHbChart', [epoTrace, hbTrace], epoLayout, {responsive: true});
+
+        function sendSchedule(pid) {
+            if (!confirm("Send schedule reminder via WhatsApp?")) return;
+            fetch('/api/send-schedule/' + pid, {method: 'POST'})
+            .then(r => r.json())
+            .then(d => alert(d.message))
+            .catch(() => alert("Error sending schedule."));
+        }
+    </script>
+</body>
+</html>
