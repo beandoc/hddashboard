@@ -103,9 +103,12 @@ def compute_dashboard(db: Session, month_str: str):
             metrics["non_avf"]["types"][atype]["count"] += 1
             metrics["non_avf"]["types"][atype]["names"].append(p.name)
 
-        # Today's HD Patients
-        today_str = date.today().strftime("%d/%m/%Y")
-        if today_str in [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3]:
+        # Today's HD Patients (Day-based Recurring)
+        day_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+        curr_day = day_map[date.today().weekday()]
+        
+        p_slots = [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3]
+        if any(curr_day in str(s) for s in p_slots if s):
             metrics["todays_hd"]["count"] += 1
             metrics["todays_hd"]["names"].append(p.name)
 

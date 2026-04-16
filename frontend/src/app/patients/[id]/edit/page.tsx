@@ -160,17 +160,17 @@ export default function PatientFormPage() {
                   >
                     <option value="">No Slot</option>
                     <option>Mon Morning</option>
-                    <option>Mon Evening</option>
+                    <option>Mon Afternoon</option>
                     <option>Tue Morning</option>
-                    <option>Tue Evening</option>
+                    <option>Tue Afternoon</option>
                     <option>Wed Morning</option>
-                    <option>Wed Evening</option>
+                    <option>Wed Afternoon</option>
                     <option>Thu Morning</option>
-                    <option>Thu Evening</option>
+                    <option>Thu Afternoon</option>
                     <option>Fri Morning</option>
-                    <option>Fri Evening</option>
+                    <option>Fri Afternoon</option>
                     <option>Sat Morning</option>
-                    <option>Sat Evening</option>
+                    <option>Sat Afternoon</option>
                   </select>
                 </div>
               ))}
