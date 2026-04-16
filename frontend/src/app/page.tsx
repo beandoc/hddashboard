@@ -23,6 +23,7 @@ import {
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -30,10 +31,14 @@ export default function DashboardPage() {
     setIsRefreshing(true);
     try {
       const result = await apiFetch("/api/dashboard");
-      setData(result);
-      setLastSync(new Date().toLocaleTimeString());
-    } catch (err) {
+      if (result) {
+        setData(result);
+        setError(null);
+        setLastSync(new Date().toLocaleTimeString());
+      }
+    } catch (err: any) {
       console.error("Dashboard refresh failed", err);
+      setError(err.message || "Failed to connect to clinic server.");
     } finally {
       setIsRefreshing(false);
     }
@@ -44,6 +49,24 @@ export default function DashboardPage() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  if (error) return (
+    <Shell>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
+        <div className="p-4 bg-red-50 rounded-2xl mb-6">
+          <AlertCircle size={40} className="text-red-500" />
+        </div>
+        <h3 className="text-xl font-black text-gray-900 mb-2">Connection Disrupted</h3>
+        <p className="text-gray-500 font-medium mb-8 max-w-sm">{error}</p>
+        <button 
+          onClick={fetchData} 
+          className="px-8 py-4 bg-[#1a237e] text-white font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-indigo-900 transition-all"
+        >
+          Try Reconnecting
+        </button>
+      </div>
+    </Shell>
+  );
 
   if (!data) return <Shell><div className="flex items-center justify-center min-h-[60vh] text-indigo-400 font-bold animate-pulse">Initializing Clinical Intelligence...</div></Shell>;
 
