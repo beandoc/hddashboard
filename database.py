@@ -153,6 +153,30 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
 
+class DynamicVariableDefinition(Base):
+    __tablename__ = "dynamic_variable_definitions"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True) # e.g. 'kt_v'
+    display_name = Column(String) # e.g. 'Kt/V'
+    unit = Column(String)
+    category = Column(String) # e.g. 'Adequacy'
+    threshold_low = Column(Float, nullable=True)
+    threshold_high = Column(Float, nullable=True)
+    target_low = Column(Float, nullable=True)
+    target_high = Column(Float, nullable=True)
+    is_active = Column(Boolean, default=True)
+    description = Column(Text)
+
+class DynamicVariableValue(Base):
+    __tablename__ = "dynamic_variable_values"
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
+    variable_id = Column(Integer, ForeignKey("dynamic_variable_definitions.id"), index=True)
+    record_month = Column(String, index=True) # YYYY-MM
+    value = Column(Float)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+
 def get_db():
     db = SessionLocal()
     try:

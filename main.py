@@ -17,6 +17,7 @@ from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, Se
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, generate_all_whatsapp_links
 from ml_analytics import run_patient_analytics, run_cohort_analytics
+import dynamic_vars
 
 app = FastAPI(title="HD Dashboard")
 templates = Jinja2Templates(directory="templates")
@@ -52,6 +53,13 @@ def run_migrations():
             db.commit()
         except Exception:
             db.rollback()
+    
+    # Also seed default dynamic variables
+    try:
+        dynamic_vars.seed_default_variables(db)
+    except Exception as e:
+        print(f"Seeding error: {e}")
+        
     db.close()
 
 # Create tables and run migrations on startup
@@ -481,3 +489,54 @@ def patient_timeline(
         "patient": patient,
         "analytics": analytics,
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DYNAMIC VARIABLES (EAV SYSTEM)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/variables", response_class=HTMLResponse)
+def variable_manager(request: Request, db: Session = Depends(get_db)):
+    """UI for defining vars and bulk entering data."""
+    from database import DynamicVariableDefinition
+    vars = db.query(DynamicVariableDefinition).filter(DynamicVariableDefinition.is_active == True).all()
+    return templates.TemplateResponse("variable_manager.html", {
+        "request": request,
+        "variables": vars,
+        "user": {"role": "admin", "full_name": "Doctor"}
+    })
+
+@app.get("/api/variables")
+def get_variables(db: Session = Depends(get_db)):
+    from database import DynamicVariableDefinition
+    vars = db.query(DynamicVariableDefinition).all()
+    return vars
+
+@app.get("/api/variable-data-grid/{variable_id}")
+def get_variable_grid(variable_id: int, start: str, end: str, db: Session = Depends(get_db)):
+    # Helper to generate month list
+    try:
+        s_yr, s_mo = map(int, start.split('-'))
+        e_yr, e_mo = map(int, end.split('-'))
+        months = []
+        curr_yr, curr_mo = s_yr, s_mo
+        while (curr_yr < e_yr) or (curr_yr == e_yr and curr_mo <= e_mo):
+            months.append(f"{curr_yr}-{curr_mo:02d}")
+            curr_mo += 1
+            if curr_mo > 12: curr_mo = 1; curr_yr += 1
+        
+        grid = dynamic_vars.get_variable_data_grid(db, variable_id, months)
+        return {"months": months, "grid": grid}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/variable-values/{variable_id}")
+async def save_variable_grid(variable_id: int, request: Request, db: Session = Depends(get_db)):
+    data = await request.json() # list of {patient_id, month, value}
+    dynamic_vars.save_variable_values(db, variable_id, data)
+    return {"status": "ok"}
+
+@app.get("/api/analytics/dynamic/{variable_id}")
+def get_dynamic_analytics(variable_id: int, db: Session = Depends(get_db)):
+    data = dynamic_vars.get_dynamic_variable_analytics(db, variable_id)
+    return data

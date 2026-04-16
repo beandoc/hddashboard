@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clinical Variable Manager | HD Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <style>
+    :root {
+      --primary: #1a237e;
+      --accent: #3949ab;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --border: #e2e8f0;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+    
+    .app-nav { background: var(--primary); color: white; padding: 0 24px; height: 50px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-weight: 600; font-size: 0.9rem; letter-spacing: 0.02em; }
+    .nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.8rem; margin-left: 15px; text-transform: uppercase; font-weight: 500; }
+    .nav-links a:hover { color: white; }
+
+    .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+    .header { margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .header h1 { margin: 0; font-size: 1.8rem; font-weight: 700; color: var(--primary); }
+    .header p { margin: 5px 0 0; color: #64748b; font-size: 0.9rem; }
+
+    .tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
+    .tab { padding: 10px 15px; cursor: pointer; font-weight: 500; font-size: 0.9rem; color: #64748b; border-bottom: 2px solid transparent; transition: all 0.2s; }
+    .tab.active { color: var(--primary); border-color: var(--primary); }
+
+    .card { background: var(--card); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); padding: 24px; margin-bottom: 30px; }
+
+    /* Variable Definitions Table */
+    .var-table { width: 100%; border-collapse: collapse; }
+    .var-table th { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); color: #64748b; font-size: 0.75rem; text-transform: uppercase; }
+    .var-table td { padding: 15px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
+    .badge-gray { background: #f1f5f9; color: #475569; }
+
+    /* Data Entry Grid */
+    .grid-controls { display: flex; gap: 15px; align-items: center; margin-bottom: 20px; }
+    .grid-container { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: white; }
+    .data-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .data-grid th, .data-grid td { border: 1px solid #f1f5f9; padding: 0; }
+    .data-grid th { background: #f8fafc; padding: 10px; font-size: 0.75rem; font-weight: 600; text-align: center; }
+    .data-grid .name-col { width: 180px; text-align: left; padding: 10px; font-size: 0.85rem; font-weight: 500; position: sticky; left: 0; background: white; z-index: 10; border-right: 2px solid var(--border); }
+    .data-grid input { width: 100%; border: none; padding: 10px; text-align: center; font-family: inherit; font-size: 0.85rem; outline: none; transition: background 0.1s; }
+    .data-grid input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px var(--accent); }
+    .data-grid input.changed { background: #ecfdf5; }
+
+    select, input[type="month"] { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; font-size: 0.85rem; outline: none; }
+    .btn { padding: 10px 20px; border-radius: 8px; font-weight: 500; font-size: 0.85rem; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--accent); }
+    .btn-success { background: var(--success); color: white; }
+    
+    #saveStatus { font-size: 0.8rem; font-weight: 500; }
+    .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.7); z-index: 100; align-items: center; justify-content: center; font-weight: 600; color: var(--primary); }
+  </style>
+</head>
+<body>
+
+<div class="app-nav">
+  <span class="brand">HD DASHBOARD | Clinical Intelligence</span>
+  <div class="nav-links">
+    <a href="/">Dashboard</a>
+    <a href="/variables">Variables</a>
+    <a href="/patients">Patients</a>
+    <a href="/entry">Data Entry</a>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loader">Processing Clinical Data...</div>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Clinical Variable Manager</h1>
+      <p>Define new parameters and back-fill historical data for research analysis.</p>
+    </div>
+    <div id="saveStatus"></div>
+    <button class="btn btn-primary" onclick="window.location.reload()">
+      <span class="material-icons">refresh</span> Sync Definitions
+    </button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('definitions')">Definitions</div>
+    <div class="tab" onclick="switchTab('bulk-entry')">Retrospective Entry</div>
+  </div>
+
+  <!-- TAB 1: DEFINITIONS -->
+  <div id="definitions-view" class="card">
+    <table class="var-table">
+      <thead>
+        <tr>
+          <th>Variable</th>
+          <th>Category</th>
+          <th>Unit</th>
+          <th>Thresholds</th>
+          <th>Target Range</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in variables %}
+        <tr>
+          <td>
+            <strong>{{ v.display_name }}</strong><br/>
+            <small style="color:#64748b">{{ v.name }}</small>
+          </td>
+          <td><span class="badge badge-gray">{{ v.category }}</span></td>
+          <td>{{ v.unit or '—' }}</td>
+          <td>
+            <small>
+              Low: {{ v.threshold_low or '—' }}<br/>
+              High: {{ v.threshold_high or '—' }}
+            </small>
+          </td>
+          <td>
+            <small>
+              {{ v.target_low or '—' }} to {{ v.target_high or '—' }}
+            </small>
+          </td>
+          <td>
+            <span class="badge" style="background:#dcfce7; color:#166534">Active</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #f1f5f9;">
+      <button class="btn btn-primary" onclick="alert('Manual Definition UI is being enabled. Please use the API or Seeder for now.')">
+        <span class="material-icons">add</span> Define New Variable
+      </button>
+    </div>
+  </div>
+
+  <!-- TAB 2: BULK ENTRY -->
+  <div id="bulk-entry-view" class="card" style="display: none;">
+    <div class="grid-controls">
+      <select id="varSelect">
+        <option value="">Select Variable...</option>
+        {% for v in variables %}
+        <option value="{{ v.id }}">{{ v.display_name }}</option>
+        {% endfor %}
+      </select>
+      
+      <label style="font-size: 0.8rem; color: #64748b;">From:</label>
+      <input type="month" id="startMonth" value="2024-11">
+      
+      <label style="font-size: 0.8rem; color: #64748b;">To:</label>
+      <input type="month" id="endMonth" value="2025-04">
+      
+      <button class="btn btn-primary" onclick="loadGrid()">
+        <span class="material-icons">grid_on</span> Load Data Grid
+      </button>
+      
+      <button class="btn btn-success" id="saveGridBtn" onclick="saveGrid()" disabled>
+        <span class="material-icons">save</span> Save All Changes
+      </button>
+    </div>
+
+    <div class="grid-container">
+      <table class="data-grid" id="entryGrid">
+        <!-- Generated via Javascript -->
+      </table>
+    </div>
+    
+    <p style="font-size: 0.75rem; color: #64748b; margin-top: 15px;">
+      <span class="material-icons" style="font-size: 1rem; vertical-align: middle;">info</span> 
+      Cells auto-highlight when value is changed. Click 'Save All Changes' to commit to database.
+    </p>
+  </div>
+</div>
+
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    
+    document.getElementById('definitions-view').style.display = tabId === 'definitions' ? 'block' : 'none';
+    document.getElementById('bulk-entry-view').style.display = tabId === 'bulk-entry' ? 'block' : 'none';
+  }
+
+  async function loadGrid() {
+    const varId = document.getElementById('varSelect').value;
+    const start = document.getElementById('startMonth').value;
+    const end = document.getElementById('endMonth').value;
+    
+    if (!varId) return alert('Select a variable first');
+    
+    const loader = document.getElementById('loader');
+    loader.style.display = 'flex';
+    
+    try {
+      const res = await fetch(`/api/variable-data-grid/${varId}?start=${start}&end=${end}`);
+      const data = await res.json();
+      renderGrid(data.months, data.grid);
+      document.getElementById('saveGridBtn').disabled = false;
+    } catch (e) {
+      alert('Error loading grid: ' + e);
+    } finally {
+      loader.style.display = 'none';
+    }
+  }
+
+  function renderGrid(months, rows) {
+    const grid = document.getElementById('entryGrid');
+    
+    let html = '<thead><tr><th class="name-col">Patient</th>';
+    months.forEach(m => {
+      // Format 2024-11 to Nov 24
+      const [y, mm] = m.split('-');
+      const date = new Date(y, mm-1);
+      const label = date.toLocaleString('default', { month: 'short' }) + ' ' + y.slice(2);
+      html += `<th>${label}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+    
+    rows.forEach(row => {
+      html += `<tr><td class="name-col">${row.name}<br/><small style="color:#94a3b8">${row.hid}</small></td>`;
+      months.forEach(m => {
+        const val = row.values[m] !== null ? row.values[m] : '';
+        html += `<td><input type="text" data-pid="${row.id}" data-month="${m}" value="${val}" onchange="this.classList.add('changed')"></td>`;
+      });
+      html += '</tr>';
+    });
+    
+    html += '</tbody>';
+    grid.innerHTML = html;
+  }
+
+  async function saveGrid() {
+    const varId = document.getElementById('varSelect').value;
+    const status = document.getElementById('saveStatus');
+    const inputs = document.querySelectorAll('#entryGrid input.changed');
+    
+    if (inputs.length === 0) return alert('No changes detected');
+    
+    status.innerHTML = '<span style="color:var(--accent)">⏳ Saving...</span>';
+    
+    const updates = Array.from(inputs).map(i => ({
+      patient_id: parseInt(i.dataset.pid),
+      month: i.dataset.month,
+      value: i.value
+    }));
+    
+    try {
+      const res = await fetch(`/api/variable-values/${varId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      
+      if (res.ok) {
+        status.innerHTML = '<span style="color:var(--success)">✅ All changes saved</span>';
+        inputs.forEach(i => i.classList.remove('changed'));
+      } else {
+        status.innerHTML = '<span style="color:var(--danger)">❌ Save failed</span>';
+      }
+    } catch (e) {
+      status.innerHTML = '<span style="color:var(--danger)">❌ Error: ' + e + '</span>';
+    }
+  }
+</script>
+
+</body>
+</html>
