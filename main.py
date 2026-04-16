@@ -4,31 +4,39 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from datetime import date, datetime
-from typing import Optional
+from datetime import date, datetime, timedelta
+from typing import Optional, List, Any
 import json
+import re
+import statistics
 
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog
+from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, User, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, send_whatsapp
+
+from starlette.middleware.sessions import SessionMiddleware
+from passlib.context import CryptContext
+from pydantic import BaseModel
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 app = FastAPI(title="HD Dashboard")
 
 # 1. Config
 SECRET_KEY = os.getenv("SECRET_KEY", "clinical-secret-99-super-harden")
 
-# 2. Session Middleware (Disabled as per import cleanup)
-# app.add_middleware(
-#     SessionMiddleware, 
-#     secret_key=SECRET_KEY,
-#     same_site="none",
-#     https_only=True
-# )
+# 2. Session Middleware (Lowest level)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=SECRET_KEY,
+    same_site="none",
+    https_only=True
+)
 
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AUTHENTICATION & PERMISSIONS
@@ -49,70 +57,93 @@ def health_check():
     """Heartbeat endpoint for UptimeRobot monitoring."""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
-# def get_current_user(request: Request, db: Session = Depends(get_db)):
-#     # 1. Check Session (Local Templates - Monolith)
-#     username = request.session.get("user")
-#     if username:
-#         return db.query(User).filter(User.username == username, User.is_active == True).first()
-#     return None
-# 
-# def login_required(user=Depends(get_current_user)):
-#     if not user:
-#         raise HTTPException(status_code=401, detail="Authentication required")
-#     return user
-# 
-# def require_role(roles: list):
-#     def role_checker(user: User = Depends(login_required)):
-#         if user.role not in roles:
-#             raise HTTPException(status_code=403, detail="Insufficient clinical permissions")
-#         return user
-#     return role_checker
-# 
-# # Predefined role dependencies
-# admin_only = require_role(["admin"])
-# doctor_or_admin = require_role(["doctor", "admin"])
-# nurse_or_admin = require_role(["nurse", "admin"])
-# any_staff = require_role(["admin", "doctor", "nurse"])
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    # 1. Check Session (Local Templates - Monolith)
+    username = request.session.get("user")
+    if username:
+        return db.query(User).filter(User.username == username, User.is_active == True).first()
+    return None
+
+def login_required(user=Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user
+
+def require_role(roles: list):
+    def role_checker(user: User = Depends(login_required)):
+        if user.role not in roles:
+            raise HTTPException(status_code=403, detail="Insufficient clinical permissions")
+        return user
+    return role_checker
+
+# Predefined role dependencies
+admin_only = require_role(["admin"])
+doctor_or_admin = require_role(["doctor", "admin"])
+nurse_or_admin = require_role(["nurse", "admin"])
+any_staff = require_role(["admin", "doctor", "nurse"])
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES: AUTH
 # ─────────────────────────────────────────────────────────────────────────────
 
-# @app.get("/login", response_class=HTMLResponse)
-# def login_page(request: Request):
-#     if request.session.get("user"):
-#         return RedirectResponse(url="/", status_code=303)
-#     return templates.TemplateResponse("login.html", {"request": request})
-# 
-# @app.post("/login")
-# async def login(request: Request, db: Session = Depends(get_db), 
-#                 username: str = Form(...), password: str = Form(...)):
-#     # Auth logic disabled for stability
-#     return RedirectResponse(url="/", status_code=303)
-# 
-# @app.get("/logout")
-# def logout(request: Request):
-#     request.session.clear()
-#     return RedirectResponse(url="/login")
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    if request.session.get("user"):
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.post("/login")
+async def login(request: Request, db: Session = Depends(get_db), 
+                username: str = Form(...), password: str = Form(...)):
+    # Emergency fallback check for admin
+    user = db.query(User).filter(User.username == username).first()
+    if not user and username == "admin":
+        admin = User(
+            username="admin", 
+            full_name="System Admin", 
+            hashed_password=pwd_context.hash("admin123"), 
+            role="admin",
+            is_active=True
+        )
+        db.add(admin)
+        db.commit()
+        user = admin
+
+    if not user or not pwd_context.verify(password, user.hashed_password):
+        msg = "Invalid clinical credentials."
+        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
+    
+    if not user.is_active:
+        msg = "Clinical account inactive."
+        return templates.TemplateResponse("login.html", {"request": request, "error": msg})
+
+    # Session for monolith
+    request.session["user"] = user.username
+    return RedirectResponse(url="/", status_code=303)
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DASHBOARD
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)): # Removed user dep
-    # if not user: return RedirectResponse(url="/login", status_code=303)
-    # if user.role == "nurse": return RedirectResponse(url="/entry", status_code=303)
+def dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not user: return RedirectResponse(url="/login", status_code=303)
+    if user.role == "nurse": return RedirectResponse(url="/entry", status_code=303)
     
     month_str = month or get_current_month_str()
     data = compute_dashboard(db, month_str)
     return templates.TemplateResponse("dashboard.html", {
         "request": request, "data": data, "month_str": month_str,
-        "current_month": get_current_month_str(), "user": None
+        "current_month": get_current_month_str(), "user": user
     })
 
 @app.get("/api/dashboard")
-def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db)): # Removed user dep
+def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(doctor_or_admin)):
     month_str = month or get_current_month_str()
     data = compute_dashboard(db, month_str)
     return data
@@ -122,12 +153,12 @@ def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db)): #
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/patients", response_class=HTMLResponse)
-def patient_list(request: Request, db: Session = Depends(get_db)): # Removed user dep
+def patient_list(request: Request, db: Session = Depends(get_db), user: User = Depends(doctor_or_admin)):
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    return templates.TemplateResponse("patients.html", {"request": request, "patients": patients, "user": None})
+    return templates.TemplateResponse("patients.html", {"request": request, "patients": patients, "user": user})
 
 @app.get("/patients/{patient_id}/timeline", response_class=HTMLResponse)
-def patient_timeline(patient_id: int, request: Request, db: Session = Depends(get_db)): # Removed user dep
+def patient_timeline(patient_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(doctor_or_admin)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
     
@@ -146,11 +177,11 @@ def patient_timeline(patient_id: int, request: Request, db: Session = Depends(ge
     return templates.TemplateResponse("timeline.html", {"request": request, "patient": patient, "timeline_data": timeline_data, "user": user})
 
 @app.get("/patients/new", response_class=HTMLResponse)
-def new_patient_form(request: Request): # Removed user dep
-    return templates.TemplateResponse("patient_form.html", {"request": request, "patient": None, "mode": "new", "user": None})
+def new_patient_form(request: Request, user: User = Depends(admin_only)):
+    return templates.TemplateResponse("patient_form.html", {"request": request, "patient": None, "mode": "new", "user": user})
 
 @app.post("/patients/new")
-def create_patient(request: Request, db: Session = Depends(get_db), # Removed user dep
+def create_patient(request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only),
                    hid_no: str = Form(...), name: str = Form(...), sex: str = Form(...),
                    relation_type: str = Form(""),
                    contact_no: str = Form(""), diagnosis: str = Form(""), access_type: str = Form(""),
@@ -168,18 +199,18 @@ def create_patient(request: Request, db: Session = Depends(get_db), # Removed us
     p = Patient(hid_no=hid_no, name=name, sex=sex, relation_type=relation_type, contact_no=contact_no, diagnosis=diagnosis,
                 access_type=access_type, dry_weight=dry_weight, hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
                 hep_b_status=hep_b_status, hep_b_date=p_date(hep_b_date), pneumococcal_date=p_date(pneumococcal_date),
-                whatsapp_notify=whatsapp_notify, mail_trigger=mail_trigger, created_by="system")
+                whatsapp_notify=whatsapp_notify, mail_trigger=mail_trigger, created_by=user.username)
     db.add(p); db.commit()
     return RedirectResponse(url="/patients", status_code=303)
 
 @app.get("/patients/{patient_id}/edit", response_class=HTMLResponse)
-def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db)): # Removed user dep
+def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
-    return templates.TemplateResponse("patient_form.html", {"request": request, "patient": p, "mode": "edit", "user": None})
+    return templates.TemplateResponse("patient_form.html", {"request": request, "patient": p, "mode": "edit", "user": user})
 
 @app.post("/patients/{patient_id}/edit")
-def update_patient(patient_id: int, request: Request, db: Session = Depends(get_db), # Removed user dep
+def update_patient(patient_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only),
                    hid_no: str = Form(...), name: str = Form(...), sex: str = Form(...),
                    relation_type: str = Form(""),
                    contact_no: str = Form(""), diagnosis: str = Form(""), access_type: str = Form(""),
@@ -197,16 +228,15 @@ def update_patient(patient_id: int, request: Request, db: Session = Depends(get_
     p.diagnosis = diagnosis; p.access_type = access_type; p.dry_weight = dry_weight
     p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
     p.hep_b_status = hep_b_status; p.hep_b_date = p_date(hep_b_date); p.pneumococcal_date = p_date(pneumococcal_date)
-    p.whatsapp_notify = whatsapp_notify
-    p.mail_trigger = mail_trigger
-    p.updated_by = "system"; p.updated_at = datetime.utcnow() # Changed user.username to "system"
+    p.whatsapp_notify = whatsapp_notify; p.mail_trigger = mail_trigger
+    p.updated_by = user.username; p.updated_at = datetime.utcnow()
     db.commit()
     return RedirectResponse(url="/patients", status_code=303)
 
 @app.post("/patients/{patient_id}/deactivate")
-def deactivate_patient(patient_id: int, db: Session = Depends(get_db)): # Removed user dep and admin_only
+def deactivate_patient(patient_id: int, db: Session = Depends(get_db), user: User = Depends(admin_only)): # Removed user dep and admin_only
     p = db.query(Patient).filter(Patient.id == patient_id).first()
-    if p: p.is_active = False; p.updated_by = "system"; db.commit() # Changed user.username to "system"
+    if p: p.is_active = False; p.updated_by = user.username; db.commit() # Changed user.username to "system"
     return RedirectResponse(url="/patients", status_code=303)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -214,14 +244,14 @@ def deactivate_patient(patient_id: int, db: Session = Depends(get_db)): # Remove
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/entry", response_class=HTMLResponse)
-def entry_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)): # Removed user dep
+def entry_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(nurse_or_admin)):
     month_str = month or get_current_month_str()
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     existing_ids = {r.patient_id for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()}
-    return templates.TemplateResponse("entry_list.html", {"request": request, "patients": patients, "month_str": month_str, "month_label": get_month_label(month_str), "existing_ids": existing_ids, "user": None})
+    return templates.TemplateResponse("entry_list.html", {"request": request, "patients": patients, "month_str": month_str, "month_label": get_month_label(month_str), "existing_ids": existing_ids, "user": user})
 
 @app.get("/entry/{patient_id}", response_class=HTMLResponse)
-def entry_form(patient_id: int, request: Request, month: Optional[str] = None, db: Session = Depends(get_db)): # Removed user dep
+def entry_form(patient_id: int, request: Request, month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(nurse_or_admin)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
     month_str = month or get_current_month_str()
@@ -229,7 +259,7 @@ def entry_form(patient_id: int, request: Request, month: Optional[str] = None, d
     return templates.TemplateResponse("entry_form.html", {"request": request, "patient": p, "record": rec, "month_str": month_str, "month_label": get_month_label(month_str), "user": user})
 
 @app.post("/api/entries/bulk")
-def api_bulk_entries(records: list, db: Session = Depends(get_db)): # Changed List to list
+def api_bulk_entries(records: List[dict], db: Session = Depends(get_db), user: User = Depends(nurse_or_admin)):
     for r in records:
         pid = r.get("patient_id")
         m_str = r.get("record_month")
@@ -249,9 +279,8 @@ def api_bulk_entries(records: list, db: Session = Depends(get_db)): # Changed Li
 
         # Backgrounding Critical Alerts for Robustness
         def trigger_alerts(p_name, metric, val):
-            # from alerts import send_critical_clinical_alert
-            # send_critical_clinical_alert(p_name, metric, val)
-            pass
+            from alerts import send_critical_clinical_alert
+            send_critical_clinical_alert(p_name, metric, val)
 
         import threading
         p_obj = None # Initialize
@@ -271,7 +300,7 @@ def api_bulk_entries(records: list, db: Session = Depends(get_db)): # Changed Li
     return {"success": True, "count": len(records)}
 
 @app.post("/entry/{patient_id}")
-def save_entry(patient_id: int, db: Session = Depends(get_db), # Removed user dep
+def save_entry(patient_id: int, db: Session = Depends(get_db), user: User = Depends(nurse_or_admin),
                month_str: str = Form(...), entered_by: str = Form(""),
                target_dry_weight: Optional[float] = Form(None), idwg: Optional[float] = Form(None), hb: Optional[float] = Form(None),
                serum_ferritin: Optional[float] = Form(None), tsat: Optional[float] = Form(None),
@@ -293,14 +322,13 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), # Removed user de
     rec.calcium = calcium; rec.phosphorus = phosphorus; rec.alkaline_phosphate = alkaline_phosphate
     rec.albumin = albumin; rec.ast = ast; rec.alt = alt; rec.vit_d = vit_d; rec.ipth = ipth
     rec.av_daily_calories = av_daily_calories; rec.av_daily_protein = av_daily_protein
-    rec.issues = issues; rec.entered_by = "system"; rec.timestamp = datetime.utcnow() # Changed user.username to "system"
+    rec.issues = issues; rec.entered_by = user.username; rec.timestamp = datetime.utcnow()
     db.commit()
 
     # Backgrounding Critical Alerts for Robustness
     def trigger_alerts(p_name, metric, val):
-        # from alerts import send_critical_clinical_alert
-        # send_critical_clinical_alert(p_name, metric, val)
-        pass
+        from alerts import send_critical_clinical_alert
+        send_critical_clinical_alert(p_name, metric, val)
 
     import threading
     p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
@@ -320,12 +348,12 @@ def save_entry(patient_id: int, db: Session = Depends(get_db), # Removed user de
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/api/me")
-def api_me(): # Removed user dep
-    # if not user: return JSONResponse({"logged_in": False})
-    return {"logged_in": False}
+def api_me(user: User = Depends(get_current_user)):
+    if not user: return JSONResponse({"logged_in": False})
+    return {"logged_in": True, "username": user.username, "full_name": user.full_name, "role": user.role}
 
 @app.get("/api/patients")
-def api_patients(q: str = "", db: Session = Depends(get_db)): # Removed user dep
+def api_patients(q: str = "", db: Session = Depends(get_db), user: User = Depends(any_staff)):
     patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(100).all()
     return [{
         "id": p.id, "name": p.name, "hid": p.hid_no, "sex": p.sex, 
@@ -335,7 +363,7 @@ def api_patients(q: str = "", db: Session = Depends(get_db)): # Removed user dep
     } for p in patients]
 
 @app.get("/api/patients/{patient_id}")
-def api_patient_detail(patient_id: int, db: Session = Depends(get_db)): # Removed user dep
+def api_patient_detail(patient_id: int, db: Session = Depends(get_db), user: User = Depends(any_staff)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
     return {
@@ -347,37 +375,45 @@ def api_patient_detail(patient_id: int, db: Session = Depends(get_db)): # Remove
         "clinical_remarks": p.clinical_remarks or ""
     }
 
-# class PatientData(BaseModel):
-#     name: str
-#     ...
+class PatientData(BaseModel):
+    name: str
+    contact: Optional[str] = ""
+    age: Optional[int] = None
+    gender: Optional[str] = "Male"
+    diagnosis: Optional[str] = ""
+    hd_slot_1: Optional[str] = ""
+    hd_slot_2: Optional[str] = ""
+    hd_slot_3: Optional[str] = ""
+    is_active: Optional[bool] = True
+    clinical_remarks: Optional[str] = ""
 
 @app.post("/api/patients")
-def api_create_patient(data: dict, db: Session = Depends(get_db)): # Changed to dict
+def api_create_patient(data: PatientData, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     p = Patient(
-        name=data.get("name"), contact_no=data.get("contact"), sex=data.get("gender"), 
-        diagnosis=data.get("diagnosis"), hd_slot_1=data.get("hd_slot_1"), 
-        hd_slot_2=data.get("hd_slot_2"), hd_slot_3=data.get("hd_slot_3"),
-        is_active=data.get("is_active", True), clinical_remarks=data.get("clinical_remarks", ""),
-        created_by="system"
+        name=data.name, contact_no=data.contact, sex=data.gender, 
+        diagnosis=data.diagnosis, hd_slot_1=data.hd_slot_1, 
+        hd_slot_2=data.hd_slot_2, hd_slot_3=data.hd_slot_3,
+        is_active=data.is_active, clinical_remarks=data.clinical_remarks,
+        created_by=user.username
     )
     db.add(p)
     db.commit()
     return {"id": p.id, "success": True}
 
 @app.put("/api/patients/{patient_id}")
-def api_update_patient(patient_id: int, data: dict, db: Session = Depends(get_db)): # Changed to dict
+def api_update_patient(patient_id: int, data: PatientData, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
-    p.name = data.get("name"); p.contact_no = data.get("contact"); p.sex = data.get("gender")
-    p.diagnosis = data.get("diagnosis"); p.hd_slot_1 = data.get("hd_slot_1")
-    p.hd_slot_2 = data.get("hd_slot_2"); p.hd_slot_3 = data.get("hd_slot_3")
-    p.is_active = data.get("is_active", True); p.clinical_remarks = data.get("clinical_remarks", "")
-    p.updated_by = "system"; p.updated_at = datetime.utcnow()
+    p.name = data.name; p.contact_no = data.contact; p.sex = data.gender
+    p.diagnosis = data.diagnosis; p.hd_slot_1 = data.hd_slot_1
+    p.hd_slot_2 = data.hd_slot_2; p.hd_slot_3 = data.hd_slot_3
+    p.is_active = data.is_active; p.clinical_remarks = data.clinical_remarks
+    p.updated_by = user.username; p.updated_at = datetime.utcnow()
     db.commit()
     return {"success": True}
 
 @app.get("/api/patients/{patient_id}/timeline")
-def api_patient_timeline(patient_id: int, db: Session = Depends(get_db)): # Removed user dep
+def api_patient_timeline(patient_id: int, db: Session = Depends(get_db), user: User = Depends(any_staff)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
     records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).all()
@@ -396,14 +432,14 @@ def api_patient_timeline(patient_id: int, db: Session = Depends(get_db)): # Remo
 
 
 @app.post("/api/send-whatsapp")
-def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db)): # Removed user dep
+def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     month_str = month or get_current_month_str()
     import threading
     threading.Thread(target=send_bulk_whatsapp_alerts, args=(get_patients_needing_alerts(db, month_str), get_month_label(month_str))).start()
     return JSONResponse({"message": "⏳ WhatsApp alert task queued via threading."})
 
 @app.post("/api/send-schedule/{patient_id}")
-def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db)): # Removed user dep
+def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     """Send a specific patient their weekly HD schedule via WhatsApp and Email."""
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
@@ -418,16 +454,16 @@ def api_send_schedule_reminder(patient_id: int, db: Session = Depends(get_db)): 
             send_schedule_email(p.name, p.email, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
         # WhatsApp
         if p.contact_no:
-            # msg = build_schedule_message(p.name, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
-            # send_whatsapp(p.contact_no, msg)
-            pass
+            from alerts import build_schedule_message, send_whatsapp
+            msg = build_schedule_message(p.name, [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3])
+            send_whatsapp(p.contact_no, msg)
 
-    # threading.Thread(target=send_p_schedule).start()
+    threading.Thread(target=send_p_schedule).start()
     return JSONResponse({"message": f"⏳ Schedule reminder dispatched via Threading."})
 
 
 @app.post("/api/send-email")
-def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db)): # Removed user dep
+def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db), user: User = Depends(admin_only)):
     month_str = month or get_current_month_str()
     import threading
     threading.Thread(target=send_ward_email, args=(get_patients_needing_alerts(db, month_str), get_month_label(month_str), month_str[:4])).start()
@@ -435,7 +471,7 @@ def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db)): 
 
 
 @app.get("/api/cohort-trends")
-def api_cohort_trends(db: Session = Depends(get_db)): # Removed user dep
+def api_cohort_trends(db: Session = Depends(get_db), user: User = Depends(doctor_or_admin)):
     months = []; current = datetime.now()
     for i in range(11, -1, -1): months.append((current - datetime.timedelta(days=i*30)).strftime("%Y-%m"))
     months.sort()
@@ -457,11 +493,40 @@ def api_cohort_trends(db: Session = Depends(get_db)): # Removed user dep
 # USER MANAGEMENT (ADMIN ONLY)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# @app.get("/admin/users", ...)
-# @app.post("/admin/users/new", ...)
-# @app.post("/admin/users/{user_id}/deactivate", ...)
-# @app.get("/account/password", ...)
-# @app.post("/account/password", ...)
+@app.get("/admin/users", response_class=HTMLResponse)
+def user_management(request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only)):
+    users = db.query(User).all()
+    return templates.TemplateResponse("admin_users.html", {"request": request, "users": users, "user": user})
+
+@app.post("/admin/users/new")
+def create_user(request: Request, db: Session = Depends(get_db), user: User = Depends(admin_only),
+                username: str = Form(...), full_name: str = Form(...), password: str = Form(...), role: str = Form(...)):
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail="Username exists")
+    new_user = User(username=username, full_name=full_name, hashed_password=pwd_context.hash(password), role=role)
+    db.add(new_user); db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+@app.post("/admin/users/{user_id}/deactivate")
+def deactivate_user(user_id: int, db: Session = Depends(get_db), user: User = Depends(admin_only)):
+    target = db.query(User).filter(User.id == user_id).first()
+    if target and target.username != user.username:
+        target.is_active = False; db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+@app.get("/account/password", response_class=HTMLResponse)
+def change_password_page(request: Request, user: User = Depends(login_required)):
+    return templates.TemplateResponse("change_password.html", {"request": request, "user": user})
+
+@app.post("/account/password")
+def change_password(request: Request, db: Session = Depends(get_db), user: User = Depends(login_required),
+                    current_pw: str = Form(...), new_pw: str = Form(...), confirm_pw: str = Form(...)):
+    if not pwd_context.verify(current_pw, user.hashed_password):
+        return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": "Incorrect current password"})
+    if new_pw != confirm_pw:
+        return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": "Passwords do not match"})
+    user.hashed_password = pwd_context.hash(new_pw); db.commit()
+    return RedirectResponse(url="/", status_code=303)
 
 # ── SCHEDULER ──
 def migrate_db():
@@ -490,32 +555,32 @@ def migrate_db():
 @app.on_event("startup")
 def startup():
     create_tables()
-    # migrate_db()
-    # db = SessionLocal()
+    migrate_db()
+    db = SessionLocal()
     # Ensure admin exists
-    # admin_user = db.query(User).filter(User.username == "admin").first()
-    # if not admin_user:
-    #     admin = User(
-    #         username="admin", 
-    #         full_name="System Admin", 
-    #         hashed_password=pwd_context.hash("admin123"), 
-    #         role="admin",
-    #         is_active=True
-    #     )
-    #     db.add(admin)
-    #     db.commit()
-    # db.close()
+    admin_user = db.query(User).filter(User.username == "admin").first()
+    if not admin_user:
+        admin = User(
+            username="admin", 
+            full_name="System Admin", 
+            hashed_password=pwd_context.hash("admin123"), 
+            role="admin",
+            is_active=True
+        )
+        db.add(admin)
+        db.commit()
+    db.close()
 
-    # scheduler = BackgroundScheduler()
-    # def auto_report():
-    #     import threading
-    #     m = get_current_month_str()
-    #     # db = SessionLocal()
-    #     # try:
-    #     #     pts = get_patients_needing_alerts(db, m)
-    #     #     threading.Thread(target=send_ward_email, args=(pts, get_month_label(m), m[:4])).start()
-    #     # finally:
-    #     #     db.close()
-    # # scheduler.add_job(auto_report, CronTrigger(hour=8, minute=0))
-    # # scheduler.start()
+    scheduler = BackgroundScheduler()
+    def auto_report():
+        import threading
+        m = get_current_month_str()
+        db = SessionLocal()
+        try:
+            pts = get_patients_needing_alerts(db, m)
+            threading.Thread(target=send_ward_email, args=(pts, get_month_label(m), m[:4])).start()
+        finally:
+            db.close()
+    scheduler.add_job(auto_report, CronTrigger(hour=8, minute=0))
+    scheduler.start()
 

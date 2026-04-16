@@ -35,6 +35,23 @@ def build_whatsapp_message(patient_name: str, alerts: list, month_label: str) ->
     )
 
 
+def build_schedule_message(patient_name: str, slots: list) -> str:
+    """Build the trilingual WhatsApp schedule message."""
+    from alerts import get_date_for_slot
+    dates = [f"{get_date_for_slot(s)} ({s})" for s in slots if s and s != "No Slot"]
+    if not dates: return f"Hello {patient_name}, clinical slots TBD."
+    
+    dates_str = "\n".join([f" • {d}" for d in dates])
+    return (
+        f"Dear {patient_name},\n\n"
+        f"Please find your HD slot details for this week:\n"
+        f"इस हफ्ते के लिए ये एचडी स्लॉट की तारीखें हैं:\n"
+        f"कृपया या आठवड्याचा एचडी स्लॉट तपशील पहा:\n\n"
+        f"{dates_str}\n\n"
+        f"Regards, Nephrology Dept."
+    )
+
+
 def send_whatsapp(to_number: str, message: str) -> tuple:
     """Send WhatsApp via Twilio. Returns (success: bool, detail: str)."""
     if not TWILIO_SID or not TWILIO_AUTH or not TWILIO_WA_FROM:
