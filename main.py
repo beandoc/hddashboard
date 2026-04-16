@@ -18,13 +18,18 @@ from alerts import send_bulk_whatsapp_alerts, send_ward_email, send_whatsapp, bu
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from passlib.context import CryptContext
-from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
+from passlib.context import CryptContext
+
+app = FastAPI(title="HD Dashboard")
+
+# 1. Config
+SECRET_KEY = os.getenv("SECRET_KEY", "clinical-secret-99-super-harden")
+
 # 2. Session Middleware (Lowest level)
 app.add_middleware(
     SessionMiddleware, 
-    secret_key=os.getenv("SECRET_KEY", "clinical-secret-99-super-harden"),
+    secret_key=SECRET_KEY,
     same_site="none",
     https_only=True
 )
@@ -38,7 +43,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # AUTHENTICATION & PERMISSIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
-SECRET_KEY = os.getenv("SECRET_KEY", "clinical-secret-99-super-harden")
+# SECRET_KEY moved up
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES: AUTH
