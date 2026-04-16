@@ -80,6 +80,10 @@ def compute_dashboard(db: Session, month_str: str):
             return round(ca + 0.8 * (4.0 - alb), 2)
         return ca
 
+    today = date.today()
+    day_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+    curr_day = day_map[today.weekday()]
+
     for p in patients:
         r = record_map.get(p.id)
         prev_r = prev_record_map.get(p.id)
@@ -92,21 +96,8 @@ def compute_dashboard(db: Session, month_str: str):
             "has_record": r is not None,
             "alerts": []
         }
-        
-        # Access Alert
-        if p.access_type and p.access_type.upper() != "AVF":
-            metrics["non_avf"]["count"] += 1
-            metrics["non_avf"]["names"].append(p.name)
-            atype = p.access_type or "Unknown"
-            if atype not in metrics["non_avf"]["types"]:
-                metrics["non_avf"]["types"][atype] = {"count": 0, "names": []}
-            metrics["non_avf"]["types"][atype]["count"] += 1
-            metrics["non_avf"]["types"][atype]["names"].append(p.name)
 
         # Today's HD Patients (Day-based Recurring)
-        day_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
-        curr_day = day_map[date.today().weekday()]
-        
         p_slots = [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3]
         if any(curr_day in str(s) for s in p_slots if s):
             metrics["todays_hd"]["count"] += 1
@@ -114,7 +105,6 @@ def compute_dashboard(db: Session, month_str: str):
 
         # Vaccination Alerts
         vac_alert = False
-        today = date.today()
         if p.hep_b_status == "Non-Immune":
             row["alerts"].append("Hep B Non-Immune")
             vac_alert = True
@@ -134,10 +124,8 @@ def compute_dashboard(db: Session, month_str: str):
             vac_alert = True
             
         if vac_alert:
-            # We add to metrics to potentially display a card for it
-            if p.name not in metrics["vaccine_due"]["names"]:
-                metrics["vaccine_due"]["count"] += 1
-                metrics["vaccine_due"]["names"].append(p.name)
+            metrics["vaccine_due"]["count"] += 1
+            metrics["vaccine_due"]["names"].append(p.name)
 
         if r:
             row.update({
