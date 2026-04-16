@@ -76,6 +76,7 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-xl focus:border-[#007bff] focus:bg-white outline-hidden transition-all text-gray-900"
                 placeholder="Enter username"
+                autoComplete="username"
                 autoFocus
               />
             </div>
@@ -90,6 +91,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-xl focus:border-[#007bff] focus:bg-white outline-hidden transition-all text-gray-900"
                 placeholder="••••••••"
+                autoComplete="current-password"
               />
             </div>
             <button
