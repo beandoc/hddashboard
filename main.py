@@ -22,23 +22,6 @@ from apscheduler.triggers.cron import CronTrigger
 from passlib.context import CryptContext
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI(title="HD Dashboard")
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DIAGNOSTIC MIDDLEWARE (Allow All Origins to bypass CORS blocks)
-# ─────────────────────────────────────────────────────────────────────────────
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.onrender\.com|http://localhost:.*",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
 # 2. Session Middleware (Lowest level)
 app.add_middleware(
     SessionMiddleware, 
@@ -56,18 +39,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # AUTHENTICATION & PERMISSIONS
 # ─────────────────────────────────────────────────────────────────────────────
 
-import jwt
-
 SECRET_KEY = os.getenv("SECRET_KEY", "clinical-secret-99-super-harden")
-ALGORITHM = "HS256"
-
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=7)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# Redundant section removed to avoid collisions with the HttpOnly Cookie engine below
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROUTES: AUTH
@@ -83,27 +55,7 @@ def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    # 1. Check HttpOnly Cookie (Superior Security)
-    token = request.cookies.get("access_token")
-    if token and token.startswith("Bearer "):
-        token = token.split(" ")[1]
-    
-    # 2. Check Header Fallback
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-
-    if token:
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            username = payload.get("sub")
-            if username:
-                return db.query(User).filter(User.username == username, User.is_active == True).first()
-        except:
-            pass
-            
-    # 3. Check Session Fallback (Local Templates)
+    # 1. Check Session (Local Templates - Monolith)
     username = request.session.get("user")
     if username:
         return db.query(User).filter(User.username == username, User.is_active == True).first()
@@ -138,19 +90,8 @@ def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
-async def login(request: Request, db: Session = Depends(get_db)):
-    content_type = request.headers.get("content-type", "")
-    if "application/json" in content_type:
-        data = await request.json()
-        username = data.get("username")
-        password = data.get("password")
-        is_json = True
-    else:
-        form = await request.form()
-        username = form.get("username")
-        password = form.get("password")
-        is_json = False
-
+async def login(request: Request, db: Session = Depends(get_db), 
+                username: str = Form(...), password: str = Form(...)):
     # Emergency fallback check for admin
     user = db.query(User).filter(User.username == username).first()
     if not user and username == "admin":
@@ -167,35 +108,13 @@ async def login(request: Request, db: Session = Depends(get_db)):
 
     if not user or not pwd_context.verify(password, user.hashed_password):
         msg = "Invalid clinical credentials."
-        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=401)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
     
     if not user.is_active:
         msg = "Clinical account inactive."
-        if is_json: return JSONResponse({"success": False, "detail": msg}, status_code=403)
         return templates.TemplateResponse("login.html", {"request": request, "error": msg})
 
-    # Create JWT
-    access_token = create_access_token(data={"sub": user.username})
-    
-    if is_json:
-        response = JSONResponse({
-            "success": True, 
-            "access_token": access_token, # Keep for backup
-            "user": {"username": user.username, "role": user.role}
-        })
-        # Set SECURE HttpOnly Cookie
-        response.set_cookie(
-            key="access_token",
-            value=f"Bearer {access_token}",
-            httponly=True,
-            secure=True,
-            samesite="none",
-            max_age=604800  # 1 week
-        )
-        return response
-    
-    # Session for local
+    # Session for monolith
     request.session["user"] = user.username
     return RedirectResponse(url="/", status_code=303)
 
