@@ -91,11 +91,45 @@ def run_migrations():
         print(f"ORM Seeding error: {e}")
         return False
 
-# Create tables on startup
+# Create tables and run self-healing migrations on startup
 @app.on_event("startup")
 def startup():
     create_tables()
+    
+    # --- AUTO-MIGRATE: Ensure dynamic variable system is current ---
+    from sqlalchemy import text, inspect as sa_inspect
+    required = [
+        ("variable_definitions", "alert_direction",  "VARCHAR DEFAULT 'both'"),
+        ("variable_definitions", "decimal_places",   "INTEGER DEFAULT 1"),
+        ("variable_definitions", "created_at",       "TIMESTAMP DEFAULT NOW()"),
+        ("variable_definitions", "created_by",       "VARCHAR DEFAULT 'system'"),
+    ]
+    
+    try:
+        inspector = sa_inspect(engine)
+        with engine.connect() as conn:
+            # Check variable_definitions columns
+            existing = [c['name'] for c in inspector.get_columns("variable_definitions")]
+            for _, col, dtype in [r for r in required if r[0] == "variable_definitions"]:
+                if col not in existing:
+                    conn.execute(text(f"ALTER TABLE variable_definitions ADD COLUMN {col} {dtype}"))
+                    conn.commit()
+                    print(f"Auto-migrated: variable_definitions.{col}")
+    except Exception as e:
+        print(f"Migration error (variable_definitions): {e}")
+    
+    # --- RUN LEGACY CLINICAL MIGRATIONS ---
     run_migrations()
+    
+    # --- SEED PRESET VARIABLES ---
+    db = SessionLocal()
+    try:
+        from dynamic_vars import seed_preset_variables
+        seed_preset_variables(db)
+    except Exception as e:
+        print(f"Seed error: {e}")
+    finally:
+        db.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
