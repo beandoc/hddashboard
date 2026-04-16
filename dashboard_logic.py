@@ -53,9 +53,16 @@ def compute_dashboard(db: Session, month_str: str):
         "todays_hd": {"count": 0, "names": []},
         "high_idwg": {"count": 0, "names": []},
         "low_albumin": {"count": 0, "names": []},
+        "low_calcium": {"count": 0, "names": []},
         "high_phosphorus": {"count": 0, "names": []},
-        "hb_drop_alert": {"count": 0, "names": []},
         "iv_iron": {"count": 0, "names": []},
+        "hb_drop_alert": {"count": 0, "names": []},
+        "dialysis_intensification": {"count": 0, "names": []},
+        "high_ipth": {"count": 0, "names": []},
+        "low_vit_d": {"count": 0, "names": []},
+        "low_protein": {"count": 0, "names": []},
+        "elevated_liver": {"count": 0, "names": []},
+        "non_avf": {"count": 0, "names": [], "types": {}},
         "trend_hb": [], "trend_albumin": [], "trend_phosphorus": []
     }
 
@@ -67,6 +74,16 @@ def compute_dashboard(db: Session, month_str: str):
         r, prev_r, m3_r = records.get(p.id), prev_recs.get(p.id), m3_recs.get(p.id)
         row = {"id": p.id, "name": p.name, "hid": p.hid_no, "access": p.access_type, "has_record": r is not None, "alerts": []}
 
+        # Access Tracking (Canonical logic for charts)
+        if p.access_type and p.access_type != "AVF":
+            metrics["non_avf"]["count"] += 1
+            metrics["non_avf"]["names"].append(p.name)
+            typ = p.access_type
+            if typ not in metrics["non_avf"]["types"]:
+                metrics["non_avf"]["types"][typ] = {"count": 0, "names": []}
+            metrics["non_avf"]["types"][typ]["count"] += 1
+            metrics["non_avf"]["types"][typ]["names"].append(p.name)
+
         # Slot Check
         if any(curr_day in str(s) for s in [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3] if s):
             metrics["todays_hd"]["count"] += 1; metrics["todays_hd"]["names"].append(p.name)
@@ -74,14 +91,43 @@ def compute_dashboard(db: Session, month_str: str):
         if r:
             row.update({"idwg": r.idwg, "hb": r.hb, "phosphorus": r.phosphorus, "albumin": r.albumin})
             
-            # Clinical Logic
+            # Clinical Logic (Canonical Triggers)
             if r.idwg and r.idwg > THRESHOLDS["IDWG_MAX"]: 
-                metrics["high_idwg"]["count"] += 1; row["alerts"].append("High IDWG")
+                metrics["high_idwg"]["count"] += 1; metrics["high_idwg"]["names"].append(p.name); row["alerts"].append("High IDWG")
+            
             if r.hb and r.hb < THRESHOLDS["HB_MIN"]: row["alerts"].append("Low Hb")
+            
             if r.hb and prev_r and prev_r.hb and (prev_r.hb - r.hb) > THRESHOLDS["HB_DROP_MAX"]:
-                metrics["hb_drop_alert"]["count"] += 1; row["alerts"].append("Hb Drop")
+                metrics["hb_drop_alert"]["count"] += 1; metrics["hb_drop_alert"]["names"].append(p.name); row["alerts"].append("Hb Drop")
+            
             if r.albumin and r.albumin < THRESHOLDS["ALB_MIN"]: 
-                metrics["low_albumin"]["count"] += 1; row["alerts"].append("Low Albumin")
+                metrics["low_albumin"]["count"] += 1; metrics["low_albumin"]["names"].append(p.name); row["alerts"].append("Low Albumin")
+
+            if r.phosphorus and r.phosphorus > THRESHOLDS["PHOS_MAX"]:
+                metrics["high_phosphorus"]["count"] += 1; metrics["high_phosphorus"]["names"].append(p.name); row["alerts"].append("High Phosphorus")
+
+            # Extras for Canonical UI
+            calcium_corr = r.calcium or 0
+            if r.albumin and r.calcium and r.albumin < 4.0:
+                calcium_corr = r.calcium + 0.8 * (4.0 - r.albumin)
+            
+            if calcium_corr and calcium_corr < 8.5:
+                metrics["low_calcium"]["count"] += 1; metrics["low_calcium"]["names"].append(p.name)
+            
+            if r.ipth and r.ipth > 300:
+                metrics["high_ipth"]["count"] += 1; metrics["high_ipth"]["names"].append(p.name)
+            
+            if r.vit_d and r.vit_d < 20:
+                metrics["low_vit_d"]["count"] += 1; metrics["low_vit_d"]["names"].append(p.name)
+            
+            if r.av_daily_protein and r.av_daily_protein < 1.0:
+                metrics["low_protein"]["count"] += 1; metrics["low_protein"]["names"].append(p.name)
+            
+            if (r.ast and r.ast > 40) or (r.alt and r.alt > 40):
+                metrics["elevated_liver"]["count"] += 1; metrics["elevated_liver"]["names"].append(p.name)
+            
+            if r.urr and r.urr < 65:
+                metrics["dialysis_intensification"]["count"] += 1; metrics["dialysis_intensification"]["names"].append(p.name)
             
             # ERI calculation (O(1) with bulk map)
             if r.hb and m3_r and m3_r.hb and r.epo_weekly_units:
@@ -99,6 +145,8 @@ def compute_dashboard(db: Session, month_str: str):
                     if pred < 10.0: row["alerts"].append("🔮 Projected Low Hb")
             
             metrics["trend_hb"].append({"patient": p.name, "previous": prev_r.hb if prev_r else None, "current": r.hb})
+            metrics["trend_albumin"].append({"patient": p.name, "previous": prev_r.albumin if prev_r else None, "current": r.albumin})
+            metrics["trend_phosphorus"].append({"patient": p.name, "previous": prev_r.phosphorus if prev_r else None, "current": r.phosphorus})
         patient_rows.append(row)
 
     return {

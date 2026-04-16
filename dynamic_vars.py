@@ -168,6 +168,7 @@ PRESET_VARIABLES = [
 
 def seed_preset_variables(db):
     """Seed preset variables on first run if they don't exist."""
+    from database import SessionLocal
     for vdef in PRESET_VARIABLES:
         existing = db.query(VariableDefinition).filter(
             VariableDefinition.name == vdef["name"]

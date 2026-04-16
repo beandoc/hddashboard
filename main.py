@@ -3,7 +3,6 @@ HD Dashboard — FastAPI Application
 Multi-user hemodialysis patient data entry + clinical dashboard
 """
 import os
-import re
 from fastapi import FastAPI, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,20 +11,14 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 from typing import Optional
 import json
-import logging
-from passlib.context import CryptContext
 
-# Setup Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("HD-Dashboard")
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, SessionLocal, engine
+# Database engine and session for startup logic
+from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, engine, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, generate_all_whatsapp_links
 from ml_analytics import run_patient_analytics, run_cohort_analytics
-from dynamic_vars import (get_all_variables, get_patient_variable_history, upsert_variable_value, seed_preset_variables, VariableDefinition, VariableValue)
+from dynamic_vars import (VariableDefinition, VariableValue, get_all_variables,
+    get_patient_variable_history, upsert_variable_value, seed_preset_variables)
 
 app = FastAPI(title="HD Dashboard")
 templates = Jinja2Templates(directory="templates")
@@ -34,105 +27,19 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/health")
 def health_check():
-    """Diagnostic health check with version fingerprint."""
-    return {
-        "status": "ok", 
-        "version": "6.0.1-STABLE",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    """Render health check endpoint — also used by UptimeRobot to prevent sleep."""
+    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
 
-@app.get("/migrate-db")
-def manual_migrate():
-    """Manual rescue route to force database migration."""
-    success = run_migrations()
-    if success:
-        return {"status": "success", "message": "Database schema forced to current version."}
-    return JSONResponse(status_code=500, content={"status": "error", "message": "Migration failed. Check server logs."})
-
-def run_migrations():
-    """Force-add missing clinical columns directly via raw engine connection."""
-    from sqlalchemy import text
-    migrations = [
-        "ALTER TABLE variable_definitions ADD COLUMN IF NOT EXISTS alert_direction VARCHAR",
-        "ALTER TABLE variable_definitions ADD COLUMN IF NOT EXISTS decimal_places INTEGER DEFAULT 1",
-        "ALTER TABLE variable_values ADD COLUMN IF NOT EXISTS entered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS dialysis_vintage_months INTEGER DEFAULT 0",
-        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS primary_diagnosis VARCHAR",
-        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvd BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS comorbidity_cvsd BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE patients ADD COLUMN IF NOT EXISTS hyperparathyroidism BOOLEAN DEFAULT FALSE",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS target_dry_weight FLOAT",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS epo_weekly_units FLOAT",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS bp_sys INTEGER",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS bp_dia INTEGER",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS crp FLOAT",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS urr FLOAT",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS mcv FLOAT",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS hb_hematocrit FLOAT",
-        "ALTER TABLE monthly_records ADD COLUMN IF NOT EXISTS iron_iv_supplement BOOLEAN DEFAULT FALSE"
-    ]
-    
-    # 1. RAPID PHYSICAL SYNC (Raw SQL)
-    try:
-        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            for m in migrations:
-                try:
-                    conn.execute(text(m))
-                except Exception:
-                    pass # Skip if exists
-    except Exception as e:
-        print(f"Physical sync error: {e}")
-
-    # 2. ORM REGISTRATION & SEEDING (SQLAlchemy)
-    try:
-        from database import Base
-        Base.metadata.create_all(bind=engine)
-        db = SessionLocal()
-        seed_preset_variables(db)
-        db.close()
-        return True
-    except Exception as e:
-        print(f"ORM Seeding error: {e}")
-        return False
-
-# Create tables and run self-healing migrations on startup
+# Create tables on startup
 @app.on_event("startup")
 def startup():
     create_tables()
-    
-    # --- AUTO-MIGRATE: Ensure dynamic variable system is current ---
-    from sqlalchemy import text, inspect as sa_inspect
-    required = [
-        ("variable_definitions", "alert_direction",  "VARCHAR DEFAULT 'both'"),
-        ("variable_definitions", "decimal_places",   "INTEGER DEFAULT 1"),
-        ("variable_definitions", "created_at",       "TIMESTAMP DEFAULT NOW()"),
-        ("variable_definitions", "created_by",       "VARCHAR DEFAULT 'system'"),
-    ]
-    
-    try:
-        inspector = sa_inspect(engine)
-        with engine.connect() as conn:
-            # Check variable_definitions columns
-            existing = [c['name'] for c in inspector.get_columns("variable_definitions")]
-            for _, col, dtype in [r for r in required if r[0] == "variable_definitions"]:
-                if col not in existing:
-                    conn.execute(text(f"ALTER TABLE variable_definitions ADD COLUMN {col} {dtype}"))
-                    conn.commit()
-                    print(f"Auto-migrated: variable_definitions.{col}")
-    except Exception as e:
-        print(f"Migration error (variable_definitions): {e}")
-    
-    # --- RUN LEGACY CLINICAL MIGRATIONS ---
-    run_migrations()
-    
-    # --- SEED PRESET VARIABLES ---
+    # Create dynamic variable tables and seed presets
+    from database import Base
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        from dynamic_vars import seed_preset_variables
         seed_preset_variables(db)
-    except Exception as e:
-        print(f"Seed error: {e}")
     finally:
         db.close()
 
@@ -141,40 +48,15 @@ def startup():
 # DASHBOARD
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
-    if request.method == "HEAD":
-        return HTMLResponse(content="", status_code=200)
-    
-    # Brute-force migration check on first access
-    run_migrations()
-    
     month_str = month or get_current_month_str()
-    try:
-        data = compute_dashboard(db, month_str)
-    except Exception as e:
-        logger.error(f"Dashboard compute error: {e}")
-        # Robust Fallback to prevent Jinja2 500 errors
-        data = {
-            "metrics": {
-                "total": 0, "male": 0, "female": 0, "unknown_sex": 0,
-                "todays_hd": {"count": 0, "names": []},
-                "high_idwg": {"count": 0, "names": []},
-                "low_albumin": {"count": 0, "names": []},
-                "hb_drop_alert": {"count": 0, "names": []},
-                "trend_hb": [], "trend_albumin": [], "trend_phosphorus": []
-            },
-            "patient_rows": [],
-            "month_label": month_str,
-            "prev_month_label": "Previous Month"
-        }
-
+    data = compute_dashboard(db, month_str)
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "data": data,
         "month_str": month_str,
         "current_month": get_current_month_str(),
-        "user": {"role": "admin", "full_name": "Doctor"}
     })
 
 
@@ -416,13 +298,6 @@ def save_entry(
         MonthlyRecord.patient_id == patient_id,
         MonthlyRecord.record_month == month_str
     ).first()
-    
-    # Auto-calculate epo_weekly_units for ERI
-    def parse_epo(text):
-        if not text: return 0.0
-        matches = re.findall(r"\d+", str(text))
-        return float(matches[0]) if matches else 0.0
-    epo_units = parse_epo(epo_mircera_dose)
 
     if rec:
         # Update existing
@@ -434,7 +309,6 @@ def save_entry(
         rec.av_daily_calories = av_daily_calories; rec.av_daily_protein = av_daily_protein
         rec.issues = issues; rec.entered_by = entered_by
         rec.timestamp = datetime.utcnow()
-        rec.epo_weekly_units = epo_units
     else:
         rec = MonthlyRecord(
             patient_id=patient_id, record_month=month_str, entered_by=entered_by,
@@ -444,19 +318,9 @@ def save_entry(
             phosphorus=phosphorus, albumin=albumin, ast=ast, alt=alt,
             vit_d=vit_d, ipth=ipth, av_daily_calories=av_daily_calories,
             av_daily_protein=av_daily_protein, issues=issues,
-            epo_weekly_units=epo_units
         )
         db.add(rec)
     db.commit()
-
-    # CRITICAL CLINICAL SENTINEL: Auto-trigger alert if values are life-threatening
-    if hb and hb < 6.0:
-        from alerts import send_critical_clinical_alert
-        send_critical_clinical_alert(p.name, "Hemoglobin", hb)
-    if phosphorus and phosphorus > 8.0:
-        from alerts import send_critical_clinical_alert
-        send_critical_clinical_alert(p.name, "Phosphorus", phosphorus)
-
     return RedirectResponse(url=f"/entry?month={month_str}", status_code=303)
 
 
@@ -551,7 +415,7 @@ def api_patient_analytics(
     db: Session = Depends(get_db)
 ):
     """Run all ML analytics for a single patient."""
-    result = run_patient_analytics(db, patient_id)
+    result = run_patient_analytics(db, patient_id, month)
     return JSONResponse(content=result)
 
 
@@ -592,13 +456,11 @@ def patient_timeline(
 @app.get("/variables", response_class=HTMLResponse)
 def variable_manager(request: Request, db: Session = Depends(get_db)):
     """Variable manager UI — define variables, enter retrospective data."""
-    from dynamic_vars import get_all_variables
+    from dynamic_vars import get_all_variables, VariableDefinition
+    import json as _json
     variables = get_all_variables(db, active_only=False)
     patients  = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    patient_list = [
-        {"id": p.id, "name": p.name, "hid": p.hid_no, "hd_slot_1": p.hd_slot_1, "hd_slot_2": p.hd_slot_2} 
-        for p in patients
-    ]
+    patient_list = [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
     vars_json    = [
         {
             "id": v.id, "name": v.name, "display_name": v.display_name,
@@ -615,10 +477,7 @@ def variable_manager(request: Request, db: Session = Depends(get_db)):
     ]
     from dashboard_logic import get_current_month_str
     current = get_current_month_str()
-    # Fixed year calculation:
-    curr_yr_int = int(current[:4])
-    prev_year = f"{curr_yr_int-1}-{current[5:]}"
-    
+    prev_year = f"{int(current[:4])-1}-{current[5:]}"
     return templates.TemplateResponse("variable_manager.html", {
         "request":       request,
         "variables":     variables,
@@ -626,7 +485,6 @@ def variable_manager(request: Request, db: Session = Depends(get_db)):
         "patients":      patient_list,
         "default_from":  prev_year,
         "default_to":    current,
-        "user": {"role": "admin", "full_name": "Doctor"}
     })
 
 
@@ -701,7 +559,6 @@ def get_variable_values(
     db: Session = Depends(get_db)
 ):
     """Get all values for a variable, optionally filtered by month range."""
-    from dynamic_vars import VariableValue
     q = db.query(VariableValue).filter(VariableValue.variable_id == var_id)
     if from_month:
         q = q.filter(VariableValue.record_month >= from_month)
@@ -721,7 +578,7 @@ def get_variable_values(
 @app.get("/api/variables/{var_id}/summary")
 def get_variable_summary(var_id: int, db: Session = Depends(get_db)):
     """Summary data for viewing: latest per patient + trend over time."""
-    from dynamic_vars import VariableDefinition, VariableValue
+    from dynamic_vars import VariableDefinition
     import numpy as np
 
     vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
@@ -766,51 +623,3 @@ def get_variable_summary(var_id: int, db: Session = Depends(get_db)):
         })
 
     return JSONResponse({"patients": patient_summary, "trend": trend})
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# USER MANAGEMENT (ADMIN)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.get("/admin/users", response_class=HTMLResponse)
-def user_management(request: Request, db: Session = Depends(get_db)):
-    from database import User
-    users = db.query(User).order_by(User.role, User.username).all()
-    return templates.TemplateResponse("user_management.html", {
-        "request": request,
-        "users": users,
-        "current_user": {"role": "admin", "full_name": "Doctor"}
-    })
-
-@app.post("/admin/users/new")
-def create_user(
-    username: str = Form(...),
-    password: str = Form(...),
-    full_name: str = Form(...),
-    role: str = Form("nurse"),
-    db: Session = Depends(get_db)
-):
-    from database import User
-    existing = db.query(User).filter(User.username == username).first()
-    if existing:
-        return RedirectResponse(url="/admin/users?error=Username+exists", status_code=303)
-    
-    hashed_pwd = pwd_context.hash(password)
-    new_user = User(
-        username=username,
-        hashed_password=hashed_pwd,
-        full_name=full_name,
-        role=role
-    )
-    db.add(new_user)
-    db.commit()
-    return RedirectResponse(url="/admin/users?saved=1", status_code=303)
-
-@app.post("/admin/users/{user_id}/toggle")
-def toggle_user(user_id: int, db: Session = Depends(get_db)):
-    from database import User
-    u = db.query(User).filter(User.id == user_id).first()
-    if u:
-        u.is_active = not u.is_active
-        db.commit()
-    return RedirectResponse(url="/admin/users", status_code=303)

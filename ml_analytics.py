@@ -2,15 +2,32 @@
 ml_analytics.py
 ===============
 Predictive analytics for hemodialysis patients.
-Intelligence 4.0 — Research-Aligned GAM Matrix (R² 0.60)
+
+Models implemented:
+1.  Hb Trajectory Predictor      — next month Hb forecast (linear regression)
+2.  EPO Hypo-Response Detector   — flags poor EPO responders
+3.  Albumin Decline Risk          — detects downward albumin trend
+4.  Phosphorus Spike Predictor   — forecasts next month phosphorus
+5.  Target Achievement Score      — 0-10 composite wellness score per patient
+6.  Deterioration Risk Score      — combined multi-parameter risk flag
+7.  Iron Status Classifier        — iron deficient / adequate / overloaded
+8.  Trend Direction Indicators    — ↑ ↓ → for every parameter
+9.  Cohort Percentile Ranking     — where does patient sit vs cohort
+10. Data Completeness Score       — % of key fields filled
+
+All models degrade gracefully with limited data:
+  - 1 data point  : shows value, no trend
+  - 2 data points : shows direction
+  - 3+ points     : full regression + prediction
+  - 6+ points     : high confidence predictions
 """
+
 import os
 import sys
 import logging
 import json
-import re
-from datetime import datetime, date
-from typing import Optional, List, Dict
+from datetime import datetime
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -38,227 +55,855 @@ KEY_FIELDS = ["hb", "albumin", "phosphorus", "tsat",
 # ── DATA LOADING ─────────────────────────────────────────────────────────────
 
 def load_patient_history(db: Session, patient_id: int) -> pd.DataFrame:
-    """Load monthly records + correlated blood transfusions."""
-    from database import MonthlyRecord, BloodTransfusion
-    records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.asc()).all()
-    if not records: return pd.DataFrame()
+    """
+    Load all monthly records for a patient as a sorted DataFrame.
+    Returns empty DataFrame if no records exist.
+    """
+    from database import MonthlyRecord
+
+    records = (
+        db.query(MonthlyRecord)
+        .filter(MonthlyRecord.patient_id == patient_id)
+        .order_by(MonthlyRecord.record_month.asc())
+        .all()
+    )
+
+    if not records:
+        return pd.DataFrame()
+
     rows = []
     for r in records:
-        y, m = r.record_month.split("-")
-        bt_units = db.query(BloodTransfusion).filter(
-            BloodTransfusion.patient_id == patient_id,
-            BloodTransfusion.transfusion_date >= date(int(y), int(m), 1),
-            BloodTransfusion.transfusion_date <= date(int(y), int(m), 28)
-        ).count() or 0
         rows.append({
-            "month": r.record_month, "month_num": _month_to_num(r.record_month),
-            "idwg": r.idwg, "hb": r.hb, "bt_units": bt_units,
-            "hb_adjusted": (r.hb - (bt_units * 1.0)) if r.hb else None,
-            "serum_ferritin": r.serum_ferritin, "tsat": r.tsat,
-            "calcium": r.calcium, "phosphorus": r.phosphorus,
-            "albumin": r.albumin, "ipth": r.ipth, "vit_d": r.vit_d,
-            "crp": r.crp, "urr": r.urr, "bp_sys": r.bp_sys, "bp_dia": r.bp_dia,
-            "mcv": r.mcv, "hb_hematocrit": r.hb_hematocrit,
-            "epo_weekly_units": r.epo_weekly_units, "epo_dose_raw": r.epo_mircera_dose,
+            "month":            r.record_month,
+            "month_num":        _month_to_num(r.record_month),
+            "idwg":             r.idwg,
+            "hb":               r.hb,
+            "serum_ferritin":   r.serum_ferritin,
+            "tsat":             r.tsat,
+            "calcium":          r.calcium,
+            "phosphorus":       r.phosphorus,
+            "albumin":          r.albumin,
+            "ipth":             r.ipth,
+            "vit_d":            r.vit_d,
+            "ast":              r.ast,
+            "alt":              r.alt,
+            "av_daily_calories":r.av_daily_calories,
+            "av_daily_protein": r.av_daily_protein,
+            "epo_dose_raw":     r.epo_mircera_dose,
+            "epo_dose_num":     _parse_epo_dose(r.epo_mircera_dose),
         })
+
     return pd.DataFrame(rows)
+
 
 def load_cohort_latest(db: Session, month_str: Optional[str] = None) -> pd.DataFrame:
+    """Load latest record per patient for cohort-level analysis."""
     from database import MonthlyRecord, Patient
-    if not month_str:
+
+    if month_str is None:
         from dashboard_logic import get_current_month_str
         month_str = get_current_month_str()
-    records = db.query(MonthlyRecord, Patient).join(Patient).filter(MonthlyRecord.record_month == month_str, Patient.is_active == True).all()
+
+    records = (
+        db.query(MonthlyRecord, Patient)
+        .join(Patient, MonthlyRecord.patient_id == Patient.id)
+        .filter(
+            MonthlyRecord.record_month == month_str,
+            Patient.is_active == True
+        )
+        .all()
+    )
+
     rows = []
     for rec, pat in records:
-        rows.append({"patient_id": pat.id, "name": pat.name, "hb": rec.hb, "albumin": rec.albumin, "phosphorus": rec.phosphorus})
+        rows.append({
+            "patient_id":   pat.id,
+            "name":         pat.name,
+            "hb":           rec.hb,
+            "albumin":      rec.albumin,
+            "phosphorus":   rec.phosphorus,
+            "idwg":         rec.idwg,
+            "tsat":         rec.tsat,
+            "serum_ferritin": rec.serum_ferritin,
+            "ipth":         rec.ipth,
+            "vit_d":        rec.vit_d,
+            "calcium":      rec.calcium,
+        })
+
     return pd.DataFrame(rows)
 
+
+# ── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
+
 def _month_to_num(month_str: str) -> int:
-    try: y, m = month_str.split("-"); return int(y) * 100 + int(m)
-    except: return 0
+    """Convert YYYY-MM to integer for regression. 2025-01 → 25001."""
+    try:
+        y, m = month_str.split("-")
+        return int(y) * 100 + int(m)
+    except Exception:
+        return 0
 
-# ── INTELLIGENCE 4.0: GAM-INSPIRED MULTIVARIATE ENGINE ───────────────────
 
-def _advanced_forecast(x: list, y: list, cohort_prior: float = -0.05) -> dict:
+def _parse_epo_dose(dose_str: Optional[str]) -> Optional[float]:
+    """
+    Extract numeric EPO dose from text.
+    'EPO 4000u TIW' → 4000
+    'Mircera 100mcg monthly' → 100
+    'EPO 6000u TIW' → 6000
+    """
+    if not dose_str:
+        return None
+    import re
+    numbers = re.findall(r"\d+(?:\.\d+)?", dose_str)
+    if numbers:
+        return float(numbers[0])
+    return None
+
+
+def _linear_trend(x: list, y: list) -> dict:
+    """
+    Fit linear regression on x, y.
+    Returns slope, intercept, next_predicted, r_squared, direction.
+    Requires at least 2 non-null points.
+    """
     pairs = [(xi, yi) for xi, yi in zip(x, y) if yi is not None]
+    if len(pairs) < 2:
+        return {
+            "slope": None, "intercept": None,
+            "next_predicted": None, "r_squared": None,
+            "direction": "→", "confidence": "insufficient_data",
+            "n_points": len(pairs)
+        }
+
+    xs = np.array([p[0] for p in pairs], dtype=float)
+    ys = np.array([p[1] for p in pairs], dtype=float)
+
+    # Normalize x for numerical stability
+    x_min = xs.min()
+    xs_norm = xs - x_min
+
+    # Fit
+    coeffs = np.polyfit(xs_norm, ys, 1)
+    slope = coeffs[0]
+    intercept = coeffs[1]
+
+    # Predict next month
+    next_x = xs_norm.max() + 1
+    next_predicted = slope * next_x + intercept
+
+    # R-squared
+    y_pred = slope * xs_norm + intercept
+    ss_res = np.sum((ys - y_pred) ** 2)
+    ss_tot = np.sum((ys - np.mean(ys)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+    # Direction (per unit = per month)
+    if abs(slope) < 0.05:
+        direction = "→"
+    elif slope > 0:
+        direction = "↑"
+    else:
+        direction = "↓"
+
+    # Confidence based on data points and R²
     n = len(pairs)
-    if n == 0: return {"next_predicted": None, "direction": "→", "acceleration": 0}
-    xs, ys = np.array([p[0] for p in pairs], dtype=float), np.array([p[1] for p in pairs], dtype=float)
-    xs_norm = xs - xs.min()
-    next_x = xs.max() - xs.min() + 1
-    if n < 3:
-        p_slope = (ys[-1]-ys[0])/(xs[-1]-xs[0]) if n==2 else cohort_prior
-        blend = (p_slope * 0.3) + (cohort_prior * 0.7) if n==2 else cohort_prior
-        return {"next_predicted": round(float(ys[-1] + blend), 2), "confidence": "Bayesian", "direction": "↓" if blend < 0 else "↑", "is_nonlinear": False}
-    deg = 2 if n >= 4 else 1
-    coeffs = np.polyfit(xs_norm, ys, deg)
-    pred_raw = coeffs[0]*(next_x**2) + coeffs[1]*next_x + coeffs[2] if deg==2 else coeffs[0]*next_x+coeffs[1]
-    
-    # Noise reduction smoothing (MAE targeting 0.65)
-    recent_median = np.median(ys[-2:])
-    pred_final = (pred_raw * 0.8) + (recent_median * 0.2)
-    accel = coeffs[0] if deg==2 else 0
-    return {"next_predicted": round(float(pred_final), 2), "confidence": "High (GAM-GNL)" if n>=6 else "Moderate", "direction": "↓" if (pred_final < ys[-1]) else "↑", "acceleration": accel, "is_nonlinear": (deg==2)}
+    if n >= 6 and r_squared > 0.7:
+        confidence = "high"
+    elif n >= 3 and r_squared > 0.4:
+        confidence = "moderate"
+    else:
+        confidence = "low"
 
-def _calculate_feature_weights(df: pd.DataFrame, p_meta: dict) -> float:
-    if df.empty: return 0.0
-    latest, score = df.iloc[-1], 0.0
-    
-    # Core Demographics
-    if p_meta.get("sex") == "Male": score += 0.1
-    # Intelligence 5.0: Dialysis Vintage Weighting
-    vintage = p_meta.get("vintage", 0)
-    if vintage > 60: score -= 0.05 # Long vintage often correlates with resistance
-    
-    # Intelligence 5.0: Inflammatory Blockade (CRP)
-    # Research: CRP is the single strongest inflammatory marker for ESA resistance
-    crp = latest.get("crp")
-    if crp and crp > 2.0: score -= 0.2 # Heaviest penalty for inflammation
-    
-    # Adequacy (URR)
-    urr = latest.get("urr")
-    if urr and urr < 65: score -= 0.1 # Poor clearance suppresses erythropoiesis
-    
-    # Labs
-    if latest.get("albumin") and latest["albumin"] < 3.5: score -= 0.15
-    if latest.get("tsat") and latest["tsat"] < 25: score -= 0.1
-    if latest.get("phosphorus") and latest["phosphorus"] > 5.5: score -= 0.05
-    if latest.get("ipth") and latest["ipth"] > 300: score -= 0.05
-    if latest.get("idwg") and latest["idwg"] > 3.0: score -= 0.05
-    
-    return score
-
-def _ensemble_predict_v4(x: list, y: list, baseline_hp: float, clin_score: float) -> dict:
-    window_x, window_y = x[-4:], y[-4:]
-    res = _advanced_forecast(window_x, window_y)
-    if res["next_predicted"] is not None:
-        res["next_predicted"] = round(float(res["next_predicted"] + clin_score), 2)
-        res["confidence_score"] = "GAM (Analytics 4.0)"
-    return res
-
-def assess_cardiovascular_esa_risk(df: pd.DataFrame) -> dict:
-    """
-    Intelligence 6.0: MIMIC-IV Research Alignment (n=4,539).
-    Stratifies CV Risk based on daily dose equivalents.
-    """
-    if df.empty or "epo_weekly_units" not in df.columns: return {"risk": "Low", "alert": False}
-    latest = df.iloc[-1]
-    weekly_units = latest.get("epo_weekly_units", 0)
-    hb = latest.get("hb", 0)
-    
-    # Study uses units/day. We convert weekly (e.g. TIW) to daily equivalent (/7)
-    daily_eq = weekly_units / 7 if weekly_units else 0
-    
-    if daily_eq > 20000:
-        return {"risk": "CRITICAL", "alert": True, "class": "danger", "message": "⚠️ CRITICAL CV DANGER: >20,000u/day detected. 45% CV Event Risk."}
-    elif daily_eq > 10000:
-        return {"risk": "HIGH", "alert": True, "class": "warning", "message": "⚠️ HIGH CV RISK: Exceeds Optimized Efficacy-Safety Balance."}
-    elif 4000 <= daily_eq <= 10000:
-        return {"risk": "OPTIMIZED", "alert": False, "class": "success", "message": "✅ SAFETY SWEET SPOT: Optimized Efficacy-Safety Balance."}
-    
-    return {"risk": "LOW", "alert": False, "class": "info"}
-
-def predict_hb_trajectory(df: pd.DataFrame, p_meta: dict) -> dict:
-    if df.empty or "hb" not in df.columns: return {"available": False}
-    
-    # MIMIC-IV Finding: Baseline Hb < 7 g/dL has 72% non-response rate
-    baseline_anemia_alert = False
-    if df["hb"].iloc[0] < 7.0: baseline_anemia_alert = True
-
-    score = _calculate_feature_weights(df, p_meta)
-    res = _ensemble_predict_v4(df["month_num"].tolist(), df["hb"].tolist(), df["hb"].iloc[0], score)
-    res["available"] = True
-    
-    cv = assess_cardiovascular_esa_risk(df)
-    res["cv_risk"] = cv
-    
-    if res["next_predicted"]:
-        res["alert"] = (res["next_predicted"] < 10.0) or cv["alert"] or baseline_anemia_alert
-        if cv["alert"]: res["message"] = cv["message"]
-        elif baseline_anemia_alert: res["message"] = "⚠️ SEVERE ANEMIA BASELINE: 72% Probability of Non-Response."
-        else: res["message"] = f"Projected {res['next_predicted']} next month"
-    return res
-
-def detect_epo_hyporesponse(df: pd.DataFrame) -> dict:
-    if df.empty or len(df) < 3: return {"available": False}
-    last3 = df.tail(3)
-    hb, dose = last3["hb"].dropna().tolist(), last3["epo_weekly_units"].dropna().tolist()
-    if len(hb) < 2 or len(dose) < 2: return {"available": False}
-    if (dose[-1]-dose[0]) >= 0 and (hb[-1]-hb[0]) < 0.5:
-        return {"available": True, "hypo_response": True, "status": "Hypo-response", "class": "danger", "message": "Hb suboptimal despite ESA."}
-    return {"available": True, "status": "Adequate", "class": "success"}
-
-def assess_albumin_decline(df: pd.DataFrame) -> dict:
-    if df.empty or "albumin" not in df.columns: return {"available": False}
-    pairs = [(i, v) for i, v in enumerate(df["albumin"]) if v is not None]
-    if len(pairs) < 2: return {"available": False}
-    slope = (pairs[-1][1]-pairs[0][1])/(pairs[-1][0]-pairs[0][0])
-    pred = pairs[-1][1] + (slope * 2)
-    return {"available": True, "predicted": round(float(pred), 2), "alert": pred < 3.0}
-
-def classify_iron_status(df: pd.DataFrame) -> dict:
-    if df.empty: return {"available": False}
-    latest = df.iloc[-1]
-    fer, tsat = latest.get("serum_ferritin"), latest.get("tsat")
-    if fer and tsat:
-        if fer > 800 and tsat < 20: return {"status": "Replete / Inflamed", "color": "#e65100"}
-        if fer < 200 or tsat < 20: return {"status": "Iron Deficiency", "color": "#c62828"}
-        return {"status": "Iron Sufficient", "color": "#2e7d32"}
-    return {"status": "Incomplete", "color": "#888"}
-
-def compute_target_score(df: pd.DataFrame) -> int:
-    if df.empty: return 0
-    latest, hits = df.iloc[-1], 0
-    if latest.get("hb") and 10 <= latest["hb"] <= 12: hits += 2
-    if latest.get("albumin") and latest["albumin"] >= 3.5: hits += 2
-    if latest.get("phosphorus") and latest["phosphorus"] <= 5.5: hits += 2
-    if latest.get("tsat") and latest["tsat"] >= 30: hits += 2
-    if latest.get("idwg") and latest["idwg"] <= 2.5: hits += 2
-    return hits
-
-def compute_deterioration_risk(df: pd.DataFrame, p_meta: dict) -> dict:
-    if df.empty: return {"available": False}
-    score, factors = 0, []
-    hb = predict_hb_trajectory(df, p_meta)
-    if hb.get("alert"): score += 3; factors.append("Anemia Risk")
-    alb = assess_albumin_decline(df)
-    if alb.get("alert"): score += 3; factors.append("Nutritional Risk")
-    lvl = "HIGH" if score >= 6 else "MODERATE" if score >= 3 else "LOW"
-    return {"available": True, "score": score, "level": lvl, "factors": factors}
-
-def run_patient_analytics(db: Session, patient_id: int) -> dict:
-    df = load_patient_history(db, patient_id)
-    if df.empty: return {"available": False}
-    from database import Patient
-    pat = db.query(Patient).filter(Patient.id == patient_id).first()
-    # Calculate Vintage in months
-    vintage = 0
-    if pat and pat.hd_wef_date:
-        delta = date.today() - pat.hd_wef_date
-        vintage = delta.days // 30
-    
-    p_meta = {"sex": pat.sex if pat else None, "vintage": vintage}
     return {
-        "available": True, "n_months": len(df), "vintage_months": vintage,
-        "hb_trajectory": predict_hb_trajectory(df, p_meta),
-        "epo_response": detect_epo_hyporesponse(df),
-        "albumin_risk": assess_albumin_decline(df),
-        "iron_status": classify_iron_status(df),
-        "target_score": compute_target_score(df),
-        "deterioration_risk": compute_deterioration_risk(df, p_meta),
-        "chart_data": {
-            "months": df["month"].tolist(), "hb": df["hb"].tolist(), "idwg": df["idwg"].tolist(),
-            "serum_ferritin": df["serum_ferritin"].tolist(), "tsat": df["tsat"].tolist(),
-            "calcium": df["calcium"].tolist(), "phosphorus": df["phosphorus"].tolist(),
-            "albumin": df["albumin"].tolist(), "ipth": df["ipth"].tolist(),
-            "vit_d": df["vit_d"].tolist(), "epo_dose": df["epo_weekly_units"].tolist(),
-            "epo_dose_raw": df["epo_dose_raw"].tolist()
-        },
-        "data_completeness": round((df[df.columns.intersection(KEY_FIELDS)].notna().sum().sum() / (len(df) * len(KEY_FIELDS))) * 100)
+        "slope": round(slope, 4),
+        "intercept": round(intercept, 4),
+        "next_predicted": round(float(next_predicted), 2),
+        "r_squared": round(float(r_squared), 3),
+        "direction": direction,
+        "confidence": confidence,
+        "n_points": n,
     }
 
+
+def _in_target(value, param: str) -> Optional[bool]:
+    """Check if a value is within clinical target range."""
+    if value is None:
+        return None
+    t = TARGETS.get(param, {})
+    low  = t.get("low")
+    high = t.get("high")
+    if low and value < low:
+        return False
+    if high and value > high:
+        return False
+    return True
+
+
+# ── MODEL 1: HB TRAJECTORY PREDICTOR ────────────────────────────────────────
+
+def predict_hb_trajectory(df: pd.DataFrame) -> dict:
+    """
+    Predict next month Hb using linear regression on history.
+    Also detects if predicted Hb will cross below 10 g/dL.
+    """
+    if df.empty or "hb" not in df.columns:
+        return {"available": False, "reason": "no_data"}
+
+    result = _linear_trend(
+        df["month_num"].tolist(),
+        df["hb"].tolist()
+    )
+    result["available"] = True
+    result["param"] = "hb"
+    result["unit"] = "g/dL"
+    result["current"] = df["hb"].dropna().iloc[-1] if df["hb"].dropna().shape[0] > 0 else None
+    result["target_low"] = 10.0
+    result["target_high"] = 12.0
+
+    if result["next_predicted"] is not None:
+        result["alert_predicted_low"] = result["next_predicted"] < 10.0
+        result["alert_predicted_high"] = result["next_predicted"] > 12.0
+    else:
+        result["alert_predicted_low"] = False
+        result["alert_predicted_high"] = False
+
+    return result
+
+
+# ── MODEL 2: EPO HYPO-RESPONSE DETECTOR ─────────────────────────────────────
+
+def detect_epo_hyporesponse(df: pd.DataFrame) -> dict:
+    """
+    EPO hypo-response: Hb not rising (or falling) despite stable/increasing EPO dose.
+    Criteria: last 3 months, EPO dose stable or increased, Hb change < +0.5 g/dL.
+    Returns severity: none / mild / significant / severe
+    """
+    if df.empty or df.shape[0] < 3:
+        return {"available": False, "reason": "need_3_months"}
+
+    last3 = df.tail(3).copy()
+    hb_values    = last3["hb"].dropna().tolist()
+    dose_values  = last3["epo_dose_num"].dropna().tolist()
+
+    if len(hb_values) < 2 or len(dose_values) < 2:
+        return {"available": False, "reason": "missing_hb_or_dose"}
+
+    hb_change   = hb_values[-1] - hb_values[0]
+    dose_change = dose_values[-1] - dose_values[0]
+
+    # Hypo-response: dose went up (or stable) but Hb didn't improve
+    if dose_change >= 0 and hb_change < 0.5:
+        if hb_values[-1] < 9.0:
+            severity = "severe"
+            recommendation = (
+                "Hb critically low despite ESA. "
+                "Investigate: iron deficiency (check TSAT), "
+                "infection/inflammation (CRP), access recirculation, "
+                "folate/B12 deficiency, compliance."
+            )
+        elif hb_values[-1] < 10.0:
+            severity = "significant"
+            recommendation = (
+                "Hb below target despite stable/increased ESA dose. "
+                "Check iron stores (TSAT ideally >30%), "
+                "rule out occult blood loss or infection."
+            )
+        else:
+            severity = "mild"
+            recommendation = (
+                "Hb response to ESA suboptimal. "
+                "Optimise iron stores before increasing ESA dose further."
+            )
+        hypo_response = True
+    else:
+        severity = "none"
+        recommendation = "ESA response appears adequate."
+        hypo_response = False
+
+    return {
+        "available": True,
+        "hypo_response": hypo_response,
+        "severity": severity,
+        "hb_change_3m": round(hb_change, 2),
+        "dose_change_3m": dose_change,
+        "current_hb": hb_values[-1],
+        "recommendation": recommendation,
+    }
+
+
+# ── MODEL 3: ALBUMIN DECLINE RISK ────────────────────────────────────────────
+
+def assess_albumin_decline(df: pd.DataFrame) -> dict:
+    """
+    Detect downward albumin trend. Flag if trajectory predicts
+    albumin crossing below 3.5 within 2 months.
+    """
+    if df.empty or "albumin" not in df.columns:
+        return {"available": False, "reason": "no_data"}
+
+    trend = _linear_trend(df["month_num"].tolist(), df["albumin"].tolist())
+    trend["available"] = True
+    trend["param"] = "albumin"
+
+    current = df["albumin"].dropna().iloc[-1] if df["albumin"].dropna().shape[0] > 0 else None
+    trend["current"] = current
+
+    # Predict 2 months ahead
+    if trend["slope"] is not None and current is not None:
+        predicted_2m = current + trend["slope"] * 2
+        trend["predicted_2m"] = round(predicted_2m, 2)
+        trend["risk_crossing_35"] = predicted_2m < 3.5
+        trend["risk_crossing_25"] = predicted_2m < 2.5
+
+        if predicted_2m < 2.5:
+            trend["risk_level"] = "high"
+            trend["recommendation"] = (
+                "Albumin trajectory indicates severe hypoalbuminaemia within 2 months. "
+                "Urgent dietitian referral, consider intradialytic parenteral nutrition."
+            )
+        elif predicted_2m < 3.5:
+            trend["risk_level"] = "moderate"
+            trend["recommendation"] = (
+                "Albumin declining toward threshold. "
+                "Review dietary protein intake, consider oral supplements."
+            )
+        else:
+            trend["risk_level"] = "low"
+            trend["recommendation"] = "Albumin trajectory stable."
+    else:
+        trend["predicted_2m"] = None
+        trend["risk_crossing_35"] = False
+        trend["risk_crossing_25"] = False
+        trend["risk_level"] = "unknown"
+        trend["recommendation"] = "Insufficient data for trend."
+
+    return trend
+
+
+# ── MODEL 4: PHOSPHORUS SPIKE PREDICTOR ─────────────────────────────────────
+
+def predict_phosphorus(df: pd.DataFrame) -> dict:
+    """Forecast next month phosphorus and flag if predicted > 5.5."""
+    if df.empty:
+        return {"available": False, "reason": "no_data"}
+
+    trend = _linear_trend(df["month_num"].tolist(), df["phosphorus"].tolist())
+    trend["available"] = True
+    trend["param"] = "phosphorus"
+    trend["alert_threshold"] = 5.5
+
+    current = df["phosphorus"].dropna().iloc[-1] if df["phosphorus"].dropna().shape[0] > 0 else None
+    trend["current"] = current
+
+    if trend["next_predicted"] is not None:
+        trend["alert_next_month"] = trend["next_predicted"] > 5.5
+        if trend["alert_next_month"] and trend["direction"] == "↑":
+            trend["recommendation"] = (
+                "Rising phosphorus trend. "
+                "Review phosphate binder compliance and dietary phosphorus intake "
+                "before next month's review."
+            )
+        else:
+            trend["recommendation"] = "Phosphorus trend stable or improving."
+    else:
+        trend["alert_next_month"] = False
+        trend["recommendation"] = "Insufficient data."
+
+    return trend
+
+
+# ── MODEL 5: TARGET ACHIEVEMENT SCORE ────────────────────────────────────────
+
+def compute_target_score(df: pd.DataFrame) -> dict:
+    """
+    Score 0–10 based on how many parameters are in target range.
+    Uses most recent record. Tracks score over time.
+    """
+    if df.empty:
+        return {"available": False, "score": None, "trend": None}
+
+    latest = df.iloc[-1]
+
+    checks = {
+        "hb":         _in_target(latest.get("hb"), "hb"),
+        "albumin":    _in_target(latest.get("albumin"), "albumin"),
+        "phosphorus": _in_target(latest.get("phosphorus"), "phosphorus"),
+        "tsat":       _in_target(latest.get("tsat"), "tsat"),
+        "ferritin":   _in_target(latest.get("serum_ferritin"), "ferritin"),
+        "calcium":    _in_target(latest.get("calcium"), "calcium"),
+        "idwg":       _in_target(latest.get("idwg"), "idwg"),
+        "ipth":       _in_target(latest.get("ipth"), "ipth"),
+        "vit_d":      _in_target(latest.get("vit_d"), "vit_d"),
+    }
+
+    scored = {k: v for k, v in checks.items() if v is not None}
+    if not scored:
+        return {"available": False, "score": None}
+
+    n_in_target = sum(1 for v in scored.values() if v)
+    score = round((n_in_target / len(scored)) * 10, 1)
+
+    # Historical scores
+    historical_scores = []
+    for _, row in df.iterrows():
+        row_checks = {
+            "hb":         _in_target(row.get("hb"), "hb"),
+            "albumin":    _in_target(row.get("albumin"), "albumin"),
+            "phosphorus": _in_target(row.get("phosphorus"), "phosphorus"),
+            "idwg":       _in_target(row.get("idwg"), "idwg"),
+        }
+        row_scored = {k: v for k, v in row_checks.items() if v is not None}
+        if row_scored:
+            s = round((sum(1 for v in row_scored.values() if v) / len(row_scored)) * 10, 1)
+            historical_scores.append({"month": row["month"], "score": s})
+
+    score_trend = "→"
+    if len(historical_scores) >= 2:
+        delta = historical_scores[-1]["score"] - historical_scores[-2]["score"]
+        if delta > 0.5:
+            score_trend = "↑"
+        elif delta < -0.5:
+            score_trend = "↓"
+
+    label = "Excellent" if score >= 8 else "Good" if score >= 6 else "Fair" if score >= 4 else "Poor"
+
+    return {
+        "available": True,
+        "score": score,
+        "label": label,
+        "score_trend": score_trend,
+        "checks": checks,
+        "n_scored": len(scored),
+        "n_in_target": n_in_target,
+        "historical": historical_scores,
+    }
+
+
+# ── MODEL 6: DETERIORATION RISK SCORE ────────────────────────────────────────
+
+def compute_deterioration_risk(df: pd.DataFrame) -> dict:
+    """
+    Combined risk score using multiple declining parameters.
+    Clinically: patients with simultaneous decline across multiple
+    parameters are at highest risk of hospitalisation/adverse outcome.
+
+    Risk factors (each adds to score):
+      +2 Hb < 9 or falling trend
+      +2 Albumin < 3.0 or falling trend
+      +1 Phosphorus > 6.5 or rising trend
+      +1 IDWG > 3.0 or rising trend
+      +1 iPTH > 600
+      +1 Vit D < 12
+      +2 EPO hypo-response (severe)
+    """
+    if df.empty:
+        return {"available": False, "risk_score": None}
+
+    latest = df.iloc[-1]
+    risk_score = 0
+    risk_factors = []
+
+    # Hb
+    hb = latest.get("hb")
+    hb_trend = _linear_trend(df["month_num"].tolist(), df["hb"].tolist())
+    if hb is not None and hb < 9.0:
+        risk_score += 2
+        risk_factors.append("Critical anaemia (Hb < 9)")
+    elif hb_trend["direction"] == "↓" and hb_trend["n_points"] >= 3:
+        risk_score += 1
+        risk_factors.append("Declining Hb trend")
+
+    # Albumin
+    alb = latest.get("albumin")
+    alb_trend = _linear_trend(df["month_num"].tolist(), df["albumin"].tolist())
+    if alb is not None and alb < 3.0:
+        risk_score += 2
+        risk_factors.append("Severe hypoalbuminaemia (< 3.0)")
+    elif alb_trend["direction"] == "↓" and alb_trend["n_points"] >= 3:
+        risk_score += 1
+        risk_factors.append("Declining albumin trend")
+
+    # Phosphorus
+    phos = latest.get("phosphorus")
+    phos_trend = _linear_trend(df["month_num"].tolist(), df["phosphorus"].tolist())
+    if phos is not None and phos > 6.5:
+        risk_score += 1
+        risk_factors.append("Severe hyperphosphataemia (> 6.5)")
+    elif phos_trend["direction"] == "↑" and phos_trend["n_points"] >= 3:
+        risk_score += 1
+        risk_factors.append("Rising phosphorus trend")
+
+    # IDWG
+    idwg = latest.get("idwg")
+    idwg_trend = _linear_trend(df["month_num"].tolist(), df["idwg"].tolist())
+    if idwg is not None and idwg > 3.0:
+        risk_score += 1
+        risk_factors.append("High IDWG (> 3.0 kg)")
+    elif idwg_trend["direction"] == "↑" and idwg_trend["n_points"] >= 3:
+        risk_score += 1
+        risk_factors.append("Rising IDWG trend")
+
+    # iPTH
+    ipth = latest.get("ipth")
+    if ipth is not None and ipth > 600:
+        risk_score += 1
+        risk_factors.append("Severely elevated iPTH (> 600)")
+
+    # Vit D
+    vit_d = latest.get("vit_d")
+    if vit_d is not None and vit_d < 12:
+        risk_score += 1
+        risk_factors.append("Severe Vit D deficiency (< 12)")
+
+    # EPO response
+    epo_result = detect_epo_hyporesponse(df)
+    if epo_result.get("severity") == "severe":
+        risk_score += 2
+        risk_factors.append("Severe EPO hypo-response")
+
+    # Risk categorisation
+    if risk_score >= 6:
+        risk_level = "HIGH"
+        risk_color = "#c62828"
+        action = "Urgent clinical review recommended within 2 weeks."
+    elif risk_score >= 3:
+        risk_level = "MODERATE"
+        risk_color = "#e65100"
+        action = "Increased monitoring. Review at next scheduled session."
+    elif risk_score >= 1:
+        risk_level = "LOW"
+        risk_color = "#2e7d32"
+        action = "Continue current management."
+    else:
+        risk_level = "MINIMAL"
+        risk_color = "#1565c0"
+        action = "Patient parameters stable."
+
+    return {
+        "available": True,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "risk_color": risk_color,
+        "risk_factors": risk_factors,
+        "action": action,
+        "n_factors": len(risk_factors),
+    }
+
+
+# ── MODEL 7: IRON STATUS CLASSIFIER ─────────────────────────────────────────
+
+def classify_iron_status(df: pd.DataFrame) -> dict:
+    """
+    Classify iron status from Ferritin + TSAT.
+    Categories: Absolute deficiency / Functional deficiency /
+                Adequate / Overloaded
+    """
+    if df.empty:
+        return {"available": False}
+
+    latest = df.iloc[-1]
+    ferritin = latest.get("serum_ferritin")
+    tsat     = latest.get("tsat")
+    hb       = latest.get("hb")
+
+    if ferritin is None and tsat is None:
+        return {"available": False, "reason": "no_iron_data"}
+
+    if ferritin is not None and ferritin < 100:
+        status = "Absolute Iron Deficiency"
+        color  = "#c62828"
+        recommendation = "IV iron replacement indicated regardless of TSAT."
+    elif ferritin is not None and tsat is not None and ferritin < 500 and tsat < 20:
+        status = "Functional Iron Deficiency"
+        color  = "#e65100"
+        recommendation = (
+            "IV iron trial recommended. "
+            "Ferritin adequate but TSAT low suggests functional deficiency."
+        )
+    elif ferritin is not None and ferritin > 800 and tsat is not None and tsat > 50:
+        status = "Iron Overload"
+        color  = "#6a1b9a"
+        recommendation = "Hold IV iron. Risk of iron toxicity. Check for inflammation."
+    elif ferritin is not None and ferritin > 500:
+        status = "Iron Replete / Inflamed"
+        color  = "#f57f17"
+        recommendation = (
+            "High ferritin may reflect inflammation rather than iron stores. "
+            "Check CRP. TSAT more reliable guide to iron adequacy."
+        )
+    else:
+        status = "Adequate"
+        color  = "#2e7d32"
+        recommendation = "Iron stores within target range."
+
+    return {
+        "available": True,
+        "status": status,
+        "color": color,
+        "ferritin": ferritin,
+        "tsat": tsat,
+        "recommendation": recommendation,
+    }
+
+
+# ── MODEL 8: TREND DIRECTION INDICATORS ──────────────────────────────────────
+
+def compute_all_trends(df: pd.DataFrame) -> dict:
+    """Compute trend direction for all key parameters."""
+    if df.empty:
+        return {}
+
+    x = df["month_num"].tolist()
+    params = ["hb", "albumin", "phosphorus", "idwg",
+              "serum_ferritin", "tsat", "ipth", "vit_d",
+              "calcium", "av_daily_protein"]
+
+    trends = {}
+    for p in params:
+        if p in df.columns:
+            t = _linear_trend(x, df[p].tolist())
+            trends[p] = {
+                "direction":      t["direction"],
+                "slope":          t["slope"],
+                "confidence":     t["confidence"],
+                "n_points":       t["n_points"],
+                "next_predicted": t["next_predicted"],
+            }
+
+    return trends
+
+
+# ── MODEL 9: COHORT PERCENTILE RANKING ───────────────────────────────────────
+
+def compute_cohort_percentiles(
+    db: Session, patient_id: int, month_str: Optional[str] = None
+) -> dict:
+    """
+    Rank patient against cohort for each parameter.
+    Returns percentile (0-100) for each key metric.
+    """
+    cohort_df = load_cohort_latest(db, month_str)
+
+    if cohort_df.empty or cohort_df.shape[0] < 3:
+        return {"available": False, "reason": "insufficient_cohort_data"}
+
+    patient_row = cohort_df[cohort_df["patient_id"] == patient_id]
+    if patient_row.empty:
+        return {"available": False, "reason": "patient_not_in_cohort"}
+
+    percentiles = {}
+    for param in ["hb", "albumin", "phosphorus", "idwg", "tsat", "ipth"]:
+        cohort_vals = cohort_df[param].dropna().tolist()
+        patient_val = patient_row[param].values[0]
+
+        if patient_val is None or len(cohort_vals) < 3:
+            percentiles[param] = None
+            continue
+
+        # Percentile rank
+        n_below = sum(1 for v in cohort_vals if v < patient_val)
+        pct = round((n_below / len(cohort_vals)) * 100)
+
+        # For parameters where lower is better (phosphorus, idwg),
+        # invert so higher percentile = better
+        inverted_params = {"phosphorus", "idwg"}
+        display_pct = (100 - pct) if param in inverted_params else pct
+
+        percentiles[param] = {
+            "value": patient_val,
+            "percentile": pct,
+            "display_percentile": display_pct,
+            "cohort_n": len(cohort_vals),
+            "cohort_median": round(float(np.median(cohort_vals)), 2),
+            "cohort_mean": round(float(np.mean(cohort_vals)), 2),
+        }
+
+    return {"available": True, "percentiles": percentiles}
+
+
+# ── MODEL 10: DATA COMPLETENESS ───────────────────────────────────────────────
+
+def compute_data_completeness(df: pd.DataFrame) -> dict:
+    """Score data completeness — missing fields reduce ML accuracy."""
+    if df.empty:
+        return {"score": 0, "missing_fields": KEY_FIELDS, "n_records": 0}
+
+    n_records = len(df)
+    field_completeness = {}
+
+    for field in KEY_FIELDS:
+        if field in df.columns:
+            filled = df[field].notna().sum()
+            pct = round((filled / n_records) * 100)
+            field_completeness[field] = pct
+        else:
+            field_completeness[field] = 0
+
+    overall = round(sum(field_completeness.values()) / len(field_completeness))
+    missing = [f for f, pct in field_completeness.items() if pct < 50]
+
+    return {
+        "score": overall,
+        "n_records": n_records,
+        "field_completeness": field_completeness,
+        "missing_fields": missing,
+        "ml_ready": n_records >= 3 and overall >= 60,
+        "high_confidence": n_records >= 6 and overall >= 80,
+    }
+
+
+# ── MASTER FUNCTION ────────────────────────────────────────────────────────
+
+def run_patient_analytics(
+    db: Session,
+    patient_id: int,
+    month_str: Optional[str] = None
+) -> dict:
+    """
+    Run all analytics models for a single patient.
+    This is the main function called by the API endpoint.
+    """
+    df = load_patient_history(db, patient_id)
+
+    if df.empty:
+        return {
+            "available": False,
+            "reason": "No monthly records found for this patient.",
+            "patient_id": patient_id,
+        }
+
+    try:
+        result = {
+            "available": True,
+            "patient_id": patient_id,
+            "n_months": len(df),
+            "months": df["month"].tolist(),
+
+            # Core predictions
+            "hb_trajectory":       predict_hb_trajectory(df),
+            "phosphorus_forecast":  predict_phosphorus(df),
+            "albumin_decline":      assess_albumin_decline(df),
+
+            # Clinical assessments
+            "epo_response":         detect_epo_hyporesponse(df),
+            "iron_status":          classify_iron_status(df),
+            "deterioration_risk":   compute_deterioration_risk(df),
+            "target_score":         compute_target_score(df),
+
+            # Trend indicators for all parameters
+            "trends":               compute_all_trends(df),
+
+            # Data quality
+            "data_completeness":    compute_data_completeness(df),
+
+            # Cohort comparison
+            "cohort_percentiles":   compute_cohort_percentiles(
+                                        db, patient_id, month_str),
+
+            # Raw data for charts (all months, all values)
+            "chart_data": {
+                "months":       df["month"].tolist(),
+                "hb":           df["hb"].tolist(),
+                "albumin":      df["albumin"].tolist(),
+                "phosphorus":   df["phosphorus"].tolist(),
+                "idwg":         df["idwg"].tolist(),
+                "serum_ferritin": df["serum_ferritin"].tolist(),
+                "tsat":         df["tsat"].tolist(),
+                "ipth":         df["ipth"].tolist(),
+                "vit_d":        df["vit_d"].tolist(),
+                "calcium":      df["calcium"].tolist(),
+                "epo_dose":     df["epo_dose_num"].tolist(),
+                "epo_dose_raw": df["epo_dose_raw"].tolist(),
+                "protein":      df["av_daily_protein"].tolist(),
+            }
+        }
+    except Exception as e:
+        logger.error(f"Analytics error for patient {patient_id}: {e}")
+        result = {
+            "available": False,
+            "reason": f"Analytics error: {str(e)}",
+            "patient_id": patient_id,
+        }
+
+    return result
+
+
+# ── COHORT-LEVEL ANALYTICS ────────────────────────────────────────────────────
+
 def run_cohort_analytics(db: Session) -> dict:
-    df = load_cohort_latest(db)
-    if df.empty: return {"available": False}
-    return {"available": True, "stats": {"total": len(df), "avg_hb": round(df["hb"].mean(), 1)}}
+    """
+    Run unit-wide analytics for the dashboard cohort panel.
+    Returns median trends for last 12 months.
+    """
+    from database import MonthlyRecord, Patient
+
+    records = (
+        db.query(MonthlyRecord, Patient)
+        .join(Patient, MonthlyRecord.patient_id == Patient.id)
+        .filter(Patient.is_active == True)
+        .order_by(MonthlyRecord.record_month.asc())
+        .all()
+    )
+
+    if not records:
+        return {"available": False}
+
+    rows = []
+    for rec, pat in records:
+        rows.append({
+            "month":      rec.record_month,
+            "patient_id": pat.id,
+            "hb":         rec.hb,
+            "albumin":    rec.albumin,
+            "phosphorus": rec.phosphorus,
+            "idwg":       rec.idwg,
+            "ipth":       rec.ipth,
+        })
+
+    df = pd.DataFrame(rows)
+    months = sorted(df["month"].unique())[-12:]  # last 12 months
+    df = df[df["month"].isin(months)]
+
+    cohort_trends = {}
+    for param in ["hb", "albumin", "phosphorus"]:
+        monthly = []
+        for month in months:
+            vals = df[df["month"] == month][param].dropna().tolist()
+            if vals:
+                monthly.append({
+                    "month":  month,
+                    "median": round(float(np.median(vals)), 2),
+                    "p25":    round(float(np.percentile(vals, 25)), 2),
+                    "p75":    round(float(np.percentile(vals, 75)), 2),
+                    "mean":   round(float(np.mean(vals)), 2),
+                    "n":      len(vals),
+                })
+        cohort_trends[param] = monthly
+
+    # Unit-level summary stats
+    latest_month = months[-1] if months else None
+    latest = df[df["month"] == latest_month] if latest_month else pd.DataFrame()
+
+    summary = {}
+    for param in ["hb", "albumin", "phosphorus", "idwg"]:
+        vals = latest[param].dropna().tolist() if not latest.empty else []
+        t = TARGETS.get(param, {})
+        in_target = 0
+        if vals and t:
+            for v in vals:
+                if (not t.get("low") or v >= t["low"]) and \
+                   (not t.get("high") or v <= t["high"]):
+                    in_target += 1
+        summary[param] = {
+            "median": round(float(np.median(vals)), 2) if vals else None,
+            "pct_in_target": round(in_target / len(vals) * 100) if vals else None,
+            "n": len(vals),
+        }
+
+    return {
+        "available": True,
+        "months": months,
+        "cohort_trends": cohort_trends,
+        "latest_month": latest_month,
+        "summary": summary,
+    }
