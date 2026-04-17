@@ -188,6 +188,7 @@ def compute_dashboard(db: Session, month: str = None):
         "metrics": metrics,
         "patient_rows": patient_rows,
         "month_label": get_month_label(month),
+        "prev_month_label": get_month_label(prev_month),
         "total_active": len(active_patients)
     }
 

@@ -134,10 +134,18 @@
         {% if hb.ready_for_prediction %}
           <div class="prediction-box">
             <strong>Next Month:</strong> {{ hb.next_predicted }} g/dL
-            {% if hb.ci_lower is not none and hb.ci_upper is not none %}
-            <div class="ci-line">95% CI: {{ hb.ci_lower }} – {{ hb.ci_upper }} g/dL &nbsp;·&nbsp; {{ hb.n_points }} data points</div>
+            {% if hb.pi_lower is not none and hb.pi_upper is not none %}
+            <div class="ci-line">95% PI: {{ hb.pi_lower }} – {{ hb.pi_upper }} g/dL &nbsp;·&nbsp; {{ hb.n_points }} data points</div>
             {% else %}
-            <div class="ci-line">{{ hb.n_points }} data point(s) — CI available with 3+ months</div>
+            <div class="ci-line">{{ hb.n_points }} data point(s) — Prediction Interval available with 3+ months</div>
+            {% endif %}
+            {% if hb.r_squared is not none %}
+            <div class="ci-line" style="margin-top:3px;">
+              R² {{ '%.3f'|format(hb.r_squared) }}
+              {% if hb.adj_r_squared is not none %}&nbsp;·&nbsp; Adj.R² {{ '%.3f'|format(hb.adj_r_squared) }}{% endif %}
+              {% if hb.p_value is not none %}&nbsp;·&nbsp; p={{ '%.4f'|format(hb.p_value) }}{% endif %}
+              {% if hb.durbin_watson is not none %}&nbsp;·&nbsp; DW={{ '%.2f'|format(hb.durbin_watson) }}{% endif %}
+            </div>
             {% endif %}
           </div>
           <div class="card-desc" style="margin-top:8px;">{{ hb.message }}</div>
@@ -182,8 +190,16 @@
         {% if alb.predicted is not none %}
           <div class="prediction-box">
             <strong>Trend:</strong> {{ alb.trend|capitalize }} &nbsp;·&nbsp; <strong>Next Month:</strong> {{ alb.predicted }} g/dL
-            {% if alb.ci_lower is not none and alb.ci_upper is not none %}
-            <div class="ci-line">95% CI: {{ alb.ci_lower }} – {{ alb.ci_upper }} g/dL &nbsp;·&nbsp; {{ alb.n_points }} data points</div>
+            {% if alb.pi_lower is not none and alb.pi_upper is not none %}
+            <div class="ci-line">95% PI: {{ alb.pi_lower }} – {{ alb.pi_upper }} g/dL &nbsp;·&nbsp; {{ alb.n_points }} data points</div>
+            {% endif %}
+            {% if alb.r_squared is not none %}
+            <div class="ci-line" style="margin-top:3px;">
+              R² {{ '%.3f'|format(alb.r_squared) }}
+              {% if alb.adj_r_squared is not none %}&nbsp;·&nbsp; Adj.R² {{ '%.3f'|format(alb.adj_r_squared) }}{% endif %}
+              {% if alb.p_value is not none %}&nbsp;·&nbsp; p={{ '%.4f'|format(alb.p_value) }}{% endif %}
+              {% if alb.durbin_watson is not none %}&nbsp;·&nbsp; DW={{ '%.2f'|format(alb.durbin_watson) }}{% endif %}
+            </div>
             {% endif %}
           </div>
         {% else %}

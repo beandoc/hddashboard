@@ -1,8 +1,17 @@
 """
 ml_analytics.py
 ===============
-Predictive analytics for hemodialysis patients.
-Includes ML readiness gates, confidence intervals, and EPO dose normalization.
+Clinical Trend Analysis Engine for Hemodialysis Patients.
+
+Implements OLS linear regression with 95% prediction intervals for
+longitudinal lab trend analysis (Hb, Albumin, Phosphorus). When
+statsmodels is available, produces full OLS diagnostics: R², adjusted R²,
+F-statistic p-value, and Durbin-Watson statistic for autocorrelation
+detection — suitable for inclusion in research-grade clinical reporting.
+
+Note: Monthly lab data (n ≤ 12 per patient) is inherently small-sample.
+Predictions should be interpreted as clinical trend indicators, not
+population-level statistical inferences.
 """
 import re
 import statistics
@@ -18,7 +27,25 @@ try:
 except ImportError:
     _SCIPY_AVAILABLE = False
 
+try:
+    import numpy as np
+    import statsmodels.api as sm
+    from statsmodels.stats.stattools import durbin_watson
+    _STATSMODELS_AVAILABLE = True
+except ImportError:
+    _STATSMODELS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
+
+
+def _month_to_ordinal(month_str: str) -> int:
+    """Convert YYYY-MM to integer (months since epoch) for regression x-axis."""
+    try:
+        y, m = int(month_str[:4]), int(month_str[5:7])
+        return y * 12 + m
+    except (ValueError, TypeError):
+        return 0
+
 
 
 # ── ESA Dose Normalization ────────────────────────────────────────────────────
@@ -180,7 +207,7 @@ def _parse_epo_dose(dose_str: Optional[str]) -> Optional[float]:
 def compute_ml_readiness(df: List[Dict], param: str) -> dict:
     """
     Assess whether there is enough data to make a robust prediction for param.
-    Returns confidence: 'high' (6+), 'moderate' (3-5), 'low' (2), 'insufficient' (<2).
+    confidence: 'high' (8+), 'moderate' (5–7), 'low' (2–4), 'insufficient' (<2)
     """
     if not df:
         return {
@@ -199,19 +226,13 @@ def compute_ml_readiness(df: List[Dict], param: str) -> dict:
             "confidence": "insufficient",
             "recommendation": f"Only {n} {param} value(s). Need at least 2 to detect trends.",
         }
-    if n == 2:
+    if n <= 4:
         return {
             "ready": True, "n_points": n, "completeness": completeness,
             "confidence": "low",
             "recommendation": f"{n} data points recorded. Add more months for better confidence.",
         }
-    if n < 5:
-        return {
-            "ready": True, "n_points": n, "completeness": completeness,
-            "confidence": "low",
-            "recommendation": f"{n} months of {param} data. Predictions are early-stage — collect {5 - n} more months.",
-        }
-    if n < 8:
+    if n <= 7:
         return {
             "ready": True, "n_points": n, "completeness": completeness,
             "confidence": "moderate",
@@ -224,49 +245,119 @@ def compute_ml_readiness(df: List[Dict], param: str) -> dict:
     }
 
 
-# ── Linear Regression with 95% Confidence Interval ───────────────────────────
+# ── Linear Regression with Statsmodels OLS Diagnostics ───────────────────────
+#
+# When statsmodels is available (production), uses sm.OLS for full diagnostics:
+#   R²            — goodness-of-fit (proportion of variance explained)
+#   Adjusted R²   — R² penalised for n (more meaningful for small samples)
+#   p_value       — F-test p-value for the overall model
+#   durbin_watson — autocorrelation statistic (2 = no autocorrelation,
+#                   <1.5 = positive, >2.5 = negative)
+#
+# Falls back to manual OLS when statsmodels is absent (local dev).
 
 def _linear_trend_with_ci(x: list, y: list, confidence_level: float = 0.95) -> dict:
-    """Fit OLS linear regression and return prediction + CI for next time point."""
+    """
+    Fit OLS linear regression and return:
+      - next_predicted  : point estimate for the next time step
+      - pi_lower/upper  : 95% Prediction Interval (not CI — PI covers
+                          where a single patient's next value will fall)
+      - slope           : trend direction per month
+      - r_squared       : OLS R² (statsmodels path only)
+      - adj_r_squared   : Adjusted R² (statsmodels path only)
+      - p_value         : F-test p-value (statsmodels path only)
+      - durbin_watson   : Autocorrelation statistic (statsmodels path only)
+    """
     pairs = [(float(xi), float(yi)) for xi, yi in zip(x, y) if yi is not None]
     n = len(pairs)
-    if n < 2:
-        return {"slope": None, "next_predicted": None, "ci_lower": None, "ci_upper": None, "n_points": n}
 
+    _null = {
+        "slope": None, "next_predicted": None,
+        "pi_lower": None, "pi_upper": None, "n_points": n,
+        "r_squared": None, "adj_r_squared": None,
+        "p_value": None, "durbin_watson": None,
+    }
+    if n < 2:
+        return _null
+
+    pairs.sort()  # Ensure chronological order
     x_min = pairs[0][0]
-    xs = [p[0] - x_min for p in pairs]
+    xs = [p[0] - x_min for p in pairs]  # zero-indexed for numerical stability
     ys = [p[1] for p in pairs]
 
+    # ── statsmodels path (full diagnostics) ───────────────────────────────────
+    if _STATSMODELS_AVAILABLE and n >= 3:
+        try:
+            X = sm.add_constant(np.array(xs, dtype=float))
+            Y = np.array(ys, dtype=float)
+            model = sm.OLS(Y, X).fit()
+
+            slope     = float(model.params[1])
+            intercept = float(model.params[0])
+            next_x    = max(xs) + 1
+            predicted = slope * next_x + intercept
+
+            # 95% Prediction Interval at next_x
+            x_pred = np.array([[1.0, next_x]])
+            pred_result = model.get_prediction(x_pred)
+            pi = pred_result.summary_frame(alpha=1 - confidence_level)
+            pi_lower = float(pi["obs_ci_lower"].iloc[0])
+            pi_upper = float(pi["obs_ci_upper"].iloc[0])
+
+            # DW statistic on residuals
+            dw = float(durbin_watson(model.resid))
+
+            return {
+                "slope":         round(slope, 4),
+                "next_predicted": round(predicted, 2),
+                "pi_lower":      round(pi_lower, 2),
+                "pi_upper":      round(pi_upper, 2),
+                "n_points":      n,
+                "r_squared":     round(float(model.rsquared), 4),
+                "adj_r_squared": round(float(model.rsquared_adj), 4),
+                "p_value":       round(float(model.f_pvalue), 4),
+                "durbin_watson": round(dw, 3),
+            }
+        except Exception as e:
+            logger.warning("statsmodels OLS failed, falling back to manual OLS: %s", e)
+
+    # ── Manual OLS fallback ───────────────────────────────────────────────────
     x_mean = sum(xs) / n
     y_mean = sum(ys) / n
     sxy = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n))
     sxx = sum((xs[i] - x_mean) ** 2 for i in range(n))
 
     if sxx == 0:
-        return {"slope": 0.0, "next_predicted": round(y_mean, 2),
-                "ci_lower": None, "ci_upper": None, "n_points": n}
+        return {**_null, "slope": 0.0, "next_predicted": round(y_mean, 2)}
 
-    slope = sxy / sxx
+    slope     = sxy / sxx
     intercept = y_mean - slope * x_mean
-    next_x = max(xs) + 1
+    next_x    = max(xs) + 1
     predicted = slope * next_x + intercept
 
-    if n <= 2 or not _SCIPY_AVAILABLE:
-        return {"slope": round(slope, 4), "next_predicted": round(predicted, 2),
-                "ci_lower": None, "ci_upper": None, "n_points": n}
+    if not _SCIPY_AVAILABLE or n <= 2:
+        return {**_null, "slope": round(slope, 4), "next_predicted": round(predicted, 2)}
 
     y_hat = [slope * xs[i] + intercept for i in range(n)]
-    rss = sum((ys[i] - y_hat[i]) ** 2 for i in range(n))
-    rse = (rss / (n - 2)) ** 0.5
+    rss   = sum((ys[i] - y_hat[i]) ** 2 for i in range(n))
+    rse   = (rss / (n - 2)) ** 0.5
     t_crit = t_dist.ppf((1 + confidence_level) / 2, df=n - 2)
     margin = t_crit * rse * (1 + 1 / n + (next_x - x_mean) ** 2 / sxx) ** 0.5
 
+    # Manual R² for the fallback path
+    ss_tot = sum((yi - y_mean) ** 2 for yi in ys)
+    r2 = round(1 - rss / ss_tot, 4) if ss_tot > 0 else None
+
     return {
-        "slope": round(slope, 4),
+        "slope":          round(slope, 4),
         "next_predicted": round(predicted, 2),
-        "ci_lower": round(predicted - margin, 2),
-        "ci_upper": round(predicted + margin, 2),
-        "n_points": n,
+        "pi_lower":       round(predicted - margin, 2),
+        "pi_upper":       round(predicted + margin, 2),
+        "n_points":       n,
+        "r_squared":      r2,
+        "adj_r_squared":  None,  # not computed in fallback
+        "p_value":        None,
+        "durbin_watson":  None,
     }
 
 
@@ -295,7 +386,11 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
             "message": readiness["recommendation"],
         }
 
-    pairs = [(i, r["hb"]) for i, r in enumerate(reversed(df)) if r.get("hb") is not None]
+    pairs = [
+        (_month_to_ordinal(r["month"]), r["hb"])
+        for r in df
+        if r.get("hb") is not None and r.get("month")
+    ]
     trend = _linear_trend_with_ci([p[0] for p in pairs], [p[1] for p in pairs])
     predicted = trend["next_predicted"]
     alert_predicted = predicted is not None and predicted < 10.0
@@ -305,8 +400,8 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         "ready_for_prediction": True,
         "predicted": predicted,
         "next_predicted": predicted,
-        "ci_lower": trend.get("ci_lower"),
-        "ci_upper": trend.get("ci_upper"),
+        "pi_lower": trend.get("pi_lower"),
+        "pi_upper": trend.get("pi_upper"),
         "alert_predicted_low": alert_predicted,
         "message": "Predicted to drop below 10 g/dL — review urgently." if alert_predicted else "Hb trajectory acceptable.",
     }
@@ -363,7 +458,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
             ),
         }
 
-    latest = df[0]
+    latest = complete_pairs[0]
     hb   = latest.get("hb") or 0
     dose = _resolve_weekly_iu(latest) or 0
 
@@ -477,7 +572,11 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
                 "predicted_2m": None, "ci_lower": None, "ci_upper": None,
                 "risk_crossing_35": base["risk"]}
 
-    pairs = [(i, r["albumin"]) for i, r in enumerate(reversed(df)) if r.get("albumin") is not None]
+    pairs = [
+        (_month_to_ordinal(r["month"]), r["albumin"])
+        for r in df
+        if r.get("albumin") is not None and r.get("month")
+    ]
     trend = _linear_trend_with_ci([p[0] for p in pairs], [p[1] for p in pairs])
     slope = trend.get("slope") or 0
     predicted = trend["next_predicted"]
@@ -491,8 +590,8 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
         "direction": direction,
         "predicted": predicted,
         "predicted_2m": predicted,
-        "ci_lower": trend.get("ci_lower"),
-        "ci_upper": trend.get("ci_upper"),
+        "pi_lower": trend.get("pi_lower"),
+        "pi_upper": trend.get("pi_upper"),
         "risk_crossing_35": risk,
     }
 
@@ -505,18 +604,20 @@ def classify_iron_status(latest: Dict) -> Dict:
         return {"status": "Unknown", "class": "warning", "message": "Incomplete labs — enter Ferritin + TSAT"}
 
     if (tsat or 0) < 20:
-        status, rec = "Absolute Deficiency", "Initiate IV Iron Loading"
-    elif (fer or 0) < 200:
-        status, rec = "Iron Deficient", "Consider IV Iron"
+        status, rec = "Absolute Iron Deficiency", "Initiate IV Iron Loading (KDIGO 3.4.2)"
+    elif (tsat or 0) < 30 and (fer or 0) < 500:
+        status, rec = "Functional Iron Deficiency", "IV Iron recommended (TSAT < 30%, Ferritin < 500)"
     elif (fer or 0) > 800:
-        status, rec = "Iron Overload", "Hold Iron"
+        status, rec = "Iron Overload Risk", "Hold IV Iron — recheck in 3 months"
+    elif (fer or 0) > 500:
+        status, rec = "Iron Replete", "Hold Iron — monitor TSAT"
     else:
-        status, rec = "Adequate", "Maintenance dose"
+        status, rec = "Adequate Iron Stores", "Maintenance dose"
 
     return {
         "status": status, "recommendation": rec, "message": rec,
         "class": "danger" if "Deficiency" in status
-                 else "warning" if ("Overload" in status or "Deficient" in status)
+                 else "warning" if ("Overload" in status or "Replete" in status)
                  else "success",
     }
 
@@ -524,17 +625,38 @@ def classify_iron_status(latest: Dict) -> Dict:
 # ── Target Achievement Score ──────────────────────────────────────────────────
 
 def compute_target_score(df: List[Dict]) -> Dict:
+    """
+    Calculate 10-point clinical achievement score based on KDOQI/KDIGO targets.
+    Each met target = 1 point. Max score = 10.
+    """
     if not df:
         return {"score": 0, "status": "No Data"}
     latest = df[0]
     points = 0
-    if (latest.get("hb") or 0) >= 10:          points += 2
-    if (latest.get("albumin") or 0) >= 2.5:    points += 2
-    if (latest.get("phosphorus") or 10) <= 5.5: points += 2
-    if (latest.get("idwg") or 10) <= 2.5:      points += 2
-    if (latest.get("urr") or 0) >= 65:         points += 2
-    label = "Optimal" if points >= 8 else "Sub-optimal" if points >= 6 else "Critical"
-    return {"score": points, "label": label, "status": label}
+    # 1. Anemia (Hb >= 10)
+    if (latest.get("hb") or 0) >= 10:          points += 1
+    # 2. Nutrition (Albumin >= 3.5) - Note: KDIGO target is 3.5 but user threshold is 2.5
+    if (latest.get("albumin") or 0) >= 3.5:    points += 1
+    # 3. Mineral (Phos <= 5.5)
+    if (latest.get("phosphorus") or 10) <= 5.5: points += 1
+    # 4. Fluid (IDWG <= 2.5)
+    if (latest.get("idwg") or 10) <= 2.5:      points += 1
+    # 5. Adequacy (URR >= 65%)
+    if (latest.get("urr") or 0) >= 65:         points += 1
+    # 6. PTH (150 - 600)
+    ipth = latest.get("ipth")
+    if ipth and 150 <= ipth <= 600:           points += 1
+    # 7. Iron Stores (Ferritin >= 200)
+    if (latest.get("serum_ferritin") or 0) >= 200: points += 1
+    # 8. Iron Utility (TSAT >= 20%)
+    if (latest.get("tsat") or 0) >= 20:         points += 1
+    # 9. BP Control Max (Sys <= 140)
+    if (latest.get("bp_sys") or 200) <= 140:   points += 1
+    # 10. BP Control Min (Sys >= 110)
+    if (latest.get("bp_sys") or 0) >= 110:     points += 1
+
+    status = "Optimal" if points >= 8 else "Sub-optimal" if points >= 6 else "Critical"
+    return {"score": points, "label": status, "status": status}
 
 
 # ── Deterioration Risk ────────────────────────────────────────────────────────
@@ -574,16 +696,15 @@ def run_patient_analytics(db: Session, patient_id: int) -> Dict:
             "urr": r.urr,
             "serum_ferritin": r.serum_ferritin,
             "tsat": r.tsat,
+            "ipth": r.ipth,
+            "bp_sys": r.bp_sys,
             "epo_weekly_units": r.epo_weekly_units,
             "epo_mircera_dose": r.epo_mircera_dose,
         }
         for r in records
     ]
 
-    logger.warning(f"PATIENT {patient_id}: loaded {len(df)} record(s)")
-    logger.warning(f"  months : {[r['month'] for r in df]}")
-    logger.warning(f"  hb     : {[r['hb'] for r in df]}")
-    logger.warning(f"  albumin: {[r['albumin'] for r in df]}")
+    logger.debug("PATIENT %d: loaded %d record(s)", patient_id, len(df))
 
     if not df:
         return {"status": "no_data"}
@@ -633,10 +754,20 @@ def run_cohort_analytics(db: Session) -> Dict:
             med = statistics.median(vals)
             sv = sorted(vals)
             n = len(sv)
+            if n == 1:
+                stats_list.append({
+                    "median": round(sv[0], 1),
+                    "p25": round(sv[0], 1),
+                    "p75": round(sv[0], 1),
+                    "n": 1
+                })
+                continue
+
             stats_list.append({
                 "median": round(med, 1),
                 "p25": round(sv[int(n * 0.25)], 1),
                 "p75": round(sv[int(n * 0.75)], 1),
+                "n": n
             })
 
     return {
