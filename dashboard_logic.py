@@ -181,7 +181,8 @@ def compute_dashboard(db: Session, month_str: str = None) -> dict:
         prev_r = prev_map.get(pid)
 
         # Non-AVF access
-        access = (r.access_type or p.access_type or "").strip()
+        raw_access = (r.access_type or p.access_type or "").strip()
+        access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
         if access and access.upper() != "AVF":
             non_avf["count"] += 1
             non_avf["names"].append(name)
