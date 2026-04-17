@@ -170,6 +170,18 @@
                         <input type="number" step="0.1" name="idwg" min="0" max="15" inputmode="decimal" value="{{ record.idwg if record else '' }}">
                     </div>
                     <div class="form-group">
+                        <label>Systolic BP (mmHg)</label>
+                        <input type="number" step="1" name="bp_sys" min="60" max="260" inputmode="numeric" placeholder="e.g. 140" value="{{ record.bp_sys if record and record.bp_sys else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>URR - Urea Reduction Ratio (%)</label>
+                        <input type="number" step="1" name="urr" min="0" max="100" inputmode="numeric" placeholder="e.g. 68" value="{{ record.urr if record and record.urr else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>CRP - C-Reactive Protein (mg/L)</label>
+                        <input type="number" step="0.1" name="crp" min="0" inputmode="decimal" placeholder="e.g. 5.2" value="{{ record.crp if record and record.crp else '' }}">
+                    </div>
+                    <div class="form-group">
                         <label>Entered By</label>
                         <input type="text" name="entered_by" placeholder="Initial/Name" value="{{ record.entered_by if record else '' }}">
                     </div>

@@ -121,6 +121,7 @@ def compute_dashboard(db: Session, month_str: str = None) -> dict:
     male = sum(1 for p in active_patients if (p.sex or "").strip() == "Male")
     female = sum(1 for p in active_patients if (p.sex or "").strip() == "Female")
     unknown_sex = total - male - female
+    unknown_sex_names = [p.name for p in active_patients if (p.sex or "").strip() not in ("Male", "Female")]
 
     # Today's HD patients
     today_day = datetime.now().strftime("%a")  # Mon, Tue, Wed …
@@ -192,7 +193,7 @@ def compute_dashboard(db: Session, month_str: str = None) -> dict:
         if r.idwg and r.idwg > 2.5:
             high_idwg["count"] += 1; high_idwg["names"].append(name)
 
-        if r.albumin and r.albumin < 2.5:
+        if r.albumin and r.albumin < 2.0:
             low_albumin["count"] += 1; low_albumin["names"].append(name)
 
         if corrected_ca and corrected_ca < 8.5:
@@ -245,6 +246,7 @@ def compute_dashboard(db: Session, month_str: str = None) -> dict:
             "male": male,
             "female": female,
             "unknown_sex": unknown_sex,
+            "unknown_sex_names": unknown_sex_names,
             "non_avf": non_avf,
             "high_idwg": high_idwg,
             "low_albumin": low_albumin,

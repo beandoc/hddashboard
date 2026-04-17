@@ -700,15 +700,15 @@
       {"icon":"👥","value":data.metrics.total,"title":"Total Patients","hl":False,"names":[],"wide":False},
       {"icon":"♂️","value":data.metrics.male,"title":"Male","hl":False,"names":[],"wide":False},
       {"icon":"♀️","value":data.metrics.female,"title":"Female","hl":False,"names":[],"wide":False},
-      {"icon":"⚠️","value":data.metrics.unknown_sex,"title":"Unknown Gender","hl":data.metrics.unknown_sex > 0,"names":[],"wide":False},
+      {"icon":"⚠️","value":data.metrics.unknown_sex,"title":"Unknown Gender","hl":data.metrics.unknown_sex > 0,"names":data.metrics.unknown_sex_names,"wide":False},
       {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False},
       {"icon":"⚖️","value":data.metrics.high_idwg.count,"title":"IDWG > 2.5Kg","hl":data.metrics.high_idwg.count>0,"names":data.metrics.high_idwg.names,"wide":False},
-      {"icon":"📉","value":data.metrics.low_albumin.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.low_albumin.count>0,"names":data.metrics.low_albumin.names,"wide":False},
+      {"icon":"📉","value":data.metrics.low_albumin.count,"title":"Albumin < 2.0g/dL","hl":data.metrics.low_albumin.count>0,"names":data.metrics.low_albumin.names,"wide":False},
       {"icon":"🦴","value":data.metrics.low_calcium.count,"title":"Corrected Calcium < 8.5mg/dL","hl":data.metrics.low_calcium.count>0,"names":data.metrics.low_calcium.names,"wide":False},
       {"icon":"🧪","value":data.metrics.high_phosphorus.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.high_phosphorus.count>0,"names":data.metrics.high_phosphorus.names,"wide":False},
       {"icon":"💊","value":data.metrics.iv_iron.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron.count>0,"names":data.metrics.iv_iron.names,"wide":True},
       {"icon":"📅","value":data.metrics.todays_hd.count,"title":"Today's HD Patients","hl":False,"names":data.metrics.todays_hd.names,"wide":True},
-      {"icon":"🩸","value":data.metrics.hb_drop_alert.count,"title":"Drop in Hemoglobin Alert (> 1.5mg/dL)","hl":data.metrics.hb_drop_alert.count>0,"names":data.metrics.hb_drop_alert.names,"wide":True},
+      {"icon":"🩸","value":data.metrics.hb_drop_alert.count,"title":"Drop in Hemoglobin Alert (> 1.5 g/dL)","hl":data.metrics.hb_drop_alert.count>0,"names":data.metrics.hb_drop_alert.names,"wide":True},
       {"icon":"⏰","value":data.metrics.dialysis_intensification.count,"title":"Consider Dialysis Intensification","hl":data.metrics.dialysis_intensification.count>0,"names":data.metrics.dialysis_intensification.names,"wide":True},
       {"icon":"🔬","value":data.metrics.high_ipth.count,"title":"iPTH > 300 pg/mL","hl":data.metrics.high_ipth.count>0,"names":data.metrics.high_ipth.names,"wide":True},
       {"icon":"☀️","value":data.metrics.low_vit_d.count,"title":"Vit D < 20 ng/mL","hl":data.metrics.low_vit_d.count>0,"names":data.metrics.low_vit_d.names,"wide":False},
@@ -872,6 +872,11 @@
         </tbody>
       </table>
     </div>
+    <div id="paginationBar" style="display:flex;align-items:center;justify-content:space-between;padding:12px 4px;font-size:0.85em;color:#555;">
+      <button id="pgPrev" onclick="changePage(-1)" style="padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;">← Prev</button>
+      <span id="pgInfo"></span>
+      <button id="pgNext" onclick="changePage(1)" style="padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;">Next →</button>
+    </div>
   </div>
 
 </main>
@@ -1006,12 +1011,47 @@ function navigatePatient(key, dir) {
 renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
 
 // ── TABLE SEARCH ──
-function filterTable(q) {
-  q = q.toLowerCase();
-  document.querySelectorAll("#patientTable tbody tr").forEach(r => {
-    r.style.display = r.textContent.toLowerCase().includes(q) ? "" : "none";
-  });
+const PAGE_SIZE = 25;
+let currentPage = 1;
+let activeFilter = "";
+
+function getAllRows() {
+  return [...document.querySelectorAll("#patientTable tbody tr")];
 }
+
+function getVisibleRows() {
+  return getAllRows().filter(r => r.dataset.hidden !== "1");
+}
+
+function renderPage() {
+  const rows = getVisibleRows();
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  currentPage = Math.min(currentPage, totalPages);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  getAllRows().forEach(r => { r.style.display = "none"; });
+  rows.slice(start, start + PAGE_SIZE).forEach(r => { r.style.display = ""; });
+  document.getElementById("pgInfo").textContent =
+    `${Math.min(start + 1, total)}–${Math.min(start + PAGE_SIZE, total)} of ${total}`;
+  document.getElementById("pgPrev").disabled = currentPage <= 1;
+  document.getElementById("pgNext").disabled = currentPage >= totalPages;
+}
+
+function changePage(delta) {
+  currentPage += delta;
+  renderPage();
+}
+
+function filterTable(q) {
+  activeFilter = q.toLowerCase();
+  currentPage = 1;
+  getAllRows().forEach(r => {
+    r.dataset.hidden = r.textContent.toLowerCase().includes(activeFilter) ? "0" : "1";
+  });
+  renderPage();
+}
+
+renderPage();
 
 // ── WHATSAPP MODAL ──
 function openWaModal() {
@@ -1084,7 +1124,7 @@ function loadCohortTrends() {
 loadCohortTrends();
 
 // ── REAL-TIME POLLING ──────────────────────────────────────────
-const POLL_INTERVAL_MS = 30000; // 30 seconds
+const POLL_INTERVAL_MS = 120000; // 2 minutes
 let lastDataSnapshot = null;
 let pollTimer = null;
 

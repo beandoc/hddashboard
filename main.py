@@ -3,6 +3,7 @@ HD Dashboard — FastAPI Application
 Multi-user hemodialysis patient data entry + clinical dashboard
 """
 import os
+import re
 from fastapi import FastAPI, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -204,7 +205,8 @@ def create_patient(
             "user": get_user(request),
         })
 
-    whatsapp_link = f"https://wa.me/91{contact_no.strip()}" if contact_no else ""
+    _cn = re.sub(r"\D", "", contact_no.strip()) if contact_no else ""
+    whatsapp_link = f"https://wa.me/91{_cn}" if len(_cn) == 10 else ""
 
     p = Patient(
         hid_no=hid_no, name=name, relation=relation, relation_type=relation_type,
@@ -280,7 +282,8 @@ def update_patient(
     p.access_type = access_type
     p.access_date = datetime.strptime(access_date, "%Y-%m-%d").date() if access_date else None
     p.dry_weight = dry_weight; p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
-    p.whatsapp_link = f"https://wa.me/91{contact_no.strip()}" if contact_no else ""
+    _cn = re.sub(r"\D", "", contact_no.strip()) if contact_no else ""
+    p.whatsapp_link = f"https://wa.me/91{_cn}" if len(_cn) == 10 else ""
     p.whatsapp_notify = whatsapp_notify; p.mail_trigger = mail_trigger
     p.updated_at = datetime.utcnow()
 
@@ -328,6 +331,7 @@ def save_entry(
     access_type: str = Form(""),
     target_dry_weight: Optional[float] = Form(None),
     idwg: Optional[float] = Form(None), hb: Optional[float] = Form(None),
+    bp_sys: Optional[float] = Form(None),
     serum_ferritin: Optional[float] = Form(None), tsat: Optional[float] = Form(None),
     serum_iron: Optional[float] = Form(None), epo_mircera_dose: str = Form(""),
     epo_weekly_units: Optional[float] = Form(None), calcium: Optional[float] = Form(None),
@@ -335,8 +339,12 @@ def save_entry(
     albumin: Optional[float] = Form(None), ast: Optional[float] = Form(None),
     alt: Optional[float] = Form(None), vit_d: Optional[float] = Form(None),
     ipth: Optional[float] = Form(None), av_daily_calories: Optional[float] = Form(None),
-    av_daily_protein: Optional[float] = Form(None), issues: str = Form(""),
+    av_daily_protein: Optional[float] = Form(None), urr: Optional[float] = Form(None),
+    crp: Optional[float] = Form(None),
+    issues: str = Form(""),
 ):
+    if idwg is not None and idwg > 15:
+        idwg = None
     rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == month_str).first()
     if rec:
         # Update existing
@@ -348,7 +356,8 @@ def save_entry(
         rec.calcium = calcium; rec.alkaline_phosphate = alkaline_phosphate
         rec.phosphorus = phosphorus; rec.albumin = albumin; rec.ast = ast; rec.alt = alt
         rec.vit_d = vit_d; rec.ipth = ipth; rec.av_daily_calories = av_daily_calories
-        rec.av_daily_protein = av_daily_protein; rec.issues = issues; rec.entered_by = entered_by
+        rec.av_daily_protein = av_daily_protein; rec.urr = urr; rec.issues = issues; rec.entered_by = entered_by
+        rec.bp_sys = bp_sys; rec.crp = crp
         rec.timestamp = datetime.utcnow()
     else:
         rec = MonthlyRecord(
@@ -359,7 +368,8 @@ def save_entry(
             tsat=tsat, serum_iron=serum_iron, epo_mircera_dose=epo_mircera_dose,
             epo_weekly_units=epo_weekly_units, calcium=calcium, alkaline_phosphate=alkaline_phosphate,
             phosphorus=phosphorus, albumin=albumin, ast=ast, alt=alt, vit_d=vit_d, ipth=ipth,
-            av_daily_calories=av_daily_calories, av_daily_protein=av_daily_protein, issues=issues,
+            av_daily_calories=av_daily_calories, av_daily_protein=av_daily_protein, urr=urr, issues=issues,
+            bp_sys=bp_sys, crp=crp,
         )
         db.add(rec)
     

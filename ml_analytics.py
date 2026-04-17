@@ -7,11 +7,10 @@ Includes ML readiness gates, confidence intervals, and EPO dose normalization.
 import re
 import statistics
 import logging
-from datetime import datetime
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from database import Patient, MonthlyRecord
+from database import MonthlyRecord, Patient
 
 try:
     from scipy.stats import t as t_dist
@@ -93,11 +92,17 @@ def compute_ml_readiness(df: List[Dict], param: str) -> dict:
             "confidence": "low",
             "recommendation": f"{n} data points recorded. Add more months for better confidence.",
         }
-    if n < 6:
+    if n < 5:
+        return {
+            "ready": True, "n_points": n, "completeness": completeness,
+            "confidence": "low",
+            "recommendation": f"{n} months of {param} data. Predictions are early-stage — collect {5 - n} more months.",
+        }
+    if n < 8:
         return {
             "ready": True, "n_points": n, "completeness": completeness,
             "confidence": "moderate",
-            "recommendation": f"{n} months of {param} data. Predictions moderately reliable — collect 3+ more for high confidence.",
+            "recommendation": f"{n} months of {param} data. Predictions moderately reliable — collect {8 - n} more for high confidence.",
         }
     return {
         "ready": True, "n_points": n, "completeness": completeness,
@@ -196,7 +201,7 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
 
 # ── EPO Hypo-Response ─────────────────────────────────────────────────────────
 
-def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict) -> Dict:
+def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001
     if not df:
         return {"hypo_response": False, "status": "No Data", "class": "warning",
                 "message": "No records.", "ready": False, "confidence": "insufficient"}
@@ -225,7 +230,9 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict) -> Dict:
     hb = latest.get("hb") or 0
     dose = latest.get("epo_weekly_units")
     if dose is None and latest.get("epo_mircera_dose"):
-        dose = _parse_epo_dose(latest["epo_mircera_dose"]) or 0
+        normalized = normalize_epo_dose(latest["epo_mircera_dose"])
+        if normalized.get("confidence") == "high":
+            dose = normalized.get("weekly_iu")
     dose = dose or 0
 
     hypo_response = (0 < hb < 10.0) and (dose > 10000)
