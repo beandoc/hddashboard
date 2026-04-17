@@ -62,6 +62,7 @@ def startup():
             ("bp_sys", "FLOAT"),
             ("crp", "FLOAT"),
             ("target_dry_weight", "FLOAT"),
+            ("access_type", "VARCHAR"),
         ]
         for col, dtype in r_missing:
             if col not in r_existing:
@@ -322,7 +323,9 @@ def entry_form(patient_id: int, request: Request, month: Optional[str] = None, d
 @app.post("/entry/{patient_id}")
 def save_entry(
     patient_id: int, request: Request, db: Session = Depends(get_db),
-    month_str: str = Form(...), entered_by: str = Form(""),
+    month_str: str = Form(...),
+    entered_by: str = Form(""),
+    access_type: str = Form(""),
     target_dry_weight: Optional[float] = Form(None),
     idwg: Optional[float] = Form(None), hb: Optional[float] = Form(None),
     serum_ferritin: Optional[float] = Form(None), tsat: Optional[float] = Form(None),
@@ -336,7 +339,10 @@ def save_entry(
 ):
     rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == month_str).first()
     if rec:
-        rec.target_dry_weight = target_dry_weight; rec.idwg = idwg; rec.hb = hb
+        # Update existing
+        rec.access_type = access_type
+        rec.target_dry_weight = target_dry_weight
+        rec.idwg = idwg; rec.hb = hb
         rec.serum_ferritin = serum_ferritin; rec.tsat = tsat; rec.serum_iron = serum_iron
         rec.epo_mircera_dose = epo_mircera_dose; rec.epo_weekly_units = epo_weekly_units
         rec.calcium = calcium; rec.alkaline_phosphate = alkaline_phosphate
@@ -347,13 +353,21 @@ def save_entry(
     else:
         rec = MonthlyRecord(
             patient_id=patient_id, record_month=month_str, entered_by=entered_by,
-            target_dry_weight=target_dry_weight, idwg=idwg, hb=hb, serum_ferritin=serum_ferritin,
+            access_type=access_type,
+            target_dry_weight=target_dry_weight,
+            idwg=idwg, hb=hb, serum_ferritin=serum_ferritin,
             tsat=tsat, serum_iron=serum_iron, epo_mircera_dose=epo_mircera_dose,
             epo_weekly_units=epo_weekly_units, calcium=calcium, alkaline_phosphate=alkaline_phosphate,
             phosphorus=phosphorus, albumin=albumin, ast=ast, alt=alt, vit_d=vit_d, ipth=ipth,
             av_daily_calories=av_daily_calories, av_daily_protein=av_daily_protein, issues=issues,
         )
         db.add(rec)
+    
+    # Also update master patient profile for real-time dashboard accuracy
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if p and access_type:
+        p.access_type = access_type
+
     db.commit()
     return RedirectResponse(url=f"/entry?month={month_str}", status_code=303)
 

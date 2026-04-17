@@ -88,10 +88,11 @@ class MonthlyRecord(Base):
     ast = Column(Float)                             # IU/L
     alt = Column(Float)                             # IU/L
     urr = Column(Float)                             # Urea Reduction Ratio (%)
-    # Vital signs
+    # Vital signs & Access
     target_dry_weight = Column(Float)               # kg
     idwg = Column(Float)                            # kg
     bp_sys = Column(Float)                          # Systolic BP (mmHg)
+    access_type = Column(String)                    # AVF / Permacath / P-Cath / Graft
     crp = Column(Float)                             # C-Reactive Protein (mg/L)
     epo_weekly_units = Column(Float)                # total units/week
 
