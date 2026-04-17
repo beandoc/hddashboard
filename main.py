@@ -13,7 +13,15 @@ from datetime import date, datetime
 from typing import Optional
 
 # Database engine and session for startup logic
-from database import get_db, create_tables, Patient, MonthlyRecord, engine, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, User, engine, SessionLocal
+from passlib.context import CryptContext
+from itsdangerous import URLSafeSerializer
+
+# Auth Configuration
+SECRET_KEY = "HD_DASHBOARD_SECRET_SECURE_2026"
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+serializer = URLSafeSerializer(SECRET_KEY)
+
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import (send_bulk_whatsapp_alerts, send_ward_email,
                     build_schedule_message, build_individual_whatsapp_link, send_whatsapp)
@@ -100,8 +108,16 @@ def startup():
     db = SessionLocal()
     try:
         seed_preset_variables(db)
+        # Ensure default admin user exists
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            hashed = pwd_context.hash("admin123")
+            db.add(User(username="admin", full_name="System Admin", hashed_password=hashed, role="admin"))
+            db.commit()
+            print("✅ Default admin user created (admin / admin123)")
     finally:
         db.close()
+
 
     # ── Retrospective Data Sync ───────────────────────────────────────────────
     # Runs on every boot — safely skips records that already exist.
@@ -116,6 +132,33 @@ def startup():
 # Helper to inject user into every template
 def get_user(request: Request):
     return getattr(request.state, "user", None)
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Simple session-based cookie middleware."""
+    session_cookie = request.cookies.get("hd_session")
+    request.state.user = None
+    
+    if session_cookie:
+        try:
+            username = serializer.loads(session_cookie)
+            db = SessionLocal()
+            user = db.query(User).filter(User.username == username, User.is_active == True).first()
+            if user:
+                request.state.user = user
+            db.close()
+        except Exception:
+            pass # Invalid cookie
+
+    # Protect all routes excpet public ones
+    public_paths = ["/login", "/static", "/health"]
+    if not request.state.user and request.url.path not in public_paths:
+        if not any(request.url.path.startswith(p) for p in public_paths):
+            return RedirectResponse(url="/login")
+
+    response = await call_next(request)
+    return response
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -594,3 +637,38 @@ def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHENTICATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, error: str = None):
+    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+
+@app.post("/login")
+def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username, User.is_active == True).first()
+    if not user or not pwd_context.verify(password, user.hashed_password):
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password"})
+    
+    user.last_login = datetime.utcnow()
+    db.commit()
+    
+    response = RedirectResponse(url="/", status_code=303)
+    # Sign the session cookie
+    token = serializer.dumps(user.username)
+    response.set_cookie(key="hd_session", value=token, httponly=True)
+    return response
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse(url="/login", status_code=303)
+    response.delete_cookie("hd_session")
+    return response
+
+@app.get("/api/me")
+def get_current_user_api(request: Request):
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return {"username": user.username, "full_name": user.full_name, "role": user.role}

@@ -381,7 +381,10 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
             **base,
             "ready_for_prediction": False,
             "predicted": None, "next_predicted": None,
-            "ci_lower": None, "ci_upper": None,
+            "pi_lower": None, "pi_upper": None,
+            "r_squared": None, "adj_r_squared": None,
+            "p_value": None, "durbin_watson": None,
+            "n_points": readiness["n_points"],
             "alert_predicted_low": False,
             "message": readiness["recommendation"],
         }
@@ -402,6 +405,11 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         "next_predicted": predicted,
         "pi_lower": trend.get("pi_lower"),
         "pi_upper": trend.get("pi_upper"),
+        "r_squared": trend.get("r_squared"),
+        "adj_r_squared": trend.get("adj_r_squared"),
+        "p_value": trend.get("p_value"),
+        "durbin_watson": trend.get("durbin_watson"),
+        "n_points": trend.get("n_points"),
         "alert_predicted_low": alert_predicted,
         "message": "Predicted to drop below 10 g/dL — review urgently." if alert_predicted else "Hb trajectory acceptable.",
     }
@@ -568,9 +576,15 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
     }
 
     if not readiness["ready"]:
-        return {**base, "trend": "→", "direction": "→", "predicted": None,
-                "predicted_2m": None, "ci_lower": None, "ci_upper": None,
-                "risk_crossing_35": base["risk"]}
+        return {
+            **base,
+            "trend": "→", "direction": "→",
+            "predicted": None, "predicted_2m": None,
+            "pi_lower": None, "pi_upper": None,
+            "r_squared": None, "adj_r_squared": None,
+            "p_value": None, "durbin_watson": None,
+            "risk_crossing_35": base["risk"],
+        }
 
     pairs = [
         (_month_to_ordinal(r["month"]), r["albumin"])
@@ -592,6 +606,11 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
         "predicted_2m": predicted,
         "pi_lower": trend.get("pi_lower"),
         "pi_upper": trend.get("pi_upper"),
+        "r_squared": trend.get("r_squared"),
+        "adj_r_squared": trend.get("adj_r_squared"),
+        "p_value": trend.get("p_value"),
+        "durbin_watson": trend.get("durbin_watson"),
+        "n_points": trend.get("n_points", readiness["n_points"]),
         "risk_crossing_35": risk,
     }
 

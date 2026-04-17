@@ -64,6 +64,20 @@ class Patient(Base):
     records = relationship("MonthlyRecord", back_populates="patient", cascade="all, delete-orphan")
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    full_name = Column(String)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, default="staff") # "admin" or "staff"
+    is_active = Column(Boolean, default=True)
+    last_login = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+
 class MonthlyRecord(Base):
     __tablename__ = "monthly_records"
 
