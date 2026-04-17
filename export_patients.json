@@ -1,0 +1,275 @@
+[
+  {
+    "id": 1,
+    "hid_no": "400040426619",
+    "name": "Ajit Shinde",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 2,
+    "hid_no": "20131558744519",
+    "name": "Aloknath bala",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 3,
+    "hid_no": "20131558799119",
+    "name": "Arjun Ubale",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 4,
+    "hid_no": "2013151873822",
+    "name": "D B Jadhav",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 5,
+    "hid_no": "20131518323419",
+    "name": "D S Byas",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 6,
+    "hid_no": "2013280323516",
+    "name": "Ganesh Balgude",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 7,
+    "hid_no": "20131570165319",
+    "name": "Gyanendra singh",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 8,
+    "hid_no": "20194841219",
+    "name": "Vinit Mahadik",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 9,
+    "hid_no": "2013170087816",
+    "name": "Joyson R",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 10,
+    "hid_no": "20131612349216",
+    "name": "Mahingappa",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 11,
+    "hid_no": "100071098516",
+    "name": "P J SHAJI",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 12,
+    "hid_no": "100091954116",
+    "name": "Prashant K",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 13,
+    "hid_no": "20131542744016",
+    "name": "R B Pathak",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 14,
+    "hid_no": "100097007019",
+    "name": "Rahul Kumar",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 15,
+    "hid_no": "20285725722",
+    "name": "Rajeev  Joshi",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 16,
+    "hid_no": "100095703018",
+    "name": "Rajesh Kumar",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 17,
+    "hid_no": "20131572020218",
+    "name": "Mukesh Singh",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 18,
+    "hid_no": "20131557270518",
+    "name": "RP Deshmukh",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 19,
+    "hid_no": "2013458450618",
+    "name": "Sagar Sapkal",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 20,
+    "hid_no": "20111677219",
+    "name": "Vijay Kumar",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 21,
+    "hid_no": "10003143018",
+    "name": "Nandeep C S",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 22,
+    "hid_no": "20131558631822",
+    "name": "Arun Chougale",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 23,
+    "hid_no": "20131612326816",
+    "name": "Mahantesh W",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 24,
+    "hid_no": "100094113719",
+    "name": "R.N.Barik",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 25,
+    "hid_no": "201315232906",
+    "name": "Prashant Chavan",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 26,
+    "hid_no": "2013650212918",
+    "name": "Rajgouda Patil",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 27,
+    "hid_no": "100077113516",
+    "name": "D k Uttam",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 28,
+    "hid_no": "20131466164418",
+    "name": "Pravesh Kumar Tiwari",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 29,
+    "hid_no": "20131522950516",
+    "name": "Shivshankar B M",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 30,
+    "hid_no": "20131701374916",
+    "name": "Yogesh Patil",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 31,
+    "hid_no": "2013279901018",
+    "name": "Dilip Dhormalr",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 32,
+    "hid_no": "20131704557122",
+    "name": "Sunil Halyal",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 33,
+    "hid_no": "10003794119",
+    "name": "Shivam Raj",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 34,
+    "hid_no": "20131545488116",
+    "name": "Mijanur Rahman",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 35,
+    "hid_no": "20300892419",
+    "name": "Sathish Barki",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 36,
+    "hid_no": "2013449590222",
+    "name": "Jaspal Singh",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 37,
+    "hid_no": "20131700046316",
+    "name": "Y Srinivaslu",
+    "sex": "Female",
+    "is_active": 1
+  },
+  {
+    "id": 38,
+    "hid_no": "202938711720",
+    "name": "P.V.Karande",
+    "sex": "Male",
+    "is_active": 1
+  },
+  {
+    "id": 39,
+    "hid_no": "20285513618",
+    "name": "Girish Shyam",
+    "sex": "Female",
+    "is_active": 1
+  }
+]
