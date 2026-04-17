@@ -154,12 +154,13 @@
           <i class="material-icons">check_circle</i>
           <h3>Achievement</h3>
         </div>
-        {% set ts = analytics.target_score %}
-        <div class="score-circle {{ ts.status|lower }}">
-          {{ ts.score }}
+        {% set ts_score = analytics.target_score.score %}
+        {% set ts_status = analytics.target_score.status %}
+        <div class="score-circle {{ ts_status|lower }}">
+          {{ ts_score }}
         </div>
         <div style="text-align: center;">
-            <span class="status-class status-pill {{ ts.status|lower }}">{{ ts.status }} Status</span>
+            <span class="status-class status-pill {{ ts_status|lower }}">{{ ts_status }} Status</span>
         </div>
       </div>
 

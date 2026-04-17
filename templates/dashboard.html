@@ -264,6 +264,31 @@
     }
     .card .visible-list li::before { content: "•"; color: var(--accent-red); font-weight: bold; }
 
+    .card .tooltip {
+      position: absolute;
+      bottom: 105%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      white-space: pre-line;
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
+      min-width: 180px;
+      text-align: left;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    }
+    .card:hover .tooltip {
+      opacity: 1;
+      bottom: 110%;
+    }
+
     /* Action bar */
     .action-bar { 
       max-width: 1440px; 
