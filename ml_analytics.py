@@ -366,6 +366,11 @@ def run_patient_analytics(db: Session, patient_id: int) -> Dict:
         for r in records
     ]
 
+    logger.warning(f"PATIENT {patient_id}: loaded {len(df)} record(s)")
+    logger.warning(f"  months : {[r['month'] for r in df]}")
+    logger.warning(f"  hb     : {[r['hb'] for r in df]}")
+    logger.warning(f"  albumin: {[r['albumin'] for r in df]}")
+
     if not df:
         return {"status": "no_data"}
 
