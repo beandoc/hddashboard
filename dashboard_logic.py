@@ -6,7 +6,7 @@ Locked - Do not modify without clinical validation.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import Patient, MonthlyRecord, VariableDefinition
+from database import Patient, MonthlyRecord
 from datetime import datetime
 import logging
 
