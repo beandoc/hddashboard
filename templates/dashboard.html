@@ -994,7 +994,7 @@ function renderTrend(key) {
     return;
   }
   const d = arr[idx];
-  document.getElementById(cfg.nameEl).textContent = `${d.patient} (${idx+1}/${arr.length})`;
+  document.getElementById(cfg.nameEl).textContent = `${d.name} (${idx+1}/${arr.length})`;
   document.getElementById(cfg.prevBtn).disabled = (idx === 0);
   document.getElementById(cfg.nextBtn).disabled = (idx === arr.length - 1);
 

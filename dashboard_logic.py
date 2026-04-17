@@ -27,7 +27,15 @@ def compute_dashboard(db: Session, month: str = None):
     """
     if not month:
         month = get_current_month_str()
-        
+
+    # Derive previous month string for trendlines
+    from datetime import date
+    y, m = int(month[:4]), int(month[5:7])
+    if m == 1:
+        prev_month = f"{y-1}-12"
+    else:
+        prev_month = f"{y}-{m-1:02d}"
+
     metrics = {
         'total_patients': {'count': 0, 'names': []},
         'male_patients': {'count': 0, 'names': []},
@@ -64,7 +72,11 @@ def compute_dashboard(db: Session, month: str = None):
     # Fetch Clinical Records for selected month
     records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
     record_map = {r.patient_id: r for r in records}
-    
+
+    # Fetch previous month records for trendlines
+    prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()
+    prev_record_map = {r.patient_id: r for r in prev_records}
+
     patient_rows = []
 
     for p in active_patients:
@@ -106,18 +118,31 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['non_avf']['types'][access]["names"].append(name)
                 row["alerts"].append("Non-AVF")
                 
+            prev_r = prev_record_map.get(p.id)
+
             # 2. IDWG > 2.5kg
             if r.idwg and r.idwg > 2.5:
                 metrics['idwg_high']['count'] += 1
                 metrics['idwg_high']['names'].append(name)
-                metrics['trend_hb'].append({"name": name, "current": r.idwg})
                 row["alerts"].append("High IDWG")
-                
+
+            # Hb < 9 g/dL — tracked for Hemoglobin trendline
+            if r.hb and r.hb < 9:
+                metrics['trend_hb'].append({
+                    "name": name,
+                    "current": r.hb,
+                    "previous": prev_r.hb if prev_r else None
+                })
+
             # 3. Albumin < 2.5 g/dL (User remapped from 3.5)
             if r.albumin and r.albumin < 2.5:
                 metrics['albumin_low']['count'] += 1
                 metrics['albumin_low']['names'].append(name)
-                metrics['trend_albumin'].append({"name": name, "current": r.albumin})
+                metrics['trend_albumin'].append({
+                    "name": name,
+                    "current": r.albumin,
+                    "previous": prev_r.albumin if prev_r else None
+                })
                 row["alerts"].append("Low Albumin")
 
             # 4. Corrected Calcium < 8.0 mg/dL (User remapped from 8.5)
@@ -131,7 +156,11 @@ def compute_dashboard(db: Session, month: str = None):
             if r.phosphorus and r.phosphorus > 5.5:
                 metrics['phos_high']['count'] += 1
                 metrics['phos_high']['names'].append(name)
-                metrics['trend_phosphorus'].append({"name": name, "current": r.phosphorus})
+                metrics['trend_phosphorus'].append({
+                    "name": name,
+                    "current": r.phosphorus,
+                    "previous": prev_r.phosphorus if prev_r else None
+                })
                 row["alerts"].append("High Phos")
 
             # 6. EPO Hypo-response (normalise Mircera/Darbepoetin to weekly IU equiv)
