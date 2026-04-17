@@ -97,6 +97,16 @@ def startup():
     finally:
         db.close()
 
+    # ── Retrospective Data Sync ───────────────────────────────────────────────
+    # Runs on every boot — safely skips records that already exist.
+    # Populates production PostgreSQL with all historical monthly records.
+    try:
+        import push_historic_data
+        push_historic_data.run()
+        logger.info("✅ Retrospective data sync complete.")
+    except Exception as e:
+        logger.warning(f"⚠️  Retrospective sync skipped: {e}")
+
 # Helper to inject user into every template
 def get_user(request: Request):
     return getattr(request.state, "user", None)
