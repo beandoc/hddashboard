@@ -55,7 +55,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict) -> Dict:
     }
 
 def assess_albumin_decline(df: List[Dict]) -> Dict:
-    if len(df) < 2: return {"risk": False, "trend": "→"}
+    if len(df) < 2: return {"risk": False, "trend": "→", "current": None, "predicted": None}
     albs = [r["albumin"] for r in df if r["albumin"] is not None]
     if len(albs) < 2: 
         curr = albs[0] if albs else 0

@@ -100,6 +100,12 @@
   </header>
 
   <div class="container">
+    {% if analytics.status == "no_data" %}
+    <div class="insight-card" style="margin-top: 30px; text-align: center; padding: 40px;">
+      <i class="material-icons" style="font-size: 3rem; color: var(--text-muted);">info</i>
+      <p style="color: var(--text-muted); margin-top: 10px;">No records found for this patient.</p>
+    </div>
+    {% else %}
     <div class="dashboard-row">
       <!-- HB Trajectory -->
       <div class="insight-card">
@@ -156,11 +162,13 @@
         </div>
         {% set ts_score = analytics.target_score.score %}
         {% set ts_status = analytics.target_score.status %}
-        <div class="score-circle {{ ts_status|lower }}">
+        {% set ts_circle_class = "green" if ts_score >= 8 else "amber" if ts_score >= 6 else "red" %}
+        {% set ts_pill_class = "success" if ts_score >= 8 else "warning" if ts_score >= 6 else "danger" %}
+        <div class="score-circle {{ ts_circle_class }}">
           {{ ts_score }}
         </div>
         <div style="text-align: center;">
-            <span class="status-class status-pill {{ ts_status|lower }}">{{ ts_status }} Status</span>
+            <span class="status-pill {{ ts_pill_class }}">{{ ts_status }} Status</span>
         </div>
       </div>
 
@@ -194,6 +202,7 @@
         {% endif %}
       </div>
     </div>
+    {% endif %}
   </div>
 
 </body>

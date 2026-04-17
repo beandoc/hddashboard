@@ -425,3 +425,25 @@ def api_cohort_trends(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return JSONResponse(content=data)
+
+
+@app.post("/api/send-whatsapp")
+def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db)):
+    month_str = month or get_current_month_str()
+    try:
+        patients = get_patients_needing_alerts(db, month_str)
+        result = send_bulk_whatsapp_alerts(patients, month_str)
+        return JSONResponse(content={"message": f"✅ Sent to {result} patient(s)."})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/send-email")
+def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db)):
+    month_str = month or get_current_month_str()
+    try:
+        data = compute_dashboard(db, month_str)
+        send_ward_email(data, month_str)
+        return JSONResponse(content={"message": "✅ Ward report email sent."})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
