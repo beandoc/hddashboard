@@ -102,6 +102,27 @@ def startup():
                     conn.commit()
                 except Exception: pass
 
+        # 4. Check users columns (Auth — added last_login, created_at)
+        # Guard: users table may not exist yet on first deploy — skip if so
+        try:
+            u_existing = [c['name'] for c in inspector.get_columns('users')]
+            u_missing = [
+                ("last_login", "TIMESTAMP"),
+                ("created_at", "TIMESTAMP DEFAULT NOW()"),
+                ("full_name", "VARCHAR"),
+                ("role", "VARCHAR DEFAULT 'staff'"),
+                ("is_active", "BOOLEAN DEFAULT TRUE"),
+            ]
+            for col, dtype in u_missing:
+                if col not in u_existing:
+                    try:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {dtype}"))
+                        conn.commit()
+                    except Exception: pass
+        except Exception:
+            pass  # users table doesn't exist yet — create_all() will handle it
+
+
     # Create dynamic variable tables and seed presets
     from database import Base
     Base.metadata.create_all(bind=engine)
