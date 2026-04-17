@@ -857,7 +857,7 @@
                 {% if not row.alerts %}<span style="color:#2e7d32;font-size:0.8em">✓ OK</span>{% endif %}
               {% endif %}
             </td>
-            {% if user.role != 'nurse' %}<td data-label="Timeline"><a href="/patients/{{ row.id }}/timeline" style="color:#1a237e">📈 View</a></td>{% endif %}
+            {% if user and user.role != 'nurse' %}<td data-label="Timeline"><a href="/patients/{{ row.id }}/timeline" style="color:#1a237e">📈 View</a></td>{% endif %}
             <td data-label="Action"><a href="/entry/{{ row.id }}?month={{ month_str }}" style="font-size:0.78em;color:#007bff;text-decoration:none">{{ "Edit" if row.has_record else "Enter" }}</a></td>
           </tr>
           {% endfor %}
@@ -1059,17 +1059,17 @@ function confirmSendWa() {
   const s = document.getElementById("alertStatus");
   s.textContent = "⏳ Sending WhatsApp messages…";
   fetch(`/api/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
-    .then(r => r.json())
+    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
     .then(d => { s.textContent = d.message || "✅ Done."; })
-    .catch(() => { s.textContent = "❌ Error — check server logs."; });
+    .catch(err => { s.textContent = "❌ " + (err || "Error — check server logs."); });
 }
 function sendEmailReport() {
   const s = document.getElementById("alertStatus");
   s.textContent = "⏳ Sending email report…";
   fetch(`/api/send-email?month=${MONTH_STR}`, { method:"POST" })
-    .then(r => r.json())
+    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
     .then(d => { s.textContent = d.message || "✅ Email sent."; })
-    .catch(() => { s.textContent = "❌ Email error."; });
+    .catch(err => { s.textContent = "❌ " + (err || "Email error."); });
 }
 
 // ── COHORT TRENDS (PHASE 4) ──
@@ -1147,23 +1147,16 @@ function refreshCards(data) {
 
   // Map of card title substrings → new values
   const updates = {
-    "Total Patients":       m.total,
-    "Male":                 m.male,
-    "Female":               m.female,
-    "Unknown Gender":       m.unknown_sex,
-    "Non-AVF":              m.non_avf.count,
-    "IDWG":                 m.high_idwg.count,
-    "Albumin":              m.low_albumin.count,
-    "Corrected Calcium":    m.low_calcium.count,
-    "High Phosphorus":      m.high_phosphorus.count,
-    "IV Iron":              m.iv_iron.count,
-    "Today's HD":           m.todays_hd.count,
-    "Hemoglobin Alert":     m.hb_drop_alert.count,
-    "Dialysis Intensif":    m.dialysis_intensification.count,
-    "iPTH":                 m.high_ipth.count,
-    "Vit D":                m.low_vit_d.count,
-    "Low Protein":          m.low_protein.count,
-    "Elevated LFTs":        m.elevated_liver.count,
+    "Total Patients":    m.total_patients?.count,
+    "Male":              m.male_patients?.count,
+    "Female":            m.female_patients?.count,
+    "Non-AVF":           m.non_avf?.count,
+    "IDWG":              m.idwg_high?.count,
+    "Albumin":           m.albumin_low?.count,
+    "Corrected Calcium": m.calcium_low?.count,
+    "High Phosphorus":   m.phos_high?.count,
+    "IV Iron":           m.iv_iron_rec?.count,
+    "EPO Hypo":          m.epo_hypo?.count,
   };
 
   document.querySelectorAll(".card").forEach(card => {

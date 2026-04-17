@@ -157,8 +157,9 @@ def send_bulk_whatsapp_alerts(alert_patients: list, month_label: str) -> dict:
             if not patient.contact_no:
                 skipped += 1
                 continue
+            rec = ap.get("record", {})
             message = build_whatsapp_message(
-                patient.name, ap["alerts"], month_label)
+                patient.name, ap["alerts"], month_label, rec)
             success, detail = send_whatsapp_twilio(patient.contact_no, message)
             if success:
                 sent += 1

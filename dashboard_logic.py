@@ -142,3 +142,47 @@ def compute_dashboard(db: Session, month: str = None):
         "month_label": get_month_label(month),
         "total_active": len(active_patients)
     }
+
+
+def get_patients_needing_alerts(db: Session, month: str = None):
+    if not month:
+        month = get_current_month_str()
+
+    active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+    records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
+    record_map = {r.patient_id: r for r in records}
+
+    result = []
+    for p in active_patients:
+        r = record_map.get(p.id)
+        if not r:
+            continue
+        alerts = []
+        raw_access = (r.access_type or "").strip()
+        access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
+        if access and access.upper() != "AVF":
+            alerts.append("Non-AVF")
+        if r.idwg and r.idwg > 2.5:
+            alerts.append("High IDWG")
+        if r.albumin and r.albumin < 3.5:
+            alerts.append("Low Albumin")
+        if r.calcium and r.calcium < 8.5:
+            alerts.append("Low Calcium")
+        if r.phosphorus and r.phosphorus > 5.5:
+            alerts.append("High Phos")
+        if r.hb and r.hb < 10 and r.epo_weekly_units and r.epo_weekly_units > 10000:
+            alerts.append("EPO Hypo")
+        if alerts:
+            result.append({
+                "patient": p,
+                "alerts": alerts,
+                "record": {
+                    "hb": r.hb,
+                    "albumin": r.albumin,
+                    "phosphorus": r.phosphorus,
+                    "corrected_ca": r.calcium,
+                    "idwg": r.idwg,
+                    "ipth": r.ipth,
+                },
+            })
+    return result
