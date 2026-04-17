@@ -432,8 +432,8 @@ def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db)
     month_str = month or get_current_month_str()
     try:
         patients = get_patients_needing_alerts(db, month_str)
-        result = send_bulk_whatsapp_alerts(patients, month_str)
-        return JSONResponse(content={"message": f"✅ Sent to {result} patient(s)."})
+        result = send_bulk_whatsapp_alerts(patients, get_month_label(month_str))
+        return JSONResponse(content={"message": result.get("message", "✅ Done.")})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -442,8 +442,12 @@ def api_send_whatsapp(month: Optional[str] = None, db: Session = Depends(get_db)
 def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     try:
-        data = compute_dashboard(db, month_str)
-        send_ward_email(data, month_str)
-        return JSONResponse(content={"message": "✅ Ward report email sent."})
+        patients = get_patients_needing_alerts(db, month_str)
+        success, detail = send_ward_email(patients, get_month_label(month_str), month_str[:4])
+        if not success:
+            raise HTTPException(status_code=500, detail=detail)
+        return JSONResponse(content={"message": f"✅ {detail}"})
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
