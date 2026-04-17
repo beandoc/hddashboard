@@ -697,23 +697,15 @@
   <div class="dashboard-grid">
 
     {% set cards = [
-      {"icon":"👥","value":data.metrics.total,"title":"Total Patients","hl":False,"names":[],"wide":False},
-      {"icon":"♂️","value":data.metrics.male,"title":"Male","hl":False,"names":[],"wide":False},
-      {"icon":"♀️","value":data.metrics.female,"title":"Female","hl":False,"names":[],"wide":False},
-      {"icon":"⚠️","value":data.metrics.unknown_sex,"title":"Unknown Gender","hl":data.metrics.unknown_sex > 0,"names":data.metrics.unknown_sex_names,"wide":False},
+      {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False},
+      {"icon":"♂️","value":data.metrics.male_patients.count,"title":"Male","hl":False,"names":data.metrics.male_patients.names,"wide":False},
+      {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False},
       {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False},
-      {"icon":"⚖️","value":data.metrics.high_idwg.count,"title":"IDWG > 2.5Kg","hl":data.metrics.high_idwg.count>0,"names":data.metrics.high_idwg.names,"wide":False},
-      {"icon":"📉","value":data.metrics.low_albumin.count,"title":"Albumin < 2.0g/dL","hl":data.metrics.low_albumin.count>0,"names":data.metrics.low_albumin.names,"wide":False},
-      {"icon":"🦴","value":data.metrics.low_calcium.count,"title":"Corrected Calcium < 8.5mg/dL","hl":data.metrics.low_calcium.count>0,"names":data.metrics.low_calcium.names,"wide":False},
-      {"icon":"🧪","value":data.metrics.high_phosphorus.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.high_phosphorus.count>0,"names":data.metrics.high_phosphorus.names,"wide":False},
-      {"icon":"💊","value":data.metrics.iv_iron.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron.count>0,"names":data.metrics.iv_iron.names,"wide":True},
-      {"icon":"📅","value":data.metrics.todays_hd.count,"title":"Today's HD Patients","hl":False,"names":data.metrics.todays_hd.names,"wide":True},
-      {"icon":"🩸","value":data.metrics.hb_drop_alert.count,"title":"Drop in Hemoglobin Alert (> 1.5 g/dL)","hl":data.metrics.hb_drop_alert.count>0,"names":data.metrics.hb_drop_alert.names,"wide":True},
-      {"icon":"⏰","value":data.metrics.dialysis_intensification.count,"title":"Consider Dialysis Intensification","hl":data.metrics.dialysis_intensification.count>0,"names":data.metrics.dialysis_intensification.names,"wide":True},
-      {"icon":"🔬","value":data.metrics.high_ipth.count,"title":"iPTH > 300 pg/mL","hl":data.metrics.high_ipth.count>0,"names":data.metrics.high_ipth.names,"wide":True},
-      {"icon":"☀️","value":data.metrics.low_vit_d.count,"title":"Vit D < 20 ng/mL","hl":data.metrics.low_vit_d.count>0,"names":data.metrics.low_vit_d.names,"wide":False},
-      {"icon":"🍗","value":data.metrics.low_protein.count,"title":"Low Protein Intake","hl":data.metrics.low_protein.count>0,"names":data.metrics.low_protein.names,"wide":False},
-      {"icon":"🫀","value":data.metrics.elevated_liver.count,"title":"Elevated LFTs","hl":data.metrics.elevated_liver.count>0,"names":data.metrics.elevated_liver.names,"wide":False},
+      {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"IDWG > 2.5Kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False},
+      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 3.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False},
+      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.5mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False},
+      {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False},
+      {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True},
     ] %}
 
     {% for c in cards %}

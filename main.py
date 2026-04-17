@@ -116,15 +116,16 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
         logging.error(f"Dashboard logic failure: {e}")
         data = {
             "metrics": {
-                "total": 0, "male": 0, "female": 0, "unknown_sex": 0,
-                "high_idwg": {"count": 0, "names": []}, 
-                "low_albumin": {"count": 0, "names": []}, "high_phosphorus": {"count": 0, "names": []},
-                "iv_iron": {"count": 0, "names": []}, "hb_drop_alert": {"count": 0, "names": []},
-                "low_calcium": {"count": 0, "names": []}, "high_ipth": {"count": 0, "names": []},
-                "low_vit_d": {"count": 0, "names": []}, "low_protein": {"count": 0, "names": []},
-                "elevated_liver": {"count": 0, "names": []}, "dialysis_intensification": {"count": 0, "names": []},
-                "todays_hd": {"count": 0, "names": []}, "non_avf": {"count": 0, "names": [], "types": {}},
-                "trend_hb": [], "trend_albumin": [], "trend_phosphorus": []
+                "total_patients": {"count": 0, "names": []},
+                "male_patients": {"count": 0, "names": []},
+                "female_patients": {"count": 0, "names": []},
+                "non_avf": {"count": 0, "names": []},
+                "idwg_high": {"count": 0, "names": []},
+                "albumin_low": {"count": 0, "names": []},
+                "calcium_low": {"count": 0, "names": []},
+                "phos_high": {"count": 0, "names": []},
+                "epo_hypo": {"count": 0, "names": []},
+                "iv_iron_rec": {"count": 0, "names": []},
             },
             "patient_rows": [], "month_label": get_month_label(month_str), "prev_month_label": "N/A"
         }
