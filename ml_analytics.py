@@ -43,7 +43,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict) -> Dict:
     dose = latest.get("epo_weekly_units") or 0
     hypo_response = (0 < hb < 10.0) and (dose > 10000)
     
-    severity = "severe" if hb < 8.5 else "significant" if hypo_response else "none"
+    severity = ("severe" if hb < 8.5 else "significant") if hypo_response else "none"
     recommendation = "Review iron stores and resistance." if hypo_response else "Responsive."
 
     return {
@@ -90,7 +90,7 @@ def classify_iron_status(latest: Dict) -> Dict:
         "status": status,
         "recommendation": rec,
         "message": rec,
-        "class": "danger" if "Deficiency" in status else "warning" if "Overload" in status else "success"
+        "class": "danger" if "Deficiency" in status else "warning" if ("Overload" in status or "Deficient" in status) else "success"
     }
 
 def compute_target_score(df: List[Dict]) -> Dict:
