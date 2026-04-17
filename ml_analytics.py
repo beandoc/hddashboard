@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 #   < 8 000 IU/week epoetin  ↔  < 40 mcg/week darbepoetin  →  120 mcg/month Mircera
 #   8 000–16 000 IU/week     ↔  40–80 mcg/week darbepoetin  →  180 mcg/month Mircera
 
-_MIRCERA_SYNONYMS   = {"mircera", "peginesatide", "cera", "methoxy peg", "mpg-epo", "erypeg"}
-_DARBE_SYNONYMS     = {"darbepoetin", "aranesp", "darb", "darbp"}
+_MIRCERA_SYNONYMS   = {"mircera", "peginesatide", "cera", "methoxy peg", "mpg-epo", "erypeg", "peg epo", "peg-epo"}
+_DARBE_SYNONYMS     = {"darbepoetin", "aranesp", "darb", "darbp", "darbe"}
 _EPOETIN_SYNONYMS   = {"epoetin", "epo", "erythropoietin", "procrit", "epogen", "neorecormon"}
 
 
@@ -59,6 +59,10 @@ def normalize_epo_dose(dose_str: str) -> dict:
         return null
 
     s = dose_str.lower().strip()
+    
+    # Handle 'k' suffix for thousands (e.g. 10k -> 10000)
+    s = re.sub(r'(\d+)k\b', lambda m: str(int(m.group(1)) * 1000), s)
+
     numbers = re.findall(r"\d+(?:\.\d+)?", s)
     if not numbers:
         return {**null, "original": dose_str, "drug_type": "unknown", "confidence": "low"}
@@ -69,7 +73,7 @@ def normalize_epo_dose(dose_str: str) -> dict:
     weekly_iu  = None
 
     # ── Detect drug type ──────────────────────────────────────────────────────
-    if any(k in s for k in _MIRCERA_SYNONYMS):
+    if any(k in s for k in _MIRCERA_SYNONYMS) or s.startswith("m-"):
         drug_type = "mircera"
     elif any(k in s for k in _DARBE_SYNONYMS):
         drug_type = "darbepoetin"
@@ -462,7 +466,7 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
 
     base = {
         "current": current,
-        "risk": current is not None and current < 3.5,
+        "risk": current is not None and current < 2.5,
         "confidence": readiness["confidence"],
         "n_points": readiness["n_points"],
         "message": readiness["recommendation"],
@@ -478,7 +482,7 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
     slope = trend.get("slope") or 0
     predicted = trend["next_predicted"]
     direction = "up" if slope > 0.05 else "down" if slope < -0.05 else "→"
-    risk = base["risk"] or (predicted is not None and predicted < 3.5)
+    risk = base["risk"] or (predicted is not None and predicted < 2.5)
 
     return {
         **base,
@@ -525,7 +529,7 @@ def compute_target_score(df: List[Dict]) -> Dict:
     latest = df[0]
     points = 0
     if (latest.get("hb") or 0) >= 10:          points += 2
-    if (latest.get("albumin") or 0) >= 3.5:    points += 2
+    if (latest.get("albumin") or 0) >= 2.5:    points += 2
     if (latest.get("phosphorus") or 10) <= 5.5: points += 2
     if (latest.get("idwg") or 10) <= 2.5:      points += 2
     if (latest.get("urr") or 0) >= 65:         points += 2

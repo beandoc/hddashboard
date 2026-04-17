@@ -79,7 +79,7 @@ def compute_dashboard(db: Session, month: str = None):
             "hb": r.hb if r else None,
             "ferritin": r.serum_ferritin if r else None,
             "tsat": r.tsat if r else None,
-            "corrected_ca": r.calcium if r else None, # Placeholder for corr logic 
+            "corrected_ca": (r.calcium + 0.8 * (4.0 - r.albumin)) if (r and r.calcium and r.albumin) else (r.calcium if r else None),
             "phosphorus": r.phosphorus if r else None,
             "albumin": r.albumin if r else None,
             "ipth": r.ipth if r else None,
@@ -90,8 +90,8 @@ def compute_dashboard(db: Session, month: str = None):
         
         if r:
             name = p.name
-            # 1. Non-AVF Access
-            raw_access = (r.access_type or "").strip()
+            # 1. Non-AVF Access - Fallback to baseline if monthly record is missing it
+            raw_access = (r.access_type or p.access_type or "").strip()
             access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
             if access and access.upper() != "AVF":
                 metrics['non_avf']['count'] += 1
@@ -109,15 +109,16 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['trend_hb'].append({"name": name, "current": r.idwg})
                 row["alerts"].append("High IDWG")
                 
-            # 3. Albumin < 3.5 g/dL
-            if r.albumin and r.albumin < 3.5:
+            # 3. Albumin < 2.5 g/dL (User remapped from 3.5)
+            if r.albumin and r.albumin < 2.5:
                 metrics['albumin_low']['count'] += 1
                 metrics['albumin_low']['names'].append(name)
                 metrics['trend_albumin'].append({"name": name, "current": r.albumin})
                 row["alerts"].append("Low Albumin")
 
-            # 4. Corrected Calcium < 8.5 mg/dL
-            if r.calcium and r.calcium < 8.5:
+            # 4. Corrected Calcium < 8.0 mg/dL (User remapped from 8.5)
+            corr_ca = row["corrected_ca"]
+            if corr_ca and corr_ca < 8.0:
                 metrics['calcium_low']['count'] += 1
                 metrics['calcium_low']['names'].append(name)
                 row["alerts"].append("Low Calcium")
@@ -164,15 +165,18 @@ def get_patients_needing_alerts(db: Session, month: str = None):
         if not r:
             continue
         alerts = []
-        raw_access = (r.access_type or "").strip()
+        # Fallback to baseline if monthly record is missing it
+        raw_access = (r.access_type or p.access_type or "").strip()
         access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
         if access and access.upper() != "AVF":
             alerts.append("Non-AVF")
         if r.idwg and r.idwg > 2.5:
             alerts.append("High IDWG")
-        if r.albumin and r.albumin < 3.5:
+        if r.albumin and r.albumin < 2.5:
             alerts.append("Low Albumin")
-        if r.calcium and r.calcium < 8.5:
+        # Corrected Calcium check
+        _corr_ca = (r.calcium + 0.8 * (4.0 - r.albumin)) if (r.calcium and r.albumin) else r.calcium
+        if _corr_ca and _corr_ca < 8.0:
             alerts.append("Low Calcium")
         if r.phosphorus and r.phosphorus > 5.5:
             alerts.append("High Phos")

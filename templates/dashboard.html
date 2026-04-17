@@ -702,8 +702,8 @@
       {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False},
       {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False},
       {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"IDWG > 2.5Kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False},
-      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 3.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False},
-      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.5mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False},
+      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False},
+      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False},
       {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False},
       {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True},
     ] %}
@@ -850,7 +850,7 @@
             <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}">{{ "%.1f"|format(row.hb) if row.hb else "—" }}</td>
             <td data-label="Ferritin" class="{{ 'val-warn' if row.ferritin and row.ferritin>500 else ('val-ok' if row.ferritin else 'val-none') }}">{{ "%.0f"|format(row.ferritin) if row.ferritin else "—" }}</td>
             <td data-label="TSAT%" class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
-            <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.5 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.1f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
+            <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.1f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
             <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}">{{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}</td>
             <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}">{{ "%.1f"|format(row.albumin) if row.albumin else "—" }}</td>
             <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}">{{ "%.0f"|format(row.ipth) if row.ipth else "—" }}</td>
@@ -1170,35 +1170,44 @@ function refreshCards(data) {
   // Update each card value in-place without rebuilding the DOM
   const m = data.metrics;
 
-  // Map of card title substrings → new values
+  // Map of card title substrings → {count, names}
   const updates = {
-    "Total Patients":    m.total_patients?.count,
-    "Male":              m.male_patients?.count,
-    "Female":            m.female_patients?.count,
-    "Non-AVF":           m.non_avf?.count,
-    "IDWG":              m.idwg_high?.count,
-    "Albumin":           m.albumin_low?.count,
-    "Corrected Calcium": m.calcium_low?.count,
-    "High Phosphorus":   m.phos_high?.count,
-    "IV Iron":           m.iv_iron_rec?.count,
-    "EPO Hypo":          m.epo_hypo?.count,
+    "Total Patients":    m.total_patients,
+    "Male":              m.male_patients,
+    "Female":            m.female_patients,
+    "Non-AVF":           m.non_avf,
+    "IDWG":              m.idwg_high,
+    "Albumin":           m.albumin_low,
+    "Corrected Calcium": m.calcium_low,
+    "High Phosphorus":   m.phos_high,
+    "IV Iron":           m.iv_iron_rec,
+    "EPO Hypo":          m.epo_hypo,
   };
 
   document.querySelectorAll(".card").forEach(card => {
     const titleEl = card.querySelector(".title, .wide-card-header .title");
     const valueEl = card.querySelector(".value, .wide-card-header .value");
+    const tooltipEl = card.querySelector(".tooltip");
+    
     if (!titleEl || !valueEl) return;
 
     const titleText = titleEl.textContent.trim();
-    for (const [key, val] of Object.entries(updates)) {
-      if (titleText.includes(key)) {
+    for (const [key, dataObj] of Object.entries(updates)) {
+      if (titleText.includes(key) && dataObj) {
+        const val = dataObj.count;
         const old = parseInt(valueEl.textContent);
+        
+        // Update Value
         if (old !== val) {
           valueEl.textContent = val;
-          // Flash animation to draw attention
           valueEl.style.transition = "color 0.3s";
           valueEl.style.color = "#f39c12";
           setTimeout(() => { valueEl.style.color = ""; }, 1200);
+        }
+
+        // Update Tooltip Names
+        if (tooltipEl && dataObj.names) {
+          tooltipEl.textContent = dataObj.names.join("\n");
         }
       }
     }
