@@ -915,9 +915,9 @@ const FONT = { family:"'Roboto',sans-serif", size:12 };
 // Gender Pie
 Plotly.newPlot("genderChart", [{
   type:"pie",
-  values:[{{ data.metrics.male }}, {{ data.metrics.female }}, {{ data.metrics.unknown_sex }}],
-  labels:["Male","Female", "Unknown"],
-  marker:{ colors:["#4285F4","#EA4335", "#FBBC04"] },
+  values:[{{ data.metrics.male_patients.count }}, {{ data.metrics.female_patients.count }}],
+  labels:["Male","Female"],
+  marker:{ colors:["#4285F4","#EA4335"] },
   hole:0.4,
   textinfo:"percent+label",
   hovertemplate:"<b>%{label}</b><br>%{value} patients<extra></extra>",
