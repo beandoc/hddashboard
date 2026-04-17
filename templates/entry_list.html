@@ -25,6 +25,17 @@
             cursor:pointer; font-size:0.85em; transition:all .2s; 
         }
         .shift-btn.active { background:#1a237e; color:#fff; font-weight:bold; }
+        .freq-badge {
+            display:inline-block; font-size:0.72em; font-weight:700;
+            background:#e8f0fe; color:#1a237e; border-radius:4px;
+            padding:1px 7px; margin-right:4px; vertical-align:middle;
+        }
+        .slot-chip {
+            display:inline-block; font-size:0.78em;
+            background:#f1f5f9; color:#475569; border-radius:4px;
+            padding:2px 8px; margin:1px;
+        }
+        .no-slot { color:#bbb; font-size:0.8em; font-style:italic; }
     </style>
 </head>
 <body>
@@ -64,10 +75,18 @@
             </thead>
             <tbody>
                 {% for p in patients %}
+                {% set si = patient_slot_info[p.id] %}
                 <tr data-slots="{{ p.hd_slot_1 }} {{ p.hd_slot_2 }} {{ p.hd_slot_3 }}">
                     <td>{{ p.hid_no }}</td>
                     <td>{{ p.name }}</td>
-                    <td style="font-size:0.75em;color:#888;">{{ p.hd_slot_1 or "" }} {{ p.hd_slot_2 or "" }}</td>
+                    <td>
+                        <span class="freq-badge">{{ si.hd_frequency }}×/wk</span>
+                        {% for s in si.display_slots %}
+                            <span class="slot-chip">{{ s }}</span>
+                        {% else %}
+                            <span class="no-slot">—</span>
+                        {% endfor %}
+                    </td>
                     <td>
                         {% if p.id in existing_ids %}
                             <span class="status-done">✓ Completed</span>

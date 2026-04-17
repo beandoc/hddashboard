@@ -189,64 +189,129 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Primary HD Slot</label>
+                        <label>HD Frequency</label>
+                        <select name="hd_frequency">
+                            <option value="2" {{ 'selected' if not patient or (patient.hd_frequency or 2) == 2 }}>2× / week</option>
+                            <option value="3" {{ 'selected' if patient and patient.hd_frequency == 3 }}>3× / week</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>HD Slot 1 (Shift)</label>
                         <select name="hd_slot_1">
                             <option value="">-- No Slot --</option>
-                            <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_1 or '') }}>Morning (सकाळी)</option>
-                            <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_1 or '') }}>Afternoon (दुपारी)</option>
+                            <option value="Morning" {{ 'selected' if patient and patient.hd_slot_1 == 'Morning' }}>Morning (सकाळी)</option>
+                            <option value="Afternoon" {{ 'selected' if patient and patient.hd_slot_1 == 'Afternoon' }}>Afternoon (दुपारी)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Secondary HD Slot</label>
+                        <label>HD Slot 2 (Shift)</label>
                         <select name="hd_slot_2">
                             <option value="">-- No Slot --</option>
-                            <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_2 or '') }}>Morning (सकाळी)</option>
-                            <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_2 or '') }}>Afternoon (दुपारी)</option>
+                            <option value="Morning" {{ 'selected' if patient and patient.hd_slot_2 == 'Morning' }}>Morning (सकाळी)</option>
+                            <option value="Afternoon" {{ 'selected' if patient and patient.hd_slot_2 == 'Afternoon' }}>Afternoon (दुपारी)</option>
                         </select>
                     </div>
-                </div>
-            </div>
-
-            <div style="display:flex; gap:15px; margin-bottom:15px;">
-                <div style="flex:1;">
-                    <label>HD Slot 1 (Shift)</label>
-                    <select name="hd_slot_1">
-                        <option value="">-- No Slot --</option>
-                        <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_1 or '') }}>Morning (सकाळी)</option>
-                        <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_1 or '') }}>Afternoon (दुपारी)</option>
-                    </select>
-                </div>
-                <div style="flex:1;">
-                    <label>HD Slot 2 (Shift)</label>
-                    <select name="hd_slot_2">
-                        <option value="">-- No Slot --</option>
-                        <option value="Morning" {{ 'selected' if patient and 'Morning' in (patient.hd_slot_2 or '') }}>Morning (सकाळी)</option>
-                        <option value="Afternoon" {{ 'selected' if patient and 'Afternoon' in (patient.hd_slot_2 or '') }}>Afternoon (दुपारी)</option>
-                    </select>
+                    <div class="form-group">
+                        <label>HD Slot 3 (for 3×/wk)</label>
+                        <select name="hd_slot_3">
+                            <option value="">-- No Slot --</option>
+                            <option value="Morning" {{ 'selected' if patient and patient.hd_slot_3 == 'Morning' }}>Morning (सकाळी)</option>
+                            <option value="Afternoon" {{ 'selected' if patient and patient.hd_slot_3 == 'Afternoon' }}>Afternoon (दुपारी)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
             <div class="form-card">
-                <h3><i class="material-icons">vaccines</i> Vaccination Sentinel</h3>
+                <h3><i class="material-icons">vaccines</i> Vaccination Schedule</h3>
+
+                <!-- Hepatitis B — 1ml IM deltoid, 0-1-2-6 month schedule -->
+                <p style="font-size:0.8em;color:#555;margin:0 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">
+                    Hepatitis B — 1ml IM Deltoid &nbsp;|&nbsp; Schedule: 0 · 1 · 2 · 6 months
+                </p>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Hep B Status</label>
                         <select name="hep_b_status">
-                            <option value="">-- Select Status --</option>
-                            <option value="Immune" {{ 'selected' if patient and patient.hep_b_status == 'Immune' else '' }}>Immune (Titers > 100)</option>
-                            <option value="Non-Immune" {{ 'selected' if patient and patient.hep_b_status == 'Non-Immune' else '' }}>Non-Immune</option>
-                            <option value="In Progress" {{ 'selected' if patient and patient.hep_b_status == 'In Progress' else '' }}>Course In Progress</option>
-                            <option value="Unknown" {{ 'selected' if patient and patient.hep_b_status == 'Unknown' else '' }}>Unknown</option>
+                            <option value="">-- Select --</option>
+                            <option value="Immune" {{ 'selected' if patient and patient.hep_b_status == 'Immune' }}>Immune (Anti-HBs &gt; 100)</option>
+                            <option value="Non-Immune" {{ 'selected' if patient and patient.hep_b_status == 'Non-Immune' }}>Non-Immune</option>
+                            <option value="In Progress" {{ 'selected' if patient and patient.hep_b_status == 'In Progress' }}>Course In Progress</option>
+                            <option value="Unknown" {{ 'selected' if patient and patient.hep_b_status == 'Unknown' }}>Unknown</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Last Dose/Titer Date</label>
-                        <input type="date" name="hep_b_date" value="{{ patient.hep_b_date if patient and patient.hep_b_date else '' }}">
+                        <label>Dose 1 (Month 0)</label>
+                        <input type="date" name="hep_b_dose1_date" value="{{ patient.hep_b_dose1_date if patient and patient.hep_b_dose1_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Dose 2 (Month 1)</label>
+                        <input type="date" name="hep_b_dose2_date" value="{{ patient.hep_b_dose2_date if patient and patient.hep_b_dose2_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Dose 3 (Month 2)</label>
+                        <input type="date" name="hep_b_dose3_date" value="{{ patient.hep_b_dose3_date if patient and patient.hep_b_dose3_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Dose 4 (Month 6)</label>
+                        <input type="date" name="hep_b_dose4_date" value="{{ patient.hep_b_dose4_date if patient and patient.hep_b_dose4_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Anti-HBs Titer Check</label>
+                        <input type="date" name="hep_b_titer_date" value="{{ patient.hep_b_titer_date if patient and patient.hep_b_titer_date else '' }}">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label>Last Pneumococcal Vaccine Date</label>
-                    <input type="date" name="pneumococcal_date" value="{{ patient.pneumococcal_date if patient and patient.pneumococcal_date else '' }}">
+
+                <!-- Pneumococcal — 0.5ml SC, PCV13 then PPSV23 after 2 months -->
+                <p style="font-size:0.8em;color:#555;margin:16px 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">
+                    Pneumococcal — 0.5ml SC &nbsp;|&nbsp; PCV13 → PPSV23 after 2 months
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>PCV13 Date</label>
+                        <input type="date" name="pcv13_date" id="pcv13_date"
+                               value="{{ patient.pcv13_date if patient and patient.pcv13_date else '' }}"
+                               oninput="setDue('pcv13_date','ppsv23_due',60)">
+                    </div>
+                    <div class="form-group">
+                        <label>PPSV23 Date <span id="ppsv23_due" style="font-size:0.8em;color:#1a237e;font-weight:400"></span></label>
+                        <input type="date" name="ppsv23_date" value="{{ patient.ppsv23_date if patient and patient.ppsv23_date else '' }}">
+                    </div>
+                </div>
+
+                <!-- Herpes Zoster — 0.5ml SC, 2 doses 2 months apart -->
+                <p style="font-size:0.8em;color:#555;margin:16px 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">
+                    Herpes Zoster — 0.5ml SC &nbsp;|&nbsp; 2 doses 2 months apart
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Dose 1</label>
+                        <input type="date" name="hz_dose1_date" id="hz_dose1_date"
+                               value="{{ patient.hz_dose1_date if patient and patient.hz_dose1_date else '' }}"
+                               oninput="setDue('hz_dose1_date','hz_dose2_due',60)">
+                    </div>
+                    <div class="form-group">
+                        <label>Dose 2 <span id="hz_dose2_due" style="font-size:0.8em;color:#1a237e;font-weight:400"></span></label>
+                        <input type="date" name="hz_dose2_date" value="{{ patient.hz_dose2_date if patient and patient.hz_dose2_date else '' }}">
+                    </div>
+                </div>
+
+                <!-- Influenza — 0.5ml SC, yearly -->
+                <p style="font-size:0.8em;color:#555;margin:16px 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">
+                    Influenza — 0.5ml SC &nbsp;|&nbsp; Yearly
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Last Influenza Date</label>
+                        <input type="date" name="influenza_date" id="influenza_date"
+                               value="{{ patient.influenza_date if patient and patient.influenza_date else '' }}"
+                               oninput="setDue('influenza_date','influenza_due',365)">
+                    </div>
+                    <div class="form-group" style="align-self:flex-end;padding-bottom:8px;">
+                        <span id="influenza_due" style="font-size:0.85em;color:#1a237e;font-weight:600"></span>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer;">
@@ -264,6 +329,22 @@
         function toggleDrawer() {
             document.getElementById("mobileDrawer").classList.toggle("open");
         }
+
+        // Show "Due: DD MMM YYYY" hint when a source date is entered
+        function setDue(srcId, targetSpanId, offsetDays) {
+            const val = document.getElementById(srcId).value;
+            const span = document.getElementById(targetSpanId);
+            if (!val) { span.textContent = ""; return; }
+            const due = new Date(val);
+            due.setDate(due.getDate() + offsetDays);
+            span.textContent = "Due: " + due.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" });
+        }
+
+        // Trigger hints on page load if dates already set
+        ["pcv13_date","hz_dose1_date","influenza_date"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.value) el.dispatchEvent(new Event("input"));
+        });
     </script>
 </body>
 </html>

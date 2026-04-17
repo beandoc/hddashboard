@@ -31,16 +31,27 @@ class Patient(Base):
     diagnosis = Column(String)
     hd_wef_date = Column(Date)          # HD started date
     viral_markers = Column(String)      # HBsAg/HCV/HIV status
-    # Vaccination Tracking
-    hep_b_status = Column(String)       # Immune/Non-Immune/In Progress
-    hep_b_date = Column(Date)
-    pneumococcal_date = Column(Date)
+    # Vaccination Tracking — Hepatitis B (0-1-2-6 month schedule, 1ml IM deltoid)
+    hep_b_status = Column(String)       # Immune / Non-Immune / In Progress
+    hep_b_dose1_date = Column(Date)     # Month 0
+    hep_b_dose2_date = Column(Date)     # Month 1
+    hep_b_dose3_date = Column(Date)     # Month 2
+    hep_b_dose4_date = Column(Date)     # Month 6
+    hep_b_titer_date = Column(Date)     # Anti-HBs titer check date
+    # Pneumococcal (0.5ml SC)
+    pcv13_date = Column(Date)           # PCV13 initial dose
+    ppsv23_date = Column(Date)          # PPSV23 — 2 months after PCV13
+    # Herpes Zoster (0.5ml SC, 2 doses 2 months apart)
+    hz_dose1_date = Column(Date)
+    hz_dose2_date = Column(Date)
+    # Influenza (0.5ml SC, yearly)
     influenza_date = Column(Date)
     
     access_type = Column(String)        # AVF / Permacath / P-Cath / Graft
     access_date = Column(Date)
     dry_weight = Column(Float)          # kg
-    hd_slot_1 = Column(String)          # e.g. Mon/Wed/Fri Morning
+    hd_frequency = Column(Integer, default=2)   # Sessions per week: 2 or 3
+    hd_slot_1 = Column(String)                  # "Morning" or "Afternoon"
     hd_slot_2 = Column(String)
     hd_slot_3 = Column(String)
     whatsapp_link = Column(String)      # pre-built wa.me/91XXXXXXXXXX

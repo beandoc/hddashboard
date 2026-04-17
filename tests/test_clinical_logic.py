@@ -71,5 +71,5 @@ def test_iv_iron_recommendation(db):
     db.commit()
 
     data = compute_dashboard(db, "2026-04")
-    assert data["metrics"]["iv_iron"]["count"] == 1
-    assert "Anemic Patient" in data["metrics"]["iv_iron"]["names"]
+    assert data["metrics"]["iv_iron_rec"]["count"] == 1
+    assert "Anemic Patient" in data["metrics"]["iv_iron_rec"]["names"]

@@ -92,7 +92,11 @@ def compute_dashboard(db: Session, month: str = None):
             name = p.name
             # 1. Non-AVF Access - Fallback to baseline if monthly record is missing it
             raw_access = (r.access_type or p.access_type or "").strip()
-            access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
+            _a_upper = raw_access.upper()
+            if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC")):
+                access = "Permacath"
+            else:
+                access = raw_access
             if access and access.upper() != "AVF":
                 metrics['non_avf']['count'] += 1
                 metrics['non_avf']['names'].append(name)
@@ -140,7 +144,15 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['epo_hypo']['count'] += 1
                 metrics['epo_hypo']['names'].append(name)
                 row["alerts"].append("EPO Hypo")
-        
+
+            # 7. IV Iron Recommended: Hb < 10 AND (Ferritin < 500 OR TSAT < 30%)
+            if (r.hb and r.hb < 10 and
+                    ((r.serum_ferritin and r.serum_ferritin < 500) or
+                     (r.tsat and r.tsat < 30))):
+                metrics['iv_iron_rec']['count'] += 1
+                metrics['iv_iron_rec']['names'].append(name)
+                row["alerts"].append("IV Iron Rec")
+
         patient_rows.append(row)
 
     return {
@@ -167,7 +179,11 @@ def get_patients_needing_alerts(db: Session, month: str = None):
         alerts = []
         # Fallback to baseline if monthly record is missing it
         raw_access = (r.access_type or p.access_type or "").strip()
-        access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
+        _a_upper = raw_access.upper()
+        if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC")):
+            access = "Permacath"
+        else:
+            access = raw_access
         if access and access.upper() != "AVF":
             alerts.append("Non-AVF")
         if r.idwg and r.idwg > 2.5:

@@ -2,7 +2,6 @@
 HD Dashboard — FastAPI Application
 Multi-user hemodialysis patient data entry + clinical dashboard
 """
-import os
 import re
 from fastapi import FastAPI, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -12,17 +11,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, inspect
 from datetime import date, datetime
 from typing import Optional
-import json
 
 # Database engine and session for startup logic
-from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, engine, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, engine, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import (send_bulk_whatsapp_alerts, send_ward_email,
-                    generate_all_whatsapp_links, build_schedule_message,
-                    build_individual_whatsapp_link, send_whatsapp)
+                    build_schedule_message, build_individual_whatsapp_link, send_whatsapp)
 from ml_analytics import run_patient_analytics, run_cohort_analytics
-from dynamic_vars import (VariableDefinition, VariableValue, get_all_variables,
-    get_patient_variable_history, upsert_variable_value, seed_preset_variables)
+from dynamic_vars import (get_all_variables, seed_preset_variables)
 
 app = FastAPI(title="HD Dashboard")
 templates = Jinja2Templates(directory="templates")
@@ -79,9 +75,17 @@ def startup():
         p_missing = [
             ("relation_type", "VARCHAR"),
             ("hep_b_status", "VARCHAR"),
-            ("hep_b_date", "DATE"),
-            ("pneumococcal_date", "DATE"),
+            ("hep_b_dose1_date", "DATE"),
+            ("hep_b_dose2_date", "DATE"),
+            ("hep_b_dose3_date", "DATE"),
+            ("hep_b_dose4_date", "DATE"),
+            ("hep_b_titer_date", "DATE"),
+            ("pcv13_date", "DATE"),
+            ("ppsv23_date", "DATE"),
+            ("hz_dose1_date", "DATE"),
+            ("hz_dose2_date", "DATE"),
             ("influenza_date", "DATE"),
+            ("hd_frequency", "INTEGER"),
         ]
         for col, dtype in p_missing:
             if col not in p_existing:
@@ -195,12 +199,20 @@ def create_patient(
     hd_wef_date: Optional[str] = Form(None),
     viral_markers: str = Form(""),
     hep_b_status: str = Form(""),
-    hep_b_date: Optional[str] = Form(None),
-    pneumococcal_date: Optional[str] = Form(None),
+    hep_b_dose1_date: Optional[str] = Form(None),
+    hep_b_dose2_date: Optional[str] = Form(None),
+    hep_b_dose3_date: Optional[str] = Form(None),
+    hep_b_dose4_date: Optional[str] = Form(None),
+    hep_b_titer_date: Optional[str] = Form(None),
+    pcv13_date: Optional[str] = Form(None),
+    ppsv23_date: Optional[str] = Form(None),
+    hz_dose1_date: Optional[str] = Form(None),
+    hz_dose2_date: Optional[str] = Form(None),
     influenza_date: Optional[str] = Form(None),
     access_type: str = Form(""),
     access_date: Optional[str] = Form(None),
     dry_weight: Optional[float] = Form(None),
+    hd_frequency: int = Form(2),
     hd_slot_1: str = Form(""),
     hd_slot_2: str = Form(""),
     hd_slot_3: str = Form(""),
@@ -218,20 +230,23 @@ def create_patient(
             "user": get_user(request),
         })
 
+    def _d(s): return datetime.strptime(s, "%Y-%m-%d").date() if s else None
     _cn = re.sub(r"\D", "", contact_no.strip()) if contact_no else ""
     whatsapp_link = f"https://wa.me/91{_cn}" if len(_cn) == 10 else ""
 
     p = Patient(
         hid_no=hid_no, name=name, relation=relation, relation_type=relation_type,
         sex=sex, contact_no=contact_no, email=email, diagnosis=diagnosis,
-        hd_wef_date=datetime.strptime(hd_wef_date, "%Y-%m-%d").date() if hd_wef_date else None,
-        viral_markers=viral_markers, hep_b_status=hep_b_status,
-        hep_b_date=datetime.strptime(hep_b_date, "%Y-%m-%d").date() if hep_b_date else None,
-        pneumococcal_date=datetime.strptime(pneumococcal_date, "%Y-%m-%d").date() if pneumococcal_date else None,
-        influenza_date=datetime.strptime(influenza_date, "%Y-%m-%d").date() if influenza_date else None,
-        access_type=access_type,
-        access_date=datetime.strptime(access_date, "%Y-%m-%d").date() if access_date else None,
-        dry_weight=dry_weight, hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
+        hd_wef_date=_d(hd_wef_date), viral_markers=viral_markers, hep_b_status=hep_b_status,
+        hep_b_dose1_date=_d(hep_b_dose1_date), hep_b_dose2_date=_d(hep_b_dose2_date),
+        hep_b_dose3_date=_d(hep_b_dose3_date), hep_b_dose4_date=_d(hep_b_dose4_date),
+        hep_b_titer_date=_d(hep_b_titer_date),
+        pcv13_date=_d(pcv13_date), ppsv23_date=_d(ppsv23_date),
+        hz_dose1_date=_d(hz_dose1_date), hz_dose2_date=_d(hz_dose2_date),
+        influenza_date=_d(influenza_date),
+        access_type=access_type, access_date=_d(access_date),
+        dry_weight=dry_weight, hd_frequency=hd_frequency,
+        hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
         whatsapp_link=whatsapp_link, whatsapp_notify=whatsapp_notify, mail_trigger=mail_trigger,
     )
     db.add(p)
@@ -256,7 +271,6 @@ def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(g
 @app.post("/patients/{patient_id}/edit")
 def update_patient(
     patient_id: int,
-    request: Request,
     db: Session = Depends(get_db),
     hid_no: str = Form(...),
     name: str = Form(...),
@@ -269,12 +283,20 @@ def update_patient(
     hd_wef_date: Optional[str] = Form(None),
     viral_markers: str = Form(""),
     hep_b_status: str = Form(""),
-    hep_b_date: Optional[str] = Form(None),
-    pneumococcal_date: Optional[str] = Form(None),
+    hep_b_dose1_date: Optional[str] = Form(None),
+    hep_b_dose2_date: Optional[str] = Form(None),
+    hep_b_dose3_date: Optional[str] = Form(None),
+    hep_b_dose4_date: Optional[str] = Form(None),
+    hep_b_titer_date: Optional[str] = Form(None),
+    pcv13_date: Optional[str] = Form(None),
+    ppsv23_date: Optional[str] = Form(None),
+    hz_dose1_date: Optional[str] = Form(None),
+    hz_dose2_date: Optional[str] = Form(None),
     influenza_date: Optional[str] = Form(None),
     access_type: str = Form(""),
     access_date: Optional[str] = Form(None),
     dry_weight: Optional[float] = Form(None),
+    hd_frequency: int = Form(2),
     hd_slot_1: str = Form(""),
     hd_slot_2: str = Form(""),
     hd_slot_3: str = Form(""),
@@ -285,16 +307,21 @@ def update_patient(
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
 
+    def _d(s): return datetime.strptime(s, "%Y-%m-%d").date() if s else None
+
     p.hid_no = hid_no; p.name = name; p.relation = relation; p.relation_type = relation_type
     p.sex = sex; p.contact_no = contact_no; p.email = email; p.diagnosis = diagnosis
-    p.hd_wef_date = datetime.strptime(hd_wef_date, "%Y-%m-%d").date() if hd_wef_date else None
+    p.hd_wef_date = _d(hd_wef_date)
     p.viral_markers = viral_markers; p.hep_b_status = hep_b_status
-    p.hep_b_date = datetime.strptime(hep_b_date, "%Y-%m-%d").date() if hep_b_date else None
-    p.pneumococcal_date = datetime.strptime(pneumococcal_date, "%Y-%m-%d").date() if pneumococcal_date else None
-    p.influenza_date = datetime.strptime(influenza_date, "%Y-%m-%d").date() if influenza_date else None
-    p.access_type = access_type
-    p.access_date = datetime.strptime(access_date, "%Y-%m-%d").date() if access_date else None
-    p.dry_weight = dry_weight; p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
+    p.hep_b_dose1_date = _d(hep_b_dose1_date); p.hep_b_dose2_date = _d(hep_b_dose2_date)
+    p.hep_b_dose3_date = _d(hep_b_dose3_date); p.hep_b_dose4_date = _d(hep_b_dose4_date)
+    p.hep_b_titer_date = _d(hep_b_titer_date)
+    p.pcv13_date = _d(pcv13_date); p.ppsv23_date = _d(ppsv23_date)
+    p.hz_dose1_date = _d(hz_dose1_date); p.hz_dose2_date = _d(hz_dose2_date)
+    p.influenza_date = _d(influenza_date)
+    p.access_type = access_type; p.access_date = _d(access_date)
+    p.dry_weight = dry_weight; p.hd_frequency = hd_frequency
+    p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
     _cn = re.sub(r"\D", "", contact_no.strip()) if contact_no else ""
     p.whatsapp_link = f"https://wa.me/91{_cn}" if len(_cn) == 10 else ""
     p.whatsapp_notify = whatsapp_notify; p.mail_trigger = mail_trigger
@@ -308,14 +335,40 @@ def update_patient(
 # MONTHLY DATA ENTRY
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _build_patient_slot_info(p) -> dict:
+    """Return display_slots (shift names only, no stale dates) and effective hd_frequency."""
+    from datetime import timedelta
+    cutoff = date.today() - timedelta(days=7)
+    shift_names = {"morning", "afternoon"}
+    clean_slots = []
+    for raw in (p.hd_slot_1, p.hd_slot_2, p.hd_slot_3):
+        if not raw:
+            continue
+        val = raw.strip()
+        if val.lower() in shift_names:
+            clean_slots.append(val)
+        else:
+            # Try parsing as DD/MM/YYYY legacy date — only keep if within last week
+            try:
+                slot_date = datetime.strptime(val, "%d/%m/%Y").date()
+                if slot_date >= cutoff:
+                    clean_slots.append(val)
+            except ValueError:
+                clean_slots.append(val)  # unknown format — show as-is
+    freq = p.hd_frequency or len([s for s in (p.hd_slot_1, p.hd_slot_2, p.hd_slot_3) if s]) or 2
+    return {"display_slots": clean_slots, "hd_frequency": freq}
+
+
 @app.get("/entry", response_class=HTMLResponse)
 def entry_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     existing_ids = {r.patient_id for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()}
+    patient_slot_info = {p.id: _build_patient_slot_info(p) for p in patients}
     return templates.TemplateResponse("entry_list.html", {
         "request": request,
         "patients": patients,
+        "patient_slot_info": patient_slot_info,
         "month_str": month_str,
         "month_label": get_month_label(month_str),
         "existing_ids": existing_ids,
@@ -338,7 +391,7 @@ def entry_form(patient_id: int, request: Request, month: Optional[str] = None, d
 
 @app.post("/entry/{patient_id}")
 def save_entry(
-    patient_id: int, request: Request, db: Session = Depends(get_db),
+    patient_id: int, db: Session = Depends(get_db),
     month_str: str = Form(...),
     entered_by: str = Form(""),
     access_type: str = Form(""),
