@@ -402,3 +402,26 @@ def variable_manager(request: Request, db: Session = Depends(get_db)):
         "default_from": "2023-01", "default_to": get_current_month_str(),
         "user": get_user(request),
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# API ENDPOINTS (for JS polling)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/dashboard")
+def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db)):
+    month_str = month or get_current_month_str()
+    try:
+        data = compute_dashboard(db, month_str)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse(content=data)
+
+
+@app.get("/api/cohort-trends")
+def api_cohort_trends(db: Session = Depends(get_db)):
+    try:
+        data = run_cohort_analytics(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse(content=data)
