@@ -591,6 +591,17 @@
           <span class="title">{{ c.title }}</span>
           <span class="value">{{ c.value }}</span>
         </div>
+        {% if user and user.role == "admin" %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
+            Admin
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="/admin/users">User Management</a></li>
+            <li><a class="dropdown-item" href="/admin/logs">System Logs</a></li>
+          </ul>
+        </li>
+        {% endif %}
         {% if c.names %}
         <ul class="visible-list">
           {% for n in c.names %}<li>{{ n }}</li>{% endfor %}

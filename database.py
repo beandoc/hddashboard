@@ -24,12 +24,19 @@ class Patient(Base):
     hid_no = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
     relation = Column(String)           # Next of kin / Guardian
+    relation_type = Column(String)      # Son/Daughter/Spouse
     sex = Column(String)                # Male / Female / Other
     contact_no = Column(String)
     email = Column(String)
     diagnosis = Column(String)
     hd_wef_date = Column(Date)          # HD started date
     viral_markers = Column(String)      # HBsAg/HCV/HIV status
+    # Vaccination Tracking
+    hep_b_status = Column(String)       # Immune/Non-Immune/In Progress
+    hep_b_date = Column(Date)
+    pneumococcal_date = Column(Date)
+    influenza_date = Column(Date)
+    
     access_type = Column(String)        # AVF / Permacath / P-Cath / Graft
     access_date = Column(Date)
     dry_weight = Column(Float)          # kg
@@ -81,9 +88,12 @@ class MonthlyRecord(Base):
     ast = Column(Float)                             # IU/L
     alt = Column(Float)                             # IU/L
     urr = Column(Float)                             # Urea Reduction Ratio (%)
-    epo_weekly_units = Column(Float)                # total units/week
+    # Vital signs
+    target_dry_weight = Column(Float)               # kg
+    idwg = Column(Float)                            # kg
     bp_sys = Column(Float)                          # Systolic BP (mmHg)
     crp = Column(Float)                             # C-Reactive Protein (mg/L)
+    epo_weekly_units = Column(Float)                # total units/week
 
     # Clinical Notes
     issues = Column(Text)
