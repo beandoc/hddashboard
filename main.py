@@ -103,9 +103,9 @@ def startup():
     try:
         import push_historic_data
         push_historic_data.run()
-        logger.info("✅ Retrospective data sync complete.")
+        print("✅ Retrospective data sync complete.")
     except Exception as e:
-        logger.warning(f"⚠️  Retrospective sync skipped: {e}")
+        print(f"⚠️  Retrospective sync skipped: {e}")
 
 # Helper to inject user into every template
 def get_user(request: Request):
