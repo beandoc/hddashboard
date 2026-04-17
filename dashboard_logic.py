@@ -9,6 +9,7 @@ from sqlalchemy import func
 from database import Patient, MonthlyRecord
 from datetime import datetime
 import logging
+from ml_analytics import normalize_epo_dose
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +129,13 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['trend_phosphorus'].append({"name": name, "current": r.phosphorus})
                 row["alerts"].append("High Phos")
 
-            # 6. EPO Hypo-response
-            if r.hb and r.hb < 10 and r.epo_weekly_units and r.epo_weekly_units > 10000:
+            # 6. EPO Hypo-response (normalise Mircera/Darbepoetin to weekly IU equiv)
+            _epo_iu = r.epo_weekly_units
+            if _epo_iu is None and r.epo_mircera_dose:
+                _parsed = normalize_epo_dose(r.epo_mircera_dose)
+                if _parsed.get("confidence") == "high":
+                    _epo_iu = _parsed.get("weekly_iu")
+            if r.hb and r.hb < 10 and _epo_iu and _epo_iu > 10000:
                 metrics['epo_hypo']['count'] += 1
                 metrics['epo_hypo']['names'].append(name)
                 row["alerts"].append("EPO Hypo")
@@ -170,7 +176,12 @@ def get_patients_needing_alerts(db: Session, month: str = None):
             alerts.append("Low Calcium")
         if r.phosphorus and r.phosphorus > 5.5:
             alerts.append("High Phos")
-        if r.hb and r.hb < 10 and r.epo_weekly_units and r.epo_weekly_units > 10000:
+        _epo_iu = r.epo_weekly_units
+        if _epo_iu is None and r.epo_mircera_dose:
+            _parsed = normalize_epo_dose(r.epo_mircera_dose)
+            if _parsed.get("confidence") == "high":
+                _epo_iu = _parsed.get("weekly_iu")
+        if r.hb and r.hb < 10 and _epo_iu and _epo_iu > 10000:
             alerts.append("EPO Hypo")
         if alerts:
             result.append({

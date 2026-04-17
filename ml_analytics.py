@@ -21,41 +21,150 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-# ── EPO Dose Normalization ────────────────────────────────────────────────────
+# ── ESA Dose Normalization ────────────────────────────────────────────────────
+#
+# All ESAs are normalised to a single common currency: weekly EPO-IU equivalents.
+#
+# Conversion chain (per published clinical guidance):
+#   Darbepoetin 1 mcg/week  = 200 IU/week  epoetin
+#   Mircera (monthly)       → weekly darbepoetin equiv = monthly_mcg ÷ 4
+#                           → weekly IU equiv          = (monthly_mcg ÷ 4) × 200
+#                                                      = monthly_mcg × 50
+#   Mircera (biweekly)      → weekly IU equiv          = biweekly_mcg × 100
+#
+# Mircera threshold bands (for equivalence checks):
+#   < 8 000 IU/week epoetin  ↔  < 40 mcg/week darbepoetin  →  120 mcg/month Mircera
+#   8 000–16 000 IU/week     ↔  40–80 mcg/week darbepoetin  →  180 mcg/month Mircera
+
+_MIRCERA_SYNONYMS   = {"mircera", "peginesatide", "cera", "methoxy peg", "mpg-epo", "erypeg"}
+_DARBE_SYNONYMS     = {"darbepoetin", "aranesp", "darb", "darbp"}
+_EPOETIN_SYNONYMS   = {"epoetin", "epo", "erythropoietin", "procrit", "epogen", "neorecormon"}
+
 
 def normalize_epo_dose(dose_str: str) -> dict:
-    """Convert any EPO dose string to weekly IU equivalents."""
-    if not dose_str:
-        return {"weekly_iu": None, "original": None, "drug_type": None, "confidence": None}
+    """
+    Convert any ESA dose string to weekly IU equivalents.
 
-    s = dose_str.lower()
+    Returns dict with keys:
+      weekly_iu   – float IU/week EPO equivalent, or None
+      drug_type   – 'epoetin' | 'darbepoetin' | 'mircera' | 'unknown'
+      frequency   – 'weekly' | 'biweekly' | 'monthly' | 'tiw' | 'biw' | 'unknown'
+      dose_value  – numeric dose as entered (IU for epoetin, mcg for darbe/mircera)
+      original    – raw input string
+      confidence  – 'high' | 'low'
+    """
+    null = {"weekly_iu": None, "drug_type": None, "frequency": None,
+            "dose_value": None, "original": None, "confidence": None}
+    if not dose_str:
+        return null
+
+    s = dose_str.lower().strip()
     numbers = re.findall(r"\d+(?:\.\d+)?", s)
     if not numbers:
-        return {"weekly_iu": None, "original": dose_str, "drug_type": "unknown", "confidence": "low"}
+        return {**null, "original": dose_str, "drug_type": "unknown", "confidence": "low"}
 
     dose_value = float(numbers[0])
-    drug_type = "unknown"
-    multiplier = 1.0
+    drug_type  = "unknown"
+    frequency  = "unknown"
+    weekly_iu  = None
 
-    if "mircera" in s or "peginesatide" in s:
+    # ── Detect drug type ──────────────────────────────────────────────────────
+    if any(k in s for k in _MIRCERA_SYNONYMS):
         drug_type = "mircera"
-        multiplier = 25.0          # 100 mcg/month → ~25 IU/week EPO equiv
-    elif "darbepoetin" in s or "aranesp" in s:
+    elif any(k in s for k in _DARBE_SYNONYMS):
         drug_type = "darbepoetin"
-        multiplier = 200.0         # 1 mcg = ~200 IU EPO equiv
-    elif "epo" in s or "epoetin" in s:
+    elif any(k in s for k in _EPOETIN_SYNONYMS):
         drug_type = "epoetin"
-        if "tiw" in s:
-            dose_value *= 3        # 3×/week → weekly total
-        elif "biw" in s:
-            dose_value *= 2        # 2×/week → weekly total
+
+    # ── Detect administration frequency ──────────────────────────────────────
+    if "monthly" in s or "/month" in s or "qmonth" in s or "q4w" in s:
+        frequency = "monthly"
+    elif "biweekly" in s or "fortnight" in s or "/2w" in s or "q2w" in s or "eow" in s:
+        frequency = "biweekly"
+    elif "tiw" in s or "3x" in s or "three" in s:
+        frequency = "tiw"
+    elif "biw" in s or "2x" in s or "twice" in s:
+        frequency = "biw"
+    elif "weekly" in s or "/week" in s or "/wk" in s:
+        frequency = "weekly"
+
+    # ── Mircera (methoxy-PEG epoetin beta) ───────────────────────────────────
+    if drug_type == "mircera":
+        # Default Mircera to monthly if no frequency token found
+        if frequency == "unknown":
+            frequency = "monthly"
+
+        if frequency == "monthly":
+            # monthly_mcg × 50  =  (mcg/month ÷ 4 weeks) × 200 IU/mcg
+            weekly_iu = dose_value * 50.0
+        elif frequency == "biweekly":
+            # biweekly_mcg × 100  =  (mcg/2w ÷ 2 weeks) × 200 IU/mcg
+            weekly_iu = dose_value * 100.0
+
+    # ── Darbepoetin alfa ──────────────────────────────────────────────────────
+    elif drug_type == "darbepoetin":
+        if frequency == "unknown":
+            frequency = "weekly"
+
+        if frequency == "weekly":
+            weekly_iu = dose_value * 200.0        # 1 mcg/week = 200 IU/week
+        elif frequency == "biweekly":
+            # biweekly dose ÷ 2 = weekly mcg, then × 200
+            weekly_iu = (dose_value / 2) * 200.0
+
+    # ── Epoetin alfa / beta ───────────────────────────────────────────────────
+    elif drug_type == "epoetin":
+        if frequency in ("tiw", "unknown") and "tiw" in s:
+            weekly_iu = dose_value * 3
+            frequency = "tiw"
+        elif frequency == "biw" or "biw" in s:
+            weekly_iu = dose_value * 2
+            frequency = "biw"
+        else:
+            # single weekly dose or ambiguous — treat as per-session × 3 if IU < 10000
+            # (most centres dose epoetin TIW; single doses >30000 IU are genuinely weekly)
+            if frequency == "unknown":
+                frequency = "tiw" if dose_value <= 10000 else "weekly"
+                weekly_iu = dose_value * 3 if frequency == "tiw" else dose_value
+            else:
+                weekly_iu = dose_value
+
+    if weekly_iu is not None:
+        weekly_iu = round(weekly_iu, 2)
 
     return {
-        "weekly_iu": round(dose_value * multiplier, 2),
-        "original": dose_str,
+        "weekly_iu": weekly_iu,
         "drug_type": drug_type,
+        "frequency": frequency,
+        "dose_value": dose_value,
+        "original": dose_str,
         "confidence": "high" if drug_type != "unknown" else "low",
     }
+
+
+def get_mircera_equivalent(epoetin_weekly_iu: float = None,
+                            darbepoetin_weekly_mcg: float = None) -> dict:
+    """
+    Return the recommended Mircera monthly dose given an epoetin or darbepoetin dose.
+    Used as a feature-engineering helper for the ML pipeline.
+    """
+    if epoetin_weekly_iu is not None:
+        if epoetin_weekly_iu < 8000:
+            return {"mircera_monthly_mcg": 120, "band": "<8000 IU/week", "basis": "epoetin"}
+        elif epoetin_weekly_iu <= 16000:
+            return {"mircera_monthly_mcg": 180, "band": "8000–16000 IU/week", "basis": "epoetin"}
+        else:
+            return {"mircera_monthly_mcg": 200, "band": ">16000 IU/week", "basis": "epoetin"}
+
+    if darbepoetin_weekly_mcg is not None:
+        if darbepoetin_weekly_mcg < 40:
+            return {"mircera_monthly_mcg": 120, "band": "<40 mcg/week", "basis": "darbepoetin"}
+        elif darbepoetin_weekly_mcg <= 80:
+            return {"mircera_monthly_mcg": 180, "band": "40–80 mcg/week", "basis": "darbepoetin"}
+        else:
+            return {"mircera_monthly_mcg": 200, "band": ">80 mcg/week", "basis": "darbepoetin"}
+
+    return {"mircera_monthly_mcg": None, "band": None, "basis": None}
 
 
 def _parse_epo_dose(dose_str: Optional[str]) -> Optional[float]:
@@ -199,18 +308,42 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
     }
 
 
-# ── EPO Hypo-Response ─────────────────────────────────────────────────────────
+# ── ESA Response Assessment ───────────────────────────────────────────────────
+
+def _resolve_weekly_iu(record: dict) -> Optional[float]:
+    """Return weekly IU equivalent from a record, preferring stored value then parsing dose string."""
+    stored = record.get("epo_weekly_units")
+    if stored is not None:
+        return float(stored)
+    dose_str = record.get("epo_mircera_dose")
+    if dose_str:
+        parsed = normalize_epo_dose(dose_str)
+        if parsed.get("confidence") == "high":
+            return parsed.get("weekly_iu")
+    return None
+
 
 def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001
+    """
+    Assess ESA (Epoetin / Darbepoetin / Mircera) response quality.
+
+    Response classification:
+      excellent      Hb ≥ 11.5 g/dL on any dose
+      adequate       10 ≤ Hb < 11.5 g/dL
+      suboptimal     Hb 10–11.5 but on high dose (>10 000 IU/week)
+      hypo-response  Hb < 10 g/dL AND dose > 10 000 IU/week
+      severe         Hb < 8.5 g/dL AND dose > 10 000 IU/week
+
+    Returns a dict compatible with the existing analytics API.
+    """
     if not df:
         return {"hypo_response": False, "status": "No Data", "class": "warning",
                 "message": "No records.", "ready": False, "confidence": "insufficient"}
 
-    # Gate: require 3+ months with BOTH Hb and an EPO dose entry
+    # Gate: require 3+ months with BOTH Hb and any ESA dose entry
     complete_pairs = [
         r for r in df
-        if r.get("hb") is not None
-        and (r.get("epo_weekly_units") is not None or r.get("epo_mircera_dose"))
+        if r.get("hb") is not None and _resolve_weekly_iu(r) is not None
     ]
 
     if len(complete_pairs) < 3:
@@ -221,33 +354,103 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
             "ready": False,
             "confidence": "insufficient",
             "message": (
-                f"Need 3+ months with both Hb and EPO dose recorded "
+                f"Need 3+ months with both Hb and ESA dose recorded "
                 f"(currently have {len(complete_pairs)})."
             ),
         }
 
     latest = df[0]
-    hb = latest.get("hb") or 0
-    dose = latest.get("epo_weekly_units")
-    if dose is None and latest.get("epo_mircera_dose"):
-        normalized = normalize_epo_dose(latest["epo_mircera_dose"])
-        if normalized.get("confidence") == "high":
-            dose = normalized.get("weekly_iu")
-    dose = dose or 0
+    hb   = latest.get("hb") or 0
+    dose = _resolve_weekly_iu(latest) or 0
 
-    hypo_response = (0 < hb < 10.0) and (dose > 10000)
-    severity = ("severe" if hb < 8.5 else "significant") if hypo_response else "none"
+    # Identify drug type for richer reporting
+    drug_type = "unknown"
+    dose_str = latest.get("epo_mircera_dose", "")
+    if dose_str:
+        drug_type = normalize_epo_dose(dose_str).get("drug_type", "unknown")
+
+    # Mircera equivalence band (for display in analytics)
+    mircera_equiv = None
+    if drug_type != "mircera" and dose > 0:
+        mircera_equiv = get_mircera_equivalent(epoetin_weekly_iu=dose)
+
+    # ── Classify response ─────────────────────────────────────────────────────
+    hypo_response = False
+    severity      = "none"
+    response_class = "excellent"
+
+    if dose > 0:
+        if hb < 8.5 and dose > 10000:
+            hypo_response  = True
+            severity       = "severe"
+            response_class = "severe"
+        elif hb < 10.0 and dose > 10000:
+            hypo_response  = True
+            severity       = "significant"
+            response_class = "hypo"
+        elif hb < 10.0:
+            response_class = "suboptimal"
+        elif hb < 11.5:
+            response_class = "adequate"
+        else:
+            response_class = "excellent"
+
     confidence = "high" if len(complete_pairs) >= 6 else "moderate"
+
+    # ── Build human-readable message ──────────────────────────────────────────
+    drug_label = {"epoetin": "Epoetin", "darbepoetin": "Darbepoetin",
+                  "mircera": "Mircera"}.get(drug_type, "ESA")
+    dose_display = f"{int(dose):,} IU/week equiv" if dose else "unknown dose"
+
+    if severity == "severe":
+        message = (
+            f"Severe hypo-response: Hb {hb} g/dL on {drug_label} "
+            f"({dose_display}). Urgent: check iron saturation, "
+            f"inflammation (CRP), marrow suppression."
+        )
+    elif severity == "significant":
+        message = (
+            f"Hypo-response: Hb {hb} g/dL on high-dose {drug_label} "
+            f"({dose_display}). Review iron stores, access recirculation, "
+            f"compliance, and consider ESA resistance workup."
+        )
+        if mircera_equiv and drug_type != "mircera":
+            message += (
+                f" Mircera switch option: "
+                f"{mircera_equiv['mircera_monthly_mcg']} mcg/month."
+            )
+    elif response_class == "suboptimal":
+        message = f"Suboptimal Hb {hb} g/dL — consider dose uptitration or iron supplementation."
+    elif response_class == "adequate":
+        message = f"Adequate response — Hb {hb} g/dL on {drug_label} ({dose_display})."
+    else:
+        message = f"Excellent ESA response — Hb {hb} g/dL on {drug_label} ({dose_display})."
+
+    css_class = (
+        "danger"  if severity in ("severe", "significant") else
+        "warning" if response_class == "suboptimal" else
+        "success"
+    )
 
     return {
         "hypo_response": hypo_response,
         "severity": severity,
-        "status": severity.capitalize() if hypo_response else "Adequate",
-        "class": "danger" if severity == "severe" else "warning" if hypo_response else "success",
+        "response_class": response_class,
+        "status": {
+            "severe":     "Severe Hypo-Response",
+            "significant":"Hypo-Response",
+            "suboptimal": "Suboptimal",
+            "adequate":   "Adequate",
+            "excellent":  "Excellent",
+        }.get(response_class, "Unknown"),
+        "class": css_class,
         "ready": True,
         "confidence": confidence,
         "n_points": len(complete_pairs),
-        "message": "Review iron stores and resistance." if hypo_response else "Responsive to EPO therapy.",
+        "drug_type": drug_type,
+        "weekly_iu_equiv": dose,
+        "mircera_monthly_equiv": mircera_equiv,
+        "message": message,
     }
 
 

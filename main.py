@@ -17,7 +17,9 @@ import json
 # Database engine and session for startup logic
 from database import get_db, create_tables, Patient, MonthlyRecord, AlertLog, engine, SessionLocal
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
-from alerts import send_bulk_whatsapp_alerts, send_ward_email, generate_all_whatsapp_links
+from alerts import (send_bulk_whatsapp_alerts, send_ward_email,
+                    generate_all_whatsapp_links, build_schedule_message,
+                    build_individual_whatsapp_link, send_whatsapp)
 from ml_analytics import run_patient_analytics, run_cohort_analytics
 from dynamic_vars import (VariableDefinition, VariableValue, get_all_variables,
     get_patient_variable_history, upsert_variable_value, seed_preset_variables)
@@ -446,6 +448,73 @@ def api_cohort_trends(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return JSONResponse(content=data)
+
+
+@app.get("/whatsapp-links", response_class=HTMLResponse)
+def whatsapp_links_page(month: Optional[str] = None, request: Request = None,
+                         db: Session = Depends(get_db)):
+    month_str = month or get_current_month_str()
+    month_label = get_month_label(month_str)
+    alert_patients = get_patients_needing_alerts(db, month_str)
+
+    # Alert links — one per patient, includes labs + schedule + remarks
+    alert_links = []
+    for ap in alert_patients:
+        p = ap["patient"]
+        rec_obj = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == p.id,
+            MonthlyRecord.record_month == month_str
+        ).first()
+        link = build_individual_whatsapp_link(p, rec_obj, month_label)
+        alert_links.append({
+            "name": p.name, "hid": p.hid_no, "contact": p.contact_no,
+            "alerts": ap["alerts"], "link": link,
+        })
+
+    # Schedule links — all active patients with contact number
+    active = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    schedule_links = []
+    for p in active:
+        if not p.contact_no:
+            continue
+        rec_obj = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == p.id,
+            MonthlyRecord.record_month == month_str
+        ).first()
+        slots = [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3]
+        remarks = (rec_obj.issues or "") if rec_obj else ""
+        msg = build_schedule_message(p.name, slots, remarks)
+        _, link = send_whatsapp(p.contact_no, msg)
+        schedule_links.append({
+            "name": p.name, "hid": p.hid_no, "contact": p.contact_no,
+            "slots": [s for s in slots if s],
+            "remarks": remarks, "link": link,
+        })
+
+    return templates.TemplateResponse("whatsapp_links.html", {
+        "request": request, "alert_links": alert_links,
+        "schedule_links": schedule_links, "month_str": month_str,
+        "month_label": month_label, "user": get_user(request),
+    })
+
+
+@app.get("/api/wa-link/{patient_id}")
+def api_wa_link(patient_id: int, month: Optional[str] = None,
+                db: Session = Depends(get_db)):
+    """Return a one-to-one wa.me link for a single patient (dashboard row button)."""
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if not p.contact_no:
+        raise HTTPException(status_code=400, detail="No contact number on file")
+    month_str = month or get_current_month_str()
+    month_label = get_month_label(month_str)
+    rec_obj = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month == month_str
+    ).first()
+    link = build_individual_whatsapp_link(p, rec_obj, month_label)
+    return JSONResponse(content={"url": link})
 
 
 @app.post("/api/send-whatsapp")

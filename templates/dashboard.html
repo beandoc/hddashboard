@@ -741,6 +741,12 @@
       Send WhatsApp Alerts
     </button>
     <button class="btn-email" onclick="sendEmailReport()">📧 Send Ward Report Email</button>
+    <a href="/whatsapp-links?month={{ month_str }}"
+       style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+              background:#075e54;color:#fff;border-radius:8px;text-decoration:none;
+              font-size:0.85em;font-weight:600;">
+      📋 WhatsApp Gateway
+    </a>
     <span class="alert-status" id="alertStatus"></span>
   </div>
 
@@ -858,6 +864,17 @@
               {% endif %}
             </td>
             {% if user and user.role != 'nurse' %}<td data-label="Timeline"><a href="/patients/{{ row.id }}/timeline" style="color:#1a237e">📈 View</a></td>{% endif %}
+            <td data-label="WhatsApp">
+              {% if row.has_record %}
+                <button onclick="sendIndividualWa({{ row.id }}, this)"
+                  title="Send WhatsApp to {{ row.name }}"
+                  style="background:#25d366;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.8em;">
+                  📲
+                </button>
+              {% else %}
+                <span style="color:#bbb;font-size:0.8em">—</span>
+              {% endif %}
+            </td>
             <td data-label="Action"><a href="/entry/{{ row.id }}?month={{ month_str }}" style="font-size:0.78em;color:#007bff;text-decoration:none">{{ "Edit" if row.has_record else "Enter" }}</a></td>
           </tr>
           {% endfor %}
@@ -1062,6 +1079,14 @@ function confirmSendWa() {
     .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
     .then(d => { s.textContent = d.message || "✅ Done."; })
     .catch(err => { s.textContent = "❌ " + (err || "Error — check server logs."); });
+}
+function sendIndividualWa(patientId, btn) {
+  btn.textContent = "⏳";
+  btn.disabled = true;
+  fetch(`/api/wa-link/${patientId}?month=${MONTH_STR}`)
+    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail)))
+    .then(d => { window.open(d.url, "_blank"); btn.textContent = "📲"; btn.disabled = false; })
+    .catch(err => { btn.textContent = "❌"; btn.disabled = false; alert(err || "No contact number on file."); });
 }
 function sendEmailReport() {
   const s = document.getElementById("alertStatus");

@@ -22,6 +22,7 @@ SMTP_USER     = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 DOCTOR_EMAIL  = os.getenv("DOCTOR_EMAIL", "chiin.says@gmail.com")
 CLINIC_NAME   = os.getenv("CLINIC_NAME", "CH(SC) Nephrology")
+CLINIC_PHONE  = os.getenv("CLINIC_PHONE", "9665183839")   # WhatsApp Business number
 
 # Twilio (optional — only used if credentials present)
 TWILIO_SID     = os.getenv("TWILIO_ACCOUNT_SID", "")
@@ -78,6 +79,103 @@ def generate_whatsapp_link(contact_no: str, message: str) -> str:
     number = number.lstrip("+")
     encoded_message = quote(message)
     return f"https://wa.me/{number}?text={encoded_message}"
+
+
+def build_schedule_message(patient_name: str, slots: list,
+                            remarks: str = None) -> str:
+    """
+    Build the HD schedule WhatsApp message for one patient.
+    slots = [slot_1, slot_2, slot_3]  (any may be None)
+    """
+    filled = [s.strip() for s in slots if s and s.strip()]
+    schedule_text = "\n".join(f"  • {s}" for s in filled) if filled else "  • (Schedule to be confirmed)"
+
+    remarks_section = ""
+    if remarks and remarks.strip():
+        remarks_section = f"\n\nDoctor's Note:\n  {remarks.strip()}"
+
+    return (
+        f"Dear {patient_name},\n\n"
+        f"Your Hemodialysis Schedule at {CLINIC_NAME}:\n"
+        f"{schedule_text}"
+        f"{remarks_section}\n\n"
+        f"Please report 15 minutes before your session.\n"
+        f"For any queries contact us:\n"
+        f"📞 {CLINIC_PHONE}\n"
+        f"Thank you."
+    )
+
+
+def send_whatsapp(contact_no: str, message: str) -> tuple:
+    """
+    Return a wa.me link for the given contact and message.
+    When opened on the clinic phone (WhatsApp Business), the message
+    is sent FROM the clinic TO the patient.
+    Returns (True, wa_me_url).
+    """
+    link = generate_whatsapp_link(contact_no, message)
+    return True, link
+
+
+def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
+    """
+    Build a complete one-to-one wa.me link for a patient that includes:
+      - Clinical alerts (if any)
+      - HD schedule slots
+      - Doctor's remarks from the monthly record
+    """
+    alerts = []
+    if record:
+        from ml_analytics import normalize_epo_dose as _nep
+
+        raw_access = (getattr(record, "access_type", "") or "").strip()
+        access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
+        if access and access.upper() != "AVF":
+            alerts.append("Non-AVF Access")
+        if record.idwg and record.idwg > 2.5:
+            alerts.append(f"High IDWG ({record.idwg} kg)")
+        if record.albumin and record.albumin < 3.5:
+            alerts.append(f"Low Albumin ({record.albumin} g/dL)")
+        if record.calcium and record.calcium < 8.5:
+            alerts.append(f"Low Calcium ({record.calcium} mg/dL)")
+        if record.phosphorus and record.phosphorus > 5.5:
+            alerts.append(f"High Phosphorus ({record.phosphorus} mg/dL)")
+        _epo_iu = record.epo_weekly_units
+        if _epo_iu is None and record.epo_mircera_dose:
+            _p = _nep(record.epo_mircera_dose)
+            if _p.get("confidence") == "high":
+                _epo_iu = _p.get("weekly_iu")
+        if record.hb and record.hb < 10 and _epo_iu and _epo_iu > 10000:
+            alerts.append(f"EPO Hypo-response (Hb {record.hb} g/dL)")
+
+    slots = [patient.hd_slot_1, patient.hd_slot_2, patient.hd_slot_3]
+    filled_slots = [s.strip() for s in slots if s and s.strip()]
+    schedule_text = "\n".join(f"  • {s}" for s in filled_slots) if filled_slots else "  • (To be confirmed)"
+
+    remarks = (getattr(record, "issues", None) or "").strip() if record else ""
+
+    alert_section = ""
+    if alerts:
+        alert_text = "\n".join(f"  ⚠ {a}" for a in alerts)
+        alert_section = (
+            f"\n🔔 Clinical Alerts ({month_label}):\n"
+            f"{alert_text}\n"
+            f"Please contact the nephrology team for follow-up.\n"
+        )
+
+    remarks_section = f"\nDoctor's Note:\n  {remarks}\n" if remarks else ""
+
+    message = (
+        f"Dear {patient.name},\n\n"
+        f"Your HD review from {CLINIC_NAME}:\n"
+        f"{alert_section}"
+        f"\n📅 Your HD Schedule:\n"
+        f"{schedule_text}\n"
+        f"{remarks_section}"
+        f"\nFor queries: 📞 {CLINIC_PHONE}\n"
+        f"Thank you."
+    )
+    return generate_whatsapp_link(patient.contact_no, message) if patient.contact_no else "#"
 
 
 def generate_all_whatsapp_links(alert_patients: list, month_label: str) -> list:
