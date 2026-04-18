@@ -695,6 +695,7 @@ def run_patient_analytics(db: Session, patient_id: int) -> Dict:
         .limit(12)
         .all()
     )
+    df = [
         {
             "month": r.record_month,
             "hb": r.hb,
