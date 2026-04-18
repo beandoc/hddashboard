@@ -163,16 +163,23 @@ def compute_dashboard(db: Session, month: str = None):
                 })
                 row["alerts"].append("High Phos")
 
-            # 6. EPO Hypo-response (normalise Mircera/Darbepoetin to weekly IU equiv)
-            _epo_iu = r.epo_weekly_units
-            if _epo_iu is None and r.epo_mircera_dose:
+            # 6. EPO Hypo-response (ERI >= 2.0 or IV Dose >= 450 IU/kg/wk)
+            _epo_iu_iv = r.epo_weekly_units
+            if _epo_iu_iv is None and r.epo_mircera_dose:
                 _parsed = normalize_epo_dose(r.epo_mircera_dose)
                 if _parsed.get("confidence") == "high":
-                    _epo_iu = _parsed.get("weekly_iu")
-            if r.hb and r.hb < 10 and _epo_iu and _epo_iu > 10000:
-                metrics['epo_hypo']['count'] += 1
-                metrics['epo_hypo']['names'].append(name)
-                row["alerts"].append("EPO Hypo")
+                    _epo_iu_iv = _parsed.get("weekly_iu_iv")
+            elif _epo_iu_iv is not None:
+                _epo_iu_iv = _epo_iu_iv * 1.42 # Manual assume SC -> IV
+
+            if _epo_iu_iv and r.hb:
+                _weight = r.target_dry_weight or p.dry_weight or 60.0
+                _dose_kg = _epo_iu_iv / _weight
+                _eri = _dose_kg / r.hb if r.hb > 0 else 0
+                if _eri >= 2.0 or _dose_kg >= 450:
+                    metrics['epo_hypo']['count'] += 1
+                    metrics['epo_hypo']['names'].append(name)
+                    row["alerts"].append("EPO Hypo")
 
             # 7. IV Iron Recommended: Hb < 10 AND (Ferritin < 500 OR TSAT < 30%)
             if (r.hb and r.hb < 10 and
@@ -226,13 +233,20 @@ def get_patients_needing_alerts(db: Session, month: str = None):
             alerts.append("Low Calcium")
         if r.phosphorus and r.phosphorus > 5.5:
             alerts.append("High Phos")
-        _epo_iu = r.epo_weekly_units
-        if _epo_iu is None and r.epo_mircera_dose:
+        _epo_iu_iv = r.epo_weekly_units
+        if _epo_iu_iv is None and r.epo_mircera_dose:
             _parsed = normalize_epo_dose(r.epo_mircera_dose)
             if _parsed.get("confidence") == "high":
-                _epo_iu = _parsed.get("weekly_iu")
-        if r.hb and r.hb < 10 and _epo_iu and _epo_iu > 10000:
-            alerts.append("EPO Hypo")
+                _epo_iu_iv = _parsed.get("weekly_iu_iv")
+        elif _epo_iu_iv is not None:
+            _epo_iu_iv = _epo_iu_iv * 1.42
+            
+        if _epo_iu_iv and r.hb:
+            _weight = r.target_dry_weight or p.dry_weight or 60.0
+            _dose_kg = _epo_iu_iv / _weight
+            _eri = _dose_kg / r.hb if r.hb > 0 else 0
+            if _eri >= 2.0 or _dose_kg >= 450:
+                alerts.append("EPO Hypo")
         if alerts:
             result.append({
                 "patient": p,
