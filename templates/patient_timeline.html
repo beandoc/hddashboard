@@ -276,6 +276,64 @@
         </ul>
         {% endif %}
       </div>
+
+      <!-- BFR / Vascular Access -->
+      {% set bfr = bfr_analytics %}
+      <div class="insight-card" style="border-top: 3px solid {% if bfr.css_class == 'danger' %}#dc2626{% elif bfr.css_class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">
+        <div class="card-head">
+          <i class="material-icons">water_drop</i>
+          <h3>Vascular Access / BFR</h3>
+          <a href="/patients/{{ patient.id }}/sessions/new"
+            style="margin-left:auto;padding:4px 10px;background:var(--accent);color:#fff;border-radius:6px;font-size:0.72rem;font-weight:700;text-decoration:none;white-space:nowrap;">
+            + Log Session
+          </a>
+        </div>
+        {% if bfr.available %}
+          <div class="card-val" style="color:{% if bfr.css_class == 'danger' %}#dc2626{% elif bfr.css_class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">
+            {% if bfr.latest_actual_bfr %}{{ bfr.latest_actual_bfr | int }} <small>mL/min</small>{% else %}—{% endif %}
+          </div>
+          <div class="card-desc">{{ bfr.message }}</div>
+          {% if bfr.bfr_deficit and bfr.bfr_deficit > 0 %}
+          <div style="margin-top:8px;font-size:0.78rem;color:#64748b;">
+            Deficit: <strong style="color:{% if bfr.bfr_deficit > 50 %}#dc2626{% else %}#d97706{% endif %};">{{ bfr.bfr_deficit | int }} mL/min</strong>
+            below prescription
+          </div>
+          {% endif %}
+          {% if bfr.slope is not none %}
+          <div style="margin-top:4px;font-size:0.78rem;color:#64748b;">
+            Trend: <strong>{{ '%+.1f' | format(bfr.slope) }} mL/min</strong> per session
+            ({{ bfr.n_sessions }} sessions logged)
+          </div>
+          {% endif %}
+          {% if bfr.consecutive_decline >= 3 %}
+          <div style="margin-top:6px;padding:5px 9px;background:#fff7ed;border-radius:6px;font-size:0.75rem;color:#c2410c;font-weight:600;">
+            ⚠ {{ bfr.consecutive_decline }} consecutive sessions declining
+          </div>
+          {% endif %}
+          <!-- Sparkline of recent BFR values -->
+          {% if recent_sessions %}
+          <div style="margin-top:12px;display:flex;align-items:flex-end;gap:3px;height:36px;" title="Recent BFR (oldest→latest)">
+            {% set bfr_vals = [] %}
+            {% for s in recent_sessions | reverse %}
+              {% if s.actual_blood_flow_rate %}{% set _ = bfr_vals.append(s.actual_blood_flow_rate) %}{% endif %}
+            {% endfor %}
+            {% if bfr_vals %}
+              {% set bfr_max = bfr_vals | max %}
+              {% set bfr_min = [bfr_vals | min, bfr_max - 1] | min %}
+              {% for v in bfr_vals[-12:] %}
+                {% set h = ((v - bfr_min) / (bfr_max - bfr_min + 0.01) * 30 + 6) | int %}
+                <div style="flex:1;height:{{ h }}px;background:{% if v < 200 %}#dc2626{% elif v < 250 %}#d97706{% else %}#0ea5e9{% endif %};border-radius:2px 2px 0 0;" title="{{ v | int }} mL/min"></div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          <div style="font-size:0.65rem;color:#94a3b8;margin-top:2px;">Recent sessions →</div>
+          {% endif %}
+        {% else %}
+          <div class="card-val" style="font-size:1rem;color:#94a3b8;">No Sessions</div>
+          <div class="card-desc">{{ bfr.message }}</div>
+        {% endif %}
+      </div>
+
     </div>
     {% endif %}
   </div>

@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Optional
 
 # Database engine and session for startup logic
-from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, engine, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, SessionRecord, engine, SessionLocal
 from passlib.context import CryptContext
 from itsdangerous import URLSafeSerializer
 
@@ -25,7 +25,7 @@ serializer = URLSafeSerializer(SECRET_KEY)
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import (send_bulk_whatsapp_alerts, send_ward_email, send_entry_alert_email,
                     build_schedule_message, build_individual_whatsapp_link, send_whatsapp)
-from ml_analytics import run_patient_analytics, run_cohort_analytics
+from ml_analytics import run_patient_analytics, run_cohort_analytics, analyze_bfr_trend
 from dynamic_vars import (get_all_variables, seed_preset_variables,
                           VariableDefinition, VariableValue, upsert_variable_value,
                           get_patient_variable_history)
@@ -742,11 +742,193 @@ def patient_timeline(patient_id: int, request: Request, db: Session = Depends(ge
         .order_by(ClinicalEvent.event_date.desc())
         .all()
     )
+    recent_sessions = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id == patient_id)
+        .order_by(SessionRecord.session_date.desc())
+        .limit(20)
+        .all()
+    )
+    session_dicts = [
+        {
+            "session_date":           str(s.session_date),
+            "blood_flow_rate":        s.blood_flow_rate,
+            "actual_blood_flow_rate": s.actual_blood_flow_rate,
+            "access_condition":       s.access_condition,
+            "arterial_line_pressure": s.arterial_line_pressure,
+            "venous_line_pressure":   s.venous_line_pressure,
+        }
+        for s in recent_sessions
+    ]
+    bfr_analytics = analyze_bfr_trend(session_dicts)
     return templates.TemplateResponse("patient_timeline.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
+        "bfr_analytics": bfr_analytics, "recent_sessions": recent_sessions,
         "user": get_user(request),
     })
+
+
+# ── Session CRUD ──────────────────────────────────────────────────────────────
+
+@app.get("/patients/{patient_id}/sessions/new", response_class=HTMLResponse)
+def new_session_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient: raise HTTPException(status_code=404)
+    return templates.TemplateResponse("session_form.html", {
+        "request": request, "patient": patient, "session": None, "mode": "new",
+        "user": get_user(request),
+    })
+
+
+@app.post("/patients/{patient_id}/sessions/new")
+def create_session(
+    patient_id: int, db: Session = Depends(get_db),
+    session_date: str = Form(...),
+    blood_flow_rate: Optional[float] = Form(None),
+    actual_blood_flow_rate: Optional[float] = Form(None),
+    dialysate_flow: Optional[float] = Form(None),
+    duration_hours: Optional[int] = Form(None),
+    duration_minutes: Optional[int] = Form(None),
+    weight_pre: Optional[float] = Form(None),
+    weight_post: Optional[float] = Form(None),
+    bp_pre_sys: Optional[float] = Form(None),
+    bp_pre_dia: Optional[float] = Form(None),
+    bp_post_sys: Optional[float] = Form(None),
+    bp_post_dia: Optional[float] = Form(None),
+    arterial_line_pressure: Optional[float] = Form(None),
+    venous_line_pressure: Optional[float] = Form(None),
+    access_location: str = Form(""),
+    access_condition: str = Form(""),
+    needle_gauge: str = Form(""),
+    cannulation_technique: str = Form(""),
+    access_complications: str = Form(""),
+    vascular_interventions: str = Form(""),
+    anticoagulation: str = Form(""),
+    anticoagulation_dose: Optional[float] = Form(None),
+    idh_episode: bool = Form(False),
+    muscle_cramps: bool = Form(False),
+    early_termination: bool = Form(False),
+    dialyzer_type: str = Form(""),
+    entered_by: str = Form(""),
+):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient: raise HTTPException(status_code=404)
+    month_str = session_date[:7]
+    rec = SessionRecord(
+        patient_id=patient_id,
+        session_date=datetime.strptime(session_date, "%Y-%m-%d").date(),
+        record_month=month_str,
+        entered_by=entered_by,
+        blood_flow_rate=blood_flow_rate,
+        actual_blood_flow_rate=actual_blood_flow_rate,
+        dialysate_flow=dialysate_flow,
+        duration_hours=duration_hours,
+        duration_minutes=duration_minutes,
+        weight_pre=weight_pre,
+        weight_post=weight_post,
+        bp_pre_sys=bp_pre_sys, bp_pre_dia=bp_pre_dia,
+        bp_post_sys=bp_post_sys, bp_post_dia=bp_post_dia,
+        arterial_line_pressure=arterial_line_pressure,
+        venous_line_pressure=venous_line_pressure,
+        access_location=access_location,
+        access_condition=access_condition,
+        needle_gauge=needle_gauge,
+        cannulation_technique=cannulation_technique,
+        access_complications=access_complications,
+        vascular_interventions=vascular_interventions,
+        anticoagulation=anticoagulation,
+        anticoagulation_dose=anticoagulation_dose,
+        idh_episode=idh_episode,
+        muscle_cramps=muscle_cramps,
+        early_termination=early_termination,
+        dialyzer_type=dialyzer_type,
+    )
+    db.add(rec)
+    db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}/timeline", status_code=303)
+
+
+@app.get("/patients/{patient_id}/sessions/{session_id}/edit", response_class=HTMLResponse)
+def edit_session_form(patient_id: int, session_id: int, request: Request, db: Session = Depends(get_db)):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    sess = db.query(SessionRecord).filter(SessionRecord.id == session_id, SessionRecord.patient_id == patient_id).first()
+    if not patient or not sess: raise HTTPException(status_code=404)
+    return templates.TemplateResponse("session_form.html", {
+        "request": request, "patient": patient, "session": sess, "mode": "edit",
+        "user": get_user(request),
+    })
+
+
+@app.post("/patients/{patient_id}/sessions/{session_id}/edit")
+def update_session(
+    patient_id: int, session_id: int, db: Session = Depends(get_db),
+    session_date: str = Form(...),
+    blood_flow_rate: Optional[float] = Form(None),
+    actual_blood_flow_rate: Optional[float] = Form(None),
+    dialysate_flow: Optional[float] = Form(None),
+    duration_hours: Optional[int] = Form(None),
+    duration_minutes: Optional[int] = Form(None),
+    weight_pre: Optional[float] = Form(None),
+    weight_post: Optional[float] = Form(None),
+    bp_pre_sys: Optional[float] = Form(None),
+    bp_pre_dia: Optional[float] = Form(None),
+    bp_post_sys: Optional[float] = Form(None),
+    bp_post_dia: Optional[float] = Form(None),
+    arterial_line_pressure: Optional[float] = Form(None),
+    venous_line_pressure: Optional[float] = Form(None),
+    access_location: str = Form(""),
+    access_condition: str = Form(""),
+    needle_gauge: str = Form(""),
+    cannulation_technique: str = Form(""),
+    access_complications: str = Form(""),
+    vascular_interventions: str = Form(""),
+    anticoagulation: str = Form(""),
+    anticoagulation_dose: Optional[float] = Form(None),
+    idh_episode: bool = Form(False),
+    muscle_cramps: bool = Form(False),
+    early_termination: bool = Form(False),
+    dialyzer_type: str = Form(""),
+    entered_by: str = Form(""),
+):
+    sess = db.query(SessionRecord).filter(SessionRecord.id == session_id, SessionRecord.patient_id == patient_id).first()
+    if not sess: raise HTTPException(status_code=404)
+    sess.session_date = datetime.strptime(session_date, "%Y-%m-%d").date()
+    sess.record_month = session_date[:7]
+    sess.entered_by = entered_by
+    sess.blood_flow_rate = blood_flow_rate
+    sess.actual_blood_flow_rate = actual_blood_flow_rate
+    sess.dialysate_flow = dialysate_flow
+    sess.duration_hours = duration_hours
+    sess.duration_minutes = duration_minutes
+    sess.weight_pre = weight_pre; sess.weight_post = weight_post
+    sess.bp_pre_sys = bp_pre_sys; sess.bp_pre_dia = bp_pre_dia
+    sess.bp_post_sys = bp_post_sys; sess.bp_post_dia = bp_post_dia
+    sess.arterial_line_pressure = arterial_line_pressure
+    sess.venous_line_pressure = venous_line_pressure
+    sess.access_location = access_location
+    sess.access_condition = access_condition
+    sess.needle_gauge = needle_gauge
+    sess.cannulation_technique = cannulation_technique
+    sess.access_complications = access_complications
+    sess.vascular_interventions = vascular_interventions
+    sess.anticoagulation = anticoagulation
+    sess.anticoagulation_dose = anticoagulation_dose
+    sess.idh_episode = idh_episode
+    sess.muscle_cramps = muscle_cramps
+    sess.early_termination = early_termination
+    sess.dialyzer_type = dialyzer_type
+    db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}/timeline", status_code=303)
+
+
+@app.post("/patients/{patient_id}/sessions/{session_id}/delete")
+def delete_session(patient_id: int, session_id: int, db: Session = Depends(get_db)):
+    sess = db.query(SessionRecord).filter(SessionRecord.id == session_id, SessionRecord.patient_id == patient_id).first()
+    if sess:
+        db.delete(sess)
+        db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}/timeline", status_code=303)
 
 @app.get("/variables", response_class=HTMLResponse)
 def variable_manager(request: Request, db: Session = Depends(get_db)):

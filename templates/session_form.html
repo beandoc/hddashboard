@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ "Edit" if mode=="edit" else "Log" }} Session — {{ patient.name }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <style>
+    :root {
+      --primary: #0f172a; --accent: #0ea5e9; --success: #16a34a;
+      --warning: #d97706; --danger: #dc2626;
+      --border: #e2e8f0; --bg: #f1f5f9; --card: #ffffff;
+      --text: #0f172a; --muted: #64748b; --radius: 14px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+    nav {
+      background: var(--primary); color: white; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    nav .brand { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; }
+    nav .links a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.88rem; margin-left: 18px; }
+    nav .links a:hover { color: white; }
+
+    .page-header {
+      background: white; border-bottom: 1px solid var(--border);
+      padding: 18px 24px; display: flex; align-items: center; gap: 14px;
+    }
+    .page-header h1 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--primary); }
+    .page-header .sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+    .back-btn {
+      padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.82rem; color: var(--muted); text-decoration: none;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .container { max-width: 900px; margin: 28px auto; padding: 0 16px 60px; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      padding: 22px 24px; margin-bottom: 18px;
+    }
+    .card-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.82rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); margin-bottom: 18px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    }
+    .card-title i { color: var(--accent); font-size: 1.1rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .full { grid-column: 1 / -1; }
+
+    label {
+      display: block; font-size: 0.72rem; font-weight: 600;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+      margin-bottom: 5px;
+    }
+    input[type=number], input[type=date], input[type=text], select, textarea {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 9px; font-size: 0.9rem; font-family: 'Inter', sans-serif;
+      background: #f8fafc; color: var(--text); transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+      background: white; box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+    }
+    textarea { resize: vertical; min-height: 72px; }
+
+    /* BFR hero highlight */
+    .bfr-hero {
+      background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%);
+      border: 2px solid #bae6fd; border-radius: var(--radius);
+      padding: 22px 24px; margin-bottom: 18px;
+    }
+    .bfr-hero .card-title { border-bottom-color: #bae6fd; }
+    .bfr-hero input { border-color: #7dd3fc; background: white; font-size: 1.05rem; font-weight: 600; }
+    .bfr-hero input:focus { border-color: var(--accent); }
+    .bfr-hint {
+      font-size: 0.74rem; color: #0369a1; margin-top: 5px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    #bfr-delta-bar {
+      height: 6px; border-radius: 3px; background: #e0f2fe;
+      margin-top: 10px; overflow: hidden; display: none;
+    }
+    #bfr-delta-fill {
+      height: 100%; border-radius: 3px;
+      background: var(--success); transition: width 0.3s, background 0.3s;
+    }
+    #bfr-delta-label {
+      font-size: 0.75rem; font-weight: 600; margin-top: 4px; display: none;
+    }
+
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    .checkbox-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 14px; border: 1.5px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-size: 0.85rem;
+      background: #f8fafc; transition: border-color 0.15s, background 0.15s;
+    }
+    .checkbox-item:has(input:checked) { border-color: var(--accent); background: #eff6ff; }
+    .checkbox-item input { width: 16px; height: 16px; cursor: pointer; }
+
+    .access-good    { border-left: 4px solid var(--success) !important; }
+    .access-fair    { border-left: 4px solid var(--warning) !important; }
+    .access-poor    { border-left: 4px solid var(--danger)  !important; }
+    .access-infected{ border-left: 4px solid #7c3aed !important; }
+
+    .btn-save {
+      width: 100%; padding: 14px; background: var(--accent); color: white;
+      border: none; border-radius: 10px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; font-family: 'Outfit', sans-serif; letter-spacing: 0.02em;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: #0284c7; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="brand">HD Dashboard</span>
+  <div class="links">
+    <a href="/">Dashboard</a>
+    <a href="/patients">Registry</a>
+    <a href="/patients/{{ patient.id }}/timeline">← Timeline</a>
+  </div>
+</nav>
+
+<div class="page-header">
+  <a href="/patients/{{ patient.id }}/timeline" class="back-btn">
+    <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back
+  </a>
+  <div>
+    <h1>{{ "Edit Session" if mode=="edit" else "Log Dialysis Session" }} — {{ patient.name }}</h1>
+    <div class="sub">HID {{ patient.hid_no }} &nbsp;·&nbsp; {{ patient.access_type or "Access type not set" }}</div>
+  </div>
+</div>
+
+<div class="container">
+  <form method="POST">
+
+    <!-- ── Blood Flow Rate (hero) ── -->
+    <div class="bfr-hero">
+      <div class="card-title">
+        <i class="material-icons">water_drop</i> Blood Flow Rate — Vascular Access Monitor
+      </div>
+      <div class="grid-2">
+        <div>
+          <label>Prescribed BFR (mL/min)</label>
+          <input type="number" name="blood_flow_rate" id="bfr-prescribed"
+            min="50" max="600" step="5" inputmode="numeric"
+            placeholder="e.g. 300"
+            value="{{ session.blood_flow_rate if session and session.blood_flow_rate else '' }}">
+          <div class="bfr-hint"><i class="material-icons" style="font-size:0.9rem;">info</i> Target: 250–400 mL/min (AVF) · 200–350 (catheter)</div>
+        </div>
+        <div>
+          <label>Actual Achieved BFR (mL/min)</label>
+          <input type="number" name="actual_blood_flow_rate" id="bfr-actual"
+            min="50" max="600" step="5" inputmode="numeric"
+            placeholder="e.g. 280"
+            value="{{ session.actual_blood_flow_rate if session and session.actual_blood_flow_rate else '' }}">
+          <div id="bfr-delta-label"></div>
+          <div id="bfr-delta-bar"><div id="bfr-delta-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Session Identity ── -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">event</i> Session Details</div>
+      <div class="grid">
+        <div>
+          <label>Session Date *</label>
+          <input type="date" name="session_date" required
+            value="{{ session.session_date.strftime('%Y-%m-%d') if session and session.session_date else '' }}">
+        </div>
+        <div>
+          <label>Duration (hours)</label>
+          <input type="number" name="duration_hours" min="1" max="8" step="1" inputmode="numeric"
+            placeholder="e.g. 4"
+            value="{{ session.duration_hours if session and session.duration_hours else '' }}">
+        </div>
+        <div>
+          <label>Duration (extra min)</label>
+          <input type="number" name="duration_minutes" min="0" max="59" step="1" inputmode="numeric"
+            placeholder="e.g. 30"
+            value="{{ session.duration_minutes if session and session.duration_minutes else '' }}">
+        </div>
+        <div>
+          <label>Dialysate Flow (mL/min)</label>
+          <input type="number" name="dialysate_flow" min="100" max="1000" step="10" inputmode="numeric"
+            placeholder="e.g. 500"
+            value="{{ session.dialysate_flow if session and session.dialysate_flow else '' }}">
+        </div>
+        <div>
+          <label>Dialyzer Type</label>
+          <input type="text" name="dialyzer_type" placeholder="e.g. FX80, Revaclear 400"
+            value="{{ session.dialyzer_type if session and session.dialyzer_type else '' }}">
+        </div>
+        <div>
+          <label>Entered By</label>
+          <input type="text" name="entered_by" placeholder="Initials / Name"
+            value="{{ session.entered_by if session and session.entered_by else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Vascular Access ── -->
+    <div class="card" id="access-card">
+      <div class="card-title"><i class="material-icons">device_hub</i> Vascular Access Assessment</div>
+      <div class="grid">
+        <div>
+          <label>Access Location</label>
+          <select name="access_location">
+            <option value="">— Select —</option>
+            {% for loc in ["RC AVF Rt","RC AVF Lt","BC AVF Rt","BC AVF Lt","Rt IJV TCC","Lt IJV TCC","Rt Femoral TCC","Lt Femoral TCC","Rt EJV TCC","AV Graft Rt","AV Graft Lt"] %}
+            <option value="{{ loc }}" {{ 'selected' if session and session.access_location == loc }}>{{ loc }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Access Condition</label>
+          <select name="access_condition" id="access-condition-select">
+            <option value="">— Select —</option>
+            {% for cond in ["Good","Fair","Poor","Infected"] %}
+            <option value="{{ cond }}" {{ 'selected' if session and session.access_condition == cond }}>{{ cond }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Needle Gauge</label>
+          <select name="needle_gauge">
+            <option value="">— Select —</option>
+            {% for g in ["14G","15G","16G","17G"] %}
+            <option value="{{ g }}" {{ 'selected' if session and session.needle_gauge == g }}>{{ g }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Cannulation Technique</label>
+          <select name="cannulation_technique">
+            <option value="">— Select —</option>
+            {% for t in ["Rope-ladder","Buttonhole","Area","Single-needle"] %}
+            <option value="{{ t }}" {{ 'selected' if session and session.cannulation_technique == t }}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Arterial Line Pressure (mmHg)</label>
+          <input type="number" name="arterial_line_pressure" step="5" inputmode="numeric"
+            placeholder="e.g. -200"
+            value="{{ session.arterial_line_pressure if session and session.arterial_line_pressure else '' }}">
+        </div>
+        <div>
+          <label>Venous Line Pressure (mmHg)</label>
+          <input type="number" name="venous_line_pressure" step="5" inputmode="numeric"
+            placeholder="e.g. 150"
+            value="{{ session.venous_line_pressure if session and session.venous_line_pressure else '' }}">
+        </div>
+        <div class="full">
+          <label>Access Complications / Notes</label>
+          <textarea name="access_complications" placeholder="e.g. Difficult cannulation, haematoma, reduced thrill...">{{ session.access_complications if session and session.access_complications else '' }}</textarea>
+        </div>
+        <div class="full">
+          <label>Vascular Interventions This Session</label>
+          <input type="text" name="vascular_interventions"
+            placeholder="e.g. Angioplasty, Declot, Thrombolysis, None"
+            value="{{ session.vascular_interventions if session and session.vascular_interventions else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Weights & BP ── -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">monitor_weight</i> Weights & Blood Pressure</div>
+      <div class="grid">
+        <div>
+          <label>Weight Pre-HD (kg)</label>
+          <input type="number" name="weight_pre" step="0.1" inputmode="decimal"
+            placeholder="e.g. 68.5"
+            value="{{ session.weight_pre if session and session.weight_pre else '' }}">
+        </div>
+        <div>
+          <label>Weight Post-HD (kg)</label>
+          <input type="number" name="weight_post" step="0.1" inputmode="decimal"
+            placeholder="e.g. 65.2"
+            value="{{ session.weight_post if session and session.weight_post else '' }}">
+        </div>
+        <div>
+          <label>BP Pre Systolic (mmHg)</label>
+          <input type="number" name="bp_pre_sys" step="1" inputmode="numeric"
+            placeholder="e.g. 150"
+            value="{{ session.bp_pre_sys if session and session.bp_pre_sys else '' }}">
+        </div>
+        <div>
+          <label>BP Pre Diastolic (mmHg)</label>
+          <input type="number" name="bp_pre_dia" step="1" inputmode="numeric"
+            placeholder="e.g. 90"
+            value="{{ session.bp_pre_dia if session and session.bp_pre_dia else '' }}">
+        </div>
+        <div>
+          <label>BP Post Systolic (mmHg)</label>
+          <input type="number" name="bp_post_sys" step="1" inputmode="numeric"
+            placeholder="e.g. 130"
+            value="{{ session.bp_post_sys if session and session.bp_post_sys else '' }}">
+        </div>
+        <div>
+          <label>BP Post Diastolic (mmHg)</label>
+          <input type="number" name="bp_post_dia" step="1" inputmode="numeric"
+            placeholder="e.g. 80"
+            value="{{ session.bp_post_dia if session and session.bp_post_dia else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Anticoagulation ── -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">vaccines</i> Anticoagulation</div>
+      <div class="grid">
+        <div>
+          <label>Agent</label>
+          <select name="anticoagulation">
+            <option value="">— Select —</option>
+            {% for a in ["Heparin","LMWH","Argatroban","Citrate","None (heparin-free)"] %}
+            <option value="{{ a }}" {{ 'selected' if session and session.anticoagulation == a }}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Dose (IU or mg)</label>
+          <input type="number" name="anticoagulation_dose" step="100" inputmode="numeric"
+            placeholder="e.g. 2000"
+            value="{{ session.anticoagulation_dose if session and session.anticoagulation_dose else '' }}">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Intradialytic Events ── -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">warning_amber</i> Intradialytic Events</div>
+      <div class="checkbox-group">
+        <label class="checkbox-item">
+          <input type="checkbox" name="idh_episode" value="true" {{ 'checked' if session and session.idh_episode }}>
+          Hypotension Episode (IDH)
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="muscle_cramps" value="true" {{ 'checked' if session and session.muscle_cramps }}>
+          Muscle Cramps
+        </label>
+        <label class="checkbox-item">
+          <input type="checkbox" name="early_termination" value="true" {{ 'checked' if session and session.early_termination }}>
+          Early Termination
+        </label>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-save">
+      {{ "Update Session" if mode=="edit" else "Save Session" }}
+    </button>
+  </form>
+</div>
+
+<script>
+  // Pre-fill today on new sessions
+  (function() {
+    var d = document.querySelector('input[name="session_date"]');
+    if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+  })();
+
+  // BFR delta live indicator
+  var pInput = document.getElementById('bfr-prescribed');
+  var aInput = document.getElementById('bfr-actual');
+  var bar    = document.getElementById('bfr-delta-bar');
+  var fill   = document.getElementById('bfr-delta-fill');
+  var label  = document.getElementById('bfr-delta-label');
+
+  function updateBfrDelta() {
+    var p = parseFloat(pInput.value);
+    var a = parseFloat(aInput.value);
+    if (isNaN(p) || isNaN(a)) { bar.style.display = 'none'; label.style.display = 'none'; return; }
+    var pct   = Math.min(100, Math.round((a / p) * 100));
+    var delta = Math.round(p - a);
+    bar.style.display  = 'block';
+    label.style.display = 'block';
+    fill.style.width   = pct + '%';
+    if (pct >= 90) {
+      fill.style.background = '#16a34a';
+      label.style.color     = '#16a34a';
+      label.textContent     = '✓ ' + pct + '% of target achieved' + (delta > 0 ? ' (deficit ' + delta + ' mL/min)' : '');
+    } else if (pct >= 75) {
+      fill.style.background = '#d97706';
+      label.style.color     = '#d97706';
+      label.textContent     = '⚠ ' + pct + '% of target — deficit ' + delta + ' mL/min';
+    } else {
+      fill.style.background = '#dc2626';
+      label.style.color     = '#dc2626';
+      label.textContent     = '✗ ' + pct + '% of target — significant deficit ' + delta + ' mL/min. Check access.';
+    }
+  }
+
+  pInput.addEventListener('input', updateBfrDelta);
+  aInput.addEventListener('input', updateBfrDelta);
+  updateBfrDelta();
+
+  // Colour access-card border based on condition
+  var condSelect = document.getElementById('access-condition-select');
+  var accessCard = document.getElementById('access-card');
+  function updateAccessBorder() {
+    accessCard.classList.remove('access-good','access-fair','access-poor','access-infected');
+    var v = condSelect.value.toLowerCase();
+    if (v === 'good')     accessCard.classList.add('access-good');
+    else if (v === 'fair') accessCard.classList.add('access-fair');
+    else if (v === 'poor') accessCard.classList.add('access-poor');
+    else if (v === 'infected') accessCard.classList.add('access-infected');
+  }
+  condSelect.addEventListener('change', updateAccessBorder);
+  updateAccessBorder();
+</script>
+</body>
+</html>

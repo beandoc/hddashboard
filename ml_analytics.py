@@ -1096,6 +1096,155 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     }
 
 
+# ── Blood Flow Rate / Vascular Access Trend ──────────────────────────────────
+#
+# BFR is the single most sensitive per-session indicator of vascular access
+# function. A functioning AVF should sustain 250–400 mL/min; a catheter
+# 200–350 mL/min. Progressive inability to reach the prescribed BFR precedes
+# clinically detectable stenosis by weeks.
+#
+# Alert thresholds (KDOQI 2019 / NKF access guidelines):
+#   Actual BFR < 200 mL/min              → Critical — access at risk
+#   BFR deficit (prescribed − actual) > 50 mL/min → Warning
+#   3+ consecutive sessions with declining BFR → Early dysfunction signal
+#   Access condition "Poor" or "Infected"  → Immediate flag
+
+def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
+    """
+    Analyse blood flow rate trend across per-session records for vascular
+    access monitoring.
+
+    Parameters
+    ----------
+    sessions : list of dicts, each with keys:
+        session_date, blood_flow_rate (prescribed), actual_blood_flow_rate,
+        access_condition, arterial_line_pressure, venous_line_pressure
+        (all optional except session_date)
+
+    Returns
+    -------
+    Dict with alert_level, latest_actual_bfr, bfr_deficit, slope,
+    consecutive_decline, access_condition_summary, and a clinical message.
+    """
+    _null = {
+        "available": False,
+        "alert_level": "unknown",
+        "message": "No session records found. Log sessions to enable BFR monitoring.",
+        "n_sessions": 0,
+    }
+    if not sessions:
+        return _null
+
+    # Filter to sessions that have at least one BFR value
+    bfr_sessions = [
+        s for s in sessions
+        if s.get("actual_blood_flow_rate") is not None
+        or s.get("blood_flow_rate") is not None
+    ]
+    if not bfr_sessions:
+        return {**_null, "available": False,
+                "message": "Sessions exist but no BFR values entered yet."}
+
+    # Sort oldest → newest for trend calculation
+    bfr_sessions = sorted(bfr_sessions, key=lambda s: s.get("session_date") or "")
+
+    latest      = bfr_sessions[-1]
+    latest_abfr = latest.get("actual_blood_flow_rate")
+    latest_pbfr = latest.get("blood_flow_rate")
+
+    # BFR deficit: how far short of prescription the access fell
+    bfr_deficit = None
+    if latest_abfr is not None and latest_pbfr is not None:
+        bfr_deficit = round(latest_pbfr - latest_abfr, 1)
+
+    # ── Trend slope: linear regression on actual BFR ──────────────────────────
+    actual_series = [
+        (i, s["actual_blood_flow_rate"])
+        for i, s in enumerate(bfr_sessions)
+        if s.get("actual_blood_flow_rate") is not None
+    ]
+    slope = None
+    if len(actual_series) >= 3:
+        xs = [p[0] for p in actual_series]
+        ys = [p[1] for p in actual_series]
+        x_mean = sum(xs) / len(xs)
+        y_mean = sum(ys) / len(ys)
+        sxx = sum((x - x_mean) ** 2 for x in xs)
+        sxy = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(len(xs)))
+        slope = round(sxy / sxx, 2) if sxx else 0.0
+
+    # ── Consecutive decline counter ───────────────────────────────────────────
+    consecutive_decline = 0
+    abfr_vals = [s["actual_blood_flow_rate"] for s in bfr_sessions
+                 if s.get("actual_blood_flow_rate") is not None]
+    for i in range(len(abfr_vals) - 1, 0, -1):
+        if abfr_vals[i] < abfr_vals[i - 1]:
+            consecutive_decline += 1
+        else:
+            break
+
+    # ── Access condition summary (last 5 sessions) ────────────────────────────
+    recent_conditions = [
+        s.get("access_condition") for s in bfr_sessions[-5:]
+        if s.get("access_condition")
+    ]
+    poor_or_infected = any(
+        c in ("Poor", "Infected") for c in recent_conditions
+    )
+
+    # ── Alert classification ──────────────────────────────────────────────────
+    alert_level = "ok"
+    alert_reasons = []
+
+    if latest_abfr is not None:
+        if latest_abfr < 200:
+            alert_level = "critical"
+            alert_reasons.append(f"BFR {latest_abfr:.0f} mL/min — critically low (target ≥ 250)")
+        elif latest_abfr < 250:
+            alert_level = "warning" if alert_level != "critical" else alert_level
+            alert_reasons.append(f"BFR {latest_abfr:.0f} mL/min — below target (250–400)")
+
+    if bfr_deficit is not None and bfr_deficit > 50:
+        alert_level = "warning" if alert_level == "ok" else alert_level
+        alert_reasons.append(f"BFR deficit {bfr_deficit:.0f} mL/min (prescribed {latest_pbfr:.0f}, achieved {latest_abfr:.0f})")
+
+    if consecutive_decline >= 3:
+        alert_level = "warning" if alert_level == "ok" else alert_level
+        alert_reasons.append(f"{consecutive_decline} consecutive sessions with declining BFR — early dysfunction signal")
+
+    if poor_or_infected:
+        alert_level = "critical"
+        alert_reasons.append("Access condition flagged as Poor / Infected in recent sessions")
+
+    # ── Build message ─────────────────────────────────────────────────────────
+    if alert_level == "critical":
+        message = "⚠ Access at risk: " + "; ".join(alert_reasons) + ". Urgent review / fistulogram."
+    elif alert_level == "warning":
+        message = "BFR concern: " + "; ".join(alert_reasons) + ". Monitor closely."
+    else:
+        bfr_txt = f"{latest_abfr:.0f} mL/min" if latest_abfr else "not recorded"
+        message = f"Access functioning well. Latest BFR {bfr_txt}."
+        if slope is not None and slope < -5:
+            message += f" Mild downward trend ({slope:+.1f} mL/min per session) — watch."
+
+    return {
+        "available":            True,
+        "alert_level":          alert_level,
+        "css_class":            "danger" if alert_level == "critical" else
+                                "warning" if alert_level == "warning" else "success",
+        "latest_actual_bfr":   latest_abfr,
+        "latest_prescribed_bfr": latest_pbfr,
+        "bfr_deficit":         bfr_deficit,
+        "slope":               slope,
+        "consecutive_decline": consecutive_decline,
+        "access_conditions":   recent_conditions,
+        "poor_or_infected":    poor_or_infected,
+        "n_sessions":          len(bfr_sessions),
+        "alert_reasons":       alert_reasons,
+        "message":             message,
+    }
+
+
 # ── Main Entry Points ─────────────────────────────────────────────────────────
 
 def run_patient_analytics(db: Session, patient_id: int) -> Dict:
