@@ -637,36 +637,63 @@ def classify_iron_status(latest: Dict) -> Dict:
 def compute_target_score(df: List[Dict]) -> Dict:
     """
     Calculate 10-point clinical achievement score based on KDOQI/KDIGO targets.
-    Each met target = 1 point. Max score = 10.
+    Only available (non-None) values are scored; score is normalized to 10.
+    Missing fields are excluded from both numerator and denominator.
     """
     if not df:
         return {"score": 0, "status": "No Data"}
     latest = df[0]
     points = 0
-    # 1. Anemia (Hb >= 10)
-    if (latest.get("hb") or 0) >= 10:          points += 1
-    # 2. Nutrition (Albumin >= 3.5) - Note: KDIGO target is 3.5 but user threshold is 2.5
-    if (latest.get("albumin") or 0) >= 3.5:    points += 1
-    # 3. Mineral (Phos <= 5.5)
-    if (latest.get("phosphorus") or 10) <= 5.5: points += 1
-    # 4. Fluid (IDWG <= 2.5)
-    if (latest.get("idwg") or 10) <= 2.5:      points += 1
-    # 5. Adequacy (URR >= 65%)
-    if (latest.get("urr") or 0) >= 65:         points += 1
-    # 6. PTH (150 - 600)
-    ipth = latest.get("ipth")
-    if ipth and 150 <= ipth <= 600:           points += 1
-    # 7. Iron Stores (Ferritin >= 200)
-    if (latest.get("serum_ferritin") or 0) >= 200: points += 1
-    # 8. Iron Utility (TSAT >= 20%)
-    if (latest.get("tsat") or 0) >= 20:         points += 1
-    # 9. BP Control Max (Sys <= 140)
-    if (latest.get("bp_sys") or 200) <= 140:   points += 1
-    # 10. BP Control Min (Sys >= 110)
-    if (latest.get("bp_sys") or 0) >= 110:     points += 1
+    available = 0
 
-    status = "Optimal" if points >= 8 else "Sub-optimal" if points >= 6 else "Critical"
-    return {"score": points, "label": status, "status": status}
+    def _score(met: bool):
+        nonlocal points, available
+        available += 1
+        if met:
+            points += 1
+
+    hb = latest.get("hb")
+    if hb is not None:          _score(hb >= 10)
+
+    albumin = latest.get("albumin")
+    if albumin is not None:     _score(albumin >= 3.5)
+
+    phosphorus = latest.get("phosphorus")
+    if phosphorus is not None:  _score(phosphorus <= 5.5)
+
+    idwg = latest.get("idwg")
+    if idwg is not None:        _score(idwg <= 2.5)
+
+    urr = latest.get("urr")
+    if urr is not None:         _score(urr >= 65)
+
+    ipth = latest.get("ipth")
+    if ipth is not None:        _score(150 <= ipth <= 600)
+
+    ferritin = latest.get("serum_ferritin")
+    if ferritin is not None:    _score(ferritin >= 200)
+
+    tsat = latest.get("tsat")
+    if tsat is not None:        _score(tsat >= 20)
+
+    bp_sys = latest.get("bp_sys")
+    if bp_sys is not None:
+        _score(bp_sys <= 140)
+        _score(bp_sys >= 110)
+
+    if available == 0:
+        return {"score": 0, "raw_score": 0, "available": 0, "status": "No Data", "label": "No Data"}
+
+    # Normalize to 10-point scale; raw score for display
+    normalized = round(points / available * 10)
+    status = "Optimal" if normalized >= 8 else "Sub-optimal" if normalized >= 6 else "Critical"
+    return {
+        "score": normalized,
+        "raw_score": points,
+        "available": available,
+        "status": status,
+        "label": status,
+    }
 
 
 # ── Deterioration Risk ────────────────────────────────────────────────────────

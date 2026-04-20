@@ -224,6 +224,11 @@
         </div>
         <div style="text-align: center;">
             <span class="status-pill {{ ts_pill_class }}">{{ ts_status }} Status</span>
+            {% if analytics.target_score.available is defined and analytics.target_score.available < 10 %}
+            <div style="font-size:0.72rem; color:#888; margin-top:6px;">
+              {{ analytics.target_score.raw_score }}/{{ analytics.target_score.available }} criteria available
+            </div>
+            {% endif %}
         </div>
       </div>
 
