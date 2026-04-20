@@ -126,6 +126,7 @@ def startup():
             ("education_level", "VARCHAR"),
             ("height", "FLOAT"),
             ("primary_renal_disease", "VARCHAR"),
+            ("native_kidney_disease", "VARCHAR"),
             ("date_esrd_diagnosis", "DATE"),
             ("native_kidney_biopsy", "VARCHAR"),
             ("dm_status", "VARCHAR"),
