@@ -284,6 +284,8 @@ def create_patient(
     access_intervention_history: str = Form(""),
     catheter_type: str = Form(""),
     catheter_insertion_site: str = Form(""),
+    age: Optional[int] = Form(None),
+    ejection_fraction: Optional[float] = Form(None),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
     hd_day_1: str = Form(""),
@@ -340,6 +342,7 @@ def create_patient(
         history_of_access_thrombosis=history_of_access_thrombosis,
         access_intervention_history=access_intervention_history,
         catheter_type=catheter_type, catheter_insertion_site=catheter_insertion_site,
+        age=age, ejection_fraction=ejection_fraction if ejection_fraction is not None else 60.0,
         dry_weight=dry_weight, hd_frequency=hd_frequency,
         hd_day_1=hd_day_1, hd_day_2=hd_day_2, hd_day_3=hd_day_3,
         hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
@@ -424,6 +427,8 @@ def update_patient(
     access_intervention_history: str = Form(""),
     catheter_type: str = Form(""),
     catheter_insertion_site: str = Form(""),
+    age: Optional[int] = Form(None),
+    ejection_fraction: Optional[float] = Form(None),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
     hd_day_1: str = Form(""),
@@ -474,6 +479,7 @@ def update_patient(
     p.history_of_access_thrombosis = history_of_access_thrombosis
     p.access_intervention_history = access_intervention_history
     p.catheter_type = catheter_type; p.catheter_insertion_site = catheter_insertion_site
+    p.age = age; p.ejection_fraction = ejection_fraction if ejection_fraction is not None else (p.ejection_fraction or 60.0)
     p.dry_weight = dry_weight; p.hd_frequency = hd_frequency
     p.hd_day_1 = hd_day_1; p.hd_day_2 = hd_day_2; p.hd_day_3 = hd_day_3
     p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3

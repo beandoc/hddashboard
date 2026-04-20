@@ -88,6 +88,10 @@ class Patient(Base):
     catheter_type = Column(String)           # Permcath / Temporary / Quinton — if access is catheter
     catheter_insertion_site = Column(String) # Right IJV / Left IJV / Right Femoral etc.
 
+    # ── Mortality Model Inputs ────────────────────────────────────────────────
+    age = Column(Integer)                    # years — required for mortality prediction
+    ejection_fraction = Column(Float, default=60.0)  # % — echocardiographic EF; default 60 (normal)
+
     # ── Weight & Facility ─────────────────────────────────────────────────────
     dry_weight = Column(Float)               # kg — baseline dry weight
     healthcare_facility = Column(String)     # e.g. Command Hospital SC
