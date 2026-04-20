@@ -495,3 +495,89 @@ def send_ward_email(alert_patients: list,
     except Exception as e:
         logger.error(f"Email failed: {e}")
         return False, str(e)
+
+
+def send_entry_alert_email(patient_name: str, hid: str, month_label: str,
+                            alerts: list, labs: dict, entered_by: str = "") -> None:
+    """
+    Fire-and-forget email triggered immediately when staff saves a monthly record
+    that has one or more critical flags. Runs in a background thread so it never
+    delays the HTTP response.
+    """
+    if not SMTP_USER or not SMTP_PASSWORD:
+        return
+    if not alerts:
+        return
+
+    def _send():
+        try:
+            alert_pills = "".join(
+                f'<span style="display:inline-block;background:#fee2e2;color:#991b1b;'
+                f'border-radius:4px;padding:3px 10px;margin:3px;font-size:12px;'
+                f'font-weight:600">{a}</span>'
+                for a in alerts
+            )
+
+            def _row(label, val, unit="", warn=False):
+                bg = "#fff0f0" if warn and val is not None else "#f9fafb"
+                display = f"{val} {unit}".strip() if val is not None else "—"
+                return (f'<tr><td style="padding:8px 12px;color:#64748b;font-size:13px">{label}</td>'
+                        f'<td style="padding:8px 12px;background:{bg};font-family:monospace;'
+                        f'font-weight:600;font-size:13px">{display}</td></tr>')
+
+            lab_rows = (
+                _row("Haemoglobin", labs.get("hb"), "g/dL", warn=(labs.get("hb") or 99) < 10) +
+                _row("Albumin", labs.get("albumin"), "g/dL", warn=(labs.get("albumin") or 99) < 2.5) +
+                _row("Phosphorus", labs.get("phosphorus"), "mg/dL", warn=(labs.get("phosphorus") or 0) > 5.5) +
+                _row("Corrected Ca", labs.get("corrected_ca"), "mg/dL", warn=(labs.get("corrected_ca") or 99) < 8.0) +
+                _row("IDWG", labs.get("idwg"), "kg", warn=(labs.get("idwg") or 0) > 2.5) +
+                _row("iPTH", labs.get("ipth"), "pg/mL")
+            )
+
+            html = f"""
+            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto">
+              <div style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:24px 28px;border-radius:10px 10px 0 0">
+                <h2 style="color:#fff;margin:0;font-size:18px">⚠️ HD Alert — {patient_name}</h2>
+                <p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px">
+                  HID {hid} &nbsp;·&nbsp; {month_label} &nbsp;·&nbsp; Entered by: {entered_by or 'staff'}
+                </p>
+              </div>
+              <div style="background:#fff;padding:20px 28px;border:1px solid #e2e8f0;border-top:none">
+                <p style="margin:0 0 14px;font-size:14px;color:#374151">
+                  Critical flags detected when record was saved:
+                </p>
+                <div style="margin-bottom:20px">{alert_pills}</div>
+                <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+                  <thead>
+                    <tr style="background:#f1f5f9">
+                      <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b;text-transform:uppercase">Parameter</th>
+                      <th style="padding:8px 12px;text-align:left;font-size:12px;color:#64748b;text-transform:uppercase">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>{lab_rows}</tbody>
+                </table>
+              </div>
+              <div style="background:#f8fafc;padding:14px 28px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px">
+                <p style="margin:0;font-size:12px;color:#94a3b8">
+                  {CLINIC_NAME} · HD Dashboard automated alert · Do not reply
+                </p>
+              </div>
+            </div>
+            """
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = f"⚠️ HD Alert: {patient_name} — {', '.join(alerts[:3])} | {month_label}"
+            msg["From"] = SMTP_USER
+            msg["To"] = DOCTOR_EMAIL
+
+            msg.attach(MIMEText(html, "html"))
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.sendmail(SMTP_USER, DOCTOR_EMAIL, msg.as_string())
+            logger.info(f"Entry alert email sent for {patient_name} → {DOCTOR_EMAIL}")
+        except Exception as e:
+            logger.error(f"Entry alert email failed for {patient_name}: {e}")
+
+    import threading
+    threading.Thread(target=_send, daemon=True).start()

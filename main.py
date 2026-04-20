@@ -23,7 +23,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 serializer = URLSafeSerializer(SECRET_KEY)
 
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
-from alerts import (send_bulk_whatsapp_alerts, send_ward_email,
+from alerts import (send_bulk_whatsapp_alerts, send_ward_email, send_entry_alert_email,
                     build_schedule_message, build_individual_whatsapp_link, send_whatsapp)
 from ml_analytics import run_patient_analytics, run_cohort_analytics
 from dynamic_vars import (get_all_variables, seed_preset_variables)
@@ -641,6 +641,36 @@ def save_entry(
         p.access_type = access_type
 
     db.commit()
+
+    # Auto-email alert if any critical flags are present (background thread)
+    if p:
+        from dashboard_logic import get_month_label
+        _alerts_for_patient = []
+        # Inline flag checks matching dashboard_logic thresholds
+        _raw = (access_type or p.access_type or "").upper()
+        if _raw and "AVF" not in _raw:
+            _alerts_for_patient.append("Non-AVF Access")
+        if idwg and idwg > 2.5:
+            _alerts_for_patient.append("High IDWG")
+        if albumin and albumin < 2.5:
+            _alerts_for_patient.append("Low Albumin")
+        _corr_ca = (calcium + 0.8 * (4.0 - albumin)) if (calcium and albumin) else calcium
+        if _corr_ca and _corr_ca < 8.0:
+            _alerts_for_patient.append("Low Calcium")
+        if phosphorus and phosphorus > 5.5:
+            _alerts_for_patient.append("High Phosphorus")
+        if hb and hb < 9:
+            _alerts_for_patient.append("Low Hb (<9)")
+        if _alerts_for_patient:
+            send_entry_alert_email(
+                patient_name=p.name, hid=p.hid_no,
+                month_label=get_month_label(month_str),
+                alerts=_alerts_for_patient,
+                labs={"hb": hb, "albumin": albumin, "phosphorus": phosphorus,
+                      "corrected_ca": _corr_ca, "idwg": idwg, "ipth": ipth},
+                entered_by=entered_by,
+            )
+
     return RedirectResponse(url=f"/entry?month={month_str}", status_code=303)
 
 
