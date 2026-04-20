@@ -181,10 +181,10 @@
                 <div class="form-group">
                     <label>Access Type</label>
                     <select name="access_type">
-                        <option value="AVF" {{ 'selected' if patient and patient.access_type == 'AVF' else '' }}>Native AVF (Recommended)</option>
-                        <option value="Right IJV Permcath" {{ 'selected' if patient and patient.access_type == 'Right IJV Permcath' else '' }}>Right IJV Permcath</option>
-                        <option value="Left IJV Permcath" {{ 'selected' if patient and patient.access_type == 'Left IJV Permcath' else '' }}>Left IJV Permcath</option>
-                        <option value="AV Graft" {{ 'selected' if patient and patient.access_type == 'AV Graft' else '' }}>AV Graft</option>
+                        {% set access_opts = ["RC AVF Rt","RC AVF Lt","Rt BC AVF","Left BC AVF","Rt IJV TCC","Lt IJV TCC","Rt EJV TCC","Rt Femoral TCC","Lt Femoral TCC","RT DLJC","Lt DLJC","Rt Femoral","Lt Femoral"] %}
+                        {% for opt in access_opts %}
+                        <option value="{{ opt }}" {{ 'selected' if patient and patient.access_type == opt else '' }}>{{ opt }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-row">

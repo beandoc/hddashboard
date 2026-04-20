@@ -153,12 +153,12 @@
                 <div class="grid">
                     <div class="form-group">
                         <label>Vascular Access Type</label>
+                        {% set access_opts = ["RC AVF Rt","RC AVF Lt","Rt BC AVF","Left BC AVF","Rt IJV TCC","Lt IJV TCC","Rt EJV TCC","Rt Femoral TCC","Lt Femoral TCC","RT DLJC","Lt DLJC","Rt Femoral","Lt Femoral"] %}
                         <select name="access_type">
-                            <option value="AVF" {{ 'selected' if (record and record.access_type == 'AVF') or (not record and patient.access_type == 'AVF') }}>AV Fistula</option>
-                            <option value="Permcath" {{ 'selected' if (record and record.access_type == 'Permcath') or (not record and patient.access_type == 'Permcath') }}>Permcath</option>
-                            <option value="AV Graft" {{ 'selected' if (record and record.access_type == 'AV Graft') or (not record and patient.access_type == 'AV Graft') }}>AV Graft</option>
-                            <option value="Right IJV Permcath" {{ 'selected' if (record and record.access_type == 'Right IJV Permcath') or (not record and patient.access_type == 'Right IJV Permcath') }}>Right IJV Permcath</option>
-                            <option value="Left IJV Permcath" {{ 'selected' if (record and record.access_type == 'Left IJV Permcath') or (not record and patient.access_type == 'Left IJV Permcath') }}>Left IJV Permcath</option>
+                            {% set cur = (record.access_type if record and record.access_type else patient.access_type) or '' %}
+                            {% for opt in access_opts %}
+                            <option value="{{ opt }}" {{ 'selected' if cur == opt else '' }}>{{ opt }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="form-group">

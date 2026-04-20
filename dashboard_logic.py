@@ -105,11 +105,11 @@ def compute_dashboard(db: Session, month: str = None):
             # 1. Non-AVF Access - Fallback to baseline if monthly record is missing it
             raw_access = (r.access_type or p.access_type or "").strip()
             _a_upper = raw_access.upper()
-            if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC")):
+            if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC", "DLJC", "FEMORAL")):
                 access = "Permacath"
             else:
                 access = raw_access
-            if access and access.upper() != "AVF":
+            if access and "AVF" not in access.upper():
                 metrics['non_avf']['count'] += 1
                 metrics['non_avf']['names'].append(name)
                 if access not in metrics['non_avf']['types']:
@@ -217,11 +217,11 @@ def get_patients_needing_alerts(db: Session, month: str = None):
         # Fallback to baseline if monthly record is missing it
         raw_access = (r.access_type or p.access_type or "").strip()
         _a_upper = raw_access.upper()
-        if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC")):
+        if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC", "DLJC", "FEMORAL")):
             access = "Permacath"
         else:
             access = raw_access
-        if access and access.upper() != "AVF":
+        if access and "AVF" not in access.upper():
             alerts.append("Non-AVF")
         if r.idwg and r.idwg > 2.5:
             alerts.append("High IDWG")
