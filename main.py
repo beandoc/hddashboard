@@ -43,167 +43,45 @@ def health_check():
 def startup():
     create_tables()
     
-    # 🚨 Self-Healing Migration (Handles Render Free Column Sync)
+    # 🚨 Self-Healing Migration — auto-syncs ALL ORM model columns to the live DB.
+    # Compares SQLAlchemy metadata against actual table columns; adds any missing
+    # ones. No manual column lists needed — works for any future additions too.
+    from database import Base
+    from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text
+
+    def _pg_type(col):
+        """Map SQLAlchemy column type to a safe PostgreSQL DDL string."""
+        t = col.type
+        if isinstance(t, Boolean):   return "BOOLEAN"
+        if isinstance(t, Integer):   return "INTEGER"
+        if isinstance(t, Float):     return "FLOAT"
+        if isinstance(t, Date):      return "DATE"
+        if isinstance(t, DateTime):  return "TIMESTAMP"
+        if isinstance(t, Text):      return "TEXT"
+        return "VARCHAR"  # String and anything else
+
     inspector = inspect(engine)
     with engine.connect() as conn:
-        # 1. Check variable_definitions columns
-        v_existing = [c['name'] for c in inspector.get_columns('variable_definitions')]
-        v_missing = [
-            ("alert_direction", "VARCHAR DEFAULT 'both'"),
-            ("decimal_places", "INTEGER DEFAULT 1"),
-            ("created_at", "TIMESTAMP DEFAULT NOW()"),
-            ("created_by", "VARCHAR DEFAULT 'system'"),
-        ]
-        for col, dtype in v_missing:
-            if col not in v_existing:
-                try:
-                    conn.execute(text(f"ALTER TABLE variable_definitions ADD COLUMN {col} {dtype}"))
-                    conn.commit()
-                except Exception: pass
-
-        # 2. Check monthly_records columns (New Clinical Sensors)
-        r_existing = [c['name'] for c in inspector.get_columns('monthly_records')]
-        r_missing = [
-            ("urr", "FLOAT"),
-            ("epo_weekly_units", "FLOAT"),
-            ("bp_sys", "FLOAT"),
-            ("crp", "FLOAT"),
-            ("target_dry_weight", "FLOAT"),
-            ("access_type", "VARCHAR"),
-            ("desidustat_dose", "VARCHAR"),
-            # ── Registry expansion (2026-04) ──
-            ("residual_urine_output", "FLOAT"),
-            ("single_pool_ktv", "FLOAT"),
-            ("equilibrated_ktv", "FLOAT"),
-            ("pre_dialysis_urea", "FLOAT"),
-            ("post_dialysis_urea", "FLOAT"),
-            ("serum_creatinine", "FLOAT"),
-            ("esa_type", "VARCHAR"),
-            ("tibc", "FLOAT"),
-            ("iv_iron_product", "VARCHAR"),
-            ("iv_iron_dose", "FLOAT"),
-            ("vitamin_d_analog_dose", "VARCHAR"),
-            ("phosphate_binder_type", "VARCHAR"),
-            ("serum_sodium", "FLOAT"),
-            ("serum_potassium", "FLOAT"),
-            ("serum_bicarbonate", "FLOAT"),
-            ("serum_uric_acid", "FLOAT"),
-            ("total_cholesterol", "FLOAT"),
-            ("ldl_cholesterol", "FLOAT"),
-            ("wbc_count", "FLOAT"),
-            ("platelet_count", "FLOAT"),
-            ("hba1c", "FLOAT"),
-            ("antihypertensive_count", "INTEGER"),
-            ("hrqol_score", "FLOAT"),
-            ("hospitalization_this_month", "BOOLEAN"),
-            ("hospitalization_date", "DATE"),
-            ("hospitalization_icd_code", "VARCHAR"),
-        ]
-        for col, dtype in r_missing:
-            if col not in r_existing:
-                try:
-                    conn.execute(text(f"ALTER TABLE monthly_records ADD COLUMN {col} {dtype}"))
-                    conn.commit()
-                except Exception: pass
-
-        # 3. Check patients columns (Vaccination & Demographics)
-        p_existing = [c['name'] for c in inspector.get_columns('patients')]
-        p_missing = [
-            ("relation_type", "VARCHAR"),
-            ("hep_b_status", "VARCHAR"),
-            ("hep_b_dose1_date", "DATE"),
-            ("hep_b_dose2_date", "DATE"),
-            ("hep_b_dose3_date", "DATE"),
-            ("hep_b_dose4_date", "DATE"),
-            ("hep_b_titer_date", "DATE"),
-            ("pcv13_date", "DATE"),
-            ("ppsv23_date", "DATE"),
-            ("hz_dose1_date", "DATE"),
-            ("hz_dose2_date", "DATE"),
-            ("influenza_date", "DATE"),
-            ("hd_frequency", "INTEGER"),
-            # ── Registry expansion (2026-04) ──
-            ("education_level", "VARCHAR"),
-            ("height", "FLOAT"),
-            ("primary_renal_disease", "VARCHAR"),
-            ("native_kidney_disease", "VARCHAR"),
-            ("date_esrd_diagnosis", "DATE"),
-            ("native_kidney_biopsy", "VARCHAR"),
-            ("dm_status", "VARCHAR"),
-            ("htn_status", "BOOLEAN"),
-            ("cad_status", "BOOLEAN"),
-            ("chf_status", "BOOLEAN"),
-            ("history_of_stroke", "BOOLEAN"),
-            ("smoking_status", "VARCHAR"),
-            ("alcohol_consumption", "VARCHAR"),
-            ("charlson_comorbidity_index", "INTEGER"),
-            ("previous_krt_modality", "VARCHAR"),
-            ("history_of_renal_transplant", "BOOLEAN"),
-            ("transplant_prospect", "VARCHAR"),
-            ("viral_hbsag", "VARCHAR"),
-            ("viral_anti_hcv", "VARCHAR"),
-            ("viral_hiv", "VARCHAR"),
-            ("date_first_cannulation", "DATE"),
-            ("history_of_access_thrombosis", "BOOLEAN"),
-            ("access_intervention_history", "TEXT"),
-            ("catheter_type", "VARCHAR"),
-            ("catheter_insertion_site", "VARCHAR"),
-            ("current_survival_status", "VARCHAR"),
-            ("date_of_death", "DATE"),
-            ("primary_cause_of_death", "VARCHAR"),
-            ("withdrawal_from_dialysis", "BOOLEAN"),
-            ("date_facility_transfer", "DATE"),
-        ]
-        for col, dtype in p_missing:
-            if col not in p_existing:
-                try:
-                    conn.execute(text(f"ALTER TABLE patients ADD COLUMN {col} {dtype}"))
-                    conn.commit()
-                except Exception: pass
-
-        # 5. Check session_records columns (Registry expansion 2026-04)
-        try:
-            s_existing = [c['name'] for c in inspector.get_columns('session_records')]
-            s_missing = [
-                ("scheduled_treatment_duration", "FLOAT"),
-                ("actual_uf_volume", "FLOAT"),
-                ("uf_rate", "FLOAT"),
-                ("actual_blood_flow_rate", "FLOAT"),
-                ("dialyzer_membrane_flux", "VARCHAR"),
-                ("dialysate_buffer", "VARCHAR"),
-                ("dialysate_sodium", "FLOAT"),
-                ("dialysate_potassium", "FLOAT"),
-                ("dialysate_calcium", "FLOAT"),
-                ("dialysate_bicarbonate", "FLOAT"),
-                ("dialysate_temperature", "FLOAT"),
-                ("arterial_line_pressure", "FLOAT"),
-                ("venous_line_pressure", "FLOAT"),
-                ("transmembrane_pressure", "FLOAT"),
-                ("anticoagulation_dose", "FLOAT"),
-                ("needle_gauge", "VARCHAR"),
-                ("cannulation_technique", "VARCHAR"),
-                ("idh_episode", "BOOLEAN"),
-                ("idh_hypertension", "BOOLEAN"),
-                ("muscle_cramps", "BOOLEAN"),
-                ("nausea_vomiting", "BOOLEAN"),
-                ("chest_pain", "BOOLEAN"),
-                ("arrhythmia", "BOOLEAN"),
-                ("early_termination", "BOOLEAN"),
-                ("reason_early_termination", "VARCHAR"),
-            ]
-            for col, dtype in s_missing:
-                if col not in s_existing:
+        for table_name, orm_table in Base.metadata.tables.items():
+            try:
+                existing_cols = {c['name'] for c in inspector.get_columns(table_name)}
+            except Exception:
+                continue  # table doesn't exist yet — create_all() will handle it
+            for col in orm_table.columns:
+                if col.name not in existing_cols:
+                    ddl_type = _pg_type(col)
                     try:
-                        conn.execute(text(f"ALTER TABLE session_records ADD COLUMN {col} {dtype}"))
+                        conn.execute(text(
+                            f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {ddl_type}'
+                        ))
                         conn.commit()
-                    except Exception: pass
-        except Exception:
-            pass  # session_records table may not exist yet — create_all() handles it
+                        print(f"✅ Migration: added {table_name}.{col.name} ({ddl_type})")
+                    except Exception as e:
+                        print(f"⚠️  Migration skip {table_name}.{col.name}: {e}")
 
-        # 4. Check users columns (Auth — added last_login, created_at)
-        # Guard: users table may not exist yet on first deploy — skip if so
+        # Keep the users-specific defaults that need DEFAULT values
         try:
-            u_existing = [c['name'] for c in inspector.get_columns('users')]
+            u_existing = {c['name'] for c in inspector.get_columns('users')}
             u_missing = [
                 ("last_login", "TIMESTAMP"),
                 ("created_at", "TIMESTAMP DEFAULT NOW()"),
@@ -222,7 +100,6 @@ def startup():
 
 
     # Create dynamic variable tables and seed presets
-    from database import Base
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
