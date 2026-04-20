@@ -342,22 +342,24 @@
       background: #fff; 
       border-radius: var(--radius); 
       box-shadow: var(--shadow-md); 
-      overflow: hidden; 
+      overflow-x: auto; 
       border: 1px solid rgba(0,0,0,0.05);
+      -webkit-overflow-scrolling: touch;
     }
     table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
     thead tr { background: #f1f5f9; color: var(--text-header); }
     thead th { 
-      padding: 16px; 
+      padding: 16px 12px; 
       text-align: left; 
       font-size: 0.75em; 
       text-transform: uppercase; 
       letter-spacing: 0.05em; 
       font-weight: 700; 
+      white-space: nowrap;
     }
     tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
     tbody tr:hover { background: #f8fafc; }
-    tbody td { padding: 14px 16px; vertical-align: middle; }
+    tbody td { padding: 14px 12px; vertical-align: middle; white-space: nowrap; }
 
     /* Alert Tags (Premium UI) */
     .alert-tag { 
@@ -845,7 +847,8 @@
             <th data-label="Vit D">Vit D</th>
             <th data-label="Protein">Protein</th>
             <th data-label="Alerts">Alerts</th>
-            {% if not user or user.role != 'nurse' %}<th data-label="Timeline">Timeline</th>{% endif %}
+            {% if user and user.role != 'nurse' %}<th data-label="Timeline">Timeline</th>{% endif %}
+            <th data-label="WA">WA</th>
             <th data-label="Action">Action</th>
           </tr>
         </thead>
@@ -872,7 +875,7 @@
               {% endif %}
             </td>
             {% if user and user.role != 'nurse' %}<td data-label="Timeline"><a href="/patients/{{ row.id }}/timeline" style="color:#1a237e">📈 View</a></td>{% endif %}
-            <td data-label="WhatsApp">
+            <td data-label="WA">
               {% if row.has_record %}
                 <button onclick="sendIndividualWa({{ row.id }}, this)"
                   title="Send WhatsApp to {{ row.name }}"

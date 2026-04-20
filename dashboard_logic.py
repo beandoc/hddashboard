@@ -163,7 +163,7 @@ def compute_dashboard(db: Session, month: str = None):
                 })
                 row["alerts"].append("High Phos")
 
-            # 6. EPO Hypo-response (ERI >= 2.0 or IV Dose >= 450 IU/kg/wk)
+            # 6. EPO Hypo-response (ERI >= 10.0 or IV Dose >= 450 IU/kg/wk)
             _epo_iu_iv = r.epo_weekly_units
             if _epo_iu_iv is None and r.epo_mircera_dose:
                 _parsed = normalize_epo_dose(r.epo_mircera_dose)
@@ -176,7 +176,7 @@ def compute_dashboard(db: Session, month: str = None):
                 _weight = r.target_dry_weight or p.dry_weight or 60.0
                 _dose_kg = _epo_iu_iv / _weight
                 _eri = _dose_kg / r.hb if r.hb > 0 else 0
-                if _eri >= 2.0 or _dose_kg >= 450:
+                if _eri >= 10.0 or _dose_kg >= 450:
                     metrics['epo_hypo']['count'] += 1
                     metrics['epo_hypo']['names'].append(name)
                     row["alerts"].append("EPO Hypo")
@@ -245,7 +245,7 @@ def get_patients_needing_alerts(db: Session, month: str = None):
             _weight = r.target_dry_weight or p.dry_weight or 60.0
             _dose_kg = _epo_iu_iv / _weight
             _eri = _dose_kg / r.hb if r.hb > 0 else 0
-            if _eri >= 2.0 or _dose_kg >= 450:
+            if _eri >= 10.0 or _dose_kg >= 450:
                 alerts.append("EPO Hypo")
         if alerts:
             result.append({

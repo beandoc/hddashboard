@@ -476,13 +476,14 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
         drug_type = normalize_epo_dose(dose_str).get("drug_type", "unknown")
 
     # ── Classify response ─────────────────────────────────────────────────────
-    # Hyporesponsiveness defined as ERI >= 2.0 or Dose >= 450 IU/kg/wk
-    is_hypo = eri >= 2.0 or dose_per_kg >= 450
+    # Hyporesponsiveness defined as ERI >= 10.0 IU/(kg·week·g/dL) or Dose >= 450 IU/kg/wk
+    # Reference: Kalantar-Zadeh et al. (2005); ERI <10 = adequate, ≥10 = hyporesponsive
+    is_hypo = eri >= 10.0 or dose_per_kg >= 450
     severity = "none"
     response_class = "excellent"
 
     if dose_iv > 0:
-        if eri >= 3.0 or dose_per_kg >= 600:
+        if eri >= 20.0 or dose_per_kg >= 600:
             severity = "severe"
             response_class = "severe"
             is_hypo = True
@@ -709,6 +710,7 @@ def run_patient_analytics(db: Session, patient_id: int) -> Dict:
             "bp_sys": r.bp_sys,
             "epo_weekly_units": r.epo_weekly_units,
             "epo_mircera_dose": r.epo_mircera_dose,
+            "desidustat_dose": getattr(r, "desidustat_dose", None),
             "weight": r.target_dry_weight or (r.patient.dry_weight if r.patient else None)
         }
         for r in records

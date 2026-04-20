@@ -70,6 +70,7 @@ def startup():
             ("crp", "FLOAT"),
             ("target_dry_weight", "FLOAT"),
             ("access_type", "VARCHAR"),
+            ("desidustat_dose", "VARCHAR"),
         ]
         for col, dtype in r_missing:
             if col not in r_existing:
@@ -464,6 +465,7 @@ def save_entry(
     bp_sys: Optional[float] = Form(None),
     serum_ferritin: Optional[float] = Form(None), tsat: Optional[float] = Form(None),
     serum_iron: Optional[float] = Form(None), epo_mircera_dose: str = Form(""),
+    desidustat_dose: str = Form(""),
     epo_weekly_units: Optional[float] = Form(None), calcium: Optional[float] = Form(None),
     alkaline_phosphate: Optional[float] = Form(None), phosphorus: Optional[float] = Form(None),
     albumin: Optional[float] = Form(None), ast: Optional[float] = Form(None),
@@ -482,7 +484,7 @@ def save_entry(
         rec.target_dry_weight = target_dry_weight
         rec.idwg = idwg; rec.hb = hb
         rec.serum_ferritin = serum_ferritin; rec.tsat = tsat; rec.serum_iron = serum_iron
-        rec.epo_mircera_dose = epo_mircera_dose; rec.epo_weekly_units = epo_weekly_units
+        rec.epo_mircera_dose = epo_mircera_dose; rec.desidustat_dose = desidustat_dose; rec.epo_weekly_units = epo_weekly_units
         rec.calcium = calcium; rec.alkaline_phosphate = alkaline_phosphate
         rec.phosphorus = phosphorus; rec.albumin = albumin; rec.ast = ast; rec.alt = alt
         rec.vit_d = vit_d; rec.ipth = ipth; rec.av_daily_calories = av_daily_calories
@@ -496,6 +498,7 @@ def save_entry(
             target_dry_weight=target_dry_weight,
             idwg=idwg, hb=hb, serum_ferritin=serum_ferritin,
             tsat=tsat, serum_iron=serum_iron, epo_mircera_dose=epo_mircera_dose,
+            desidustat_dose=desidustat_dose,
             epo_weekly_units=epo_weekly_units, calcium=calcium, alkaline_phosphate=alkaline_phosphate,
             phosphorus=phosphorus, albumin=albumin, ast=ast, alt=alt, vit_d=vit_d, ipth=ipth,
             av_daily_calories=av_daily_calories, av_daily_protein=av_daily_protein, urr=urr, issues=issues,

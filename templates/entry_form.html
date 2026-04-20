@@ -209,7 +209,12 @@
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>EPO Brand/Dose Description</label>
-                        <input type="text" name="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else '' }}">
+                        <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else '' }}">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Oxemia (Desidustat) Dose</label>
+                        <input type="text" name="desidustat_dose" value="{{ record.desidustat_dose if record else '' }}" placeholder="e.g. 100mg thrice a week" style="margin-bottom: 4px;">
+                        <div id="conversionHint" style="font-size: 0.85em; margin-top: 8px; display: none; line-height: 1.4;"></div>
                     </div>
                 </div>
             </div>
@@ -263,6 +268,41 @@
     </div>
 
     <script>
+        const epoUnitsInput = document.querySelector('input[name="epo_weekly_units"]');
+        const conversionHint = document.getElementById('conversionHint');
+
+        function updateConversionHint() {
+            if (!epoUnitsInput || !conversionHint) return;
+            const uiVal = parseFloat(epoUnitsInput.value);
+            if (isNaN(uiVal)) {
+                conversionHint.style.display = 'none';
+                return;
+            }
+            
+            let suggested = '';
+            let darbeEquiv = '';
+            if (uiVal < 8000) {
+                suggested = '100 mg thrice a week'; darbeEquiv = '< 40 mcg/week';
+            } else if (uiVal <= 16000) {
+                suggested = '125 mg thrice a week'; darbeEquiv = '40 to 80 mcg/week';
+            } else {
+                suggested = '150 mg thrice a week'; darbeEquiv = '> 80 mcg/week';
+            }
+            
+            conversionHint.innerHTML = `<strong>Suggested Oxemia (Desidustat) Conversion:</strong> ${suggested} <br><em style="opacity:0.8">(Based on ${uiVal} IU/week Epoetin or ${darbeEquiv} Darbepoetin)</em>`;
+            conversionHint.style.display = 'block';
+            conversionHint.style.color = '#0284c7';
+            conversionHint.style.background = '#f0f9ff';
+            conversionHint.style.padding = '10px 12px';
+            conversionHint.style.borderRadius = '8px';
+            conversionHint.style.borderLeft = '4px solid #0ea5e9';
+        }
+
+        if(epoUnitsInput) {
+            epoUnitsInput.addEventListener('input', updateConversionHint);
+            updateConversionHint(); // Initial check
+        }
+
         const thresholds = {
             hb: { bad: 10, warn: 11.5, type: 'low' },
             phosphorus: { bad: 5.5, warn: 5.0, type: 'high' },
