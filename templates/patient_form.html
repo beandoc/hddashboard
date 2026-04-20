@@ -529,7 +529,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Current Survival Status</label>
-                        <select name="current_survival_status">
+                        <select name="current_survival_status" id="current_survival_status" onchange="toggleDeathFields()">
                             <option value="">-- Select --</option>
                             {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
                             <option value="{{ s }}" {{ 'selected' if patient and patient.current_survival_status == s }}>{{ s }}</option>
@@ -538,11 +538,11 @@
                     </div>
                     <div class="form-group">
                         <label>Date of Death</label>
-                        <input type="date" name="date_of_death" value="{{ patient.date_of_death if patient and patient.date_of_death else '' }}">
+                        <input type="date" name="date_of_death" id="date_of_death" value="{{ patient.date_of_death if patient and patient.date_of_death else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Primary Cause of Death</label>
-                        <input type="text" name="primary_cause_of_death" value="{{ patient.primary_cause_of_death if patient and patient.primary_cause_of_death else '' }}" placeholder="e.g. Cardiac arrest, Sepsis">
+                        <input type="text" name="primary_cause_of_death" id="primary_cause_of_death" value="{{ patient.primary_cause_of_death if patient and patient.primary_cause_of_death else '' }}" placeholder="e.g. Cardiac arrest, Sepsis">
                     </div>
                     <div class="form-group">
                         <label>Date of Facility Transfer</label>
@@ -678,6 +678,32 @@
             const el = document.getElementById(id);
             if (el && el.value) el.dispatchEvent(new Event("input"));
         });
+
+        // Toggle Death fields visibility
+        function toggleDeathFields() {
+            const status = document.getElementById('current_survival_status').value;
+            const dod = document.getElementById('date_of_death');
+            const cod = document.getElementById('primary_cause_of_death');
+            
+            const isAlive = (status === 'Active' || status === '');
+            dod.disabled = isAlive;
+            cod.disabled = isAlive;
+            
+            if (isAlive) {
+                dod.value = "";
+                cod.value = "";
+                dod.style.opacity = "0.5";
+                cod.style.opacity = "0.5";
+                dod.style.background = "#e2e8f0";
+                cod.style.background = "#e2e8f0";
+            } else {
+                dod.style.opacity = "1";
+                cod.style.opacity = "1";
+                dod.style.background = "#f8fafc";
+                cod.style.background = "#f8fafc";
+            }
+        }
+        document.addEventListener("DOMContentLoaded", toggleDeathFields);
     </script>
 </body>
 </html>

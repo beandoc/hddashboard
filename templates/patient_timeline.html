@@ -277,6 +277,34 @@
         {% endif %}
       </div>
 
+      <!-- Mortality Predictor AI -->
+      {% set mort = analytics.mortality_risk %}
+      <div class="insight-card" style="border-top: 3px solid {% if mort.class == 'danger' %}#dc2626{% elif mort.class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">
+        <div class="card-head">
+          <i class="material-icons">memory</i>
+          <h3 title="XGBoost-derived mortality prediction">Mortality Predictor (AI)</h3>
+          {% if mort.available %}
+          <span class="status-pill {{ mort.class }}">
+            {{ mort.risk_level }}
+          </span>
+          <span class="confidence-badge {{ mort.confidence }}">{{ mort.confidence }}</span>
+          {% endif %}
+        </div>
+        {% if mort.available %}
+        <div class="card-val" style="color:{% if mort.class == 'danger' %}#dc2626{% elif mort.class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">
+          {{ (mort.prob_1yr * 100) | round | int }}% <span style="font-size: 0.8rem; font-weight: 500; font-family: 'Inter', sans-serif;">1-Yr Risk</span>
+        </div>
+        <div class="card-desc">{{ mort.message }}</div>
+        {% if mort.features_used %}
+        <div style="font-size:0.75rem; color:#64748b; margin-top:10px; line-height: 1.3;">
+          <strong style="color: #475569;">Features extracted:</strong> {{ mort.features_used | join(', ') }}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="insufficient-box">⚠ Insufficient data for mortality prediction model.</div>
+        {% endif %}
+      </div>
+
       <!-- BFR / Vascular Access -->
       {% set bfr = bfr_analytics %}
       <div class="insight-card" style="border-top: 3px solid {% if bfr.css_class == 'danger' %}#dc2626{% elif bfr.css_class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">

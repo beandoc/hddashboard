@@ -36,6 +36,23 @@
             padding:2px 8px; margin:1px;
         }
         .no-slot { color:#bbb; font-size:0.8em; font-style:italic; }
+        .btn-action {
+            display: inline-block;
+            background: #e8f0fe;
+            color: #1a237e;
+            padding: 6px 10px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.78rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            white-space: nowrap;
+            border: 1px solid transparent;
+        }
+        .btn-action:hover {
+            background: #1a237e;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -100,9 +117,13 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/entry/{{ p.id }}?month={{ month_str }}" style="color:#007bff;text-decoration:none">
-                            {{ "Edit Data" if p.id in existing_ids else "Enter Data" }}
-                        </a>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            <a href="/patients/{{ p.id }}/edit" class="btn-action" title="Demographic Info">Demographics</a>
+                            <a href="/entry/{{ p.id }}?month={{ month_str }}" class="btn-action" title="Monthly Clinical Data">
+                                {{ "Edit Clinical Data" if p.id in existing_ids else "Add Clinical Data" }}
+                            </a>
+                            <a href="/patients/{{ p.id }}/sessions/new" class="btn-action" title="Per-Session Dialysis Data">Dialysis Session</a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
