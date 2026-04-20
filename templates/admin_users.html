@@ -3,100 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Management - Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+    <title>User Management - HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <style>
-        body { font-family:'Roboto',sans-serif; margin:0; padding:0; background-color:#f4f7fa; }
-        .app-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:200; }
-        .app-nav .brand { color:rgba(255,255,255,0.7); font-size:0.82rem; }
-        .app-nav .nav-links { display:flex; gap:4px; }
-        .app-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; font-weight:500; padding:5px 13px; border-radius:4px; text-transform:uppercase; transition:all .15s; }
-        .app-nav a:hover { color:#fff; background:rgba(255,255,255,0.12); }
-        .container { max-width:1000px; margin:20px auto; padding:0 20px; }
-        .card { background:white; padding:20px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.1); margin-bottom:20px; }
-        table { width:100%; border-collapse:collapse; margin-top:15px; }
-        th, td { padding:12px; text-align:left; border-bottom:1px solid #eee; }
-        th { background:#f8f9fa; color:#1a237e; }
-        .btn { padding:8px 16px; border-radius:4px; border:none; cursor:pointer; font-size:0.9em; text-decoration:none; }
-        .btn-primary { background:#1a237e; color:white; }
-        .btn-danger { background:#dc3545; color:white; }
-        .role-badge { padding:2px 8px; border-radius:10px; font-size:0.8em; font-weight:bold; text-transform:uppercase; }
-        .admin { background:#fff3e0; color:#e67e22; }
-        .doctor { background:#e3f2fd; color:#1976d2; }
-        .nurse { background:#e8f5e9; color:#2e7d32; }
-        form.inline { display:inline; }
+        :root {
+            --primary: #0ea5e9; --primary-dark: #0284c7;
+            --bg-main: #f8fafc; --radius: 12px;
+            --text-main: #1e293b; --text-muted: #64748b; --text-header: #0f172a;
+            --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-main); color: var(--text-main); }
+        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
+
+        .app-nav {
+            background: rgba(15,23,42,0.95); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
+        .app-nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
+        .app-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+        header { background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color: white; padding: 36px 24px; text-align: center; }
+        header h1 { margin: 0; font-size: 1.8em; }
+
+        .container { max-width: 960px; margin: 32px auto; padding: 0 24px 80px; }
+        .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 24px; margin-bottom: 28px; }
+        .card h3 { margin: 0 0 20px; font-size: 1.1em; color: var(--text-header); display: flex; align-items: center; gap: 8px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th { text-align: left; padding: 10px 14px; background: #f1f5f9; color: var(--text-muted); font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.04em; }
+        td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f8fafc; }
+
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 600; }
+        .badge-admin { background: #fef3c7; color: #92400e; }
+        .badge-staff { background: #e0f2fe; color: #0369a1; }
+        .badge-active { background: #dcfce7; color: #166534; }
+        .badge-inactive { background: #fee2e2; color: #991b1b; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-muted); font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.03em; }
+        input, select { width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s; }
+        input:focus, select:focus { border-color: var(--primary); outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(14,165,233,0.1); }
+
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85em; font-weight: 600; transition: all 0.2s; text-decoration: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-danger { background: #fee2e2; color: #991b1b; }
+        .btn-danger:hover { background: #fecaca; }
+        .btn-warn { background: #fef3c7; color: #92400e; }
+        .btn-warn:hover { background: #fde68a; }
+        .btn-success { background: #dcfce7; color: #166534; }
+        .btn-success:hover { background: #bbf7d0; }
+        .btn-sm { padding: 5px 10px; font-size: 0.78em; }
+        .inline-form { display: inline; }
+
+        @media(max-width: 640px) { .form-row { grid-template-columns: 1fr; } table { font-size: 0.8em; } }
     </style>
 </head>
 <body>
     <div class="app-nav">
-        <span class="brand">CH(SC) · Admin Control</span>
-        <div class="nav-links">
+        <span class="brand">CH(SC) · Nephrology Unit</span>
+        <div style="display:flex;gap:8px;">
             <a href="/">Dashboard</a>
-            <a href="/admin/users">Users</a>
-            <a href="/logout">Logout</a>
+            <a href="/patients">Patients</a>
+            <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
     </div>
-    <div class="container">
-        <h1>User Management</h1>
-        
-        <div class="card">
-            <h3>Add New User</h3>
-            <form action="/admin/users/new" method="POST" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:10px; align-items:end;">
-                <div>
-                    <label style="display:block; font-size:0.8em;">Username</label>
-                    <input type="text" name="username" required style="width:100%; padding:8px;">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.8em;">Full Name</label>
-                    <input type="text" name="full_name" required style="width:100%; padding:8px;">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.8em;">Password</label>
-                    <input type="password" name="password" required style="width:100%; padding:8px;">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.8em;">Role</label>
-                    <select name="role" style="width:100%; padding:8px;">
-                        <option value="admin">Admin</option>
-                        <option value="doctor">Doctor</option>
-                        <option value="nurse">Nurse</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Add User</button>
-            </form>
-        </div>
 
+    <header>
+        <h1><i class="material-icons" style="vertical-align:middle;margin-right:8px">manage_accounts</i> User Management</h1>
+    </header>
+
+    <div class="container">
+
+        <!-- Existing users table -->
         <div class="card">
-            <h3>Existing Staff</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Full Name</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <h3><i class="material-icons">group</i> All Users ({{ users|length }})</h3>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                     {% for u in users %}
                     <tr>
-                        <td>{{ u.username }}</td>
-                        <td>{{ u.full_name }}</td>
-                        <td><span class="role-badge {{ u.role }}">{{ u.role }}</span></td>
-                        <td>{{ "Active" if u.is_active else "Deactivated" }}</td>
+                        <td><strong>{{ u.username }}</strong></td>
+                        <td>{{ u.full_name or '—' }}</td>
+                        <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
                         <td>
-                            {% if u.is_active and u.username != user.username %}
-                            <form action="/admin/users/{{ u.id }}/deactivate" method="POST" class="inline">
-                                <button type="submit" class="btn btn-danger" onclick="return confirm('Deactivate this user?')">Deactivate</button>
+                            <span class="badge {{ 'badge-active' if u.is_active else 'badge-inactive' }}">
+                                {{ 'Active' if u.is_active else 'Inactive' }}
+                            </span>
+                        </td>
+                        <td style="color:var(--text-muted);font-size:0.85em;">
+                            {{ u.last_login.strftime('%d %b %Y %H:%M') if u.last_login else 'Never' }}
+                        </td>
+                        <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                            <button class="btn btn-warn btn-sm" onclick="showReset({{ u.id }}, '{{ u.username }}')">
+                                <i class="material-icons" style="font-size:14px">lock_reset</i> Reset PW
+                            </button>
+                            {% if u.id != user.id %}
+                            <form method="POST" action="/admin/users/{{ u.id }}/toggle" class="inline-form">
+                                <button type="submit" class="btn btn-sm {{ 'btn-danger' if u.is_active else 'btn-success' }}">
+                                    <i class="material-icons" style="font-size:14px">{{ 'block' if u.is_active else 'check_circle' }}</i>
+                                    {{ 'Deactivate' if u.is_active else 'Activate' }}
+                                </button>
                             </form>
+                            {% else %}
+                            <span style="font-size:0.78em;color:var(--text-muted);font-style:italic;">You</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Add new user -->
+        <div class="card">
+            <h3><i class="material-icons">person_add</i> Add New User</h3>
+            <form method="POST" action="/admin/users/create">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" name="username" required placeholder="e.g. dr_sharma" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" name="full_name" placeholder="Dr. Anita Sharma">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select name="role">
+                            <option value="staff">Staff</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="material-icons" style="font-size:18px">add</i> Create User
+                </button>
+            </form>
         </div>
     </div>
+
+    <!-- Reset password modal -->
+    <div id="resetModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;padding:32px;width:360px;max-width:90vw;box-shadow:0 20px 40px rgb(0,0,0,0.25);">
+            <h3 style="margin:0 0 8px;font-family:'Outfit',sans-serif;">Reset Password</h3>
+            <p style="margin:0 0 20px;color:#64748b;font-size:0.9em;">New password for <strong id="resetUsername"></strong></p>
+            <form method="POST" id="resetForm">
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" name="new_password" id="resetPwInput" required autocomplete="new-password" placeholder="Min 6 characters">
+                </div>
+                <div style="display:flex;gap:10px;margin-top:8px;">
+                    <button type="submit" class="btn btn-primary" style="flex:1">Save</button>
+                    <button type="button" class="btn" style="background:#f1f5f9;flex:1;" onclick="closeReset()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function showReset(userId, username) {
+            document.getElementById('resetUsername').textContent = username;
+            document.getElementById('resetForm').action = `/admin/users/${userId}/reset-password`;
+            document.getElementById('resetPwInput').value = '';
+            const modal = document.getElementById('resetModal');
+            modal.style.display = 'flex';
+            setTimeout(() => document.getElementById('resetPwInput').focus(), 50);
+        }
+        function closeReset() {
+            document.getElementById('resetModal').style.display = 'none';
+        }
+        document.getElementById('resetModal').addEventListener('click', function(e) {
+            if (e.target === this) closeReset();
+        });
+    </script>
 </body>
 </html>

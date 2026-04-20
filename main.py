@@ -791,6 +791,69 @@ def api_send_email(month: Optional[str] = None, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 # ─────────────────────────────────────────────────────────────────────────────
+# ADMIN — USER MANAGEMENT
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _require_admin(request: Request):
+    user = get_user(request)
+    if not user or user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return user
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users(request: Request, db: Session = Depends(get_db)):
+    _require_admin(request)
+    users = db.query(User).order_by(User.created_at).all()
+    return templates.TemplateResponse("admin_users.html", {
+        "request": request,
+        "users": users,
+        "user": get_user(request),
+    })
+
+@app.post("/admin/users/create")
+def admin_create_user(
+    request: Request, db: Session = Depends(get_db),
+    username: str = Form(...),
+    full_name: str = Form(""),
+    password: str = Form(...),
+    role: str = Form("staff"),
+):
+    _require_admin(request)
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail=f"Username '{username}' already exists.")
+    db.add(User(
+        username=username, full_name=full_name,
+        hashed_password=pwd_context.hash(password), role=role,
+    ))
+    db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+@app.post("/admin/users/{user_id}/reset-password")
+def admin_reset_password(
+    user_id: int, request: Request, db: Session = Depends(get_db),
+    new_password: str = Form(...),
+):
+    _require_admin(request)
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404)
+    u.hashed_password = pwd_context.hash(new_password)
+    db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+@app.post("/admin/users/{user_id}/toggle")
+def admin_toggle_user(user_id: int, request: Request, db: Session = Depends(get_db)):
+    admin = _require_admin(request)
+    u = db.query(User).filter(User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404)
+    if u.id == admin.id:
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account.")
+    u.is_active = not u.is_active
+    db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # AUTHENTICATION
 # ─────────────────────────────────────────────────────────────────────────────
 
