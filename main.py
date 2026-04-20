@@ -581,6 +581,7 @@ def save_entry(
     access_type: str = Form(""),
     target_dry_weight: Optional[float] = Form(None),
     idwg: Optional[float] = Form(None),
+    last_prehd_weight: Optional[float] = Form(None),
     hb: Optional[float] = Form(None),
     bp_sys: Optional[float] = Form(None),
     serum_ferritin: Optional[float] = Form(None),
@@ -643,7 +644,7 @@ def save_entry(
 
     fields = dict(
         access_type=access_type, target_dry_weight=target_dry_weight,
-        idwg=idwg, hb=hb, bp_sys=bp_sys,
+        idwg=idwg, last_prehd_weight=last_prehd_weight, hb=hb, bp_sys=bp_sys,
         serum_ferritin=serum_ferritin, tsat=tsat, serum_iron=serum_iron,
         epo_mircera_dose=epo_mircera_dose, desidustat_dose=desidustat_dose,
         epo_weekly_units=epo_weekly_units, esa_type=esa_type,

@@ -151,6 +151,7 @@ class MonthlyRecord(Base):
     # ── Fluid & Weight ────────────────────────────────────────────────────────
     idwg = Column(Float)                     # Interdialytic Weight Gain — kg (monthly worst/avg)
     target_dry_weight = Column(Float)        # kg — TargetDryWeight
+    last_prehd_weight = Column(Float)        # kg — most recent pre-HD body weight this month
     residual_urine_output = Column(Float)    # mL/24h — ResidualUrineOutputVolume
 
     # ── Dialysis Adequacy ─────────────────────────────────────────────────────
