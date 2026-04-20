@@ -350,6 +350,25 @@ class SessionRecord(Base):
     patient = relationship("Patient", back_populates="sessions")
 
 
+class ClinicalEvent(Base):
+    """
+    A discrete clinical event for a patient on a specific date.
+    Used to build the unit-level and per-patient clinical event timeline.
+    """
+    __tablename__ = "clinical_events"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    patient_id  = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    event_date  = Column(Date, nullable=False)
+    event_type  = Column(String, nullable=False)   # Hospitalization / Access Thrombosis / …
+    severity    = Column(String, default="Medium") # Low / Medium / High / Critical
+    notes       = Column(Text)
+    created_by  = Column(String)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient")
+
+
 def get_db():
     db = SessionLocal()
     try:

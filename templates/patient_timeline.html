@@ -88,6 +88,7 @@
     <div class="nav-links">
       <a href="/">Dashboard</a>
       <a href="/patients">Registry</a>
+      <a href="/events">Events</a>
     </div>
   </nav>
 
@@ -134,14 +135,21 @@
         {% if hb.ready_for_prediction %}
           <div class="prediction-box">
             <strong>Next Month:</strong> {{ hb.next_predicted }} g/dL
+            {% if hb.filtered_level is not none %}
+            <span style="font-size:0.78rem;color:#888;margin-left:6px;">(smoothed: {{ hb.filtered_level }} g/dL)</span>
+            {% endif %}
             {% if hb.pi_lower is not none and hb.pi_upper is not none %}
-            <div class="ci-line">95% PI: {{ hb.pi_lower }} – {{ hb.pi_upper }} g/dL &nbsp;·&nbsp; {{ hb.n_points }} data points</div>
+            <div class="ci-line">
+              95% CI: {{ hb.pi_lower }} – {{ hb.pi_upper }} g/dL
+              &nbsp;·&nbsp; {{ hb.n_points }} data points
+              {% if hb.method %}&nbsp;·&nbsp; <span style="color:#3b5bdb;font-weight:600;">{{ hb.method }}</span>{% if hb.posterior_std %} σ={{ hb.posterior_std }}{% endif %}{% endif %}
+            </div>
             {% else %}
-            <div class="ci-line">{{ hb.n_points }} data point(s) — Prediction Interval available with 3+ months</div>
+            <div class="ci-line">{{ hb.n_points }} data point(s) — CI available with 2+ months</div>
             {% endif %}
             {% if hb.r_squared is not none %}
-            <div class="ci-line" style="margin-top:3px;">
-              R² {{ '%.3f'|format(hb.r_squared) }}
+            <div class="ci-line" style="margin-top:3px;color:#aaa;">
+              OLS: R² {{ '%.3f'|format(hb.r_squared) }}
               {% if hb.adj_r_squared is not none %}&nbsp;·&nbsp; Adj.R² {{ '%.3f'|format(hb.adj_r_squared) }}{% endif %}
               {% if hb.p_value is not none %}&nbsp;·&nbsp; p={{ '%.4f'|format(hb.p_value) }}{% endif %}
               {% if hb.durbin_watson is not none %}&nbsp;·&nbsp; DW={{ '%.2f'|format(hb.durbin_watson) }}{% endif %}
@@ -189,13 +197,20 @@
         <div class="card-val">{{ alb.current or '—' }} <small>g/dL</small></div>
         {% if alb.predicted is not none %}
           <div class="prediction-box">
-            <strong>Trend:</strong> {{ alb.trend|capitalize }} &nbsp;·&nbsp; <strong>Next Month:</strong> {{ alb.predicted }} g/dL
+            <strong>Trend:</strong> {{ alb.trend }} &nbsp;·&nbsp; <strong>Next Month:</strong> {{ alb.predicted }} g/dL
+            {% if alb.filtered_level is not none %}
+            <span style="font-size:0.78rem;color:#888;margin-left:6px;">(smoothed: {{ alb.filtered_level }} g/dL)</span>
+            {% endif %}
             {% if alb.pi_lower is not none and alb.pi_upper is not none %}
-            <div class="ci-line">95% PI: {{ alb.pi_lower }} – {{ alb.pi_upper }} g/dL &nbsp;·&nbsp; {{ alb.n_points }} data points</div>
+            <div class="ci-line">
+              95% CI: {{ alb.pi_lower }} – {{ alb.pi_upper }} g/dL
+              &nbsp;·&nbsp; {{ alb.n_points }} data points
+              {% if alb.method %}&nbsp;·&nbsp; <span style="color:#3b5bdb;font-weight:600;">{{ alb.method }}</span>{% if alb.posterior_std %} σ={{ alb.posterior_std }}{% endif %}{% endif %}
+            </div>
             {% endif %}
             {% if alb.r_squared is not none %}
-            <div class="ci-line" style="margin-top:3px;">
-              R² {{ '%.3f'|format(alb.r_squared) }}
+            <div class="ci-line" style="margin-top:3px;color:#aaa;">
+              OLS: R² {{ '%.3f'|format(alb.r_squared) }}
               {% if alb.adj_r_squared is not none %}&nbsp;·&nbsp; Adj.R² {{ '%.3f'|format(alb.adj_r_squared) }}{% endif %}
               {% if alb.p_value is not none %}&nbsp;·&nbsp; p={{ '%.4f'|format(alb.p_value) }}{% endif %}
               {% if alb.durbin_watson is not none %}&nbsp;·&nbsp; DW={{ '%.2f'|format(alb.durbin_watson) }}{% endif %}
@@ -264,6 +279,103 @@
     </div>
     {% endif %}
   </div>
+
+  <!-- ── Clinical Events ─────────────────────────────────────────────── -->
+  <div style="max-width:1100px;margin:24px auto;padding:0 16px 80px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="margin:0;font-family:'Outfit',sans-serif;font-size:1.1rem;color:var(--primary);">
+        <i class="material-icons" style="vertical-align:middle;font-size:1.1rem;margin-right:6px;">timeline</i>Clinical Events
+      </h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="/events?patient_id={{ patient.id }}" style="font-size:0.8rem;color:var(--accent);text-decoration:none;">View in unit timeline →</a>
+        <button onclick="document.getElementById('ptEvtForm').classList.toggle('hidden')"
+          style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;">
+          + Log Event
+        </button>
+      </div>
+    </div>
+
+    <!-- Log form (hidden by default) -->
+    <div id="ptEvtForm" class="hidden" style="background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);border-top:3px solid var(--accent);">
+      <form method="POST" action="/events/new" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;">
+        <input type="hidden" name="patient_id" value="{{ patient.id }}">
+        <div>
+          <label style="display:block;font-size:0.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Date</label>
+          <input type="date" name="event_date" required style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Event Type</label>
+          <select name="event_type" required style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;">
+            <option value="">— Select —</option>
+            {% for group_name, group_types in event_type_groups %}
+            <optgroup label="{{ group_name }}">{% for et in group_types %}<option value="{{ et }}">{{ et }}</option>{% endfor %}</optgroup>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Severity</label>
+          <select name="severity" style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;">
+            <option value="Low">Low</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="display:block;font-size:0.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Notes</label>
+          <input type="text" name="notes" placeholder="What happened, intervention, outcome..."
+            style="width:100%;padding:9px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box;">
+        </div>
+        <div style="grid-column:1/-1;display:flex;gap:8px;">
+          <button type="submit" style="padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:0.88rem;font-weight:600;cursor:pointer;">Save</button>
+          <button type="button" onclick="document.getElementById('ptEvtForm').classList.add('hidden')"
+            style="padding:9px 16px;background:transparent;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.88rem;cursor:pointer;color:#475569;">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Event list -->
+    {% if pt_events %}
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      {% for ev in pt_events %}
+      {% set sc = ev.severity | lower %}
+      {% set scol = {'critical':'#dc2626','high':'#ea580c','medium':'#d97706','low':'#16a34a'}[sc] %}
+      <div style="background:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border-left:4px solid {{ scol }};display:flex;align-items:flex-start;gap:12px;">
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-weight:700;font-size:0.92rem;color:#0f172a;">{{ ev.event_type }}</span>
+            <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;background:{{ scol }}22;color:{{ scol }};">{{ ev.severity }}</span>
+            <span style="font-size:0.78rem;color:#94a3b8;">{{ ev.event_date.strftime('%-d %b %Y') }}</span>
+          </div>
+          {% if ev.notes %}<div style="font-size:0.83rem;color:#64748b;margin-top:4px;font-style:italic;">"{{ ev.notes }}"</div>{% endif %}
+          {% if ev.created_by %}<div style="font-size:0.72rem;color:#cbd5e1;margin-top:2px;">by {{ ev.created_by }}</div>{% endif %}
+        </div>
+        <form method="POST" action="/events/{{ ev.id }}/delete" onsubmit="return confirm('Delete this event?')">
+          <button type="submit" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:2px;" title="Delete">
+            <i class="material-icons" style="font-size:0.95rem;">delete_outline</i>
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:28px;color:#94a3b8;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+      <i class="material-icons" style="font-size:2rem;display:block;margin-bottom:6px;">event_available</i>
+      No clinical events recorded for this patient yet.
+    </div>
+    {% endif %}
+  </div>
+
+  <style>
+    .hidden { display: none !important; }
+  </style>
+  <script>
+    // Pre-fill today's date on the patient timeline log form
+    (function(){
+      var d = document.querySelector('#ptEvtForm input[name="event_date"]');
+      if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+    })();
+  </script>
 
 </body>
 </html>

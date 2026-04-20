@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Optional
 
 # Database engine and session for startup logic
-from database import get_db, create_tables, Patient, MonthlyRecord, User, engine, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, engine, SessionLocal
 from passlib.context import CryptContext
 from itsdangerous import URLSafeSerializer
 
@@ -727,8 +727,15 @@ def patient_timeline(patient_id: int, request: Request, db: Session = Depends(ge
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
     analytics = run_patient_analytics(db, patient_id)
+    pt_events = (
+        db.query(ClinicalEvent)
+        .filter(ClinicalEvent.patient_id == patient_id)
+        .order_by(ClinicalEvent.event_date.desc())
+        .all()
+    )
     return templates.TemplateResponse("patient_timeline.html", {
         "request": request, "patient": patient, "analytics": analytics,
+        "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
         "user": get_user(request),
     })
 
@@ -766,6 +773,144 @@ def api_cohort_trends(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return JSONResponse(content=data)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLINICAL EVENTS TIMELINE
+# ─────────────────────────────────────────────────────────────────────────────
+
+EVENT_TYPE_GROUPS = [
+    ("Intradialytic Complications", [
+        "Intradialytic Hypotension",
+        "Fever / Rigors",
+        "Cramps",
+        "Nausea / Vomiting",
+        "Chest Pain",
+        "Headache / Dizziness",
+        "Needle Dislodgement",
+        "Circuit Clot / Clotted Lines",
+        "Air Embolism",
+        "Cardiac Arrest",
+        "Seizure",
+        "Anaphylaxis / Allergic Reaction",
+    ]),
+    ("Vascular Access", [
+        "Access Thrombosis",
+        "AV Fistula Revision",
+        "AV Fistula Failure",
+        "Catheter Change",
+        "Catheter / Exit-Site Infection",
+    ]),
+    ("Systemic / Hospitalizations", [
+        "Hospitalization",
+        "Fluid Overload",
+        "Blood Transfusion",
+        "Sepsis / Bacteremia",
+        "Cardiac Event",
+        "EPO Hyporesponse",
+    ]),
+    ("Administrative", [
+        "Missed Sessions",
+        "Transfer",
+        "Transplant",
+        "Fall / Injury",
+        "Death",
+        "Other",
+    ]),
+]
+EVENT_TYPES = [et for _, ets in EVENT_TYPE_GROUPS for et in ets]
+
+@app.get("/events", response_class=HTMLResponse)
+def events_timeline(
+    request: Request,
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+    event_type: Optional[str] = None,
+    severity:   Optional[str] = None,
+    patient_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    from datetime import timedelta
+    today = date.today()
+
+    # Default: last 90 days
+    d_from = date.fromisoformat(date_from) if date_from else today - timedelta(days=90)
+    d_to   = date.fromisoformat(date_to)   if date_to   else today
+
+    q = db.query(ClinicalEvent).filter(
+        ClinicalEvent.event_date >= d_from,
+        ClinicalEvent.event_date <= d_to,
+    )
+    if event_type:
+        q = q.filter(ClinicalEvent.event_type == event_type)
+    if severity:
+        q = q.filter(ClinicalEvent.severity == severity)
+    if patient_id:
+        q = q.filter(ClinicalEvent.patient_id == patient_id)
+
+    events = q.order_by(ClinicalEvent.event_date.desc()).all()
+
+    # Summary counts
+    sev_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    type_counts: dict = {}
+    for ev in events:
+        sev_counts[ev.severity] = sev_counts.get(ev.severity, 0) + 1
+        type_counts[ev.event_type] = type_counts.get(ev.event_type, 0) + 1
+
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+
+    return templates.TemplateResponse("events.html", {
+        "request":     request,
+        "events":      events,
+        "patients":    patients,
+        "event_types":       EVENT_TYPES,
+        "event_type_groups": EVENT_TYPE_GROUPS,
+        "sev_counts":  sev_counts,
+        "type_counts": type_counts,
+        "date_from":   d_from.isoformat(),
+        "date_to":     d_to.isoformat(),
+        "filter_type": event_type or "",
+        "filter_sev":  severity or "",
+        "filter_pid":  patient_id or "",
+        "total":       len(events),
+        "today":       today.isoformat(),
+        "user":        get_user(request),
+    })
+
+
+@app.post("/events/new")
+def create_event(
+    request:    Request,
+    patient_id: int          = Form(...),
+    event_date: str          = Form(...),
+    event_type: str          = Form(...),
+    severity:   str          = Form("Medium"),
+    notes:      str          = Form(""),
+    db:         Session      = Depends(get_db),
+):
+    ev = ClinicalEvent(
+        patient_id = patient_id,
+        event_date = date.fromisoformat(event_date),
+        event_type = event_type,
+        severity   = severity,
+        notes      = notes.strip(),
+        created_by = (get_user(request).username if get_user(request) else ""),
+    )
+    db.add(ev)
+    db.commit()
+    # Return to referring page (events list or patient timeline)
+    ref = request.headers.get("referer", "/events")
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post("/events/{event_id}/delete")
+def delete_event(event_id: int, request: Request, db: Session = Depends(get_db)):
+    ev = db.query(ClinicalEvent).filter(ClinicalEvent.id == event_id).first()
+    if ev:
+        db.delete(ev)
+        db.commit()
+    ref = request.headers.get("referer", "/events")
+    return RedirectResponse(url=ref, status_code=303)
 
 
 @app.get("/whatsapp-links", response_class=HTMLResponse)
