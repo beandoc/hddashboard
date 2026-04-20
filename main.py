@@ -304,8 +304,12 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
                 "phos_high": {"count": 0, "names": []},
                 "epo_hypo": {"count": 0, "names": []},
                 "iv_iron_rec": {"count": 0, "names": []},
+                "trend_hb": [],
+                "trend_albumin": [],
+                "trend_phosphorus": [],
             },
-            "patient_rows": [], "month_label": get_month_label(month_str), "prev_month_label": "N/A"
+            "patient_rows": [], "month_label": get_month_label(month_str),
+            "prev_month_label": "N/A", "total_active": 0
         }
     
     return templates.TemplateResponse("dashboard.html", {
