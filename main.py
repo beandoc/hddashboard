@@ -71,6 +71,33 @@ def startup():
             ("target_dry_weight", "FLOAT"),
             ("access_type", "VARCHAR"),
             ("desidustat_dose", "VARCHAR"),
+            # ── Registry expansion (2026-04) ──
+            ("residual_urine_output", "FLOAT"),
+            ("single_pool_ktv", "FLOAT"),
+            ("equilibrated_ktv", "FLOAT"),
+            ("pre_dialysis_urea", "FLOAT"),
+            ("post_dialysis_urea", "FLOAT"),
+            ("serum_creatinine", "FLOAT"),
+            ("esa_type", "VARCHAR"),
+            ("tibc", "FLOAT"),
+            ("iv_iron_product", "VARCHAR"),
+            ("iv_iron_dose", "FLOAT"),
+            ("vitamin_d_analog_dose", "VARCHAR"),
+            ("phosphate_binder_type", "VARCHAR"),
+            ("serum_sodium", "FLOAT"),
+            ("serum_potassium", "FLOAT"),
+            ("serum_bicarbonate", "FLOAT"),
+            ("serum_uric_acid", "FLOAT"),
+            ("total_cholesterol", "FLOAT"),
+            ("ldl_cholesterol", "FLOAT"),
+            ("wbc_count", "FLOAT"),
+            ("platelet_count", "FLOAT"),
+            ("hba1c", "FLOAT"),
+            ("antihypertensive_count", "INTEGER"),
+            ("hrqol_score", "FLOAT"),
+            ("hospitalization_this_month", "BOOLEAN"),
+            ("hospitalization_date", "DATE"),
+            ("hospitalization_icd_code", "VARCHAR"),
         ]
         for col, dtype in r_missing:
             if col not in r_existing:
@@ -95,6 +122,36 @@ def startup():
             ("hz_dose2_date", "DATE"),
             ("influenza_date", "DATE"),
             ("hd_frequency", "INTEGER"),
+            # ── Registry expansion (2026-04) ──
+            ("education_level", "VARCHAR"),
+            ("height", "FLOAT"),
+            ("primary_renal_disease", "VARCHAR"),
+            ("date_esrd_diagnosis", "DATE"),
+            ("native_kidney_biopsy", "VARCHAR"),
+            ("dm_status", "VARCHAR"),
+            ("htn_status", "BOOLEAN"),
+            ("cad_status", "BOOLEAN"),
+            ("chf_status", "BOOLEAN"),
+            ("history_of_stroke", "BOOLEAN"),
+            ("smoking_status", "VARCHAR"),
+            ("alcohol_consumption", "VARCHAR"),
+            ("charlson_comorbidity_index", "INTEGER"),
+            ("previous_krt_modality", "VARCHAR"),
+            ("history_of_renal_transplant", "BOOLEAN"),
+            ("transplant_prospect", "VARCHAR"),
+            ("viral_hbsag", "VARCHAR"),
+            ("viral_anti_hcv", "VARCHAR"),
+            ("viral_hiv", "VARCHAR"),
+            ("date_first_cannulation", "DATE"),
+            ("history_of_access_thrombosis", "BOOLEAN"),
+            ("access_intervention_history", "TEXT"),
+            ("catheter_type", "VARCHAR"),
+            ("catheter_insertion_site", "VARCHAR"),
+            ("current_survival_status", "VARCHAR"),
+            ("date_of_death", "DATE"),
+            ("primary_cause_of_death", "VARCHAR"),
+            ("withdrawal_from_dialysis", "BOOLEAN"),
+            ("date_facility_transfer", "DATE"),
         ]
         for col, dtype in p_missing:
             if col not in p_existing:
@@ -102,6 +159,45 @@ def startup():
                     conn.execute(text(f"ALTER TABLE patients ADD COLUMN {col} {dtype}"))
                     conn.commit()
                 except Exception: pass
+
+        # 5. Check session_records columns (Registry expansion 2026-04)
+        try:
+            s_existing = [c['name'] for c in inspector.get_columns('session_records')]
+            s_missing = [
+                ("scheduled_treatment_duration", "FLOAT"),
+                ("actual_uf_volume", "FLOAT"),
+                ("uf_rate", "FLOAT"),
+                ("actual_blood_flow_rate", "FLOAT"),
+                ("dialyzer_membrane_flux", "VARCHAR"),
+                ("dialysate_buffer", "VARCHAR"),
+                ("dialysate_sodium", "FLOAT"),
+                ("dialysate_potassium", "FLOAT"),
+                ("dialysate_calcium", "FLOAT"),
+                ("dialysate_bicarbonate", "FLOAT"),
+                ("dialysate_temperature", "FLOAT"),
+                ("arterial_line_pressure", "FLOAT"),
+                ("venous_line_pressure", "FLOAT"),
+                ("transmembrane_pressure", "FLOAT"),
+                ("anticoagulation_dose", "FLOAT"),
+                ("needle_gauge", "VARCHAR"),
+                ("cannulation_technique", "VARCHAR"),
+                ("idh_episode", "BOOLEAN"),
+                ("idh_hypertension", "BOOLEAN"),
+                ("muscle_cramps", "BOOLEAN"),
+                ("nausea_vomiting", "BOOLEAN"),
+                ("chest_pain", "BOOLEAN"),
+                ("arrhythmia", "BOOLEAN"),
+                ("early_termination", "BOOLEAN"),
+                ("reason_early_termination", "VARCHAR"),
+            ]
+            for col, dtype in s_missing:
+                if col not in s_existing:
+                    try:
+                        conn.execute(text(f"ALTER TABLE session_records ADD COLUMN {col} {dtype}"))
+                        conn.commit()
+                    except Exception: pass
+        except Exception:
+            pass  # session_records table may not exist yet — create_all() handles it
 
         # 4. Check users columns (Auth — added last_login, created_at)
         # Guard: users table may not exist yet on first deploy — skip if so
