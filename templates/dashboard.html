@@ -861,7 +861,7 @@
             <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}">{{ "%.1f"|format(row.hb) if row.hb else "—" }}</td>
             <td data-label="Ferritin" class="{{ 'val-warn' if row.ferritin and row.ferritin>500 else ('val-ok' if row.ferritin else 'val-none') }}">{{ "%.0f"|format(row.ferritin) if row.ferritin else "—" }}</td>
             <td data-label="TSAT%" class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
-            <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.1f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
+            <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
             <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}">{{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}</td>
             <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}">{{ "%.1f"|format(row.albumin) if row.albumin else "—" }}</td>
             <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}">{{ "%.0f"|format(row.ipth) if row.ipth else "—" }}</td>

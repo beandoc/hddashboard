@@ -91,7 +91,7 @@ def compute_dashboard(db: Session, month: str = None):
             "hb": r.hb if r else None,
             "ferritin": r.serum_ferritin if r else None,
             "tsat": r.tsat if r else None,
-            "corrected_ca": (r.calcium + 0.8 * (4.0 - r.albumin)) if (r and r.calcium and r.albumin) else (r.calcium if r else None),
+            "corrected_ca": round(r.calcium + 0.8 * (4.0 - r.albumin), 2) if (r and r.calcium and r.albumin) else (r.calcium if r else None),
             "phosphorus": r.phosphorus if r else None,
             "albumin": r.albumin if r else None,
             "ipth": r.ipth if r else None,

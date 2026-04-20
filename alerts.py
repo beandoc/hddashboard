@@ -47,7 +47,7 @@ def build_whatsapp_message(patient_name: str, alerts: list,
         if lab_values.get("phosphorus"):
             critical_labs.append(f"Phosphorus: {lab_values['phosphorus']} mg/dL")
         if lab_values.get("corrected_ca"):
-            critical_labs.append(f"Corrected Ca: {lab_values['corrected_ca']} mg/dL")
+            critical_labs.append(f"Corrected Ca: {round(lab_values['corrected_ca'], 2)} mg/dL")
         if lab_values.get("ipth"):
             critical_labs.append(f"iPTH: {lab_values['ipth']} pg/mL")
         if lab_values.get("idwg"):
