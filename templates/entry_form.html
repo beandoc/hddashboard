@@ -150,7 +150,7 @@
             <input type="hidden" name="month_str" value="{{ month_str }}">
             
             <div class="form-section">
-                <div class="section-title"><i class="material-icons">vitals</i> General Vitals</div>
+                <div class="section-title"><i class="material-icons">monitor_weight</i> Fluid, Weight & Access</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Vascular Access Type</label>
@@ -239,6 +239,19 @@
                         <label>Vitamin D (ng/mL)</label>
                         <input type="number" step="0.01" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
                     </div>
+                    <div class="form-group">
+                        <label>Vitamin D Analog & Dose</label>
+                        <input type="text" name="vitamin_d_analog_dose" placeholder="e.g. Calcitriol 0.25mcg OD" value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Phosphate Binder</label>
+                        <select name="phosphate_binder_type">
+                            <option value="">-- None / Select --</option>
+                            {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Aluminium Hydroxide"] %}
+                            <option value="{{ b }}" {{ 'selected' if record and record.phosphate_binder_type == b }}>{{ b }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -301,7 +314,7 @@
 
             <!-- ── Extended Iron Panel & ESA ── -->
             <div class="form-section">
-                <div class="section-title"><i class="material-icons">bloodtype</i> Extended Iron Panel & ESA</div>
+                <div class="section-title"><i class="material-icons">bloodtype</i> Iron Panel, ESA & Haematology</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>ESA Type</label>
@@ -380,26 +393,17 @@
                         <label>HbA1c (%)</label>
                         <input type="number" step="0.01" name="hba1c" inputmode="decimal" placeholder="e.g. 7.2" value="{{ record.hba1c if record and record.hba1c else '' }}">
                     </div>
+                    <div class="form-group">
+                        <label>CRP — C-Reactive Protein (mg/L)</label>
+                        <input type="number" step="0.1" name="crp" inputmode="decimal" placeholder="e.g. 5.0" value="{{ record.crp if record and record.crp else '' }}">
+                    </div>
                 </div>
             </div>
 
             <!-- ── Medications & Outcomes ── -->
             <div class="form-section">
-                <div class="section-title"><i class="material-icons">medication</i> Medications & Outcomes</div>
+                <div class="section-title"><i class="material-icons">medication</i> Medications & Clinical Outcomes</div>
                 <div class="grid">
-                    <div class="form-group">
-                        <label>Vitamin D Analog & Dose</label>
-                        <input type="text" name="vitamin_d_analog_dose" placeholder="e.g. Calcitriol 0.25mcg OD" value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Phosphate Binder</label>
-                        <select name="phosphate_binder_type">
-                            <option value="">-- None / Select --</option>
-                            {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Aluminium Hydroxide"] %}
-                            <option value="{{ b }}" {{ 'selected' if record and record.phosphate_binder_type == b }}>{{ b }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
                     <div class="form-group">
                         <label>Antihypertensive Drugs (count)</label>
                         <input type="number" step="1" min="0" max="10" name="antihypertensive_count" inputmode="numeric" placeholder="0–10" value="{{ record.antihypertensive_count if record and record.antihypertensive_count is not none else '' }}">

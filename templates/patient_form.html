@@ -135,7 +135,7 @@
         {% endif %}
         <form method="POST">
             <div class="form-card">
-                <h3><i class="material-icons">person</i> Fundamental Data</h3>
+                <h3><i class="material-icons">person</i> Demographics</h3>
                 <div class="form-row">
                     <div class="form-group">
                         <label>HID Number</label>
@@ -175,28 +175,58 @@
                         <input type="number" name="age" min="1" max="120" value="{{ patient.age if patient and patient.age else '' }}" placeholder="e.g. 58" inputmode="numeric">
                     </div>
                     <div class="form-group">
-                        <label>Ejection Fraction (%) <small style="color:#888">Default 60% if unknown</small></label>
-                        <input type="number" step="1" name="ejection_fraction" min="10" max="80" value="{{ patient.ejection_fraction if patient and patient.ejection_fraction else '' }}" placeholder="60">
+                        <label>Height (cm)</label>
+                        <input type="number" step="0.1" name="height" value="{{ patient.height if patient and patient.height else '' }}" placeholder="e.g. 165" inputmode="decimal">
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Target Dry Weight (kg)</label>
-                        <input type="number" step="0.1" name="dry_weight" value="{{ patient.dry_weight if patient else '' }}" inputmode="decimal">
+                        <label>Email</label>
+                        <input type="email" name="email" value="{{ patient.email if patient and patient.email else '' }}" placeholder="patient@email.com">
                     </div>
+                    <div class="form-group">
+                        <label>Education Level</label>
+                        <select name="education_level">
+                            <option value="">-- Select --</option>
+                            {% for lvl in ["Illiterate","Primary","Secondary","Graduate","Post-Graduate"] %}
+                            <option value="{{ lvl }}" {{ 'selected' if patient and patient.education_level == lvl }}>{{ lvl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
                         <label>Relation Context</label>
                         <input type="text" name="relation_type" value="{{ patient.relation_type if patient else '' }}" placeholder="S/O, D/O, W/O Guardian">
                     </div>
-                </div>
-                <div class="form-group">
-                    <label>Diagnosis / History</label>
-                    <textarea name="diagnosis" rows="3">{{ patient.diagnosis if patient else '' }}</textarea>
+                    <div class="form-group">
+                        <label>Healthcare Facility</label>
+                        <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else '' }}" placeholder="Hospital / Centre Name">
+                    </div>
                 </div>
             </div>
 
             <div class="form-card">
-                <h3><i class="material-icons">event_note</i> Dialysis Configuration</h3>
+                <h3><i class="material-icons">event_note</i> Dialysis Prescription</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>HD Start Date (WEF)</label>
+                        <input type="date" name="hd_wef_date" value="{{ patient.hd_wef_date if patient and patient.hd_wef_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Current Dialysis Modality</label>
+                        <select name="dialysis_modality">
+                            <option value="">-- Select --</option>
+                            {% for m in ["HD","HDF","Online-HDF","CAPD","APD"] %}
+                            <option value="{{ m }}" {{ 'selected' if patient and patient.dialysis_modality == m }}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Target Dry Weight (kg)</label>
+                        <input type="number" step="0.1" name="dry_weight" value="{{ patient.dry_weight if patient else '' }}" inputmode="decimal">
+                    </div>
+                </div>
                 <div class="form-group">
                     <label>Access Type</label>
                     <select name="access_type">
@@ -288,41 +318,13 @@
                 </script>
             </div>
             
-            <!-- ── Additional Demographics ── -->
-            <div class="form-card">
-                <h3><i class="material-icons">person_outline</i> Additional Demographics</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Height (cm)</label>
-                        <input type="number" step="0.1" name="height" value="{{ patient.height if patient and patient.height else '' }}" placeholder="e.g. 165" inputmode="decimal">
-                    </div>
-                    <div class="form-group">
-                        <label>Education Level</label>
-                        <select name="education_level">
-                            <option value="">-- Select --</option>
-                            {% for lvl in ["Illiterate","Primary","Secondary","Graduate","Post-Graduate"] %}
-                            <option value="{{ lvl }}" {{ 'selected' if patient and patient.education_level == lvl }}>{{ lvl }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" name="email" value="{{ patient.email if patient and patient.email else '' }}" placeholder="patient@email.com">
-                    </div>
-                    <div class="form-group">
-                        <label>HD Start Date (WEF)</label>
-                        <input type="date" name="hd_wef_date" value="{{ patient.hd_wef_date if patient and patient.hd_wef_date else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Healthcare Facility</label>
-                        <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else '' }}" placeholder="Hospital / Centre Name">
-                    </div>
-                </div>
-            </div>
-
             <!-- ── Renal Disease Profile ── -->
             <div class="form-card">
                 <h3><i class="material-icons">biotech</i> Renal Disease Profile</h3>
+                <div class="form-group">
+                    <label>Diagnosis / Clinical History</label>
+                    <textarea name="diagnosis" rows="2" placeholder="e.g. ESRD secondary to Diabetic Nephropathy, CKD-5D on MHD...">{{ patient.diagnosis if patient else '' }}</textarea>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Primary Renal Disease</label>
@@ -362,6 +364,10 @@
                             <option value="Type 2" {{ 'selected' if patient and patient.dm_status == 'Type 2' }}>Type 2</option>
                             <option value="Secondary" {{ 'selected' if patient and patient.dm_status == 'Secondary' }}>Secondary</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ejection Fraction (%) <small style="color:#888">Default 60% if unknown</small></label>
+                        <input type="number" step="1" name="ejection_fraction" min="10" max="80" value="{{ patient.ejection_fraction if patient and patient.ejection_fraction else '' }}" placeholder="60">
                     </div>
                     <div class="form-group">
                         <label>Smoking Status</label>
@@ -410,15 +416,6 @@
             <div class="form-card">
                 <h3><i class="material-icons">history</i> KRT History & Transplant</h3>
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Current Dialysis Modality</label>
-                        <select name="dialysis_modality">
-                            <option value="">-- Select --</option>
-                            {% for m in ["HD","HDF","Online-HDF","CAPD","APD"] %}
-                            <option value="{{ m }}" {{ 'selected' if patient and patient.dialysis_modality == m }}>{{ m }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
                     <div class="form-group">
                         <label>Previous KRT Modality</label>
                         <select name="previous_krt_modality">
