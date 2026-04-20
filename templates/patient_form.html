@@ -224,6 +224,275 @@
                 </div>
             </div>
             
+            <!-- ── Additional Demographics ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">person_outline</i> Additional Demographics</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Height (cm)</label>
+                        <input type="number" step="0.1" name="height" value="{{ patient.height if patient and patient.height else '' }}" placeholder="e.g. 165" inputmode="decimal">
+                    </div>
+                    <div class="form-group">
+                        <label>Education Level</label>
+                        <select name="education_level">
+                            <option value="">-- Select --</option>
+                            {% for lvl in ["Illiterate","Primary","Secondary","Graduate","Post-Graduate"] %}
+                            <option value="{{ lvl }}" {{ 'selected' if patient and patient.education_level == lvl }}>{{ lvl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" name="email" value="{{ patient.email if patient and patient.email else '' }}" placeholder="patient@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>HD Start Date (WEF)</label>
+                        <input type="date" name="hd_wef_date" value="{{ patient.hd_wef_date if patient and patient.hd_wef_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Healthcare Facility</label>
+                        <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else '' }}" placeholder="Hospital / Centre Name">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Renal Disease Profile ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">biotech</i> Renal Disease Profile</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary Renal Disease</label>
+                        <select name="primary_renal_disease">
+                            <option value="">-- Select --</option>
+                            {% for d in ["Diabetic Nephropathy","Hypertensive Nephrosclerosis","Chronic Glomerulonephritis","Polycystic Kidney Disease","Obstructive Uropathy","Lupus Nephritis","IgA Nephropathy","Unknown/Undetermined","Other"] %}
+                            <option value="{{ d }}" {{ 'selected' if patient and patient.primary_renal_disease == d }}>{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of ESRD Diagnosis</label>
+                        <input type="date" name="date_esrd_diagnosis" value="{{ patient.date_esrd_diagnosis if patient and patient.date_esrd_diagnosis else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Native Kidney Biopsy</label>
+                        <select name="native_kidney_biopsy">
+                            <option value="">-- Select --</option>
+                            <option value="Done" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Done' }}>Done</option>
+                            <option value="Not Done" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Not Done' }}>Not Done</option>
+                            <option value="Inconclusive" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Inconclusive' }}>Inconclusive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Comorbidities ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">monitor_heart</i> Comorbidities</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Diabetes Mellitus</label>
+                        <select name="dm_status">
+                            <option value="">-- Select --</option>
+                            <option value="None" {{ 'selected' if patient and patient.dm_status == 'None' }}>None</option>
+                            <option value="Type 1" {{ 'selected' if patient and patient.dm_status == 'Type 1' }}>Type 1</option>
+                            <option value="Type 2" {{ 'selected' if patient and patient.dm_status == 'Type 2' }}>Type 2</option>
+                            <option value="Secondary" {{ 'selected' if patient and patient.dm_status == 'Secondary' }}>Secondary</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Smoking Status</label>
+                        <select name="smoking_status">
+                            <option value="">-- Select --</option>
+                            <option value="Never" {{ 'selected' if patient and patient.smoking_status == 'Never' }}>Never</option>
+                            <option value="Ex-smoker" {{ 'selected' if patient and patient.smoking_status == 'Ex-smoker' }}>Ex-smoker</option>
+                            <option value="Current" {{ 'selected' if patient and patient.smoking_status == 'Current' }}>Current</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Alcohol Consumption</label>
+                        <select name="alcohol_consumption">
+                            <option value="">-- Select --</option>
+                            <option value="None" {{ 'selected' if patient and patient.alcohol_consumption == 'None' }}>None</option>
+                            <option value="Occasional" {{ 'selected' if patient and patient.alcohol_consumption == 'Occasional' }}>Occasional</option>
+                            <option value="Regular" {{ 'selected' if patient and patient.alcohol_consumption == 'Regular' }}>Regular</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Charlson Comorbidity Index</label>
+                        <input type="number" name="charlson_comorbidity_index" min="0" max="40" step="1" inputmode="numeric" value="{{ patient.charlson_comorbidity_index if patient and patient.charlson_comorbidity_index is not none else '' }}" placeholder="0–37">
+                    </div>
+                </div>
+                <div class="form-row" style="grid-template-columns: repeat(3, 1fr);">
+                    {% for field, label in [('htn_status','Hypertension'),('cad_status','Coronary Artery Disease'),('chf_status','Congestive Heart Failure'),('history_of_stroke','History of Stroke')] %}
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
+                            <input type="checkbox" name="{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} style="width:18px;height:18px;">
+                            <span>{{ label }}</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="form-group">
+                    <label>Other Comorbidities (free text)</label>
+                    <textarea name="comorbidities" rows="2" placeholder="e.g. Hypothyroidism, CLD...">{{ patient.comorbidities if patient and patient.comorbidities else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Drug Allergies</label>
+                    <input type="text" name="drug_allergies" value="{{ patient.drug_allergies if patient and patient.drug_allergies else '' }}" placeholder="e.g. Penicillin, NSAIDs">
+                </div>
+            </div>
+
+            <!-- ── KRT History ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">history</i> KRT History & Transplant</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Dialysis Modality</label>
+                        <select name="dialysis_modality">
+                            <option value="">-- Select --</option>
+                            {% for m in ["HD","HDF","Online-HDF","CAPD","APD"] %}
+                            <option value="{{ m }}" {{ 'selected' if patient and patient.dialysis_modality == m }}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Previous KRT Modality</label>
+                        <select name="previous_krt_modality">
+                            <option value="">-- None / First KRT --</option>
+                            {% for m in ["Pre-emptive HD","Pre-emptive PD","Renal Transplant","Conservative Management"] %}
+                            <option value="{{ m }}" {{ 'selected' if patient and patient.previous_krt_modality == m }}>{{ m }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Transplant Prospect</label>
+                        <select name="transplant_prospect">
+                            <option value="">-- Select --</option>
+                            {% for s in ["Active","Listed","Inactive","Contraindicated","Post-Transplant Return"] %}
+                            <option value="{{ s }}" {{ 'selected' if patient and patient.transplant_prospect == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
+                        <input type="checkbox" name="history_of_renal_transplant" value="true" {{ 'checked' if patient and patient.history_of_renal_transplant }} style="width:18px;height:18px;">
+                        <span>History of Renal Transplant (failed graft)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- ── Viral Markers ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">coronavirus</i> Viral Markers</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>HBsAg</label>
+                        <select name="viral_hbsag">
+                            <option value="">-- Select --</option>
+                            <option value="Negative" {{ 'selected' if patient and patient.viral_hbsag == 'Negative' }}>Negative</option>
+                            <option value="Positive" {{ 'selected' if patient and patient.viral_hbsag == 'Positive' }}>Positive</option>
+                            <option value="Not tested" {{ 'selected' if patient and patient.viral_hbsag == 'Not tested' }}>Not tested</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Anti-HCV</label>
+                        <select name="viral_anti_hcv">
+                            <option value="">-- Select --</option>
+                            <option value="Negative" {{ 'selected' if patient and patient.viral_anti_hcv == 'Negative' }}>Negative</option>
+                            <option value="Positive" {{ 'selected' if patient and patient.viral_anti_hcv == 'Positive' }}>Positive</option>
+                            <option value="Not tested" {{ 'selected' if patient and patient.viral_anti_hcv == 'Not tested' }}>Not tested</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>HIV</label>
+                        <select name="viral_hiv">
+                            <option value="">-- Select --</option>
+                            <option value="Negative" {{ 'selected' if patient and patient.viral_hiv == 'Negative' }}>Negative</option>
+                            <option value="Positive" {{ 'selected' if patient and patient.viral_hiv == 'Positive' }}>Positive</option>
+                            <option value="Not tested" {{ 'selected' if patient and patient.viral_hiv == 'Not tested' }}>Not tested</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Vascular Access Details ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">device_hub</i> Vascular Access Details</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Access Creation Date</label>
+                        <input type="date" name="access_date" value="{{ patient.access_date if patient and patient.access_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>First Cannulation Date</label>
+                        <input type="date" name="date_first_cannulation" value="{{ patient.date_first_cannulation if patient and patient.date_first_cannulation else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Catheter Type</label>
+                        <select name="catheter_type">
+                            <option value="">-- N/A or select --</option>
+                            {% for t in ["Tunnelled (TCC)","Non-tunnelled (Temporary)","Femoral"] %}
+                            <option value="{{ t }}" {{ 'selected' if patient and patient.catheter_type == t }}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Catheter Insertion Site</label>
+                        <select name="catheter_insertion_site">
+                            <option value="">-- N/A or select --</option>
+                            {% for s in ["Right IJV","Left IJV","Right SCV","Left SCV","Right Femoral","Left Femoral"] %}
+                            <option value="{{ s }}" {{ 'selected' if patient and patient.catheter_insertion_site == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
+                        <input type="checkbox" name="history_of_access_thrombosis" value="true" {{ 'checked' if patient and patient.history_of_access_thrombosis }} style="width:18px;height:18px;">
+                        <span>History of Access Thrombosis / Failure</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Access Intervention History</label>
+                    <textarea name="access_intervention_history" rows="2" placeholder="e.g. Thrombectomy 2024-01, Angioplasty 2024-06...">{{ patient.access_intervention_history if patient and patient.access_intervention_history else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- ── Patient Outcomes ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">assignment_turned_in</i> Patient Outcomes</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Survival Status</label>
+                        <select name="current_survival_status">
+                            <option value="">-- Select --</option>
+                            {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
+                            <option value="{{ s }}" {{ 'selected' if patient and patient.current_survival_status == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Death</label>
+                        <input type="date" name="date_of_death" value="{{ patient.date_of_death if patient and patient.date_of_death else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Primary Cause of Death</label>
+                        <input type="text" name="primary_cause_of_death" value="{{ patient.primary_cause_of_death if patient and patient.primary_cause_of_death else '' }}" placeholder="e.g. Cardiac arrest, Sepsis">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Facility Transfer</label>
+                        <input type="date" name="date_facility_transfer" value="{{ patient.date_facility_transfer if patient and patient.date_facility_transfer else '' }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
+                        <input type="checkbox" name="withdrawal_from_dialysis" value="true" {{ 'checked' if patient and patient.withdrawal_from_dialysis }} style="width:18px;height:18px;">
+                        <span>Withdrawal from Dialysis</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="form-card">
                 <h3><i class="material-icons">vaccines</i> Vaccination Schedule</h3>
 

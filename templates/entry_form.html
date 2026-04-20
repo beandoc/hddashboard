@@ -256,13 +256,178 @@
                         <label>Protein Intake (g/kg/d)</label>
                         <input type="number" step="0.1" name="av_daily_protein" inputmode="decimal" value="{{ record.av_daily_protein if record else '' }}">
                     </div>
+                    <div class="form-group">
+                        <label>Daily Caloric Intake (kcal/day)</label>
+                        <input type="number" step="1" name="av_daily_calories" inputmode="numeric" placeholder="e.g. 1800" value="{{ record.av_daily_calories if record and record.av_daily_calories else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>AST (U/L)</label>
+                        <input type="number" step="1" name="ast" inputmode="numeric" value="{{ record.ast if record and record.ast else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>ALT (U/L)</label>
+                        <input type="number" step="1" name="alt" inputmode="numeric" value="{{ record.alt if record and record.alt else '' }}">
+                    </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>Issues / Clinical Notes</label>
                         <input type="text" name="issues" placeholder="Any complications..." value="{{ record.issues if record else '' }}">
                     </div>
                 </div>
             </div>
-            
+
+            <!-- ── Dialysis Adequacy ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Single-Pool Kt/V (spKt/V)</label>
+                        <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="e.g. 1.45" value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Equilibrated Kt/V (eKt/V)</label>
+                        <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="e.g. 1.30" value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Pre-Dialysis Urea (mg/dL)</label>
+                        <input type="number" step="1" name="pre_dialysis_urea" inputmode="numeric" placeholder="e.g. 120" value="{{ record.pre_dialysis_urea if record and record.pre_dialysis_urea else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Post-Dialysis Urea (mg/dL)</label>
+                        <input type="number" step="1" name="post_dialysis_urea" inputmode="numeric" placeholder="e.g. 35" value="{{ record.post_dialysis_urea if record and record.post_dialysis_urea else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Serum Creatinine (mg/dL)</label>
+                        <input type="number" step="0.1" name="serum_creatinine" inputmode="decimal" placeholder="e.g. 8.5" value="{{ record.serum_creatinine if record and record.serum_creatinine else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Residual Urine Output (mL/24h)</label>
+                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{{ record.residual_urine_output if record and record.residual_urine_output else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Extended Iron Panel & ESA ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">bloodtype</i> Extended Iron Panel & ESA</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>ESA Type</label>
+                        <select name="esa_type">
+                            <option value="">-- Select --</option>
+                            {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","Desidustat","None"] %}
+                            <option value="{{ t }}" {{ 'selected' if record and record.esa_type == t }}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Serum Iron (µg/dL)</label>
+                        <input type="number" step="1" name="serum_iron" inputmode="numeric" value="{{ record.serum_iron if record and record.serum_iron else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>TIBC (µg/dL)</label>
+                        <input type="number" step="1" name="tibc" inputmode="numeric" placeholder="e.g. 280" value="{{ record.tibc if record and record.tibc else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>IV Iron Product</label>
+                        <select name="iv_iron_product">
+                            <option value="">-- None / Select --</option>
+                            {% for p in ["Iron Sucrose","Ferric Carboxymaltose","Low Molecular Weight Iron Dextran","Ferumoxytol"] %}
+                            <option value="{{ p }}" {{ 'selected' if record and record.iv_iron_product == p }}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>IV Iron Dose (mg/month)</label>
+                        <input type="number" step="25" name="iv_iron_dose" inputmode="numeric" placeholder="e.g. 200" value="{{ record.iv_iron_dose if record and record.iv_iron_dose else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Electrolytes & Extended Labs ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">science</i> Electrolytes & Extended Labs</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Serum Sodium (mmol/L)</label>
+                        <input type="number" step="1" name="serum_sodium" inputmode="numeric" placeholder="e.g. 138" value="{{ record.serum_sodium if record and record.serum_sodium else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Serum Potassium (mmol/L)</label>
+                        <input type="number" step="0.1" name="serum_potassium" inputmode="decimal" placeholder="e.g. 4.5" value="{{ record.serum_potassium if record and record.serum_potassium else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Serum Bicarbonate (mmol/L)</label>
+                        <input type="number" step="1" name="serum_bicarbonate" inputmode="numeric" placeholder="e.g. 22" value="{{ record.serum_bicarbonate if record and record.serum_bicarbonate else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Serum Uric Acid (mg/dL)</label>
+                        <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.serum_uric_acid if record and record.serum_uric_acid else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Total Cholesterol (mg/dL)</label>
+                        <input type="number" step="1" name="total_cholesterol" inputmode="numeric" placeholder="e.g. 180" value="{{ record.total_cholesterol if record and record.total_cholesterol else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>LDL Cholesterol (mg/dL)</label>
+                        <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" placeholder="e.g. 100" value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>WBC Count (×10³/µL)</label>
+                        <input type="number" step="0.1" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Platelet Count (×10³/µL)</label>
+                        <input type="number" step="1" name="platelet_count" inputmode="numeric" placeholder="e.g. 200" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>HbA1c (%)</label>
+                        <input type="number" step="0.1" name="hba1c" inputmode="decimal" placeholder="e.g. 7.2" value="{{ record.hba1c if record and record.hba1c else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Medications & Outcomes ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">medication</i> Medications & Outcomes</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Vitamin D Analog & Dose</label>
+                        <input type="text" name="vitamin_d_analog_dose" placeholder="e.g. Calcitriol 0.25mcg OD" value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Phosphate Binder</label>
+                        <select name="phosphate_binder_type">
+                            <option value="">-- None / Select --</option>
+                            {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Aluminium Hydroxide"] %}
+                            <option value="{{ b }}" {{ 'selected' if record and record.phosphate_binder_type == b }}>{{ b }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Antihypertensive Drugs (count)</label>
+                        <input type="number" step="1" min="0" max="10" name="antihypertensive_count" inputmode="numeric" placeholder="0–10" value="{{ record.antihypertensive_count if record and record.antihypertensive_count is not none else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>HRQoL Score (0–100)</label>
+                        <input type="number" step="1" min="0" max="100" name="hrqol_score" inputmode="numeric" placeholder="EQ-5D or KDQoL" value="{{ record.hrqol_score if record and record.hrqol_score else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Hospitalisation Date</label>
+                        <input type="date" name="hospitalization_date" value="{{ record.hospitalization_date if record and record.hospitalization_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>ICD-10 Code (Reason)</label>
+                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. I50.9" value="{{ record.hospitalization_icd_code if record and record.hospitalization_icd_code else '' }}">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
+                            <input type="checkbox" name="hospitalization_this_month" value="true" {{ 'checked' if record and record.hospitalization_this_month }} style="width:18px;height:18px;">
+                            <span>Hospitalised this month</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <button type="submit" class="btn-save">Save Record for {{ month_label }}</button>
         </form>
     </div>

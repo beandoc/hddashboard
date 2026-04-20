@@ -240,7 +240,30 @@ def create_patient(
     email: str = Form(""),
     diagnosis: str = Form(""),
     hd_wef_date: Optional[str] = Form(None),
+    height: Optional[float] = Form(None),
+    education_level: str = Form(""),
+    healthcare_facility: str = Form(""),
+    primary_renal_disease: str = Form(""),
+    date_esrd_diagnosis: Optional[str] = Form(None),
+    native_kidney_biopsy: str = Form(""),
+    dm_status: str = Form(""),
+    htn_status: bool = Form(False),
+    cad_status: bool = Form(False),
+    chf_status: bool = Form(False),
+    history_of_stroke: bool = Form(False),
+    smoking_status: str = Form(""),
+    alcohol_consumption: str = Form(""),
+    charlson_comorbidity_index: Optional[int] = Form(None),
+    comorbidities: str = Form(""),
+    drug_allergies: str = Form(""),
+    dialysis_modality: str = Form(""),
+    previous_krt_modality: str = Form(""),
+    history_of_renal_transplant: bool = Form(False),
+    transplant_prospect: str = Form(""),
     viral_markers: str = Form(""),
+    viral_hbsag: str = Form(""),
+    viral_anti_hcv: str = Form(""),
+    viral_hiv: str = Form(""),
     hep_b_status: str = Form(""),
     hep_b_dose1_date: Optional[str] = Form(None),
     hep_b_dose2_date: Optional[str] = Form(None),
@@ -254,23 +277,29 @@ def create_patient(
     influenza_date: Optional[str] = Form(None),
     access_type: str = Form(""),
     access_date: Optional[str] = Form(None),
+    date_first_cannulation: Optional[str] = Form(None),
+    history_of_access_thrombosis: bool = Form(False),
+    access_intervention_history: str = Form(""),
+    catheter_type: str = Form(""),
+    catheter_insertion_site: str = Form(""),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
     hd_slot_1: str = Form(""),
     hd_slot_2: str = Form(""),
     hd_slot_3: str = Form(""),
+    current_survival_status: str = Form(""),
+    date_of_death: Optional[str] = Form(None),
+    primary_cause_of_death: str = Form(""),
+    withdrawal_from_dialysis: bool = Form(False),
+    date_facility_transfer: Optional[str] = Form(None),
     whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
-    # Check HID uniqueness
     existing = db.query(Patient).filter(Patient.hid_no == hid_no).first()
     if existing:
         return templates.TemplateResponse("patient_form.html", {
-            "request": request,
-            "patient": None,
-            "mode": "new",
-            "error": f"HID {hid_no} already exists.",
-            "user": get_user(request),
+            "request": request, "patient": None, "mode": "new",
+            "error": f"HID {hid_no} already exists.", "user": get_user(request),
         })
 
     def _d(s): return datetime.strptime(s, "%Y-%m-%d").date() if s else None
@@ -280,7 +309,20 @@ def create_patient(
     p = Patient(
         hid_no=hid_no, name=name, relation=relation, relation_type=relation_type,
         sex=sex, contact_no=contact_no, email=email, diagnosis=diagnosis,
-        hd_wef_date=_d(hd_wef_date), viral_markers=viral_markers, hep_b_status=hep_b_status,
+        hd_wef_date=_d(hd_wef_date), height=height, education_level=education_level,
+        healthcare_facility=healthcare_facility, primary_renal_disease=primary_renal_disease,
+        date_esrd_diagnosis=_d(date_esrd_diagnosis), native_kidney_biopsy=native_kidney_biopsy,
+        dm_status=dm_status, htn_status=htn_status, cad_status=cad_status,
+        chf_status=chf_status, history_of_stroke=history_of_stroke,
+        smoking_status=smoking_status, alcohol_consumption=alcohol_consumption,
+        charlson_comorbidity_index=charlson_comorbidity_index,
+        comorbidities=comorbidities, drug_allergies=drug_allergies,
+        dialysis_modality=dialysis_modality, previous_krt_modality=previous_krt_modality,
+        history_of_renal_transplant=history_of_renal_transplant,
+        transplant_prospect=transplant_prospect,
+        viral_markers=viral_markers, viral_hbsag=viral_hbsag,
+        viral_anti_hcv=viral_anti_hcv, viral_hiv=viral_hiv,
+        hep_b_status=hep_b_status,
         hep_b_dose1_date=_d(hep_b_dose1_date), hep_b_dose2_date=_d(hep_b_dose2_date),
         hep_b_dose3_date=_d(hep_b_dose3_date), hep_b_dose4_date=_d(hep_b_dose4_date),
         hep_b_titer_date=_d(hep_b_titer_date),
@@ -288,8 +330,16 @@ def create_patient(
         hz_dose1_date=_d(hz_dose1_date), hz_dose2_date=_d(hz_dose2_date),
         influenza_date=_d(influenza_date),
         access_type=access_type, access_date=_d(access_date),
+        date_first_cannulation=_d(date_first_cannulation),
+        history_of_access_thrombosis=history_of_access_thrombosis,
+        access_intervention_history=access_intervention_history,
+        catheter_type=catheter_type, catheter_insertion_site=catheter_insertion_site,
         dry_weight=dry_weight, hd_frequency=hd_frequency,
         hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
+        current_survival_status=current_survival_status, date_of_death=_d(date_of_death),
+        primary_cause_of_death=primary_cause_of_death,
+        withdrawal_from_dialysis=withdrawal_from_dialysis,
+        date_facility_transfer=_d(date_facility_transfer),
         whatsapp_link=whatsapp_link, whatsapp_notify=whatsapp_notify, mail_trigger=mail_trigger,
     )
     db.add(p)
@@ -324,7 +374,30 @@ def update_patient(
     email: str = Form(""),
     diagnosis: str = Form(""),
     hd_wef_date: Optional[str] = Form(None),
+    height: Optional[float] = Form(None),
+    education_level: str = Form(""),
+    healthcare_facility: str = Form(""),
+    primary_renal_disease: str = Form(""),
+    date_esrd_diagnosis: Optional[str] = Form(None),
+    native_kidney_biopsy: str = Form(""),
+    dm_status: str = Form(""),
+    htn_status: bool = Form(False),
+    cad_status: bool = Form(False),
+    chf_status: bool = Form(False),
+    history_of_stroke: bool = Form(False),
+    smoking_status: str = Form(""),
+    alcohol_consumption: str = Form(""),
+    charlson_comorbidity_index: Optional[int] = Form(None),
+    comorbidities: str = Form(""),
+    drug_allergies: str = Form(""),
+    dialysis_modality: str = Form(""),
+    previous_krt_modality: str = Form(""),
+    history_of_renal_transplant: bool = Form(False),
+    transplant_prospect: str = Form(""),
     viral_markers: str = Form(""),
+    viral_hbsag: str = Form(""),
+    viral_anti_hcv: str = Form(""),
+    viral_hiv: str = Form(""),
     hep_b_status: str = Form(""),
     hep_b_dose1_date: Optional[str] = Form(None),
     hep_b_dose2_date: Optional[str] = Form(None),
@@ -338,11 +411,21 @@ def update_patient(
     influenza_date: Optional[str] = Form(None),
     access_type: str = Form(""),
     access_date: Optional[str] = Form(None),
+    date_first_cannulation: Optional[str] = Form(None),
+    history_of_access_thrombosis: bool = Form(False),
+    access_intervention_history: str = Form(""),
+    catheter_type: str = Form(""),
+    catheter_insertion_site: str = Form(""),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
     hd_slot_1: str = Form(""),
     hd_slot_2: str = Form(""),
     hd_slot_3: str = Form(""),
+    current_survival_status: str = Form(""),
+    date_of_death: Optional[str] = Form(None),
+    primary_cause_of_death: str = Form(""),
+    withdrawal_from_dialysis: bool = Form(False),
+    date_facility_transfer: Optional[str] = Form(None),
     whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
@@ -354,8 +437,20 @@ def update_patient(
 
     p.hid_no = hid_no; p.name = name; p.relation = relation; p.relation_type = relation_type
     p.sex = sex; p.contact_no = contact_no; p.email = email; p.diagnosis = diagnosis
-    p.hd_wef_date = _d(hd_wef_date)
-    p.viral_markers = viral_markers; p.hep_b_status = hep_b_status
+    p.hd_wef_date = _d(hd_wef_date); p.height = height; p.education_level = education_level
+    p.healthcare_facility = healthcare_facility; p.primary_renal_disease = primary_renal_disease
+    p.date_esrd_diagnosis = _d(date_esrd_diagnosis); p.native_kidney_biopsy = native_kidney_biopsy
+    p.dm_status = dm_status; p.htn_status = htn_status; p.cad_status = cad_status
+    p.chf_status = chf_status; p.history_of_stroke = history_of_stroke
+    p.smoking_status = smoking_status; p.alcohol_consumption = alcohol_consumption
+    p.charlson_comorbidity_index = charlson_comorbidity_index
+    p.comorbidities = comorbidities; p.drug_allergies = drug_allergies
+    p.dialysis_modality = dialysis_modality; p.previous_krt_modality = previous_krt_modality
+    p.history_of_renal_transplant = history_of_renal_transplant
+    p.transplant_prospect = transplant_prospect
+    p.viral_markers = viral_markers; p.viral_hbsag = viral_hbsag
+    p.viral_anti_hcv = viral_anti_hcv; p.viral_hiv = viral_hiv
+    p.hep_b_status = hep_b_status
     p.hep_b_dose1_date = _d(hep_b_dose1_date); p.hep_b_dose2_date = _d(hep_b_dose2_date)
     p.hep_b_dose3_date = _d(hep_b_dose3_date); p.hep_b_dose4_date = _d(hep_b_dose4_date)
     p.hep_b_titer_date = _d(hep_b_titer_date)
@@ -363,8 +458,16 @@ def update_patient(
     p.hz_dose1_date = _d(hz_dose1_date); p.hz_dose2_date = _d(hz_dose2_date)
     p.influenza_date = _d(influenza_date)
     p.access_type = access_type; p.access_date = _d(access_date)
+    p.date_first_cannulation = _d(date_first_cannulation)
+    p.history_of_access_thrombosis = history_of_access_thrombosis
+    p.access_intervention_history = access_intervention_history
+    p.catheter_type = catheter_type; p.catheter_insertion_site = catheter_insertion_site
     p.dry_weight = dry_weight; p.hd_frequency = hd_frequency
     p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
+    p.current_survival_status = current_survival_status; p.date_of_death = _d(date_of_death)
+    p.primary_cause_of_death = primary_cause_of_death
+    p.withdrawal_from_dialysis = withdrawal_from_dialysis
+    p.date_facility_transfer = _d(date_facility_transfer)
     _cn = re.sub(r"\D", "", contact_no.strip()) if contact_no else ""
     p.whatsapp_link = f"https://wa.me/91{_cn}" if len(_cn) == 10 else ""
     p.whatsapp_notify = whatsapp_notify; p.mail_trigger = mail_trigger
@@ -439,52 +542,100 @@ def save_entry(
     entered_by: str = Form(""),
     access_type: str = Form(""),
     target_dry_weight: Optional[float] = Form(None),
-    idwg: Optional[float] = Form(None), hb: Optional[float] = Form(None),
+    idwg: Optional[float] = Form(None),
+    hb: Optional[float] = Form(None),
     bp_sys: Optional[float] = Form(None),
-    serum_ferritin: Optional[float] = Form(None), tsat: Optional[float] = Form(None),
-    serum_iron: Optional[float] = Form(None), epo_mircera_dose: str = Form(""),
+    serum_ferritin: Optional[float] = Form(None),
+    tsat: Optional[float] = Form(None),
+    serum_iron: Optional[float] = Form(None),
+    epo_mircera_dose: str = Form(""),
     desidustat_dose: str = Form(""),
-    epo_weekly_units: Optional[float] = Form(None), calcium: Optional[float] = Form(None),
-    alkaline_phosphate: Optional[float] = Form(None), phosphorus: Optional[float] = Form(None),
-    albumin: Optional[float] = Form(None), ast: Optional[float] = Form(None),
-    alt: Optional[float] = Form(None), vit_d: Optional[float] = Form(None),
-    ipth: Optional[float] = Form(None), av_daily_calories: Optional[float] = Form(None),
-    av_daily_protein: Optional[float] = Form(None), urr: Optional[float] = Form(None),
+    epo_weekly_units: Optional[float] = Form(None),
+    esa_type: str = Form(""),
+    calcium: Optional[float] = Form(None),
+    alkaline_phosphate: Optional[float] = Form(None),
+    phosphorus: Optional[float] = Form(None),
+    albumin: Optional[float] = Form(None),
+    ast: Optional[float] = Form(None),
+    alt: Optional[float] = Form(None),
+    vit_d: Optional[float] = Form(None),
+    ipth: Optional[float] = Form(None),
+    av_daily_calories: Optional[float] = Form(None),
+    av_daily_protein: Optional[float] = Form(None),
+    urr: Optional[float] = Form(None),
     crp: Optional[float] = Form(None),
+    single_pool_ktv: Optional[float] = Form(None),
+    equilibrated_ktv: Optional[float] = Form(None),
+    pre_dialysis_urea: Optional[float] = Form(None),
+    post_dialysis_urea: Optional[float] = Form(None),
+    serum_creatinine: Optional[float] = Form(None),
+    residual_urine_output: Optional[float] = Form(None),
+    tibc: Optional[float] = Form(None),
+    iv_iron_product: str = Form(""),
+    iv_iron_dose: Optional[float] = Form(None),
+    serum_sodium: Optional[float] = Form(None),
+    serum_potassium: Optional[float] = Form(None),
+    serum_bicarbonate: Optional[float] = Form(None),
+    serum_uric_acid: Optional[float] = Form(None),
+    total_cholesterol: Optional[float] = Form(None),
+    ldl_cholesterol: Optional[float] = Form(None),
+    wbc_count: Optional[float] = Form(None),
+    platelet_count: Optional[float] = Form(None),
+    hba1c: Optional[float] = Form(None),
+    vitamin_d_analog_dose: str = Form(""),
+    phosphate_binder_type: str = Form(""),
+    antihypertensive_count: Optional[int] = Form(None),
+    hrqol_score: Optional[float] = Form(None),
+    hospitalization_this_month: bool = Form(False),
+    hospitalization_date: Optional[str] = Form(None),
+    hospitalization_icd_code: str = Form(""),
     issues: str = Form(""),
 ):
+    from datetime import date as _date
+    def _d(s): return datetime.strptime(s, "%Y-%m-%d").date() if s else None
+
     if idwg is not None and idwg > 15:
         idwg = None
-    rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == month_str).first()
+
+    rec = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month == month_str
+    ).first()
+
+    fields = dict(
+        access_type=access_type, target_dry_weight=target_dry_weight,
+        idwg=idwg, hb=hb, bp_sys=bp_sys,
+        serum_ferritin=serum_ferritin, tsat=tsat, serum_iron=serum_iron,
+        epo_mircera_dose=epo_mircera_dose, desidustat_dose=desidustat_dose,
+        epo_weekly_units=epo_weekly_units, esa_type=esa_type,
+        calcium=calcium, alkaline_phosphate=alkaline_phosphate, phosphorus=phosphorus,
+        albumin=albumin, ast=ast, alt=alt, vit_d=vit_d, ipth=ipth,
+        av_daily_calories=av_daily_calories, av_daily_protein=av_daily_protein,
+        urr=urr, crp=crp, issues=issues, entered_by=entered_by,
+        single_pool_ktv=single_pool_ktv, equilibrated_ktv=equilibrated_ktv,
+        pre_dialysis_urea=pre_dialysis_urea, post_dialysis_urea=post_dialysis_urea,
+        serum_creatinine=serum_creatinine, residual_urine_output=residual_urine_output,
+        tibc=tibc, iv_iron_product=iv_iron_product, iv_iron_dose=iv_iron_dose,
+        serum_sodium=serum_sodium, serum_potassium=serum_potassium,
+        serum_bicarbonate=serum_bicarbonate, serum_uric_acid=serum_uric_acid,
+        total_cholesterol=total_cholesterol, ldl_cholesterol=ldl_cholesterol,
+        wbc_count=wbc_count, platelet_count=platelet_count, hba1c=hba1c,
+        vitamin_d_analog_dose=vitamin_d_analog_dose,
+        phosphate_binder_type=phosphate_binder_type,
+        antihypertensive_count=antihypertensive_count, hrqol_score=hrqol_score,
+        hospitalization_this_month=hospitalization_this_month,
+        hospitalization_date=_d(hospitalization_date),
+        hospitalization_icd_code=hospitalization_icd_code,
+    )
+
     if rec:
-        # Update existing
-        rec.access_type = access_type
-        rec.target_dry_weight = target_dry_weight
-        rec.idwg = idwg; rec.hb = hb
-        rec.serum_ferritin = serum_ferritin; rec.tsat = tsat; rec.serum_iron = serum_iron
-        rec.epo_mircera_dose = epo_mircera_dose; rec.desidustat_dose = desidustat_dose; rec.epo_weekly_units = epo_weekly_units
-        rec.calcium = calcium; rec.alkaline_phosphate = alkaline_phosphate
-        rec.phosphorus = phosphorus; rec.albumin = albumin; rec.ast = ast; rec.alt = alt
-        rec.vit_d = vit_d; rec.ipth = ipth; rec.av_daily_calories = av_daily_calories
-        rec.av_daily_protein = av_daily_protein; rec.urr = urr; rec.issues = issues; rec.entered_by = entered_by
-        rec.bp_sys = bp_sys; rec.crp = crp
+        for k, v in fields.items():
+            setattr(rec, k, v)
         rec.timestamp = datetime.utcnow()
     else:
-        rec = MonthlyRecord(
-            patient_id=patient_id, record_month=month_str, entered_by=entered_by,
-            access_type=access_type,
-            target_dry_weight=target_dry_weight,
-            idwg=idwg, hb=hb, serum_ferritin=serum_ferritin,
-            tsat=tsat, serum_iron=serum_iron, epo_mircera_dose=epo_mircera_dose,
-            desidustat_dose=desidustat_dose,
-            epo_weekly_units=epo_weekly_units, calcium=calcium, alkaline_phosphate=alkaline_phosphate,
-            phosphorus=phosphorus, albumin=albumin, ast=ast, alt=alt, vit_d=vit_d, ipth=ipth,
-            av_daily_calories=av_daily_calories, av_daily_protein=av_daily_protein, urr=urr, issues=issues,
-            bp_sys=bp_sys, crp=crp,
-        )
+        rec = MonthlyRecord(patient_id=patient_id, record_month=month_str, **fields)
         db.add(rec)
-    
-    # Also update master patient profile for real-time dashboard accuracy
+
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if p and access_type:
         p.access_type = access_type
