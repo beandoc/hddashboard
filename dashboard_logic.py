@@ -13,6 +13,59 @@ from ml_analytics import normalize_epo_dose
 
 logger = logging.getLogger(__name__)
 
+
+def _resolve_epo_dose(r):
+    """Return weekly SC IU dose from MonthlyRecord, or None if not determinable."""
+    if r.epo_weekly_units:
+        return r.epo_weekly_units
+    if r.epo_mircera_dose:
+        _p = normalize_epo_dose(r.epo_mircera_dose)
+        if _p.get("confidence") == "high":
+            return _p.get("weekly_iu_iv")
+    return None
+
+
+def _esa_hypo_causes(r) -> list[str]:
+    """
+    Check known causes of ESA hyporesponsiveness for a MonthlyRecord.
+    Returns list of cause strings to display alongside the HypoR flag.
+    """
+    causes = []
+
+    # 1. Absolute iron deficiency: Ferritin < 100 OR TSAT < 20%
+    abs_iron = (
+        (r.serum_ferritin is not None and r.serum_ferritin < 100) or
+        (r.tsat is not None and r.tsat < 20)
+    )
+    # 2. Functional iron deficiency: iron stores adequate but utilisation poor
+    #    Ferritin 100–500 AND TSAT < 25%
+    func_iron = (
+        not abs_iron and
+        r.serum_ferritin is not None and 100 <= r.serum_ferritin <= 500 and
+        r.tsat is not None and r.tsat < 25
+    )
+    if abs_iron:
+        causes.append("Absolute Iron Deficiency")
+    elif func_iron:
+        causes.append("Functional Iron Deficiency")
+
+    # 3. Infection / Inflammation: High TLC (WBC > 10 ×10³/µL) or high CRP
+    if r.wbc_count is not None and r.wbc_count > 10:
+        causes.append(f"High TLC ({r.wbc_count:.1f})")
+    elif hasattr(r, "crp") and r.crp is not None and r.crp > 10:
+        causes.append(f"Inflammation (CRP {r.crp:.1f})")
+
+    # 4. Inadequate dialysis: spKt/V < 1.2
+    if r.single_pool_ktv is not None and r.single_pool_ktv < 1.2:
+        causes.append(f"Inadequate Dialysis (Kt/V {r.single_pool_ktv:.2f})")
+
+    # 5. Severe hyperparathyroidism: iPTH > 800 pg/mL
+    if r.ipth is not None and r.ipth > 800:
+        causes.append(f"Severe HPT (iPTH {r.ipth:.0f})")
+
+    return causes
+
+
 def get_current_month_str():
     return datetime.now().strftime("%Y-%m")
 
@@ -45,7 +98,9 @@ def compute_dashboard(db: Session, month: str = None):
         'albumin_low': {'count': 0, 'names': []},
         'calcium_low': {'count': 0, 'names': []},
         'phos_high': {'count': 0, 'names': []},
-        'epo_hypo': {'count': 0, 'names': []},
+        'epo_hypo':    {'count': 0, 'names': []},   # HypoR1: ERI ≥ 2 g/L or dose ≥ 450 IU/kg/wk
+        'epo_hypo_r2': {'count': 0, 'names': []},   # HypoR2: ERI ≥ 1.5 g/L
+        'epo_hypo_r3': {'count': 0, 'names': [], 'cutoff': None},  # HypoR3: top 20th %ile dose
         'iv_iron_rec': {'count': 0, 'names': []},
         'trend_hb': [],
         'trend_albumin': [],
@@ -76,6 +131,24 @@ def compute_dashboard(db: Session, month: str = None):
     # Fetch previous month records for trendlines
     prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()
     prev_record_map = {r.patient_id: r for r in prev_records}
+
+    # ── Pre-pass: collect all EPO doses for HypoR3 (80th percentile cutoff) ──
+    _all_doses = []
+    for _r in records:
+        _d = _resolve_epo_dose(_r)
+        if _d:
+            _all_doses.append(_d)
+    _all_doses.sort()
+
+    def _percentile(sorted_vals, p):
+        if not sorted_vals:
+            return None
+        idx = (p / 100) * (len(sorted_vals) - 1)
+        lo, hi = int(idx), min(int(idx) + 1, len(sorted_vals) - 1)
+        return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (idx - lo)
+
+    _hypo_r3_cutoff = _percentile(_all_doses, 90)  # top 10% = > 90th percentile
+    metrics['epo_hypo_r3']['cutoff'] = round(_hypo_r3_cutoff, 0) if _hypo_r3_cutoff else None
 
     patient_rows = []
 
@@ -163,23 +236,44 @@ def compute_dashboard(db: Session, month: str = None):
                 })
                 row["alerts"].append("High Phos")
 
-            # 6. EPO Hypo-response (ERI >= 10.0 or IV Dose >= 450 IU/kg/wk)
-            _epo_iu_iv = r.epo_weekly_units
-            if _epo_iu_iv is None and r.epo_mircera_dose:
-                _parsed = normalize_epo_dose(r.epo_mircera_dose)
-                if _parsed.get("confidence") == "high":
-                    _epo_iu_iv = _parsed.get("weekly_iu_iv")
-            elif _epo_iu_iv is not None:
-                _epo_iu_iv = _epo_iu_iv * 1.42 # Manual assume SC -> IV
+            # 6. ESA Hyporesponsiveness — SC route (all patients SC at this centre)
+            # ERI = dose (IU/week) / weight (kg) / Hb (g/L)
+            # Hb stored in g/dL → multiply by 10 to get g/L for ERI calculation
+            # HypoR1: ERI ≥ 2.0 IU/kg/wk/g/L  OR  dose/kg ≥ 450 IU/kg/wk
+            # HypoR2: ERI ≥ 1.5 IU/kg/wk/g/L
+            # HypoR3: dose (IU/wk) in top 20th percentile of this month's cohort
+            _epo_sc = _resolve_epo_dose(r)
 
-            if _epo_iu_iv and r.hb:
+            if _epo_sc:
                 _weight = r.target_dry_weight or p.dry_weight or 60.0
-                _dose_kg = _epo_iu_iv / _weight
-                _eri = _dose_kg / r.hb if r.hb > 0 else 0
-                if _eri >= 10.0 or _dose_kg >= 450:
+                _dose_kg = _epo_sc / _weight
+                _eri = (_dose_kg / (r.hb * 10)) if r.hb and r.hb > 0 else None
+
+                hypo_r1 = bool(_eri and (_eri >= 2.0 or _dose_kg >= 450))
+                hypo_r2 = bool(_eri and _eri >= 1.5)
+                hypo_r3 = bool(_hypo_r3_cutoff and _epo_sc > _hypo_r3_cutoff)
+
+                _any_hypo = hypo_r1 or hypo_r2 or hypo_r3
+                _causes = _esa_hypo_causes(r) if _any_hypo else []
+
+                if hypo_r1:
                     metrics['epo_hypo']['count'] += 1
                     metrics['epo_hypo']['names'].append(name)
-                    row["alerts"].append("EPO Hypo")
+                    row["alerts"].append("HypoR1")
+                if hypo_r2:
+                    metrics['epo_hypo_r2']['count'] += 1
+                    metrics['epo_hypo_r2']['names'].append(name)
+                    if not hypo_r1:
+                        row["alerts"].append("HypoR2")
+                if hypo_r3:
+                    metrics['epo_hypo_r3']['count'] += 1
+                    metrics['epo_hypo_r3']['names'].append(name)
+                    if not hypo_r1 and not hypo_r2:
+                        row["alerts"].append("HypoR3")
+
+                row["eri"] = round(_eri, 2) if _eri else None
+                row["dose_kg"] = round(_dose_kg, 1)
+                row["epo_hypo_causes"] = _causes
 
             # 7. IV Iron Recommended: Hb < 10 AND (Ferritin < 500 OR TSAT < 30%)
             if (r.hb and r.hb < 10 and
@@ -233,20 +327,15 @@ def get_patients_needing_alerts(db: Session, month: str = None):
             alerts.append("Low Calcium")
         if r.phosphorus and r.phosphorus > 5.5:
             alerts.append("High Phos")
-        _epo_iu_iv = r.epo_weekly_units
-        if _epo_iu_iv is None and r.epo_mircera_dose:
-            _parsed = normalize_epo_dose(r.epo_mircera_dose)
-            if _parsed.get("confidence") == "high":
-                _epo_iu_iv = _parsed.get("weekly_iu_iv")
-        elif _epo_iu_iv is not None:
-            _epo_iu_iv = _epo_iu_iv * 1.42
-            
-        if _epo_iu_iv and r.hb:
+        _epo_sc = _resolve_epo_dose(r)
+        if _epo_sc and r.hb:
             _weight = r.target_dry_weight or p.dry_weight or 60.0
-            _dose_kg = _epo_iu_iv / _weight
-            _eri = _dose_kg / r.hb if r.hb > 0 else 0
-            if _eri >= 10.0 or _dose_kg >= 450:
-                alerts.append("EPO Hypo")
+            _dose_kg = _epo_sc / _weight
+            _eri = _dose_kg / (r.hb * 10)
+            if _eri >= 2.0 or _dose_kg >= 450:
+                alerts.append("HypoR1")
+            elif _eri >= 1.5:
+                alerts.append("HypoR2")
         if alerts:
             result.append({
                 "patient": p,

@@ -716,7 +716,7 @@
       {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False},
       {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False},
       {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False},
-      {"icon":"📉","value":data.metrics.epo_hypo.count,"title":"EPO Hypo (ERI ≥ 10.0)","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":False},
+      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":False,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff},
       {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True},
     ] %}
 
@@ -737,6 +737,12 @@
         <span class="icon">{{ c.icon }}</span>
         <div class="value">{{ c.value }}</div>
         <div class="title">{{ c.title }}</div>
+        {% if c.r2 is defined %}
+          <div style="font-size:0.72rem;color:#94a3b8;margin-top:4px;line-height:1.6;">
+            ERI ≥ 2 IU/kg/wk/g/L or dose ≥ 450<br>
+            <span style="color:#fb923c;">HypoR2: {{ c.r2 }}</span> · <span style="color:#a78bfa;">HypoR3: {{ c.r3 }}{% if c.r3cut %} (&gt;{{ c.r3cut|int }} IU/wk){% endif %}</span>
+          </div>
+        {% endif %}
         {% if c.names %}
           <div class="tooltip">{{ c.names | join('\n') }}</div>
         {% endif %}
@@ -870,7 +876,16 @@
             <td data-label="Alerts">
               {% if not row.has_record %}<span class="no-rec">No record</span>
               {% else %}
-                {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
+                {% for a in row.alerts %}
+                  <span class="alert-tag">{{ a }}</span>
+                {% endfor %}
+                {% if row.epo_hypo_causes is defined and row.epo_hypo_causes %}
+                  <div style="margin-top:4px;">
+                    {% for cause in row.epo_hypo_causes %}
+                      <span style="display:inline-block;font-size:0.7rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin:1px;">⚠ {{ cause }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
                 {% if not row.alerts %}<span style="color:#2e7d32;font-size:0.8em">✓ OK</span>{% endif %}
               {% endif %}
             </td>
@@ -1192,7 +1207,7 @@ function refreshCards(data) {
     "Corrected Calcium": m.calcium_low,
     "High Phosphorus":   m.phos_high,
     "IV Iron":           m.iv_iron_rec,
-    "EPO Hypo":          m.epo_hypo,
+    "ESA Resistant":     m.epo_hypo,
   };
 
   document.querySelectorAll(".card").forEach(card => {
