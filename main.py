@@ -26,7 +26,9 @@ from dashboard_logic import compute_dashboard, get_current_month_str, get_month_
 from alerts import (send_bulk_whatsapp_alerts, send_ward_email, send_entry_alert_email,
                     build_schedule_message, build_individual_whatsapp_link, send_whatsapp)
 from ml_analytics import run_patient_analytics, run_cohort_analytics
-from dynamic_vars import (get_all_variables, seed_preset_variables)
+from dynamic_vars import (get_all_variables, seed_preset_variables,
+                          VariableDefinition, VariableValue, upsert_variable_value,
+                          get_patient_variable_history)
 
 app = FastAPI(title="HD Dashboard")
 templates = Jinja2Templates(directory="templates")
@@ -751,6 +753,187 @@ def variable_manager(request: Request, db: Session = Depends(get_db)):
         "default_from": "2023-01", "default_to": get_current_month_str(),
         "user": get_user(request),
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VARIABLE MANAGER API
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Maps variable.name → MonthlyRecord column so data entered via the main form
+# is visible in the Variable Manager without manual re-entry.
+_VAR_TO_MONTHLY: dict[str, str] = {
+    "uric_acid":               "serum_uric_acid",
+    "crp":                     "crp",
+    "kt_v":                    "single_pool_ktv",
+    "bicarbonate":             "serum_bicarbonate",
+    "systolic_bp_pre":         "bp_sys",
+    "blood_transfusion_units": None,
+    "intradialytic_hypotension": None,
+}
+
+def _monthly_field_values(db, field: str, patient_ids: list[int],
+                           from_m: str, to_m: str) -> dict:
+    """Pull {patient_id: {month: value}} from MonthlyRecord for a given column."""
+    rows = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id.in_(patient_ids),
+        MonthlyRecord.record_month >= from_m,
+        MonthlyRecord.record_month <= to_m,
+    ).all()
+    out: dict = {}
+    for r in rows:
+        v = getattr(r, field, None)
+        if v is not None:
+            out.setdefault(r.patient_id, {})[r.record_month] = v
+    return out
+
+
+@app.post("/api/variables")
+def api_create_variable(payload: dict, db: Session = Depends(get_db)):
+    existing = db.query(VariableDefinition).filter(
+        VariableDefinition.name == payload.get("name")
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Variable name already exists")
+    vdef = VariableDefinition(**{k: v for k, v in payload.items()
+                                  if hasattr(VariableDefinition, k)})
+    db.add(vdef)
+    db.commit()
+    db.refresh(vdef)
+    return {"id": vdef.id, "name": vdef.name}
+
+
+@app.put("/api/variables/{var_id}")
+def api_update_variable(var_id: int, payload: dict, db: Session = Depends(get_db)):
+    vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not vdef:
+        raise HTTPException(status_code=404, detail="Variable not found")
+    for k, v in payload.items():
+        if hasattr(vdef, k) and k not in ("id", "created_at"):
+            setattr(vdef, k, v)
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/variables/{var_id}/toggle")
+def api_toggle_variable(var_id: int, db: Session = Depends(get_db)):
+    vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not vdef:
+        raise HTTPException(status_code=404, detail="Variable not found")
+    vdef.is_active = not vdef.is_active
+    db.commit()
+    return {"is_active": vdef.is_active}
+
+
+@app.get("/api/variables/{var_id}/values")
+def api_get_variable_values(var_id: int, request: Request,
+                             db: Session = Depends(get_db)):
+    # JS sends ?from=YYYY-MM&to=YYYY-MM; "from" is a Python keyword so we read
+    # directly from query_params instead of declaring it as a parameter.
+    from_m = request.query_params.get("from", "2023-01")
+    to_m   = request.query_params.get("to", get_current_month_str())
+
+    vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not vdef:
+        raise HTTPException(status_code=404, detail="Variable not found")
+
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    pid_list = [p.id for p in patients]
+
+    rows = db.query(VariableValue).filter(
+        VariableValue.variable_id == var_id,
+        VariableValue.patient_id.in_(pid_list),
+        VariableValue.record_month >= from_m,
+        VariableValue.record_month <= to_m,
+    ).all()
+    result: dict = {}
+    for r in rows:
+        result.setdefault(r.patient_id, {})[r.record_month] = r.value_num
+
+    monthly_field = _VAR_TO_MONTHLY.get(vdef.name)
+    if monthly_field:
+        bridged = _monthly_field_values(db, monthly_field, pid_list, from_m, to_m)
+        for pid, months in bridged.items():
+            for month, val in months.items():
+                result.setdefault(pid, {}).setdefault(month, val)
+
+    return result
+
+
+@app.post("/api/variables/value")
+def api_upsert_value(payload: dict, db: Session = Depends(get_db)):
+    upsert_variable_value(
+        db,
+        patient_id=int(payload["patient_id"]),
+        month_str=payload["record_month"],
+        variable_id=int(payload["variable_id"]),
+        value_num=payload.get("value_num"),
+        value_text=payload.get("value_text"),
+        entered_by=payload.get("entered_by", ""),
+    )
+    return {"ok": True}
+
+
+@app.get("/api/variables/{var_id}/summary")
+def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
+    vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if not vdef:
+        raise HTTPException(status_code=404, detail="Variable not found")
+
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    pid_list = [p.id for p in patients]
+
+    # Collect all values: EAV first, bridge MonthlyRecord
+    all_data: dict = {}  # {patient_id: {month: value}}
+    rows = db.query(VariableValue).filter(
+        VariableValue.variable_id == var_id,
+        VariableValue.patient_id.in_(pid_list),
+    ).all()
+    for r in rows:
+        all_data.setdefault(r.patient_id, {})[r.record_month] = r.value_num
+
+    monthly_field = _VAR_TO_MONTHLY.get(vdef.name)
+    if monthly_field:
+        bridged = _monthly_field_values(db, monthly_field, pid_list, "2020-01",
+                                        get_current_month_str())
+        for pid, months in bridged.items():
+            for month, val in months.items():
+                all_data.setdefault(pid, {}).setdefault(month, val)
+
+    # Per-patient latest value
+    patient_rows = []
+    for p in patients:
+        months = all_data.get(p.id, {})
+        latest = months[max(months)] if months else None
+        patient_rows.append({
+            "id": p.id, "name": p.name, "hid": p.hid_no, "latest_value": latest
+        })
+
+    # Cohort trend: per month median/p25/p75
+    month_buckets: dict = {}
+    for pid, months in all_data.items():
+        for m, v in months.items():
+            if v is not None:
+                month_buckets.setdefault(m, []).append(v)
+
+    def _pct(sorted_vals, p):
+        n = len(sorted_vals)
+        if n == 0:
+            return None
+        idx = (p / 100) * (n - 1)
+        lo, hi = int(idx), min(int(idx) + 1, n - 1)
+        return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (idx - lo)
+
+    trend = []
+    for m in sorted(month_buckets):
+        vals = sorted(month_buckets[m])
+        trend.append({
+            "month": m,
+            "median": round(_pct(vals, 50), 2),
+            "p25":    round(_pct(vals, 25), 2),
+            "p75":    round(_pct(vals, 75), 2),
+        })
+
+    return {"patients": patient_rows, "trend": trend}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
