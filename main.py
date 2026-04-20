@@ -284,9 +284,13 @@ def create_patient(
     catheter_insertion_site: str = Form(""),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
+    hd_day_1: str = Form(""),
+    hd_day_2: str = Form(""),
+    hd_day_3: str = Form(""),
     hd_slot_1: str = Form(""),
     hd_slot_2: str = Form(""),
     hd_slot_3: str = Form(""),
+    blood_group: str = Form(""),
     current_survival_status: str = Form(""),
     date_of_death: Optional[str] = Form(None),
     primary_cause_of_death: str = Form(""),
@@ -335,7 +339,9 @@ def create_patient(
         access_intervention_history=access_intervention_history,
         catheter_type=catheter_type, catheter_insertion_site=catheter_insertion_site,
         dry_weight=dry_weight, hd_frequency=hd_frequency,
+        hd_day_1=hd_day_1, hd_day_2=hd_day_2, hd_day_3=hd_day_3,
         hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
+        blood_group=blood_group,
         current_survival_status=current_survival_status, date_of_death=_d(date_of_death),
         primary_cause_of_death=primary_cause_of_death,
         withdrawal_from_dialysis=withdrawal_from_dialysis,
@@ -418,9 +424,13 @@ def update_patient(
     catheter_insertion_site: str = Form(""),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
+    hd_day_1: str = Form(""),
+    hd_day_2: str = Form(""),
+    hd_day_3: str = Form(""),
     hd_slot_1: str = Form(""),
     hd_slot_2: str = Form(""),
     hd_slot_3: str = Form(""),
+    blood_group: str = Form(""),
     current_survival_status: str = Form(""),
     date_of_death: Optional[str] = Form(None),
     primary_cause_of_death: str = Form(""),
@@ -463,7 +473,9 @@ def update_patient(
     p.access_intervention_history = access_intervention_history
     p.catheter_type = catheter_type; p.catheter_insertion_site = catheter_insertion_site
     p.dry_weight = dry_weight; p.hd_frequency = hd_frequency
+    p.hd_day_1 = hd_day_1; p.hd_day_2 = hd_day_2; p.hd_day_3 = hd_day_3
     p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
+    p.blood_group = blood_group
     p.current_survival_status = current_survival_status; p.date_of_death = _d(date_of_death)
     p.primary_cause_of_death = primary_cause_of_death
     p.withdrawal_from_dialysis = withdrawal_from_dialysis
@@ -482,27 +494,53 @@ def update_patient(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_patient_slot_info(p) -> dict:
-    """Return display_slots (shift names only, no stale dates) and effective hd_frequency."""
+    """Return display_slots, this_week_dates, and effective hd_frequency."""
     from datetime import timedelta
     cutoff = date.today() - timedelta(days=7)
     shift_names = {"morning", "afternoon"}
-    clean_slots = []
-    for raw in (p.hd_slot_1, p.hd_slot_2, p.hd_slot_3):
-        if not raw:
-            continue
-        val = raw.strip()
-        if val.lower() in shift_names:
-            clean_slots.append(val)
+    day_to_weekday = {
+        "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+        "Friday": 4, "Saturday": 5, "Sunday": 6,
+    }
+
+    # Compute Monday of the current ISO week
+    today = date.today()
+    week_monday = today - timedelta(days=today.weekday())
+
+    def _week_date_for_day(day_name: str) -> str:
+        wd = day_to_weekday.get(day_name)
+        if wd is None:
+            return ""
+        d = week_monday + timedelta(days=wd)
+        return d.strftime("%-d %b")  # e.g. "21 Apr"
+
+    slots = []
+    for day_raw, shift_raw in (
+        (p.hd_day_1, p.hd_slot_1),
+        (p.hd_day_2, p.hd_slot_2),
+        (p.hd_day_3, p.hd_slot_3),
+    ):
+        day = (day_raw or "").strip()
+        shift_raw = (shift_raw or "").strip()
+        shift = shift_raw if shift_raw.lower() in shift_names else ""
+
+        if day:
+            slots.append({"day": day, "shift": shift, "date": _week_date_for_day(day)})
+        elif shift:
+            # Legacy: shift only, no day configured
+            slots.append({"day": "", "shift": shift, "date": ""})
         else:
-            # Try parsing as DD/MM/YYYY legacy date — only keep if within last week
-            try:
-                slot_date = datetime.strptime(val, "%d/%m/%Y").date()
-                if slot_date >= cutoff:
-                    clean_slots.append(val)
-            except ValueError:
-                clean_slots.append(val)  # unknown format — show as-is
+            # Legacy hd_slot_* with date strings
+            if shift_raw:
+                try:
+                    slot_date = datetime.strptime(shift_raw, "%d/%m/%Y").date()
+                    if slot_date >= cutoff:
+                        slots.append({"day": "", "shift": "", "date": slot_date.strftime("%-d %b")})
+                except ValueError:
+                    slots.append({"day": "", "shift": shift_raw, "date": ""})
+
     freq = p.hd_frequency or len([s for s in (p.hd_slot_1, p.hd_slot_2, p.hd_slot_3) if s]) or 2
-    return {"display_slots": clean_slots, "hd_frequency": freq}
+    return {"display_slots": slots, "hd_frequency": freq}
 
 
 @app.get("/entry", response_class=HTMLResponse)
@@ -573,6 +611,7 @@ def save_entry(
     tibc: Optional[float] = Form(None),
     iv_iron_product: str = Form(""),
     iv_iron_dose: Optional[float] = Form(None),
+    iv_iron_date: Optional[str] = Form(None),
     serum_sodium: Optional[float] = Form(None),
     serum_potassium: Optional[float] = Form(None),
     serum_bicarbonate: Optional[float] = Form(None),
@@ -615,7 +654,7 @@ def save_entry(
         single_pool_ktv=single_pool_ktv, equilibrated_ktv=equilibrated_ktv,
         pre_dialysis_urea=pre_dialysis_urea, post_dialysis_urea=post_dialysis_urea,
         serum_creatinine=serum_creatinine, residual_urine_output=residual_urine_output,
-        tibc=tibc, iv_iron_product=iv_iron_product, iv_iron_dose=iv_iron_dose,
+        tibc=tibc, iv_iron_product=iv_iron_product, iv_iron_dose=iv_iron_dose, iv_iron_date=_d(iv_iron_date),
         serum_sodium=serum_sodium, serum_potassium=serum_potassium,
         serum_bicarbonate=serum_bicarbonate, serum_uric_acid=serum_uric_acid,
         total_cholesterol=total_cholesterol, ldl_cholesterol=ldl_cholesterol,
@@ -760,7 +799,14 @@ def whatsapp_links_page(month: Optional[str] = None, request: Request = None,
             MonthlyRecord.patient_id == p.id,
             MonthlyRecord.record_month == month_str
         ).first()
-        slots = [p.hd_slot_1, p.hd_slot_2, p.hd_slot_3]
+        def _slot_label(day, shift):
+            parts = [p for p in [day or "", shift or ""] if p]
+            return " – ".join(parts) if parts else ""
+        slots = [
+            _slot_label(p.hd_day_1, p.hd_slot_1),
+            _slot_label(p.hd_day_2, p.hd_slot_2),
+            _slot_label(p.hd_day_3, p.hd_slot_3),
+        ]
         remarks = (rec_obj.issues or "") if rec_obj else ""
         msg = build_schedule_message(p.name, slots, remarks)
         _, link = send_whatsapp(p.contact_no, msg)

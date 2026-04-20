@@ -163,11 +163,11 @@
                     </div>
                     <div class="form-group">
                         <label>Target Dry Weight (kg)</label>
-                        <input type="number" step="0.1" name="target_dry_weight" inputmode="decimal" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
+                        <input type="number" step="0.01" name="target_dry_weight" inputmode="decimal" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
                     </div>
                     <div class="form-group">
                         <label>IDWG (kg)</label>
-                        <input type="number" step="0.1" name="idwg" min="0" max="15" inputmode="decimal" value="{{ record.idwg if record else '' }}">
+                        <input type="number" step="0.01" name="idwg" min="0" max="15" inputmode="decimal" value="{{ record.idwg if record else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Systolic BP (mmHg)</label>
@@ -179,7 +179,7 @@
                     </div>
                     <div class="form-group">
                         <label>CRP - C-Reactive Protein (mg/L)</label>
-                        <input type="number" step="0.1" name="crp" min="0" inputmode="decimal" placeholder="e.g. 5.2" value="{{ record.crp if record and record.crp else '' }}">
+                        <input type="number" step="0.01" name="crp" min="0" inputmode="decimal" placeholder="e.g. 5.2" value="{{ record.crp if record and record.crp else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Entered By</label>
@@ -193,7 +193,7 @@
                 <div class="grid">
                     <div class="form-group">
                         <label>Hemoglobin (g/dL)</label>
-                        <input type="number" step="0.1" name="hb" min="0" max="25" inputmode="decimal" value="{{ record.hb if record else '' }}">
+                        <input type="number" step="0.01" name="hb" min="0" max="25" inputmode="decimal" value="{{ record.hb if record else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Serum Ferritin (ng/mL)</label>
@@ -224,11 +224,11 @@
                 <div class="grid">
                     <div class="form-group">
                         <label>Calcium (mg/dL)</label>
-                        <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
+                        <input type="number" step="0.01" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Phosphorus (mg/dL)</label>
-                        <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
+                        <input type="number" step="0.01" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Alkaline Phosphate (U/L)</label>
@@ -250,11 +250,11 @@
                 <div class="grid">
                     <div class="form-group">
                         <label>Albumin (g/dL)</label>
-                        <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
+                        <input type="number" step="0.01" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Protein Intake (g/kg/d)</label>
-                        <input type="number" step="0.1" name="av_daily_protein" inputmode="decimal" value="{{ record.av_daily_protein if record else '' }}">
+                        <input type="number" step="0.01" name="av_daily_protein" inputmode="decimal" value="{{ record.av_daily_protein if record else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Daily Caloric Intake (kcal/day)</label>
@@ -297,7 +297,7 @@
                     </div>
                     <div class="form-group">
                         <label>Serum Creatinine (mg/dL)</label>
-                        <input type="number" step="0.1" name="serum_creatinine" inputmode="decimal" placeholder="e.g. 8.5" value="{{ record.serum_creatinine if record and record.serum_creatinine else '' }}">
+                        <input type="number" step="0.01" name="serum_creatinine" inputmode="decimal" placeholder="e.g. 8.5" value="{{ record.serum_creatinine if record and record.serum_creatinine else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Residual Urine Output (mL/24h)</label>
@@ -337,8 +337,12 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>IV Iron Dose (mg/month)</label>
+                        <label>IV Iron Dose (mg)</label>
                         <input type="number" step="25" name="iv_iron_dose" inputmode="numeric" placeholder="e.g. 200" value="{{ record.iv_iron_dose if record and record.iv_iron_dose else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>IV Iron Date</label>
+                        <input type="date" name="iv_iron_date" value="{{ record.iv_iron_date.strftime('%Y-%m-%d') if record and record.iv_iron_date else '' }}">
                     </div>
                 </div>
             </div>
@@ -353,7 +357,7 @@
                     </div>
                     <div class="form-group">
                         <label>Serum Potassium (mmol/L)</label>
-                        <input type="number" step="0.1" name="serum_potassium" inputmode="decimal" placeholder="e.g. 4.5" value="{{ record.serum_potassium if record and record.serum_potassium else '' }}">
+                        <input type="number" step="0.01" name="serum_potassium" inputmode="decimal" placeholder="e.g. 4.5" value="{{ record.serum_potassium if record and record.serum_potassium else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Serum Bicarbonate (mmol/L)</label>
@@ -361,7 +365,7 @@
                     </div>
                     <div class="form-group">
                         <label>Serum Uric Acid (mg/dL)</label>
-                        <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.serum_uric_acid if record and record.serum_uric_acid else '' }}">
+                        <input type="number" step="0.01" name="serum_uric_acid" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.serum_uric_acid if record and record.serum_uric_acid else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Total Cholesterol (mg/dL)</label>
@@ -373,15 +377,15 @@
                     </div>
                     <div class="form-group">
                         <label>WBC Count (×10³/µL)</label>
-                        <input type="number" step="0.1" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
+                        <input type="number" step="0.01" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Platelet Count (×10³/µL)</label>
-                        <input type="number" step="0.1" name="platelet_count" inputmode="decimal" placeholder="e.g. 1.5" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
+                        <input type="number" step="0.01" name="platelet_count" inputmode="decimal" placeholder="e.g. 1.5" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
                     </div>
                     <div class="form-group">
                         <label>HbA1c (%)</label>
-                        <input type="number" step="0.1" name="hba1c" inputmode="decimal" placeholder="e.g. 7.2" value="{{ record.hba1c if record and record.hba1c else '' }}">
+                        <input type="number" step="0.01" name="hba1c" inputmode="decimal" placeholder="e.g. 7.2" value="{{ record.hba1c if record and record.hba1c else '' }}">
                     </div>
                 </div>
             </div>

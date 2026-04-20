@@ -84,7 +84,7 @@
         {% if error %}
             <div class="error">{{ error }}</div>
         {% endif %}
-        <form method="POST">
+        <form method="POST" action="/login" enctype="application/x-www-form-urlencoded">
             <div class="form-group">
                 <label>Clinical ID / Username</label>
                 <input type="text" name="username" placeholder="Enter username" required autofocus>

@@ -156,6 +156,15 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label>Blood Group</label>
+                        <select name="blood_group">
+                            <option value="">-- Unknown --</option>
+                            {% for bg in ["A+","A-","B+","B-","AB+","AB-","O+","O-"] %}
+                            <option value="{{ bg }}" {{ 'selected' if patient and patient.blood_group == bg }}>{{ bg }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Contact Number</label>
                         <input type="text" name="contact_no" value="{{ patient.contact_no if patient else '' }}" placeholder="10 Digit Mobile" inputmode="tel">
                     </div>
@@ -196,32 +205,77 @@
                         </select>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>HD Slot 1 (Shift)</label>
-                        <select name="hd_slot_1">
-                            <option value="">-- No Slot --</option>
-                            <option value="Morning" {{ 'selected' if patient and patient.hd_slot_1 == 'Morning' }}>Morning (सकाळी)</option>
-                            <option value="Afternoon" {{ 'selected' if patient and patient.hd_slot_1 == 'Afternoon' }}>Afternoon (दुपारी)</option>
-                        </select>
+                <!-- HD Day + Shift slots -->
+                <div id="hd-slots-container">
+                  {% set days_of_week = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] %}
+                  {% set slot_days  = [patient.hd_day_1  if patient else "", patient.hd_day_2  if patient else "", patient.hd_day_3  if patient else ""] %}
+                  {% set slot_shifts = [patient.hd_slot_1 if patient else "", patient.hd_slot_2 if patient else "", patient.hd_slot_3 if patient else ""] %}
+                  {% for i in [1,2,3] %}
+                  {% set cur_day   = slot_days[i-1]   or "" %}
+                  {% set cur_shift = slot_shifts[i-1] or "" %}
+                  <div class="form-row hd-slot-row {% if i == 3 %}slot-3-row{% endif %}" style="align-items:flex-end; gap:8px;">
+                    <div class="form-group" style="flex:2;">
+                      <label>HD Day {{ i }}{% if i == 3 %} <span style="font-size:0.8em;color:#888;">(3×/wk)</span>{% endif %}</label>
+                      <select name="hd_day_{{ i }}" class="hd-day-select" data-slot="{{ i }}">
+                        <option value="">-- No Day --</option>
+                        {% for day in days_of_week %}
+                        <option value="{{ day }}" {{ 'selected' if cur_day == day }}>{{ day }}</option>
+                        {% endfor %}
+                      </select>
                     </div>
-                    <div class="form-group">
-                        <label>HD Slot 2 (Shift)</label>
-                        <select name="hd_slot_2">
-                            <option value="">-- No Slot --</option>
-                            <option value="Morning" {{ 'selected' if patient and patient.hd_slot_2 == 'Morning' }}>Morning (सकाळी)</option>
-                            <option value="Afternoon" {{ 'selected' if patient and patient.hd_slot_2 == 'Afternoon' }}>Afternoon (दुपारी)</option>
-                        </select>
+                    <div class="form-group" style="flex:1.5;">
+                      <label>Shift</label>
+                      <select name="hd_slot_{{ i }}">
+                        <option value="">-- No Shift --</option>
+                        <option value="Morning"   {{ 'selected' if cur_shift == 'Morning'   }}>Morning (सकाळी)</option>
+                        <option value="Afternoon" {{ 'selected' if cur_shift == 'Afternoon' }}>Afternoon (दुपारी)</option>
+                      </select>
                     </div>
-                    <div class="form-group">
-                        <label>HD Slot 3 (for 3×/wk)</label>
-                        <select name="hd_slot_3">
-                            <option value="">-- No Slot --</option>
-                            <option value="Morning" {{ 'selected' if patient and patient.hd_slot_3 == 'Morning' }}>Morning (सकाळी)</option>
-                            <option value="Afternoon" {{ 'selected' if patient and patient.hd_slot_3 == 'Afternoon' }}>Afternoon (दुपारी)</option>
-                        </select>
+                    <div class="form-group" style="flex:1; min-width:90px;">
+                      <label style="visibility:hidden;">Date</label>
+                      <div class="week-date-chip" id="week-date-{{ i }}"
+                           data-day="{{ cur_day }}"
+                           style="height:38px;display:flex;align-items:center;padding:0 10px;background:#f0f4ff;border-radius:8px;font-size:0.82rem;color:#3b5bdb;font-weight:600;white-space:nowrap;"></div>
                     </div>
+                  </div>
+                  {% endfor %}
                 </div>
+
+                <script>
+                (function(){
+                  var DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+                  function getWeekDate(dayName) {
+                    if (!dayName) return "";
+                    var idx = DAYS.indexOf(dayName);
+                    if (idx < 0) return "";
+                    var today = new Date();
+                    var mon = new Date(today);
+                    mon.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+                    var target = new Date(mon);
+                    target.setDate(mon.getDate() + idx);
+                    return target.toLocaleDateString("en-IN", {day:"numeric", month:"short"});
+                  }
+                  function updateFreqVisibility() {
+                    var freq = parseInt(document.querySelector('[name="hd_frequency"]').value) || 2;
+                    var row3 = document.querySelector('.slot-3-row');
+                    if (row3) row3.style.display = freq >= 3 ? '' : 'none';
+                  }
+                  document.querySelectorAll('.hd-day-select').forEach(function(sel) {
+                    function refresh() {
+                      var slot = sel.dataset.slot;
+                      var chip = document.getElementById('week-date-' + slot);
+                      if (chip) chip.textContent = getWeekDate(sel.value);
+                    }
+                    sel.addEventListener('change', refresh);
+                    refresh();
+                  });
+                  var freqSel = document.querySelector('[name="hd_frequency"]');
+                  if (freqSel) {
+                    freqSel.addEventListener('change', updateFreqVisibility);
+                    updateFreqVisibility();
+                  }
+                })();
+                </script>
             </div>
             
             <!-- ── Additional Demographics ── -->

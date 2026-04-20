@@ -95,7 +95,7 @@
     <div class="patient-banner">
       <div class="p-info">
         <h1>{{ patient.name }}</h1>
-        <p>HID: {{ patient.hid_no }} • {{ patient.sex }} • {{ patient.diagnosis }}</p>
+        <p>HID: {{ patient.hid_no }} • {{ patient.sex }}{% if patient.blood_group %} • {{ patient.blood_group }}{% endif %} • {{ patient.diagnosis }}</p>
       </div>
       <div class="stats-row">
         {% set dr = analytics.deterioration_risk %}

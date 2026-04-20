@@ -82,7 +82,12 @@
                     <td>
                         <span class="freq-badge">{{ si.hd_frequency }}×/wk</span>
                         {% for s in si.display_slots %}
-                            <span class="slot-chip">{{ s }}</span>
+                            <span class="slot-chip">
+                              {% if s.day %}{{ s.day[:3] }}{% if s.date %} <span style="color:#3b5bdb;font-weight:700;">{{ s.date }}</span>{% endif %}{% if s.shift %} · {{ s.shift }}{% endif %}
+                              {% elif s.shift %}{{ s.shift }}
+                              {% elif s.date %}{{ s.date }}
+                              {% endif %}
+                            </span>
                         {% else %}
                             <span class="no-slot">—</span>
                         {% endfor %}

@@ -94,9 +94,15 @@ class Patient(Base):
 
     # ── HD Schedule ───────────────────────────────────────────────────────────
     hd_frequency = Column(Integer, default=2)   # Sessions per week: 2 or 3
+    hd_day_1  = Column(String)                  # Monday … Sunday
+    hd_day_2  = Column(String)
+    hd_day_3  = Column(String)
     hd_slot_1 = Column(String)                  # Morning / Afternoon
     hd_slot_2 = Column(String)
     hd_slot_3 = Column(String)
+
+    # ── Demographics extras ───────────────────────────────────────────────────
+    blood_group = Column(String)                # A+, B-, O+, AB+, etc.
 
     # ── Outcomes & Status ─────────────────────────────────────────────────────
     current_survival_status = Column(String)     # Active / Deceased / Transferred / Transplanted / Withdrawn
@@ -168,7 +174,8 @@ class MonthlyRecord(Base):
     serum_iron = Column(Float)               # µg/dL — SerumIron
     tibc = Column(Float)                     # µg/dL — TotalIronBindingCapacity
     iv_iron_product = Column(String)         # Ferric Carboxymaltose / Iron Sucrose / FCM — IVIronProduct
-    iv_iron_dose = Column(Float)             # mg/month — IVIronDose
+    iv_iron_dose = Column(Float)             # mg — dose given on that date
+    iv_iron_date = Column(Date)              # date IV iron was administered
 
     # ── Mineral Metabolism ────────────────────────────────────────────────────
     calcium = Column(Float)                  # mg/dL uncorrected — SerumCalcium

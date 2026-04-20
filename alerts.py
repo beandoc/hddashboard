@@ -148,8 +148,15 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
         if record.hb and record.hb < 10 and _epo_iu and _epo_iu > 10000:
             alerts.append(f"EPO Hypo-response (Hb {record.hb} g/dL)")
 
-    slots = [patient.hd_slot_1, patient.hd_slot_2, patient.hd_slot_3]
-    filled_slots = [s.strip() for s in slots if s and s.strip()]
+    def _slot_label(day, shift):
+        parts = [p for p in [day or "", shift or ""] if p]
+        return " – ".join(parts)
+    slots = [
+        _slot_label(getattr(patient, "hd_day_1", ""), patient.hd_slot_1),
+        _slot_label(getattr(patient, "hd_day_2", ""), patient.hd_slot_2),
+        _slot_label(getattr(patient, "hd_day_3", ""), patient.hd_slot_3),
+    ]
+    filled_slots = [s for s in slots if s]
     schedule_text = "\n".join(f"  • {s}" for s in filled_slots) if filled_slots else "  • (To be confirmed)"
 
     remarks = (getattr(record, "issues", None) or "").strip() if record else ""
