@@ -883,6 +883,28 @@ def admin_toggle_user(user_id: int, request: Request, db: Session = Depends(get_
     db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
+
+@app.get("/admin/test-email")
+def admin_test_email(request: Request):
+    """Send a test alert email to DOCTOR_EMAIL to verify SMTP config."""
+    _require_admin(request)
+    from alerts import send_entry_alert_email, SMTP_USER, SMTP_PASSWORD, DOCTOR_EMAIL
+    if not SMTP_PASSWORD:
+        return JSONResponse({"status": "error",
+                             "message": "SMTP_PASSWORD not set in Render environment variables."})
+    send_entry_alert_email(
+        patient_name="Test Patient (John Doe)",
+        hid="TEST-001",
+        month_label="April 2026",
+        alerts=["Low Hb (<9)", "High Phosphorus", "Low Albumin"],
+        labs={"hb": 7.8, "albumin": 2.1, "phosphorus": 6.2,
+              "corrected_ca": 7.9, "idwg": 2.8, "ipth": 420},
+        entered_by="admin-test",
+    )
+    return JSONResponse({"status": "ok",
+                         "message": f"Test email fired from {SMTP_USER} → {DOCTOR_EMAIL}. Check inbox (may take ~30 sec)."})
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # AUTHENTICATION
 # ─────────────────────────────────────────────────────────────────────────────
