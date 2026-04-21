@@ -161,6 +161,18 @@
         .cell-name { font-weight: 600; color: #0f172a; }
         .cell-hid { font-size: 0.8em; color: #64748b; }
         .month-picker-wrap { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        
+        .val-interim { position: relative; border-bottom: 2px dashed var(--accent-orange); color: var(--accent-orange) !important; cursor: help; }
+        .interim-tooltip-content {
+            visibility: hidden; position: absolute; background: #334155; color: #fff;
+            padding: 8px 12px; border-radius: 6px; font-size: 0.75rem; width: 180px;
+            bottom: 125%; left: 50%; transform: translateX(-50%); z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); pointer-events: none; opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .val-interim:hover .interim-tooltip-content { visibility: visible; opacity: 1; }
+        .val-interim:hover { background: #fffbeb; }
+        .interim-marker { font-size: 0.7em; background: #fbbf24; color: #000; padding: 1px 4px; border-radius: 3px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
 
     </style>
 </head>
@@ -245,12 +257,72 @@
                         <td data-label="Sex" style="{{ 'color:#ef4444;font-weight:600;' if unknown_gender else '' }}">
                             {{ p.sex or 'Unknown' }}
                         </td>
-                        <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}">{{ "%.1f"|format(row.hb) if row.hb else "—" }}</td>
+                        {% set is_hb_interim = row.is_interim and row.interim_details.get('hb') %}
+                        <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }} {{ 'val-interim' if is_hb_interim }}">
+                            {{ "%.1f"|format(row.hb) if row.hb else "—" }}
+                            {% if is_hb_interim %}
+                                <span class="interim-marker">INT</span>
+                                <div class="interim-tooltip-content">
+                                    <strong>Interim Recheck</strong><br>
+                                    Date: {{ row.interim_details.hb.date }}<br>
+                                    Trigger: {{ row.interim_details.hb.trigger }}
+                                </div>
+                            {% endif %}
+                        </td>
                         <td data-label="TSAT%" class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
-                        <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
-                        <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}">{{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}</td>
-                        <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}">{{ "%.1f"|format(row.albumin) if row.albumin else "—" }}</td>
-                        <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}">{{ "%.0f"|format(row.ipth) if row.ipth else "—" }}</td>
+                        
+                        {% set is_ca_interim = row.is_interim and (row.interim_details.get('calcium') or row.interim_details.get('albumin')) %}
+                        <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }} {{ 'val-interim' if is_ca_interim }}">
+                            {{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}
+                            {% if is_ca_interim %}
+                                <span class="interim-marker">INT</span>
+                                <div class="interim-tooltip-content">
+                                    <strong>Corrected Value</strong><br>
+                                    {% if row.interim_details.get('calcium') %}Ca Date: {{ row.interim_details.calcium.date }}<br>{% endif %}
+                                    {% if row.interim_details.get('albumin') %}Alb Date: {{ row.interim_details.albumin.date }}<br>{% endif %}
+                                    Trigger: {{ row.interim_details.get('calcium', row.interim_details.get('albumin')).trigger }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        {% set is_phos_interim = row.is_interim and row.interim_details.get('phosphorus') %}
+                        <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }} {{ 'val-interim' if is_phos_interim }}">
+                            {{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}
+                            {% if is_phos_interim %}
+                                <span class="interim-marker">INT</span>
+                                <div class="interim-tooltip-content">
+                                    <strong>Interim Recheck</strong><br>
+                                    Date: {{ row.interim_details.phosphorus.date }}<br>
+                                    Trigger: {{ row.interim_details.phosphorus.trigger }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        {% set is_alb_interim = row.is_interim and row.interim_details.get('albumin') %}
+                        <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }} {{ 'val-interim' if is_alb_interim }}">
+                            {{ "%.1f"|format(row.albumin) if row.albumin else "—" }}
+                            {% if is_alb_interim %}
+                                <span class="interim-marker">INT</span>
+                                <div class="interim-tooltip-content">
+                                    <strong>Interim Recheck</strong><br>
+                                    Date: {{ row.interim_details.albumin.date }}<br>
+                                    Trigger: {{ row.interim_details.albumin.trigger }}
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        {% set is_ipth_interim = row.is_interim and row.interim_details.get('ipth') %}
+                        <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }} {{ 'val-interim' if is_ipth_interim }}">
+                            {{ "%.0f"|format(row.ipth) if row.ipth else "—" }}
+                            {% if is_ipth_interim %}
+                                <span class="interim-marker">INT</span>
+                                <div class="interim-tooltip-content">
+                                    <strong>Interim Recheck</strong><br>
+                                    Date: {{ row.interim_details.ipth.date }}<br>
+                                    Trigger: {{ row.interim_details.ipth.trigger }}
+                                </div>
+                            {% endif %}
+                        </td>
                         
                         <td data-label="Alerts">
                             {% if not row.has_record %}<span class="no-rec">No record for {{ data.month_label }}</span>
@@ -270,6 +342,7 @@
                         </td>
                         <td data-label="Management" class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <a href="/events?patient_id={{ p.id }}" style="background:#fef3c7; padding:4px 8px; border-radius:4px; font-size:0.8em; color:#92400e;">Timeline</a>
+                            <a href="#" onclick="openInterimModal({{ row.id }}, '{{ row.name }}')" style="background:#fde68a; padding:4px 8px; border-radius:4px; font-size:0.8em; color:#92400e;">+Lab</a>
                             <a href="/entry/{{ row.id }}?month={{ month_str }}" style="background:#e0f2fe; padding:4px 8px; border-radius:4px; font-size:0.8em;">Data</a>
                             <a href="/patients/{{ p.id }}/edit" style="background:#f1f5f9; padding:4px 8px; border-radius:4px; font-size:0.8em;">Edit</a>
                             <form action="/patients/{{ p.id }}/deactivate" method="POST" style="margin:0;">
@@ -280,6 +353,54 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- Interim Lab Modal -->
+    <div id="interimModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:5000; align-items:center; justify-content:center;">
+        <div style="background:white; padding:24px; border-radius:12px; width:400px; max-width:90%; box-shadow:var(--shadow-md);">
+            <h3 id="modalPatientName" style="margin-top:0; font-family:'Outfit';">Add Interim Lab</h3>
+            <form id="interimForm" method="POST">
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Date</label>
+                    <input type="date" name="lab_date" id="modal_date" required class="search-input" style="width:100%; box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Parameter</label>
+                    <select name="parameter" required class="search-input" style="width:100%; box-sizing:border-box;">
+                        <option value="hb">Hemoglobin (Hb)</option>
+                        <option value="potassium">Serum Potassium</option>
+                        <option value="calcium">Serum Calcium</option>
+                        <option value="phosphorus">Phosphorus</option>
+                        <option value="albumin">Serum Albumin</option>
+                        <option value="ipth">iPTH</option>
+                        <option value="crp">CRP</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Value</label>
+                    <input type="number" name="value" step="0.01" required class="search-input" style="width:100%; box-sizing:border-box;" placeholder="e.g. 9.5">
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Clinical Trigger (ML Feature)</label>
+                    <select name="trigger" required class="search-input" style="width:100%; box-sizing:border-box;">
+                        <option value="Routine Recheck">Routine Recheck</option>
+                        <option value="Symptomatic">Symptomatic</option>
+                        <option value="Post-transfusion">Post-transfusion</option>
+                        <option value="Post-Medication (K/Ca)">Post-Medication (K/Ca)</option>
+                        <option value="Post-Hospitalization">Post-Hospitalization</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Notes</label>
+                    <input type="text" name="notes" class="search-input" style="width:100%; box-sizing:border-box;" placeholder="Optional context...">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+                    <button type="button" onclick="closeInterimModal()" class="btn" style="background:#64748b;">Cancel</button>
+                    <button type="submit" class="btn">Save Interim Lab</button>
+                </div>
+            </form>
         </div>
     </div>
     <script>
@@ -328,6 +449,17 @@
                 btn.disabled = false;
             });
         }
+
+        function openInterimModal(pid, name) {
+            document.getElementById('modalPatientName').textContent = "Lab Entry: " + name;
+            document.getElementById('interimForm').action = "/patients/" + pid + "/interim-labs/new";
+            document.getElementById('modal_date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('interimModal').style.display = 'flex';
+        }
+        function closeInterimModal() {
+            document.getElementById('interimModal').style.display = 'none';
+        }
+
         function toggleDrawer() {
             document.getElementById("mobileDrawer").classList.toggle("open");
         }

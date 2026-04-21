@@ -6,7 +6,7 @@ Locked - Do not modify without clinical validation.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import Patient, MonthlyRecord
+from database import Patient, MonthlyRecord, InterimLabRecord
 from datetime import datetime
 import logging
 from ml_analytics import normalize_epo_dose
@@ -132,6 +132,19 @@ def compute_dashboard(db: Session, month: str = None):
     prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()
     prev_record_map = {r.patient_id: r for r in prev_records}
 
+    # Fetch interim records for this month
+    interim_labs = db.query(InterimLabRecord).filter(InterimLabRecord.record_month == month).order_by(InterimLabRecord.lab_date.asc()).all()
+    # Build a map of patient_id -> {parameter: latest_value}
+    interim_map = {}
+    for il in interim_labs:
+        if il.patient_id not in interim_map:
+            interim_map[il.patient_id] = {}
+        interim_map[il.patient_id][il.parameter] = {
+            "value": il.value,
+            "date": il.lab_date,
+            "trigger": il.trigger
+        }
+
     # ── Pre-pass: collect all EPO doses for HypoR3 (80th percentile cutoff) ──
     _all_doses = []
     for _r in records:
@@ -170,8 +183,43 @@ def compute_dashboard(db: Session, month: str = None):
             "ipth": r.ipth if r else None,
             "vit_d": r.vit_d if r else None,
             "protein": r.av_daily_protein if r else None,
+            "is_interim": False,
+            "interim_details": {},
             "alerts": []
         }
+        
+        # Override with Latest Interim Labs
+        p_interim = interim_map.get(p.id, {})
+        if p_interim:
+            if "hb" in p_interim:
+                row["hb"] = p_interim["hb"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["hb"] = p_interim["hb"]
+            if "albumin" in p_interim:
+                row["albumin"] = p_interim["albumin"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["albumin"] = p_interim["albumin"]
+            if "phosphorus" in p_interim:
+                row["phosphorus"] = p_interim["phosphorus"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["phosphorus"] = p_interim["phosphorus"]
+            if "calcium" in p_interim:
+                # Recalculate corrected calcium if either calcium or albumin is interim
+                _ca = p_interim["calcium"]["value"]
+                _alb = row["albumin"] # might be interim already
+                row["corrected_ca"] = round(_ca + 0.8 * (4.0 - _alb), 2) if (_ca and _alb) else _ca
+                row["is_interim"] = True
+                row["interim_details"]["calcium"] = p_interim["calcium"]
+            elif "albumin" in p_interim:
+                # Albumin updated but calcium is from MonthlyRecord
+                _ca = r.calcium if r else None
+                _alb = p_interim["albumin"]["value"]
+                row["corrected_ca"] = round(_ca + 0.8 * (4.0 - _alb), 2) if (_ca and _alb) else _ca
+            
+            if "ipth" in p_interim:
+                row["ipth"] = p_interim["ipth"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["ipth"] = p_interim["ipth"]
         
         if r:
             name = p.name
@@ -223,7 +271,7 @@ def compute_dashboard(db: Session, month: str = None):
             if corr_ca and corr_ca < 8.0:
                 metrics['calcium_low']['count'] += 1
                 metrics['calcium_low']['names'].append(name)
-                row["alerts"].append("Low Calcium")
+                row["alerts"].append("Low Corrected Calcium")
                 
             # 5. Phosphorus > 5.5 mg/dL
             if r.phosphorus and r.phosphorus > 5.5:
@@ -324,7 +372,7 @@ def get_patients_needing_alerts(db: Session, month: str = None):
         # Corrected Calcium check
         _corr_ca = (r.calcium + 0.8 * (4.0 - r.albumin)) if (r.calcium and r.albumin) else r.calcium
         if _corr_ca and _corr_ca < 8.0:
-            alerts.append("Low Calcium")
+            alerts.append("Low Corrected Calcium")
         if r.phosphorus and r.phosphorus > 5.5:
             alerts.append("High Phos")
         _epo_sc = _resolve_epo_dose(r)

@@ -342,6 +342,40 @@
       </div>
     </div>
 
+    <!-- ── Interim Labs ── -->
+    <div class="card" style="background: #fffcf0; border: 1.5px solid #fde68a;">
+      <div class="card-title" style="border-bottom-color: #fde68a;"><i class="material-icons" style="color: #d97706;">biotech</i> Interim Labs (Hybrid Entry)</div>
+      <p style="font-size: 0.75rem; color: #92400e; margin-bottom: 12px; font-style: italic;">
+        Labs entered here will automatically be promoted to the patient's longitudinal Interim Lab Record for ML tracking.
+      </p>
+      <div class="grid">
+        <div>
+          <label>Interim Hb (g/dL)</label>
+          <input type="number" name="interim_hb" step="0.1" inputmode="decimal" placeholder="e.g. 9.5"
+            value="{{ session.interim_hb if session and session.interim_hb else '' }}">
+        </div>
+        <div>
+          <label>Interim Potassium (mEq/L)</label>
+          <input type="number" name="interim_k" step="0.1" inputmode="decimal" placeholder="e.g. 4.8"
+            value="{{ session.interim_k if session and session.interim_k else '' }}">
+        </div>
+        <div>
+          <label>Interim Calcium (mg/dL)</label>
+          <input type="number" name="interim_ca" step="0.1" inputmode="decimal" placeholder="e.g. 8.2"
+            value="{{ session.interim_ca if session and session.interim_ca else '' }}">
+        </div>
+        <div>
+          <label>Clinical Trigger</label>
+          <select name="interim_trigger">
+            <option value="Routine Recheck (Session)">Routine Recheck (Session)</option>
+            {% for trigger in ["Symptomatic", "Post-transfusion", "Post-Medication (K/Ca)", "Post-Hospitalization", "Other"] %}
+            <option value="{{ trigger }}" {{ 'selected' if session and session.interim_trigger == trigger }}>{{ trigger }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Intradialytic Events ── -->
     <div class="card">
       <div class="card-title"><i class="material-icons">warning_amber</i> Intradialytic Events</div>

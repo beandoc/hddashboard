@@ -94,8 +94,11 @@
                     <td>{{ p.hid_no }}</td>
                     <td>{{ p.name }}</td>
                     <td>
-                        {% if p.id in existing_ids %}
-                            <span class="status-done">✓ Completed</span>
+                        {% if p.id in existing_records %}
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <span class="status-done">✓ Completed</span>
+                                <span style="font-size:0.75em; color:#64748b; font-weight:500;">Last updated: {{ existing_records[p.id].timestamp.strftime('%d %b %Y, %H:%M') if existing_records[p.id].timestamp else 'Unknown' }}</span>
+                            </div>
                         {% else %}
                             <span class="status-pending">Pending</span>
                         {% endif %}
@@ -104,7 +107,7 @@
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <a href="/patients/{{ p.id }}/edit" class="btn-action" title="Demographic Info">Demographics</a>
                             <a href="/entry/{{ p.id }}?month={{ month_str }}" class="btn-action" title="Monthly Clinical Data">
-                                {{ "Edit Clinical Data" if p.id in existing_ids else "Add Clinical Data" }}
+                                {{ "Edit Clinical Data" if p.id in existing_records else "Add Clinical Data" }}
                             </a>
                             <a href="/patients/{{ p.id }}/sessions/new" class="btn-action" title="Per-Session Dialysis Data">Dialysis Session</a>
                         </div>

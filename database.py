@@ -125,6 +125,7 @@ class Patient(Base):
 
     records = relationship("MonthlyRecord", back_populates="patient", cascade="all, delete-orphan")
     sessions = relationship("SessionRecord", back_populates="patient", cascade="all, delete-orphan")
+    interim_labs = relationship("InterimLabRecord", back_populates="patient", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -220,6 +221,7 @@ class MonthlyRecord(Base):
 
     # ── Medications Summary ───────────────────────────────────────────────────
     antihypertensive_count = Column(Integer) # Number of antihypertensive classes — AntihypertensiveClassCount
+    antihypertensive_details = Column(Text)  # Stores JSON or formatted string of specific names, doses, freqs
 
     # ── Vitals (monthly representative) ──────────────────────────────────────
     bp_sys = Column(Float)                   # Systolic BP mmHg — monthly representative
@@ -352,7 +354,42 @@ class SessionRecord(Base):
     doctor_concerns = Column(Text)           # Flagged for reviewing physician
     next_appointment_id = Column(String)
 
+    # ── Interim Labs (Optional Session-level Labs) ──────────────────────────
+    interim_hb = Column(Float)           # g/dL — Automated promotion to InterimLabRecord
+    interim_k  = Column(Float)           # mEq/L
+    interim_ca = Column(Float)           # mg/dL
+    interim_trigger = Column(String)     # Dropdown-matching trigger
+
     patient = relationship("Patient", back_populates="sessions")
+
+
+class InterimLabRecord(Base):
+    """
+    Clinically-triggered or ad-hoc laboratory investigations.
+    Separated from protocol-driven MonthlyRecord for better ML feature engineering.
+    """
+    __tablename__ = "interim_lab_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("session_records.id"), nullable=True) # Linked if entered via session
+    lab_date = Column(Date, nullable=False)
+    record_month = Column(String)             # YYYY-MM for monthly collation
+    
+    # Lab Parameters
+    parameter = Column(String, nullable=False) # hb / potassium / calcium / phosphorus / crp
+    value = Column(Float, nullable=False)
+    unit = Column(String)
+    
+    # Clinical Context (ML features)
+    trigger = Column(String)                   # Symptomatic / Post-transfusion / Post-Medication / etc.
+    notes = Column(Text)
+    
+    entered_by = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient", back_populates="interim_labs")
+    session = relationship("SessionRecord")
 
 
 class ClinicalEvent(Base):

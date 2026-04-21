@@ -128,7 +128,7 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
     """
     alerts = []
     if record:
-        from ml_analytics import normalize_epo_dose as _nep
+        from dashboard_logic import _resolve_epo_dose
 
         raw_access = (getattr(record, "access_type", "") or "").strip()
         access = "Permacath" if raw_access in ("P/Cath", "P-Cath", "Permacath", "PCATH") else raw_access
@@ -136,19 +136,26 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
             alerts.append("Non-AVF Access")
         if record.idwg and record.idwg > 2.5:
             alerts.append(f"High Interdialytic Weight Gain ({record.idwg} kg)")
-        if record.albumin and record.albumin < 3.5:
+            
+        if record.albumin and record.albumin < 2.5:
             alerts.append(f"Low Albumin ({record.albumin} g/dL)")
-        if record.calcium and record.calcium < 8.5:
-            alerts.append(f"Low Corrected Calcium ({'{:.2f}'.format(float(record.calcium))} mg/dL)")
+            
+        _corr_ca = (record.calcium + 0.8 * (4.0 - record.albumin)) if (record.calcium and record.albumin) else record.calcium
+        if _corr_ca and _corr_ca < 8.0:
+            alerts.append(f"Low Corrected Calcium ({'{:.2f}'.format(float(_corr_ca))} mg/dL)")
+            
         if record.phosphorus and record.phosphorus > 5.5:
             alerts.append(f"High Phosphorus ({record.phosphorus} mg/dL)")
-        _epo_iu = record.epo_weekly_units
-        if _epo_iu is None and record.epo_mircera_dose:
-            _p = _nep(record.epo_mircera_dose)
-            if _p.get("confidence") == "high":
-                _epo_iu = _p.get("weekly_iu")
-        if record.hb and record.hb < 10 and _epo_iu and _epo_iu > 10000:
-            alerts.append(f"EPO Hypo-response (Hb {record.hb} g/dL)")
+            
+        _epo_sc = _resolve_epo_dose(record)
+        if _epo_sc and record.hb:
+            _weight = record.target_dry_weight or patient.dry_weight or 60.0
+            _dose_kg = _epo_sc / _weight
+            _eri = _dose_kg / (record.hb * 10)
+            if _eri >= 2.0 or _dose_kg >= 450:
+                alerts.append(f"ESA Hypo-response [HypoR1] (Hb {record.hb} g/dL)")
+            elif _eri >= 1.5:
+                alerts.append(f"ESA Hypo-response [HypoR2] (Hb {record.hb} g/dL)")
 
     def _slot_label(day, shift):
         parts = [p for p in [day or "", shift or ""] if p]

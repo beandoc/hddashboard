@@ -631,7 +631,8 @@ def assign_schedule(
 def entry_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    existing_ids = {r.patient_id for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()}
+    records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()
+    existing_records = {r.patient_id: r for r in records}
     patient_slot_info = {p.id: _build_patient_slot_info(p) for p in patients}
     return templates.TemplateResponse("entry_list.html", {
         "request": request,
@@ -639,19 +640,29 @@ def entry_index(request: Request, month: Optional[str] = None, db: Session = Dep
         "patient_slot_info": patient_slot_info,
         "month_str": month_str,
         "month_label": get_month_label(month_str),
-        "existing_ids": existing_ids,
+        "existing_records": existing_records,
         "user": get_user(request),
     })
 
 
 @app.get("/entry/{patient_id}", response_class=HTMLResponse)
 def entry_form(patient_id: int, request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    import json
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
     month_str = month or get_current_month_str()
     rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == month_str).first()
+    
+    anti_meds = []
+    if rec and rec.antihypertensive_details:
+        try:
+            anti_meds = json.loads(rec.antihypertensive_details)
+        except:
+            pass
+
     return templates.TemplateResponse("entry_form.html", {
         "request": request, "patient": p, "record": rec,
+        "anti_meds": anti_meds,
         "month_str": month_str, "month_label": get_month_label(month_str),
         "user": get_user(request),
     })
@@ -709,6 +720,9 @@ def save_entry(
     vitamin_d_analog_dose: str = Form(""),
     phosphate_binder_type: str = Form(""),
     antihypertensive_count: Optional[int] = Form(None),
+    antihypertensive_name: list[str] = Form([]),
+    antihypertensive_dose: list[str] = Form([]),
+    antihypertensive_freq: list[str] = Form([]),
     hrqol_score: Optional[float] = Form(None),
     hospitalization_this_month: bool = Form(False),
     hospitalization_date: Optional[str] = Form(None),
@@ -716,10 +730,17 @@ def save_entry(
     issues: str = Form(""),
 ):
     from datetime import date as _date
+    import json
     def _d(s): return datetime.strptime(s, "%Y-%m-%d").date() if s else None
 
     if idwg is not None and idwg > 15:
         idwg = None
+
+    meds_list = []
+    for n, d, f in zip(antihypertensive_name, antihypertensive_dose, antihypertensive_freq):
+        if n.strip():
+            meds_list.append({"name": n.strip(), "dose": d.strip(), "freq": f.strip()})
+    antihypertensive_details_json = json.dumps(meds_list) if meds_list else ""
 
     rec = db.query(MonthlyRecord).filter(
         MonthlyRecord.patient_id == patient_id,
@@ -746,7 +767,9 @@ def save_entry(
         wbc_count=wbc_count, platelet_count=platelet_count, hba1c=hba1c,
         vitamin_d_analog_dose=vitamin_d_analog_dose,
         phosphate_binder_type=phosphate_binder_type,
-        antihypertensive_count=antihypertensive_count, hrqol_score=hrqol_score,
+        antihypertensive_count=len(meds_list) if meds_list else antihypertensive_count,
+        antihypertensive_details=antihypertensive_details_json,
+        hrqol_score=hrqol_score,
         hospitalization_this_month=hospitalization_this_month,
         hospitalization_date=_d(hospitalization_date),
         hospitalization_icd_code=hospitalization_icd_code,
@@ -761,8 +784,11 @@ def save_entry(
         db.add(rec)
 
     p = db.query(Patient).filter(Patient.id == patient_id).first()
-    if p and access_type:
-        p.access_type = access_type
+    if p:
+        if access_type:
+            p.access_type = access_type
+        if target_dry_weight is not None:
+            p.dry_weight = target_dry_weight
 
     db.commit()
 
@@ -780,7 +806,7 @@ def save_entry(
             _alerts_for_patient.append("Low Albumin")
         _corr_ca = (calcium + 0.8 * (4.0 - albumin)) if (calcium and albumin) else calcium
         if _corr_ca and _corr_ca < 8.0:
-            _alerts_for_patient.append("Low Calcium")
+            _alerts_for_patient.append("Low Corrected Calcium")
         if phosphorus and phosphorus > 5.5:
             _alerts_for_patient.append("High Phosphorus")
         if hb and hb < 9:
@@ -887,6 +913,10 @@ def create_session(
     early_termination: bool = Form(False),
     dialyzer_type: str = Form(""),
     entered_by: str = Form(""),
+    interim_hb: Optional[float] = Form(None),
+    interim_k: Optional[float] = Form(None),
+    interim_ca: Optional[float] = Form(None),
+    interim_trigger: Optional[str] = Form(None),
 ):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
@@ -915,14 +945,53 @@ def create_session(
         vascular_interventions=vascular_interventions,
         anticoagulation=anticoagulation,
         anticoagulation_dose=anticoagulation_dose,
-        idh_episode=idh_episode,
-        muscle_cramps=muscle_cramps,
         early_termination=early_termination,
         dialyzer_type=dialyzer_type,
+        interim_hb=interim_hb,
+        interim_k=interim_k,
+        interim_ca=interim_ca,
+        interim_trigger=interim_trigger,
     )
     db.add(rec)
     db.commit()
+    db.refresh(rec)
+    promote_session_labs(db, rec)
     return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
+
+
+def promote_session_labs(db: Session, sess: SessionRecord):
+    """Hybrid logic: promote session labs to the longitudinal InterimLabRecord table."""
+    params = [
+        ("hb", sess.interim_hb, "g/dL"),
+        ("potassium", sess.interim_k, "mEq/L"),
+        ("calcium", sess.interim_ca, "mg/dL"),
+    ]
+    trigger = sess.interim_trigger or "Routine Recheck (Session)"
+    
+    for param_name, val, unit in params:
+        if val is not None:
+            # Check if exists for this session already for this parameter
+            existing = db.query(InterimLabRecord).filter(
+                InterimLabRecord.session_id == sess.id,
+                InterimLabRecord.parameter == param_name
+            ).first()
+            if existing:
+                existing.value = val
+                existing.trigger = trigger
+            else:
+                interim = InterimLabRecord(
+                    patient_id=sess.patient_id,
+                    session_id=sess.id,
+                    lab_date=sess.session_date,
+                    record_month=sess.record_month,
+                    parameter=param_name,
+                    value=val,
+                    unit=unit,
+                    trigger=trigger,
+                    entered_by=sess.entered_by
+                )
+                db.add(interim)
+    db.commit()
 
 
 @app.get("/patients/{patient_id}/sessions/{session_id}/edit", response_class=HTMLResponse)
@@ -966,6 +1035,10 @@ def update_session(
     early_termination: bool = Form(False),
     dialyzer_type: str = Form(""),
     entered_by: str = Form(""),
+    interim_hb: Optional[float] = Form(None),
+    interim_k: Optional[float] = Form(None),
+    interim_ca: Optional[float] = Form(None),
+    interim_trigger: Optional[str] = Form(None),
 ):
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id, SessionRecord.patient_id == patient_id).first()
     if not sess: raise HTTPException(status_code=404)
@@ -994,7 +1067,12 @@ def update_session(
     sess.muscle_cramps = muscle_cramps
     sess.early_termination = early_termination
     sess.dialyzer_type = dialyzer_type
+    sess.interim_hb = interim_hb
+    sess.interim_k = interim_k
+    sess.interim_ca = interim_ca
+    sess.interim_trigger = interim_trigger
     db.commit()
+    promote_session_labs(db, sess)
     return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
 
 
@@ -1348,6 +1426,36 @@ def create_event(
     db.commit()
     # Return to referring page (events list or patient timeline)
     ref = request.headers.get("referer", "/events")
+    return RedirectResponse(url=ref, status_code=303)
+
+
+@app.post("/patients/{patient_id}/interim-labs/new")
+def create_interim_lab(
+    patient_id: int,
+    lab_date: str = Form(...),
+    parameter: str = Form(...),
+    value: float = Form(...),
+    unit: str = Form(""),
+    trigger: str = Form(""),
+    notes: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    user = get_user(request)
+    interim = InterimLabRecord(
+        patient_id=patient_id,
+        lab_date=date.fromisoformat(lab_date),
+        record_month=lab_date[:7],
+        parameter=parameter,
+        value=value,
+        unit=unit,
+        trigger=trigger,
+        notes=notes,
+        entered_by=(user.username if user else "")
+    )
+    db.add(interim)
+    db.commit()
+    ref = request.headers.get("referer", f"/patients/{patient_id}/analytics")
     return RedirectResponse(url=ref, status_code=303)
 
 
