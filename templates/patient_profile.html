@@ -360,8 +360,9 @@
             <!-- 8. RISK SUMMARY -->
             <div class="card" style="padding: 16px;">
                 <h2 class="stat-label">Comorbidity & Risk</h2>
-                <div class="risk-badge {{ 'risk-low' if (not patient.history_of_access_thrombosis and (latest_monthly.crp or 0) < 5) else 'risk-mid' }}">
-                    Low - Moderate Risk
+                {% set has_high_crp = (latest_monthly and latest_monthly.crp and latest_monthly.crp >= 5) %}
+                <div class="risk-badge {{ 'risk-low' if (not patient.history_of_access_thrombosis and not has_high_crp) else 'risk-mid' }}">
+                    {{ 'Low Risk' if (not patient.history_of_access_thrombosis and not has_high_crp) else 'Moderate Risk' }}
                 </div>
                 <div style="margin-top: 16px;">
                     <span class="stat-label" style="font-size: 0.65rem;">Active Co-morbidities</span>
@@ -419,7 +420,7 @@
             <div class="card">
                 <h2 class="section-title" style="font-size: 1rem;"><i class="material-icons">description</i> Clinical Notes</h2>
                 <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-main); background: #fffbeb; padding: 12px; border-radius: 8px; border: 1px solid #fef3c7;">
-                    {{ latest_monthly.issues or 'No clinician review entries found for the current cycle.' }}
+                    {{ latest_monthly.issues if latest_monthly and latest_monthly.issues else 'No clinician review entries found for the current cycle.' }}
                 </div>
                 <div style="margin-top:16px; border-top:1px solid #f1f5f9; padding-top:12px;">
                     <button class="btn-action btn-ghost" style="width: 100%; justify-content: center; font-size: 0.8rem;">
