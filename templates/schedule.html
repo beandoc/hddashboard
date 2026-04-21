@@ -104,6 +104,42 @@
             </form>
         </div>
 
+        <div class="slot-card" style="background:#f8fafc; border:1px solid #e2e8f0; margin-bottom:30px;">
+            <div class="slot-card-header" style="background:#0f172a;">
+                <span>⚙️ Manage Active Schedules</span>
+            </div>
+            <div style="padding: 20px;">
+                <form action="/schedule/assign" method="POST" id="assignForm" style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width: 250px;">
+                            <label style="display:block; margin-bottom:6px; font-weight:bold; color:#334155;">Select Patient</label>
+                            <select name="patient_id" id="assignPatient" required style="width:100%; padding:8px; border-radius:6px; border:1px solid #cbd5e1;">
+                                <option value="" disabled selected>-- Choose Patient --</option>
+                                {% for p in all_patients %}
+                                    <option value="{{ p.id }}">{{ p.name }} (#{{ p.hid_no }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div style="width: 150px;">
+                            <label style="display:block; margin-bottom:6px; font-weight:bold; color:#334155;">Frequency</label>
+                            <select name="hd_frequency" id="hdFrequency" style="width:100%; padding:8px; border-radius:6px; border:1px solid #cbd5e1;">
+                                <option value="2">2× / week</option>
+                                <option value="3">3× / week</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="slotInputs" style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        <!-- Slots injected by JS -->
+                    </div>
+                    
+                    <div>
+                        <button type="submit" disabled id="saveScheduleBtn" style="background:#2563eb; color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:bold; cursor:pointer;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">Save Weekly Allocation</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="slot-card">
             <div class="slot-card-header">
                 <span>Morning Shift (सकाळी)</span>
@@ -153,5 +189,72 @@
         </div>
         
     </div>
+    <script>
+        const patientData = {
+            {% for p in all_patients %}
+            "{{ p.id }}": {
+                freq: {{ p.hd_frequency or 2 }},
+                d1: "{{ p.hd_day_1 or '' }}", s1: "{{ p.hd_slot_1 or '' }}",
+                d2: "{{ p.hd_day_2 or '' }}", s2: "{{ p.hd_slot_2 or '' }}",
+                d3: "{{ p.hd_day_3 or '' }}", s3: "{{ p.hd_slot_3 or '' }}"
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        };
+
+        const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+        const shifts = ["Morning", "Afternoon"];
+
+        const patientSelect = document.getElementById("assignPatient");
+        const freqSelect = document.getElementById("hdFrequency");
+        const slotContainer = document.getElementById("slotInputs");
+        const saveBtn = document.getElementById("saveScheduleBtn");
+
+        function renderSlotInputs(count, existingData = {}) {
+            slotContainer.innerHTML = "";
+            for(let i=1; i<=count; i++) {
+                const dayVal = existingData["d"+i] || "";
+                const shiftVal = existingData["s"+i] || "";
+                
+                let dayOptions = `<option value="">-- Day --</option>`;
+                days.forEach(d => {
+                    dayOptions += `<option value="${d}" ${dayVal === d ? "selected" : ""}>${d}</option>`;
+                });
+
+                let shiftOptions = `<option value="">-- Shift --</option>`;
+                shifts.forEach(s => {
+                    shiftOptions += `<option value="${s}" ${shiftVal === s ? "selected" : ""}>${s}</option>`;
+                });
+
+                slotContainer.insertAdjacentHTML('beforeend', `
+                    <div style="background:#fff; border:1px solid #e2e8f0; padding:12px; border-radius:6px; flex:1; min-width: 180px;">
+                        <h4 style="margin: 0 0 8px 0; font-size:0.9em; color:#64748b;">Slot ${i}</h4>
+                        <select name="hd_day_${i}" style="width:100%; margin-bottom:8px; padding:6px; border-radius:4px; border:1px solid #cbd5e1;">${dayOptions}</select>
+                        <select name="hd_slot_${i}" style="width:100%; padding:6px; border-radius:4px; border:1px solid #cbd5e1;">${shiftOptions}</select>
+                    </div>
+                `);
+            }
+        }
+
+        patientSelect.addEventListener("change", (e) => {
+            const pid = e.target.value;
+            if(!pid) {
+                saveBtn.disabled = true;
+                slotContainer.innerHTML = "";
+                return;
+            }
+            saveBtn.disabled = false;
+            const data = patientData[pid] || {freq: 2};
+            freqSelect.value = data.freq;
+            renderSlotInputs(data.freq, data);
+        });
+
+        freqSelect.addEventListener("change", (e) => {
+            const count = parseInt(e.target.value);
+            const pid = patientSelect.value;
+            const data = patientData[pid] || {};
+            // we maintain exact saved values if changing frequency, so we pass current data
+            renderSlotInputs(count, data);
+        });
+    </script>
 </body>
 </html>

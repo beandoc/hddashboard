@@ -597,8 +597,35 @@ def schedule_index(request: Request, date: Optional[str] = None, db: Session = D
         "display_date": display_date,
         "day_of_week": day_name,
         "shift_data": shift_data,
+        "all_patients": patients,
         "user": get_user(request),
     })
+
+@app.post("/schedule/assign")
+def assign_schedule(
+    request: Request,
+    patient_id: int = Form(...),
+    hd_frequency: int = Form(2),
+    hd_day_1: str = Form(""),
+    hd_slot_1: str = Form(""),
+    hd_day_2: str = Form(""),
+    hd_slot_2: str = Form(""),
+    hd_day_3: str = Form(""),
+    hd_slot_3: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if patient:
+        patient.hd_frequency = hd_frequency
+        patient.hd_day_1 = hd_day_1 or None
+        patient.hd_slot_1 = hd_slot_1 or None
+        patient.hd_day_2 = hd_day_2 or None
+        patient.hd_slot_2 = hd_slot_2 or None
+        patient.hd_day_3 = hd_day_3 or None
+        patient.hd_slot_3 = hd_slot_3 or None
+        db.commit()
+    ref = request.headers.get("referer", "/schedule")
+    return RedirectResponse(url=ref, status_code=303)
 
 @app.get("/entry", response_class=HTMLResponse)
 def entry_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):

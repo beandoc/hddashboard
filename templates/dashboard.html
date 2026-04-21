@@ -153,7 +153,7 @@
     /* Dashboard grid */
     .dashboard-grid { 
       display: grid; 
-      grid-template-columns: repeat(5, 1fr); /* 5 across on laptop */
+      grid-template-columns: repeat(4, 1fr); /* Perfect 12-span 4-column bento box */
       gap: 20px; 
       padding: 24px; 
       max-width: 1440px; 
@@ -718,7 +718,7 @@
       {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False},
       {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False},
       {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False},
-      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":False,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff},
+      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff},
       {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True},
     ] %}
 
@@ -800,7 +800,7 @@
 
   <!-- UNIT-WIDE TRENDS (PHASE 4) -->
   <h2 class="trend-section-title">Unit-Wide Trends (Last 12 Months)</h2>
-  <div class="trend-charts-section" style="border-top: none; padding-top: 10px; grid-template-columns: repeat(3, 1fr);">
+  <div class="trend-charts-section" style="border-top: none; padding-top: 10px;">
       <div class="chart-container" style="margin: 0;">
               <h3>Median Hemoglobin</h3>
               <div id="cohortHbChart" class="chart-content"></div>
@@ -930,48 +930,7 @@ function navigatePatient(key, dir) {
 
 renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
 
-// ── TABLE SEARCH ──
-const PAGE_SIZE = 25;
-let currentPage = 1;
-let activeFilter = "";
 
-function getAllRows() {
-  return [...document.querySelectorAll("#patientTable tbody tr")];
-}
-
-function getVisibleRows() {
-  return getAllRows().filter(r => r.dataset.hidden !== "1");
-}
-
-function renderPage() {
-  const rows = getVisibleRows();
-  const total = rows.length;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  currentPage = Math.min(currentPage, totalPages);
-  const start = (currentPage - 1) * PAGE_SIZE;
-  getAllRows().forEach(r => { r.style.display = "none"; });
-  rows.slice(start, start + PAGE_SIZE).forEach(r => { r.style.display = ""; });
-  document.getElementById("pgInfo").textContent =
-    `${Math.min(start + 1, total)}–${Math.min(start + PAGE_SIZE, total)} of ${total}`;
-  document.getElementById("pgPrev").disabled = currentPage <= 1;
-  document.getElementById("pgNext").disabled = currentPage >= totalPages;
-}
-
-function changePage(delta) {
-  currentPage += delta;
-  renderPage();
-}
-
-function filterTable(q) {
-  activeFilter = q.toLowerCase();
-  currentPage = 1;
-  getAllRows().forEach(r => {
-    r.dataset.hidden = r.textContent.toLowerCase().includes(activeFilter) ? "0" : "1";
-  });
-  renderPage();
-}
-
-renderPage();
 
 // ── COHORT TRENDS (PHASE 4) ──
 function loadCohortTrends() {
