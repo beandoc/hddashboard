@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ patient.name }} - Comprehensive Clinical Profile</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0369a1;
+            --secondary: #6366f1;
+            --bg-body: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --accent-red: #ef4444;
+            --accent-green: #22c55e;
+            --accent-orange: #f59e0b;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-body); color: var(--text-main); line-height: 1.5; }
+        
+        /* Navigation */
+        .app-nav { background: #0f172a; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .app-nav .brand { color: #fff; font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; }
+        .app-nav .nav-links { display: flex; gap: 8px; }
+        .app-nav a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.85rem; font-weight: 500; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
+        .app-nav a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .app-nav a.active { background: var(--primary); color: #fff; }
+
+        .container { max-width: 1280px; margin: 24px auto; padding: 0 24px; }
+
+        /* Layout Grid */
+        .profile-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+        @media (max-width: 1024px) { .profile-grid { grid-template-columns: 1fr; } }
+
+        /* Header / Hero */
+        .profile-header { background: #fff; border-radius: var(--radius-lg); padding: 32px; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 24px; position: relative; overflow: hidden; }
+        .profile-header::before { content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: var(--primary); }
+        
+        .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .patient-identity h1 { font-family: 'Outfit', sans-serif; font-size: 2.2rem; margin: 0 0 8px 0; color: var(--text-main); }
+        .patient-sub { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .badge { padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .badge-hid { background: #f1f5f9; color: #475569; font-family: monospace; }
+        .badge-status { background: #e0f2fe; color: #0369a1; }
+        .badge-access { background: #fef2f2; color: #991b1b; }
+
+        .header-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text-main); font-family: 'Outfit', sans-serif; }
+        .stat-sub { font-size: 0.75rem; color: var(--text-muted); }
+
+        /* Section Styling */
+        .section-title { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px; color: var(--text-main); }
+        .section-title i { color: var(--primary); }
+
+        .card { background: #fff; border-radius: var(--radius-md); padding: 24px; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 24px; }
+
+        /* Labs Grid */
+        .labs-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
+        .lab-box { background: #f8fafc; border-radius: var(--radius-sm); padding: 16px; border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .lab-box .value { font-size: 1.4rem; font-weight: 800; color: var(--text-main); margin: 4px 0; font-family: 'Outfit', sans-serif; }
+        .lab-box .unit { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+        .lab-box .trend { font-size: 0.75rem; display: flex; align-items: center; gap: 2px; font-weight: 700; margin-top: 4px; }
+        .up { color: var(--accent-red); }
+        .down { color: var(--accent-green); }
+        .stable { color: var(--text-muted); }
+        .danger { border-color: var(--accent-red); background: #fff5f5; }
+
+        /* Medications & Management */
+        .med-section { margin-bottom: 24px; }
+        .med-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        .med-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: #fff; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .med-info .name { font-weight: 700; color: var(--text-main); display: block; margin-bottom: 2px; }
+        .med-info .type { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+        .med-dose { text-align: right; }
+        .med-dose .dose { font-weight: 800; color: var(--primary); font-size: 0.95rem; }
+        .med-dose .freq { font-size: 0.75rem; color: var(--text-muted); display: block; }
+
+        /* Session Strip */
+        .session-strip { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+        .session-chip { flex: 0 0 160px; background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; }
+        .session-chip .date { font-weight: 700; font-size: 0.8rem; color: var(--text-main); margin-bottom: 4px; display: block; }
+        .session-chip .weight { font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .session-chip .bp { font-family: monospace; font-weight: 700; font-size: 0.85rem; color: var(--secondary); background: #eef2ff; padding: 2px 6px; border-radius: 4px; text-align: center; }
+
+        /* Events Timeline */
+        .timeline { position: relative; padding-left: 24px; }
+        .timeline::before { content: ''; position: absolute; left: 0; top: 8px; width: 2px; height: calc(100% - 16px); background: var(--border); }
+        .event-item { position: relative; margin-bottom: 20px; }
+        .event-item::before { content: ''; position: absolute; left: -28px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); z-index: 1; }
+        .event-date { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+        .event-content { font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin: 2px 0; }
+        .event-notes { font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
+
+        /* Utils */
+        .risk-badge { font-family: 'Outfit', sans-serif; padding: 12px 16px; border-radius: var(--radius-md); text-align: center; font-weight: 700; font-size: 1.1rem; border: 1px solid transparent; }
+        .risk-low { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+        .risk-mid { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+        .risk-high { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+
+        .btn-action { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.85rem; transition: all 0.2s; border: 1px solid var(--border); }
+        .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-ghost { background: #fff; color: var(--text-muted); }
+        .btn-ghost:hover { background: #f8fafc; color: var(--text-main); }
+
+        .empty-state { text-align: center; padding: 32px; color: var(--text-muted); font-style: italic; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="app-nav">
+    <span class="brand">HD Dashboard · Clinical View</span>
+    <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/patients" class="active">Registry</a>
+        <a href="/entry">Data Entry</a>
+        <a href="/schedule">Schedule</a>
+    </div>
+</div>
+
+<div class="container">
+    
+    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <a href="javascript:history.back()" class="btn-action btn-ghost">
+            <i class="material-icons" style="font-size:1.1rem">arrow_back</i> Back to List
+        </a>
+        <div style="display: flex; gap: 12px;">
+             <a href="/patients/{{ patient.id }}/edit" class="btn-action btn-ghost">
+                <i class="material-icons" style="font-size:1.1rem">edit</i> Edit Profile
+            </a>
+            <a href="/entry/{{ patient.id }}" class="btn-action btn-primary">
+                <i class="material-icons" style="font-size:1.1rem">add_chart</i> Monthly Data
+            </a>
+        </div>
+    </div>
+
+    <!-- 1. IDENTITY & HEADER BLOCK -->
+    <header class="profile-header">
+        <div class="header-top">
+            <div class="patient-identity">
+                <h1>{{ patient.name }}</h1>
+                <div class="patient-sub">
+                    <span class="badge badge-hid">HID: {{ patient.hid_no }}</span>
+                    <span class="badge badge-status">{{ patient.current_survival_status or 'Active' }}</span>
+                    <span class="badge badge-status" style="background:#fefce8; color:#854d0e;">In-Centre HD</span>
+                    <span class="badge" style="background:#f0fdf4; color:#166534;">{{ patient.blood_group or 'Blood Group —' }}</span>
+                </div>
+            </div>
+            <div style="text-align: right">
+                <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Patient Type</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); font-family: 'Outfit', sans-serif;">{{ patient.relation_type or 'General' }} Selection</div>
+            </div>
+        </div>
+
+        <div class="header-stats">
+            <div class="stat-item">
+                <span class="stat-label">Demographics</span>
+                <span class="stat-value">{{ patient.age or '—' }}y / {{ patient.sex }}</span>
+                <span class="stat-sub">Relation: {{ patient.relation or '—' }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Diagnosis</span>
+                <span class="stat-value" title="{{ patient.diagnosis }}">{{ patient.diagnosis[:25] }}{{ '...' if patient.diagnosis|length > 25 else '' }}</span>
+                <span class="stat-sub">{{ patient.primary_renal_disease or 'CKD origin' }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Dialysis Vintage</span>
+                <span class="stat-value">{{ patient.hd_wef_date.strftime('%b %Y') if patient.hd_wef_date else 'Unknown' }}</span>
+                <span class="stat-sub">Initiated</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Current Access</span>
+                <span class="stat-value" style="color:var(--accent-red)">{{ patient.access_type or 'No Access' }}</span>
+                <span class="stat-sub">Created: {{ patient.access_date.strftime('%d %b %y') if patient.access_date else '—' }}</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="profile-grid">
+        <main>
+            <!-- 2. LABS SUMMARY (Monthly Snapshot) -->
+            <section class="card">
+                <h2 class="section-title"><i class="material-icons">biotech</i> Monthly Lab Snapshot ({{ latest_monthly.record_month if latest_monthly else 'No Data' }})</h2>
+                {% if latest_monthly %}
+                <div class="labs-summary">
+                    {% macro lab_box(label, value, unit, prior_val=None, low=None, high=None) %}
+                        {% set is_danger = (low and value < low) or (high and value > high) %}
+                        <div class="lab-box {{ 'danger' if is_danger else '' }}">
+                            <span class="stat-label" style="font-size: 0.65rem;">{{ label }}</span>
+                            <span class="value">{{ "%.1f"|format(value) if value is not none else '—' }}</span>
+                            <span class="unit">{{ unit }}</span>
+                            {% if prior_val is not none and value is not none %}
+                                <div class="trend {{ 'up' if value > prior_val else 'down' if value < prior_val else 'stable' }}">
+                                    <i class="material-icons" style="font-size: 1rem">{{ 'trending_up' if value > prior_val else 'trending_down' if value < prior_val else 'trending_flat' }}</i>
+                                    {{ "%.1f"|format((value - prior_val)|abs) }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endmacro %}
+
+                    {{ lab_box('Hemoglobin', latest_monthly.hb, 'g/dL', prior_monthly.hb if prior_monthly else None, low=10, high=12) }}
+                    {{ lab_box('Albumin', latest_monthly.albumin, 'g/dL', prior_monthly.albumin if prior_monthly else None, low=3.5) }}
+                    {{ lab_box('Phosphorus', latest_monthly.phosphorus, 'mg/dL', prior_monthly.phosphorus if prior_monthly else None, high=5.5) }}
+                    {{ lab_box('Potassium', latest_monthly.serum_potassium, 'mEq/L', prior_monthly.serum_potassium if prior_monthly else None, high=5.5) }}
+                    {{ lab_box('Corr. Calcium', latest_monthly.calcium, 'mg/dL', high=10.2) }}
+                    {{ lab_box('iPTH', latest_monthly.ipth, 'pg/mL', high=300) }}
+                    {{ lab_box('Ferritin', latest_monthly.serum_ferritin, 'ng/mL', high=800) }}
+                    {{ lab_box('TSAT', latest_monthly.tsat, '%', low=20) }}
+                </div>
+                {% else %}
+                <div class="empty-state">No monthly lab records found.</div>
+                {% endif %}
+            </section>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                <!-- 3. DIALYSIS PRESCRIPTION -->
+                <section class="card">
+                    <h2 class="section-title"><i class="material-icons">settings_suggest</i> Dialysis Prescription</h2>
+                    <div style="display:flex; flex-direction:column; gap: 12px;">
+                        <div class="data-row" style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
+                            <span class="data-label">HD Frequency</span>
+                            <span class="data-value" style="font-weight:800; color:var(--primary)">{{ patient.hd_frequency }}x / Week</span>
+                        </div>
+                        <div class="data-row" style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
+                            <span class="data-label">Target Dry Weight</span>
+                            <span class="data-value" style="font-weight:700;">{{ patient.dry_weight or '—' }} kg</span>
+                        </div>
+                         <div class="data-row" style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
+                            <span class="data-label">Last Achieved Weight</span>
+                            <span class="data-value">{{ latest_monthly.last_prehd_weight if latest_monthly else '—' }} kg</span>
+                        </div>
+                        <div class="data-row" style="display:flex; justify-content:space-between; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
+                            <span class="data-label">Avg IDWG</span>
+                            <span class="data-value" style="color:var(--accent-orange); font-weight:700;">{{ latest_monthly.idwg if latest_monthly else '—' }} kg</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. ESA & IRON PANEL -->
+                <section class="card">
+                    <h2 class="section-title"><i class="material-icons">colorize</i> ESA & Iron Management</h2>
+                    <div style="display:grid; grid-template-columns: 1fr; gap: 12px;">
+                         <div style="background:#f0f9ff; border-radius:12px; padding:16px; border:1px solid #bae6fd; text-align:center;">
+                            <span class="stat-label">ESA Resistance Index (ERI)</span>
+                            <div style="font-size:2.2rem; font-weight:800; color:var(--primary); font-family: 'Outfit';">{{ eri or '—' }}</div>
+                            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:600;">Units / kg / Hb</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                            <span class="data-label">Last IV Iron</span>
+                            <span class="data-value">{{ latest_monthly.iv_iron_date.strftime('%d %b') if latest_monthly and latest_monthly.iv_iron_date else 'None recorded' }}</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 5. TRENDS VISUALISATION -->
+            <section class="card">
+                <h2 class="section-title"><i class="material-icons">insights</i> Hb & ESA Trend Analysis</h2>
+                <div style="height: 300px; width: 100%;">
+                    <canvas id="profileTrendChart"></canvas>
+                </div>
+            </section>
+
+            <!-- 6. MEDICATION LIST -->
+            <section class="card">
+                <h2 class="section-title"><i class="material-icons">pill</i> Current Medication List</h2>
+                <div class="med-grid">
+                    {% if latest_monthly and latest_monthly.esa_type and latest_monthly.esa_type != "None" %}
+                    <div class="med-card">
+                        <div class="med-info">
+                            <span class="name">{{ latest_monthly.esa_type }}</span>
+                            <span class="type">ESA Agent</span>
+                        </div>
+                        <div class="med-dose">
+                            <span class="dose">{{ latest_monthly.epo_mircera_dose or (latest_monthly.epo_weekly_units|int ~ ' IU') }}</span>
+                            <span class="freq">Weekly</span>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if latest_monthly and latest_monthly.desidustat_dose %}
+                    <div class="med-card">
+                        <div class="med-info">
+                            <span class="name">Desidustat</span>
+                            <span class="type">HIF-PHI</span>
+                        </div>
+                        <div class="med-dose">
+                            <span class="dose">{{ latest_monthly.desidustat_dose }}</span>
+                            <span class="freq">Oral</span>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% for med in anti_meds %}
+                    <div class="med-card">
+                        <div class="med-info">
+                            <span class="name">{{ med.name }}</span>
+                            <span class="type">Antihypertensive</span>
+                        </div>
+                        <div class="med-dose">
+                            <span class="dose">{{ med.dose }}</span>
+                            <span class="freq">{{ med.freq }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if latest_monthly and latest_monthly.phosphate_binder_type %}
+                    <div class="med-card">
+                        <div class="med-info">
+                            <span class="name">{{ latest_monthly.phosphate_binder_type or 'Phos Binder' }}</span>
+                            <span class="type">Binder</span>
+                        </div>
+                        <div class="med-dose">
+                            <span class="dose">As directed</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if not (latest_monthly and (latest_monthly.esa_type or latest_monthly.desidustat_dose or latest_monthly.phosphate_binder_type)) and not anti_meds %}
+                    <div class="empty-state">No active medications logged in latest month.</div>
+                {% endif %}
+            </section>
+
+            <!-- 7. SESSION SUMMARY STRIP -->
+            <section class="card">
+                <h2 class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span><i class="material-icons">history</i> Recent Session Snapshots</span>
+                    <a href="/patients/{{ patient.id }}/analytics" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 0.75rem;">Full History</a>
+                </h2>
+                <div class="session-strip">
+                    {% for s in sessions %}
+                    <div class="session-chip">
+                        <span class="date">{{ s.date.strftime('%d %b %Y') }}</span>
+                        <div class="weight">
+                            <span>Pre: {{ s.pre_weight }}</span>
+                            <span>Post: {{ s.post_weight }}</span>
+                        </div>
+                        <div class="bp">{{ s.pre_bp_sys }}/{{ s.pre_bp_dia }}</div>
+                    </div>
+                    {% endfor %}
+                    {% if not sessions %}
+                        <div class="empty-state" style="width:100%; padding:20px;">No session logs found.</div>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+
+        <aside>
+            <!-- 8. RISK SUMMARY -->
+            <div class="card" style="padding: 16px;">
+                <h2 class="stat-label">Comorbidity & Risk</h2>
+                <div class="risk-badge {{ 'risk-low' if (not patient.history_of_access_thrombosis and (latest_monthly.crp or 0) < 5) else 'risk-mid' }}">
+                    Low - Moderate Risk
+                </div>
+                <div style="margin-top: 16px;">
+                    <span class="stat-label" style="font-size: 0.65rem;">Active Co-morbidities</span>
+                    <div style="font-size: 0.85rem; font-weight: 500; margin-top: 4px;">
+                        {{ patient.diagnosis or 'No specific comorbidities checked.' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 9. INTERIM LABS -->
+            <div class="card">
+                <h2 class="section-title" style="font-size: 1rem;"><i class="material-icons">emergency</i> Interim Rechecks</h2>
+                {% for lab in interims %}
+                <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 8px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700; color:var(--text-muted);">
+                        <span>{{ lab.date.strftime('%d %b %y') }}</span>
+                        <span style="color:var(--accent-orange)">{{ lab.trigger_reason or 'PRN' }}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; font-weight: 600; margin-top:2px;">
+                        Hb: {{ lab.hb or '—' }} | K: {{ lab.potassium or '—' }}
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not interims %}
+                    <div class="empty-state" style="padding:10px 0;">No interim labs this month.</div>
+                {% endif %}
+            </div>
+
+            <!-- 10. EVENTS & HOSPITALIZATIONS -->
+            <div class="card">
+                <h2 class="section-title" style="font-size: 1rem;"><i class="material-icons">event_note</i> Clinical Events</h2>
+                <div class="timeline">
+                    {% for ev in events %}
+                    <div class="event-item">
+                        <div class="event-date">{{ ev.event_date.strftime('%d %b %Y') }}</div>
+                        <div class="event-content">{{ ev.event_type }}</div>
+                        {% if ev.notes %}<div class="event-notes">"{{ ev.notes }}"</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    
+                    {% if latest_monthly and latest_monthly.hospitalization_this_month %}
+                    <div class="event-item" style="--primary: var(--accent-red)">
+                        <div class="event-date">{{ latest_monthly.hospitalization_date.strftime('%d %b %Y') if latest_monthly.hospitalization_date else 'Hospitalized' }}</div>
+                        <div class="event-content" style="color:var(--accent-red)">Admission: {{ latest_monthly.hospitalization_icd_code }}</div>
+                    </div>
+                    {% endif %}
+
+                    {% if not events and not (latest_monthly and latest_monthly.hospitalization_this_month) %}
+                        <div class="empty-state" style="padding:10px 0;">No major events logged.</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- 11. DOCUMENTS & NOTES -->
+            <div class="card">
+                <h2 class="section-title" style="font-size: 1rem;"><i class="material-icons">description</i> Clinical Notes</h2>
+                <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-main); background: #fffbeb; padding: 12px; border-radius: 8px; border: 1px solid #fef3c7;">
+                    {{ latest_monthly.issues or 'No clinician review entries found for the current cycle.' }}
+                </div>
+                <div style="margin-top:16px; border-top:1px solid #f1f5f9; padding-top:12px;">
+                    <button class="btn-action btn-ghost" style="width: 100%; justify-content: center; font-size: 0.8rem;">
+                        <i class="material-icons" style="font-size: 1rem;">upload_file</i> Upload Report (Echo/Biopsy)
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<script>
+    // 12. HB TREND VISUALIZATION SCRIP
+    const ctx = document.getElementById('profileTrendChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['M-5', 'M-4', 'M-3', 'M-2', 'Prior', 'Current'],
+            datasets: [{
+                label: 'Hemoglobin (g/dL)',
+                data: [10.2, 10.5, 9.8, 11.2, {{ prior_monthly.hb if prior_monthly and prior_monthly.hb else 'null' }}, {{ latest_monthly.hb if latest_monthly and latest_monthly.hb else 'null' }}],
+                borderColor: '#0ea5e9',
+                backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                borderWidth: 3,
+                tension: 0.4,
+                fill: true,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                pointBackgroundColor: '#fff',
+                pointBorderWidth: 3
+            }, {
+                label: 'ESA Dose (Units x100)',
+                data: [40, 40, 60, 40, {{ (prior_monthly.epo_weekly_units / 100) if prior_monthly and prior_monthly.epo_weekly_units else 'null' }}, {{ (latest_monthly.epo_weekly_units / 100) if latest_monthly and latest_monthly.epo_weekly_units else 'null' }}],
+                borderColor: '#ef4444',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                pointRadius: 0,
+                tension: 0,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, font: { weight: '600' } } }
+            },
+            scales: {
+                y: { min: 8, max: 14, ticks: { stepSize: 1 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+</script>
+
+</body>
+</html>

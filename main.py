@@ -369,6 +369,52 @@ def create_patient(
     return RedirectResponse(url="/patients", status_code=303)
 
 
+@app.get("/patients/{patient_id}/profile", response_class=HTMLResponse)
+def patient_profile(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    import json
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    monthly_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).limit(2).all()
+    latest_monthly = monthly_records[0] if len(monthly_records) > 0 else None
+    prior_monthly = monthly_records[1] if len(monthly_records) > 1 else None
+    
+    anti_meds = []
+    if latest_monthly and latest_monthly.antihypertensive_details:
+        try:
+            anti_meds = json.loads(latest_monthly.antihypertensive_details)
+        except:
+            pass
+
+    sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.date.desc()).limit(5).all()
+    interims = db.query(InterimLabRecord).filter(InterimLabRecord.patient_id == patient_id).order_by(InterimLabRecord.date.desc()).limit(5).all()
+    from database import ClinicalEvent
+    events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).limit(8).all()
+
+    # compute ERI if data is present
+    eri = None
+    if latest_monthly and p.dry_weight and latest_monthly.hb and latest_monthly.epo_weekly_units:
+        # standard ERI calculation: weekly_dose / weight / Hb
+        try:
+            eri = round(latest_monthly.epo_weekly_units / p.dry_weight / latest_monthly.hb, 2)
+        except:
+            pass
+
+    return templates.TemplateResponse("patient_profile.html", {
+        "request": request,
+        "patient": p,
+        "latest_monthly": latest_monthly,
+        "prior_monthly": prior_monthly,
+        "anti_meds": anti_meds,
+        "sessions": sessions,
+        "interims": interims,
+        "events": events,
+        "eri": eri,
+        "user": get_user(request),
+    })
+
+
 @app.get("/patients/{patient_id}/edit", response_class=HTMLResponse)
 def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()

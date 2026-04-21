@@ -129,12 +129,12 @@
   <div class="links">
     <a href="/">Dashboard</a>
     <a href="/patients">Registry</a>
-    <a href="/patients/{{ patient.id }}/timeline">← Timeline</a>
+    <a href="javascript:history.back()">← Back</a>
   </div>
 </nav>
 
 <div class="page-header">
-  <a href="/patients/{{ patient.id }}/timeline" class="back-btn">
+  <a href="javascript:history.back()" class="back-btn">
     <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back
   </a>
   <div>

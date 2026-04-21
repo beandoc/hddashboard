@@ -405,7 +405,7 @@
           </div>
           <div class="event-patient">
             <i class="material-icons" style="font-size:0.85rem;vertical-align:middle;">person</i>
-            <a href="/patients/{{ ev.patient_id }}/timeline">{{ ev.patient.name }}</a>
+            <a href="/patients/{{ ev.patient_id }}/edit">{{ ev.patient.name }}</a>
             <span style="color:#cbd5e1;margin:0 4px;">·</span>
             {{ ev.patient.hid_no }}
             {% if ev.patient.diagnosis %}<span style="color:#cbd5e1;margin:0 4px;">·</span>{{ ev.patient.diagnosis }}{% endif %}

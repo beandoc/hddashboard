@@ -251,7 +251,7 @@
                     {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
                     <tr style="{{ 'background:#fff5f5;' if unknown_gender else '' }}">
                         <td data-label="Patient">
-                            <div class="cell-name">{{ row.name }}</div>
+                            <div class="cell-name"><a href="/patients/{{ row.id }}/profile" style="color:#0f172a; text-decoration:none;">{{ row.name }}</a></div>
                             <div class="cell-hid">HID: {{ row.hid }}</div>
                         </td>
                         <td data-label="Sex" style="{{ 'color:#ef4444;font-weight:600;' if unknown_gender else '' }}">
