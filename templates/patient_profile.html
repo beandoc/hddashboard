@@ -342,12 +342,12 @@
                 <div class="session-strip">
                     {% for s in sessions %}
                     <div class="session-chip">
-                        <span class="date">{{ s.date.strftime('%d %b %Y') }}</span>
+                        <span class="date">{{ s.session_date.strftime('%d %b %Y') }}</span>
                         <div class="weight">
-                            <span>Pre: {{ s.pre_weight }}</span>
-                            <span>Post: {{ s.post_weight }}</span>
+                            <span>Pre: {{ s.weight_pre }}</span>
+                            <span>Post: {{ s.weight_post }}</span>
                         </div>
-                        <div class="bp">{{ s.pre_bp_sys }}/{{ s.pre_bp_dia }}</div>
+                        <div class="bp">{{ s.bp_pre_sys }}/{{ s.bp_pre_dia }}</div>
                     </div>
                     {% endfor %}
                     {% if not sessions %}
