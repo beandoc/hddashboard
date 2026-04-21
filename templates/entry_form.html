@@ -115,10 +115,14 @@
     <div class="app-nav">
         <span class="brand">CH(SC) · Nephrology Unit</span>
         <div class="nav-links">
-            <a href="/">Dashboard</a>
-            <a href="/patients">Patients</a>
-            <a href="/entry">Data Entry</a>
-            <a href="/events">Events</a>
+            <a href="/" class="">Dashboard</a>
+            <a href="/schedule" class="">Schedule</a>
+            <a href="/patients" class="">Patients</a>
+            <a href="/entry" class="active">Data Entry</a>
+            <a href="/events" class="">Events</a>
+            <a href="/alerts" class="">Alerts</a>
+            <a href="/variables" class="">Variables</a>
+            {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
             <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
         <button class="mobile-menu-btn" onclick="toggleDrawer()">
@@ -132,6 +136,16 @@
             <span class="brand" style="color:rgba(255,255,255,0.6)">Menu</span>
             <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
         </div>
+        <a href="/" class="">Dashboard</a>
+        <a href="/schedule" class="">Schedule</a>
+        <a href="/patients" class="">Patients</a>
+        <a href="/entry" class="active">Data Entry</a>
+        <a href="/events" class="">Events</a>
+        <a href="/alerts" class="">Alerts</a>
+        <a href="/variables" class="">Variables</a>
+        {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
+        <a href="/logout" style="color:#ffc107">Logout</a>
+    </div>
         <a href="/">Dashboard</a>
         <a href="/entry">Data Entry</a>
         <a href="/patients">Patients</a>
@@ -140,6 +154,13 @@
     <header>
         <h1>Clinical Data Entry: {{ month_label }}</h1>
     </header>
+
+    <div style="max-width: 1000px; margin: 20px auto -10px; padding: 0 24px;">
+        <a href="javascript:history.back()" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
+            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back
+        </a>
+    </div>
+
     <div class="container">
         <div class="patient-summary">
             <strong>Patient:</strong> {{ patient.name }} ({{ patient.hid_no }}) <br>
