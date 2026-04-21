@@ -807,8 +807,8 @@ def api_patients(q: str = "", db: Session = Depends(get_db)):
     patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(20).all()
     return [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
 
-@app.get("/patients/{patient_id}/timeline", response_class=HTMLResponse)
-def patient_timeline(patient_id: int, request: Request, db: Session = Depends(get_db)):
+@app.get("/patients/{patient_id}/analytics", response_class=HTMLResponse)
+def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
     analytics = run_patient_analytics(db, patient_id)
@@ -837,7 +837,7 @@ def patient_timeline(patient_id: int, request: Request, db: Session = Depends(ge
         for s in recent_sessions
     ]
     bfr_analytics = analyze_bfr_trend(session_dicts)
-    return templates.TemplateResponse("patient_timeline.html", {
+    return templates.TemplateResponse("patient_analytics.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
         "bfr_analytics": bfr_analytics, "recent_sessions": recent_sessions,
@@ -922,7 +922,7 @@ def create_session(
     )
     db.add(rec)
     db.commit()
-    return RedirectResponse(url=f"/patients/{patient_id}/timeline", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
 
 
 @app.get("/patients/{patient_id}/sessions/{session_id}/edit", response_class=HTMLResponse)
@@ -995,7 +995,7 @@ def update_session(
     sess.early_termination = early_termination
     sess.dialyzer_type = dialyzer_type
     db.commit()
-    return RedirectResponse(url=f"/patients/{patient_id}/timeline", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
 
 
 @app.post("/patients/{patient_id}/sessions/{session_id}/delete")
@@ -1004,7 +1004,7 @@ def delete_session(patient_id: int, session_id: int, db: Session = Depends(get_d
     if sess:
         db.delete(sess)
         db.commit()
-    return RedirectResponse(url=f"/patients/{patient_id}/timeline", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
 
 @app.get("/variables", response_class=HTMLResponse)
 def variable_manager(request: Request, db: Session = Depends(get_db)):

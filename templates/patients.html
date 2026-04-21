@@ -219,7 +219,7 @@
                         <th data-label="Albumin">Albumin</th>
                         <th data-label="iPTH">iPTH</th>
                         <th data-label="Alerts">Alerts</th>
-                        <th data-label="Timeline">Timeline</th>
+                        <th data-label="Analytics">Analytics</th>
                         <th data-label="WA">WA</th>
                         <th data-label="Action">Management</th>
                     </tr>
@@ -253,13 +253,14 @@
                             {% endif %}
                         </td>
                         
-                        <td data-label="Timeline">
-                            <a href="/patients/{{ row.id }}/timeline" style="color:var(--primary); font-weight:600; text-decoration:none;">📈 View</a>
+                        <td data-label="Analytics">
+                            <a href="/patients/{{ row.id }}/analytics" style="color:var(--primary); font-weight:600; text-decoration:none;">📈 View</a>
                         </td>
                         <td data-label="WA">
                             <button onclick="sendSchedule({{ row.id }})" class="btn" style="padding:4px 8px; font-size:0.7em; background:#25d366;">📲 Remind</button>
                         </td>
                         <td data-label="Management" class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <a href="/events?patient_id={{ p.id }}" style="background:#fef3c7; padding:4px 8px; border-radius:4px; font-size:0.8em; color:#92400e;">Timeline</a>
                             <a href="/entry/{{ row.id }}?month={{ month_str }}" style="background:#e0f2fe; padding:4px 8px; border-radius:4px; font-size:0.8em;">Data</a>
                             <a href="/patients/{{ p.id }}/edit" style="background:#f1f5f9; padding:4px 8px; border-radius:4px; font-size:0.8em;">Edit</a>
                             <form action="/patients/{{ p.id }}/deactivate" method="POST" style="margin:0;">
