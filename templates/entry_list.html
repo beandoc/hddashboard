@@ -61,6 +61,7 @@
         <div class="nav-links">
             <a href="/">Dashboard</a>
             <a href="/patients">Patients</a>
+            <a href="/schedule">Schedule</a>
             <a href="/entry" class="active">Data Entry</a>
         </div>
     </div>
@@ -73,42 +74,20 @@
             <input type="month" value="{{ month_str }}" onchange="location.href='/entry?month='+this.value">
         </div>
 
-        <!-- Shift Filter UI -->
-        <div style="display:flex;gap:10px;justify-content:center;margin-bottom:20px;">
-            <button onclick="filterShift('All')" class="shift-btn active" data-shift="All">Show All</button>
-            <button onclick="filterShift('Morning')" class="shift-btn" data-shift="Morning">Morning (सकाळी)</button>
-            <button onclick="filterShift('Afternoon')" class="shift-btn" data-shift="Afternoon">Afternoon (दुपारी)</button>
-        </div>
-
         <table id="entryTable">
             <thead>
                 <tr>
                     <th>HID</th>
                     <th>Patient Name</th>
-                    <th>Slots</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for p in patients %}
-                {% set si = patient_slot_info[p.id] %}
-                <tr data-slots="{{ p.hd_slot_1 }} {{ p.hd_slot_2 }} {{ p.hd_slot_3 }}">
+                <tr>
                     <td>{{ p.hid_no }}</td>
                     <td>{{ p.name }}</td>
-                    <td>
-                        <span class="freq-badge">{{ si.hd_frequency }}×/wk</span>
-                        {% for s in si.display_slots %}
-                            <span class="slot-chip">
-                              {% if s.day %}{{ s.day[:3] }}{% if s.date %} <span style="color:#3b5bdb;font-weight:700;">{{ s.date }}</span>{% endif %}{% if s.shift %} · {{ s.shift }}{% endif %}
-                              {% elif s.shift %}{{ s.shift }}
-                              {% elif s.date %}{{ s.date }}
-                              {% endif %}
-                            </span>
-                        {% else %}
-                            <span class="no-slot">—</span>
-                        {% endfor %}
-                    </td>
                     <td>
                         {% if p.id in existing_ids %}
                             <span class="status-done">✓ Completed</span>
@@ -132,24 +111,6 @@
     </div>
 
     <script>
-        function filterShift(shift) {
-            // Update buttons
-            document.querySelectorAll('.shift-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.shift === shift);
-            });
-
-            // Filter rows
-            const rows = document.querySelectorAll('#entryTable tbody tr');
-            rows.forEach(row => {
-                const slots = row.dataset.slots || "";
-                if (shift === 'All' || slots.includes(shift)) {
-                    row.style.display = "";
-                } else {
-                    row.style.display = "none";
-                }
-            });
-        }
-
         // Show a success toast if redirected after save
         const params = new URLSearchParams(window.location.search);
         if (params.get("saved") === "1") {

@@ -664,6 +664,7 @@
     <a href="/variables">Variables</a>
     <a href="/patients">Patients</a>
     <a href="/entry">Data Entry</a>
+    <a href="/alerts">Alerts</a>
     {% if user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
     <a href="/logout" style="color:#ffc107">Logout</a>
   </div>
@@ -680,6 +681,7 @@
   </div>
   <a href="/">Dashboard</a>
   <a href="/entry">Data Entry</a>
+  <a href="/alerts">Alerts</a>
   <a href="/patients">Patients</a>
   <a href="/variables">Variables</a>
   {% if user.role == "admin" %}<a href="/admin/users">Admin Panel</a>{% endif %}
@@ -752,22 +754,6 @@
 
   </div>
 
-  <!-- ACTION BAR -->
-  <div class="action-bar">
-    <button class="btn-wa" onclick="openWaModal()">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-      Send WhatsApp Alerts
-    </button>
-    <button class="btn-email" onclick="sendEmailReport()">📧 Send Ward Report Email</button>
-    <a href="/whatsapp-links?month={{ month_str }}"
-       style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
-              background:#075e54;color:#fff;border-radius:8px;text-decoration:none;
-              font-size:0.85em;font-weight:600;">
-      📋 WhatsApp Gateway
-    </a>
-    <span class="alert-status" id="alertStatus"></span>
-  </div>
-
   <!-- CHARTS -->
   <div class="dashboard-grid">
     <div class="chart-container">
@@ -829,110 +815,9 @@
           </div>
   </div>
 
-  <!-- PATIENT TABLE -->
-  <div class="table-section">
-    <h2>Patient Detail Table</h2>
-    <div class="table-toolbar">
-      <input type="text" class="search-input" placeholder="Search patient name or HID…" oninput="filterTable(this.value)"/>
-      <span style="font-size:0.82em;color:#888">{{ data.patient_rows|length }} patients · {{ data.month_label }} {{ month_str[:4] }}</span>
-    </div>
-    <div class="table-wrap">
-      <table id="patientTable">
-        <thead>
-          <tr>
-            <th data-label="Patient">Patient</th>
-            <th data-label="Access">Access</th>
-            <th data-label="IDWG">IDWG</th>
-            <th data-label="Hb">Hb</th>
-            <th data-label="Ferritin">Ferritin</th>
-            <th data-label="TSAT%">TSAT%</th>
-            <th data-label="Ca(corr)">Ca(corr)</th>
-            <th data-label="Phos">Phos</th>
-            <th data-label="Albumin">Albumin</th>
-            <th data-label="iPTH">iPTH</th>
-            <th data-label="Vit D">Vit D</th>
-            <th data-label="Protein">Protein</th>
-            <th data-label="Alerts">Alerts</th>
-            {% if user and user.role != 'nurse' %}<th data-label="Timeline">Timeline</th>{% endif %}
-            <th data-label="WA">WA</th>
-            <th data-label="Action">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in data.patient_rows %}
-          <tr>
-            <td data-label="Patient"><div class="cell-name">{{ row.name }}</div><div class="cell-hid">{{ row.hid }}</div></td>
-            <td data-label="Access">{{ row.access or "—" }}</td>
-            <td data-label="IDWG" class="{{ 'val-bad' if row.idwg and row.idwg>2.5 else ('val-ok' if row.idwg else 'val-none') }}">{{ "%.1f"|format(row.idwg) if row.idwg else "—" }}</td>
-            <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}">{{ "%.1f"|format(row.hb) if row.hb else "—" }}</td>
-            <td data-label="Ferritin" class="{{ 'val-warn' if row.ferritin and row.ferritin>500 else ('val-ok' if row.ferritin else 'val-none') }}">{{ "%.0f"|format(row.ferritin) if row.ferritin else "—" }}</td>
-            <td data-label="TSAT%" class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
-            <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
-            <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}">{{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}</td>
-            <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}">{{ "%.1f"|format(row.albumin) if row.albumin else "—" }}</td>
-            <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}">{{ "%.0f"|format(row.ipth) if row.ipth else "—" }}</td>
-            <td data-label="Vit D" class="{{ 'val-bad' if row.vit_d and row.vit_d<20 else ('val-ok' if row.vit_d else 'val-none') }}">{{ "%.0f"|format(row.vit_d) if row.vit_d else "—" }}</td>
-            <td data-label="Protein" class="{{ 'val-warn' if row.protein and row.protein<1.0 else ('val-ok' if row.protein else 'val-none') }}">{{ "%.1f"|format(row.protein) if row.protein else "—" }}</td>
-            <td data-label="Alerts">
-              {% if not row.has_record %}<span class="no-rec">No record</span>
-              {% else %}
-                {% for a in row.alerts %}
-                  <span class="alert-tag">{{ a }}</span>
-                {% endfor %}
-                {% if row.epo_hypo_causes is defined and row.epo_hypo_causes %}
-                  <div style="margin-top:4px;">
-                    {% for cause in row.epo_hypo_causes %}
-                      <span style="display:inline-block;font-size:0.7rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin:1px;">⚠ {{ cause }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                {% if not row.alerts %}<span style="color:#2e7d32;font-size:0.8em">✓ OK</span>{% endif %}
-              {% endif %}
-            </td>
-            {% if user and user.role != 'nurse' %}<td data-label="Timeline"><a href="/patients/{{ row.id }}/timeline" style="color:#1a237e">📈 View</a></td>{% endif %}
-            <td data-label="WA">
-              {% if row.has_record %}
-                <button onclick="sendIndividualWa({{ row.id }}, this)"
-                  title="Send WhatsApp to {{ row.name }}"
-                  style="background:#25d366;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.8em;">
-                  📲
-                </button>
-              {% else %}
-                <span style="color:#bbb;font-size:0.8em">—</span>
-              {% endif %}
-            </td>
-            <td data-label="Action"><a href="/entry/{{ row.id }}?month={{ month_str }}" style="font-size:0.78em;color:#007bff;text-decoration:none">{{ "Edit" if row.has_record else "Enter" }}</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div id="paginationBar" style="display:flex;align-items:center;justify-content:space-between;padding:12px 4px;font-size:0.85em;color:#555;">
-      <button id="pgPrev" onclick="changePage(-1)" style="padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;">← Prev</button>
-      <span id="pgInfo"></span>
-      <button id="pgNext" onclick="changePage(1)" style="padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;">Next →</button>
-    </div>
-  </div>
+
 
 </main>
-
-<!-- WhatsApp Confirm Modal -->
-<div class="modal-overlay" id="waModal">
-  <div class="modal">
-    <h3>📲 Send WhatsApp Alerts</h3>
-    <div class="modal-body">
-      Sends a message to all patients with active alerts who have WhatsApp notifications enabled.<br/><br/>
-      <strong>Month:</strong> {{ data.month_label }} {{ month_str[:4] }}<br/>
-      <strong>Alert patients:</strong> <span id="modalAlertCount">calculating…</span><br/><br/>
-      Message preview:<br/>
-      <em style="color:#666">"Dear [Name], your HD review for {{ data.month_label }} shows [alerts]. Please contact the nephrology team for follow-up."</em>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeWaModal()">Cancel</button>
-      <button class="btn-confirm" onclick="confirmSendWa()">Send Now</button>
-    </div>
-  </div>
-</div>
 
 <script>
 const PREV_MONTH = "{{ data.prev_month_label or 'Prev' }}";
@@ -1087,41 +972,6 @@ function filterTable(q) {
 }
 
 renderPage();
-
-// ── WHATSAPP MODAL ──
-function openWaModal() {
-  const count = document.querySelectorAll("#patientTable .alert-tag").length > 0
-    ? new Set([...document.querySelectorAll("#patientTable tbody tr")].filter(r => r.querySelector(".alert-tag")).map(r => r)).size
-    : 0;
-  document.getElementById("modalAlertCount").textContent = count + " patient(s)";
-  document.getElementById("waModal").classList.add("open");
-}
-function closeWaModal() { document.getElementById("waModal").classList.remove("open"); }
-function confirmSendWa() {
-  closeWaModal();
-  const s = document.getElementById("alertStatus");
-  s.textContent = "⏳ Sending WhatsApp messages…";
-  fetch(`/api/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
-    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
-    .then(d => { s.textContent = d.message || "✅ Done."; })
-    .catch(err => { s.textContent = "❌ " + (err || "Error — check server logs."); });
-}
-function sendIndividualWa(patientId, btn) {
-  btn.textContent = "⏳";
-  btn.disabled = true;
-  fetch(`/api/wa-link/${patientId}?month=${MONTH_STR}`)
-    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail)))
-    .then(d => { window.open(d.url, "_blank"); btn.textContent = "📲"; btn.disabled = false; })
-    .catch(err => { btn.textContent = "❌"; btn.disabled = false; alert(err || "No contact number on file."); });
-}
-function sendEmailReport() {
-  const s = document.getElementById("alertStatus");
-  s.textContent = "⏳ Sending email report…";
-  fetch(`/api/send-email?month=${MONTH_STR}`, { method:"POST" })
-    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
-    .then(d => { s.textContent = d.message || "✅ Email sent."; })
-    .catch(err => { s.textContent = "❌ " + (err || "Email error."); });
-}
 
 // ── COHORT TRENDS (PHASE 4) ──
 function loadCohortTrends() {

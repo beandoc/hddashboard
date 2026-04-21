@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Review Gateway - HD Dashboard</title>
+    <title>Reminders & Alerts - HD Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <style>
@@ -16,6 +16,7 @@
             --text-muted: #64748b;
             --radius: 16px;
             --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
         body { font-family:'Inter',sans-serif; margin:0; padding:0; background-color:var(--bg-main); color:#1e293b; -webkit-font-smoothing: antialiased; }
         h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
@@ -32,51 +33,60 @@
             color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; 
             padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
         }
-        .app-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .app-nav a:hover, .app-nav a.active { color: #fff; background: rgba(255,255,255,0.1); }
         .mobile-menu-btn { display: none; }
 
         header { 
-            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%); 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
             color: white; padding: 40px 24px; text-align: center; 
         }
-        header h1 { margin: 0; font-size: 1.8em; letter-spacing: -0.02em; }
+        header h1 { margin: 0; font-size: 2em; letter-spacing: -0.02em; }
         header p { margin: 12px 0 0; opacity: 0.9; font-size: 0.95em; max-width: 600px; margin-left: auto; margin-right: auto; }
 
-        .container { max-width: 900px; margin: 30px auto; padding: 0 24px; padding-bottom: 100px; }
+        .container { max-width: 1000px; margin: 30px auto; padding: 0 24px; padding-bottom: 60px; }
         
+        .action-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .action-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+        .btn-send { 
+            background: var(--whatsapp); color: white; text-decoration: none; padding: 10px 18px; 
+            border-radius: 10px; font-weight: 600; font-size: 0.9em; transition: all 0.2s; 
+            display: inline-flex; align-items: center; gap: 8px; border:none; cursor:pointer;
+        }
+        .btn-send.email { background: var(--primary); }
+        .btn-send:hover { transform: scale(1.02); filter: brightness(0.95); }
+
         .tabs { 
-            display: flex; background: #e2e8f0; padding: 4px; border-radius: 14px; margin-bottom: 30px; 
+            display: flex; background: #e2e8f0; padding: 4px; border-radius: 14px; margin-bottom: 24px; 
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
         }
         .tab { 
             flex: 1; padding: 12px; text-align: center; border-radius: 10px; cursor: pointer; 
-            font-weight: 600; font-size: 0.9em; transition: all 0.2s; color: var(--text-muted);
+            font-weight: 600; font-size: 0.95em; transition: all 0.2s; color: var(--text-muted);
         }
         .tab.active { background: #fff; color: var(--text-header); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
         .patient-card { 
             background: #fff; border-radius: var(--radius); padding: 20px; margin-bottom: 16px; 
             display: flex; justify-content: space-between; align-items: center; 
-            box-shadow: var(--shadow); border: 1px solid rgba(0,0,0,0.03);
+            box-shadow: var(--shadow-md); border: 1px solid rgba(0,0,0,0.03);
+            border-left: 4px solid var(--primary);
         }
+        .patient-card.schedule { border-left-color: #075e54; }
+        
         .patient-info h3 { margin: 0; font-size: 1.15em; color: var(--text-header); }
         .alert-tag { 
             display: inline-block; font-size: 0.7em; background: #fef2f2; color: #ef4444; 
             border: 1px solid #fee2e2; border-radius: 6px; padding: 4px 10px; margin-top: 8px; font-weight: 600;
         }
-        
-        .btn-send { 
-            background: var(--whatsapp); color: white; text-decoration: none; padding: 14px 24px; 
-            border-radius: 12px; font-weight: 700; font-size: 0.95em; transition: all 0.2s; 
-            display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.2);
-        }
-        .btn-send:hover { background: var(--whatsapp-dark); transform: scale(1.02); }
-        .btn-send i { font-size: 1.25em; }
 
         /* MOBILE DRAWER */
         .mobile-drawer {
@@ -89,11 +99,12 @@
             background: rgba(255,255,255,0.05); font-weight: 600;
         }
 
-        @media(max-width: 640px) {
+        @media(max-width: 768px) {
             .app-nav .nav-links { display: none; }
             .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
-            .patient-card { flex-direction: column; align-items: stretch; gap: 20px; }
-            .btn-send { justify-content: center; }
+            .action-grid { grid-template-columns: 1fr !important; }
+            .patient-card { flex-direction: column; align-items: stretch; gap: 16px; }
+            .patient-card a { justify-content: center; }
         }
     </style>
 </head>
@@ -104,6 +115,7 @@
             <a href="/">Dashboard</a>
             <a href="/patients">Patients</a>
             <a href="/entry">Data Entry</a>
+            <a href="/alerts" class="active">Alerts</a>
             <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
         <button class="mobile-menu-btn" onclick="toggleDrawer()">
@@ -118,26 +130,65 @@
             <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
         </div>
         <a href="/">Dashboard</a>
-        <a href="/entry">Data Entry</a>
         <a href="/patients">Patients</a>
+        <a href="/entry">Data Entry</a>
+        <a href="/alerts">Alerts</a>
         <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
 
     <header>
-        <h1>WhatsApp Review Gateway</h1>
-        <p>Review and send clinical alerts or weekly schedules manually.</p>
+        <h1>Reminders & Alerts</h1>
+        <p>Command center for clinical notifications and automated reporting.</p>
     </header>
 
     <div class="container">
+        
+        <!-- Automated Actions Section -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 20px;">
+            <h2 style="color: var(--text-header); margin:0;">Automated Dispatch</h2>
+            <div style="font-weight:600; color:var(--text-header);">
+                Month: <input type="month" value="{{ month_str }}" onchange="location.href='/alerts?month='+this.value" style="padding: 6px; border: 1px solid #cbd5e1; border-radius: 8px; margin-left: 8px;">
+            </div>
+        </div>
+
+        <div class="action-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+            <div class="action-card" style="background:#fff; padding:30px; border-radius:16px; box-shadow:var(--shadow-md); text-align:center; border: 1px solid rgba(0,0,0,0.05);">
+                <i class="material-icons" style="font-size:3em; color:#0ea5e9; margin-bottom:12px;">email</i>
+                <h3 style="margin:0 0 8px 0; font-size:1.3em;">Ward Report Email</h3>
+                <p style="font-size:0.9em; color:var(--text-muted); margin-bottom:24px; line-height:1.5;">Emails the structured clinical report with aggregate trends and precise patient parameters directly to the nephrologist.</p>
+                <button class="btn-send email" onclick="sendEmailReport()" style="width:100%; justify-content:center; padding:12px;">
+                    <i class="material-icons">send</i> Send Email Report
+                </button>
+            </div>
+            
+            <div class="action-card" style="background:#fff; padding:30px; border-radius:16px; box-shadow:var(--shadow-md); text-align:center; border: 1px solid rgba(0,0,0,0.05);">
+                <i class="material-icons" style="font-size:3em; color:#25d366; margin-bottom:12px;">chat</i>
+                <h3 style="margin:0 0 8px 0; font-size:1.3em;">Bulk WhatsApp Alerts</h3>
+                <p style="font-size:0.9em; color:var(--text-muted); margin-bottom:24px; line-height:1.5;">Automatically send critical clinical alerts and schedules to all flagged patients via configured Twilio integration.</p>
+                <button class="btn-send" onclick="sendBulkWhatsApp()" style="width:100%; justify-content:center; padding:12px;">
+                    <i class="material-icons">sms</i> Send Bulk WhatsApp
+                </button>
+            </div>
+            
+            <!-- Status Message Area -->
+            <div id="alertStatus" style="grid-column: 1 / -1; text-align: center; font-weight: 600; font-size:0.95em; height: 20px;"></div>
+        </div>
+
+        <hr style="border:none; border-top:2px dashed #e2e8f0; margin: 40px 0;">
+
+        <!-- Manual Dispatch Gateway -->
+        <h2 style="color: var(--text-header); margin-bottom: 20px;">WhatsApp Manual Gateway</h2>
+        
         <div class="tabs">
             <div class="tab active" onclick="showTab('alerts')">Clinical Alerts ({{ alert_links|length }})</div>
             <div class="tab" onclick="showTab('schedules')">Weekly Schedules</div>
         </div>
+        
         <div id="alertsTab" class="tab-content active">
             {% if not alert_links %}
-                <div style="text-align:center; padding:60px; color:var(--text-muted); background:#fff; border-radius:var(--radius); box-shadow:var(--shadow);">
-                    <i class="material-icons" style="font-size:3em; color:var(--whatsapp); margin-bottom:10px;">check_circle</i>
-                    <p>Clinical status for all patients is stable this month. ✅</p>
+                <div style="text-align:center; padding:60px; color:var(--text-muted); background:#fff; border-radius:var(--radius); box-shadow:var(--shadow-md);">
+                    <i class="material-icons" style="font-size:3em; color:#22c55e; margin-bottom:10px;">check_circle</i>
+                    <p style="font-weight:500;">Clinical status for all patients is stable this month. ✅</p>
                 </div>
             {% endif %}
             {% for a in alert_links %}
@@ -145,7 +196,7 @@
                     <div class="patient-info">
                         <h3>{{ a.name }} <span style="font-size:0.75em; font-weight:normal; color:var(--text-muted);">#{{ a.hid }}</span></h3>
                         <div style="margin-top:4px; font-size:0.82em; color:var(--text-muted);">📞 {{ a.contact or "No number" }}</div>
-                        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+                        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
                             {% for alert in a.alerts %}
                                 <span class="alert-tag">{{ alert }}</span>
                             {% endfor %}
@@ -153,11 +204,10 @@
                     </div>
                     {% if a.contact %}
                     <a href="{{ a.link }}" target="_blank" class="btn-send">
-                        <i class="material-icons">send</i>
-                        Send Alert
+                        <i class="material-icons">send</i> Send Alert
                     </a>
                     {% else %}
-                    <span style="color:#94a3b8; font-size:0.85em;">No number</span>
+                    <span style="color:#94a3b8; font-size:0.85em; font-weight:500;">No Contact No.</span>
                     {% endif %}
                 </div>
             {% endfor %}
@@ -165,43 +215,68 @@
 
         <div id="schedulesTab" class="tab-content">
             <p style="font-size:0.9em; color:var(--text-muted); margin-bottom:20px; text-align:center; font-style:italic;">
-                Opens WhatsApp Business (9665183839) with HD schedule + doctor remarks pre-filled.
+                Sends a verified message to patients with their confirmed HD slots and specific doctor annotations.
             </p>
             {% if not schedule_links %}
-                <div style="text-align:center; padding:60px; color:var(--text-muted); background:#fff; border-radius:var(--radius); box-shadow:var(--shadow);">
+                <div style="text-align:center; padding:60px; color:var(--text-muted); background:#fff; border-radius:var(--radius); box-shadow:var(--shadow-md);">
                     <p>No patients with contact numbers found.</p>
                 </div>
             {% endif %}
             {% for s in schedule_links %}
-                <div class="patient-card">
+                <div class="patient-card schedule">
                     <div class="patient-info">
                         <h3>{{ s.name }} <span style="font-size:0.75em; font-weight:normal; color:var(--text-muted);">#{{ s.hid }}</span></h3>
                         <div style="margin-top:6px; font-size:0.82em; color:var(--text-muted);">
                             📞 {{ s.contact }}
                         </div>
                         {% if s.slots %}
-                            <div style="margin-top:4px; font-size:0.8em; color:#334155;">
+                            <div style="margin-top:8px; font-size:0.8em; color:#334155;">
                                 {% for slot in s.slots %}
                                     <span style="display:inline-block; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:5px; padding:2px 8px; margin:2px; font-weight:600;">{{ slot }}</span>
                                 {% endfor %}
                             </div>
                         {% endif %}
                         {% if s.remarks %}
-                            <div style="margin-top:6px; font-size:0.78em; color:#64748b; font-style:italic;">
+                            <div style="margin-top:8px; font-size:0.78em; color:#64748b; font-style:italic;">
                                 💬 {{ s.remarks[:120] }}{% if s.remarks|length > 120 %}…{% endif %}
                             </div>
                         {% endif %}
                     </div>
+                    {% if s.contact %}
                     <a href="{{ s.link }}" target="_blank" class="btn-send" style="background:#075e54;">
-                        <i class="material-icons">calendar_today</i>
-                        Send Schedule
+                        <i class="material-icons">calendar_month</i> Send Schedule
                     </a>
+                    {% else %}
+                    <span style="color:#94a3b8; font-size:0.85em; font-weight:500;">No Contact No.</span>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
     </div>
 
     <script>
+        const MONTH_STR = "{{ month_str }}";
+
+        function sendEmailReport() {
+            const s = document.getElementById("alertStatus");
+            s.style.color = "#0ea5e9";
+            s.textContent = "⏳ Authenticating and sending email report…";
+            fetch(`/api/send-email?month=${MONTH_STR}`, { method:"POST" })
+                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
+                .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ Email report sent successfully."; })
+                .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Email error. Check Render logs."); });
+        }
+
+        function sendBulkWhatsApp() {
+            const s = document.getElementById("alertStatus");
+            s.style.color = "#d97706";
+            s.textContent = "⏳ Dispatching bulk WhatsApp messages…";
+            fetch(`/api/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
+                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
+                .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ WhatsApp dispatch complete."; })
+                .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Error — check server logs."); });
+        }
+
         function showTab(tabId) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -214,6 +289,7 @@
                 document.getElementById('schedulesTab').classList.add('active');
             }
         }
+        
         function toggleDrawer() {
             document.getElementById("mobileDrawer").classList.toggle("open");
         }

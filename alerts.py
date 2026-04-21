@@ -57,12 +57,14 @@ def build_whatsapp_message(patient_name: str, alerts: list,
 
     return (
         f"Dear {patient_name},\n\n"
-        f"Your HD review ({month_label}) at {CLINIC_NAME} "
+        f"Your HD review from Nephrology Dept CH(SC)\n"
         f"has flagged the following:\n"
         f"{alert_text}"
         f"{lab_section}\n\n"
-        f"Please contact the nephrology team for follow-up.\n"
-        f"Thank you."
+        f"Please contact the nephrology team for follow-up.\n\n"
+        f"Regards\n"
+        f"Thank you.\n"
+        f"( This is an automated message, please dont reply)"
     )
 
 
@@ -96,13 +98,13 @@ def build_schedule_message(patient_name: str, slots: list,
 
     return (
         f"Dear {patient_name},\n\n"
-        f"Your Hemodialysis Schedule at {CLINIC_NAME}:\n"
+        f"Your Hemodialysis Schedule at Dialysis centre CHSC\n"
         f"{schedule_text}"
         f"{remarks_section}\n\n"
         f"Please report 15 minutes before your session.\n"
-        f"For any queries contact us:\n"
-        f"📞 {CLINIC_PHONE}\n"
-        f"Thank you."
+        f" \n"
+        f"Thank you.\n"
+        f"(Note : This is an automated message. Please dont reply)"
     )
 
 
@@ -174,13 +176,14 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
 
     message = (
         f"Dear {patient.name},\n\n"
-        f"Your HD review from {CLINIC_NAME}:\n"
+        f"Your HD review from Nephrology Dept CH(SC)\n"
         f"{alert_section}"
         f"\n📅 Your HD Schedule:\n"
         f"{schedule_text}\n"
-        f"{remarks_section}"
-        f"\nFor queries: 📞 {CLINIC_PHONE}\n"
-        f"Thank you."
+        f"{remarks_section}\n"
+        f"Regards\n"
+        f"Thank you.\n"
+        f"( This is an automated message, please dont reply)"
     )
     return generate_whatsapp_link(patient.contact_no, message) if patient.contact_no else "#"
 

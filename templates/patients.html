@@ -150,6 +150,18 @@
             
             .actions { flex-wrap: wrap; justify-content: flex-end; }
         }
+
+        /* Value Colors for Detailed Table */
+        .val-none { color: #94a3b8; }
+        .val-ok { color: #16a34a; font-weight: 600; }
+        .val-warn { color: #d97706; font-weight: 600; }
+        .val-bad { color: #dc2626; font-weight: 700; background: #fef2f2; border-radius: 4px; padding: 2px 4px; }
+        .alert-tag { display: inline-block; font-size: 0.72em; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 12px; margin: 1px; font-weight: 600; }
+        .no-rec { font-size: 0.8em; color: #94a3b8; font-style: italic; }
+        .cell-name { font-weight: 600; color: #0f172a; }
+        .cell-hid { font-size: 0.8em; color: #64748b; }
+        .month-picker-wrap { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+
     </style>
 </head>
 <body>
@@ -159,6 +171,7 @@
             <a href="/">Dashboard</a>
             <a href="/patients" class="active">Patients</a>
             <a href="/entry">Data Entry</a>
+            <a href="/alerts">Alerts</a>
             <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
         <button class="mobile-menu-btn" onclick="toggleDrawer()">
@@ -175,6 +188,7 @@
         <a href="/">Dashboard</a>
         <a href="/entry">Data Entry</a>
         <a href="/patients">Patients</a>
+        <a href="/alerts">Alerts</a>
         <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
     <header>
@@ -182,43 +196,81 @@
     </header>
     <div class="container">
         <div class="search-wrap">
-            <a href="/patients/new" class="btn">+ Add New Patient</a>
-            <input type="text" id="patientSearch" class="search-input" placeholder="Search name, HID, or diagnosis..." oninput="filterPatients()">
+            <div class="month-picker-wrap">
+                <label style="font-weight:600; color:var(--text-header);">Clinical Month:</label>
+                <input type="month" value="{{ month_str }}" onchange="location.href='/patients?month='+this.value" class="search-input" style="padding: 8px; width: auto; max-width: none;">
+            </div>
+            <div style="display:flex; gap: 16px;">
+                <input type="text" id="patientSearch" class="search-input" placeholder="Search name or HID..." oninput="filterPatients()">
+                <a href="/patients/new" class="btn" style="white-space: nowrap;">+ Add Patient</a>
+            </div>
         </div>
-        <table id="patientTable">
-            <thead>
-                <tr>
-                    <th data-label="HID No">HID No</th>
-                    <th data-label="Name">Name</th>
-                    <th data-label="Sex">Sex</th>
-                    <th data-label="Contact">Contact</th>
-                    <th data-label="Diagnosis">Diagnosis</th>
-                    <th data-label="Actions">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in patients %}
-                {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
-                <tr style="{{ 'background:#fff5f5;' if unknown_gender else '' }}">
-                    <td data-label="HID No">{{ p.hid_no }}</td>
-                    <td data-label="Name">{{ p.name }}</td>
-                    <td data-label="Sex" style="{{ 'color:#ef4444;font-weight:600;' if unknown_gender else '' }}">
-                        {{ p.sex or 'Unknown' }}
-                    </td>
-                    <td data-label="Contact">{{ p.contact_no }}</td>
-                    <td data-label="Diagnosis">{{ p.diagnosis }}</td>
-                    <td data-label="Actions" class="actions">
-                        <a href="/patients/{{ p.id }}/timeline">Timeline</a>
-                        <button onclick="sendSchedule({{ p.id }})" class="btn" style="padding:6px 12px; font-size:0.75em;">Remind</button>
-                        <a href="/patients/{{ p.id }}/edit">Edit</a>
-                        <form action="/patients/{{ p.id }}/deactivate" method="POST" style="display:inline;">
-                            <button type="submit" class="deactivate" onclick="return confirm('Deactivate this patient?')">Deactivate</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        
+        <div style="overflow-x: auto; padding-bottom: 20px;">
+            <table id="patientTable" style="min-width: 1200px;">
+                <thead>
+                    <tr>
+                        <th data-label="Patient">Patient</th>
+                        <th data-label="Sex">Sex</th>
+                        <th data-label="Hb">Hb</th>
+                        <th data-label="TSAT%">TSAT%</th>
+                        <th data-label="Ca(corr)">Ca(corr)</th>
+                        <th data-label="Phos">Phos</th>
+                        <th data-label="Albumin">Albumin</th>
+                        <th data-label="iPTH">iPTH</th>
+                        <th data-label="Alerts">Alerts</th>
+                        <th data-label="Timeline">Timeline</th>
+                        <th data-label="WA">WA</th>
+                        <th data-label="Action">Management</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data.patient_rows %}
+                    {% set p = patients_by_id[row.id] %}
+                    {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
+                    <tr style="{{ 'background:#fff5f5;' if unknown_gender else '' }}">
+                        <td data-label="Patient">
+                            <div class="cell-name">{{ row.name }}</div>
+                            <div class="cell-hid">HID: {{ row.hid }}</div>
+                        </td>
+                        <td data-label="Sex" style="{{ 'color:#ef4444;font-weight:600;' if unknown_gender else '' }}">
+                            {{ p.sex or 'Unknown' }}
+                        </td>
+                        <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}">{{ "%.1f"|format(row.hb) if row.hb else "—" }}</td>
+                        <td data-label="TSAT%" class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
+                        <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}">{{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}</td>
+                        <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}">{{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}</td>
+                        <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}">{{ "%.1f"|format(row.albumin) if row.albumin else "—" }}</td>
+                        <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}">{{ "%.0f"|format(row.ipth) if row.ipth else "—" }}</td>
+                        
+                        <td data-label="Alerts">
+                            {% if not row.has_record %}<span class="no-rec">No record for {{ data.month_label }}</span>
+                            {% else %}
+                                {% for a in row.alerts %}
+                                <span class="alert-tag">{{ a }}</span>
+                                {% endfor %}
+                                {% if not row.alerts %}<span style="color:#16a34a;font-size:0.8em;font-weight:600;">✓ Stable</span>{% endif %}
+                            {% endif %}
+                        </td>
+                        
+                        <td data-label="Timeline">
+                            <a href="/patients/{{ row.id }}/timeline" style="color:var(--primary); font-weight:600; text-decoration:none;">📈 View</a>
+                        </td>
+                        <td data-label="WA">
+                            <button onclick="sendSchedule({{ row.id }})" class="btn" style="padding:4px 8px; font-size:0.7em; background:#25d366;">📲 Remind</button>
+                        </td>
+                        <td data-label="Management" class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <a href="/entry/{{ row.id }}?month={{ month_str }}" style="background:#e0f2fe; padding:4px 8px; border-radius:4px; font-size:0.8em;">Data</a>
+                            <a href="/patients/{{ p.id }}/edit" style="background:#f1f5f9; padding:4px 8px; border-radius:4px; font-size:0.8em;">Edit</a>
+                            <form action="/patients/{{ p.id }}/deactivate" method="POST" style="margin:0;">
+                                <button type="submit" class="deactivate" onclick="return confirm('Deactivate this patient?')" style="padding:4px 8px; font-size:0.8em;">Deactivate</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
     <script>
         function filterPatients() {

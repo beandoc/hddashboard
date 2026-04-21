@@ -205,14 +205,25 @@ def dashboard(request: Request, month: Optional[str] = None, db: Session = Depen
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/patients", response_class=HTMLResponse)
-def patient_list(request: Request, db: Session = Depends(get_db)):
+def patient_list(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    month_str = month or get_current_month_str()
+    try:
+        data = compute_dashboard(db, month_str)
+    except Exception:
+        data = {"patient_rows": []}
+        
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    patients_by_id = {p.id: p for p in patients}
+    
     return templates.TemplateResponse("patients.html", {
         "request": request,
         "patients": patients,
+        "patients_by_id": patients_by_id,
+        "data": data,
+        "month_str": month_str,
+        "current_month": get_current_month_str(),
         "user": get_user(request),
     })
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ADD / EDIT PATIENT (Demographics)
@@ -550,6 +561,44 @@ def _build_patient_slot_info(p) -> dict:
     freq = p.hd_frequency or len([s for s in (p.hd_slot_1, p.hd_slot_2, p.hd_slot_3) if s]) or 2
     return {"display_slots": slots, "hd_frequency": freq}
 
+
+@app.get("/schedule", response_class=HTMLResponse)
+def schedule_index(request: Request, date: Optional[str] = None, db: Session = Depends(get_db)):
+    if not date:
+        target_date = datetime.now().date()
+    else:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            target_date = datetime.now().date()
+            
+    day_name = target_date.strftime("%A")
+    display_date = target_date.strftime("%d %b %Y")
+    
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    
+    shift_data = {"Morning": [], "Afternoon": []}
+    
+    for p in patients:
+        matched_shift = None
+        if p.hd_day_1 == day_name:
+            matched_shift = p.hd_slot_1
+        elif p.hd_day_2 == day_name:
+            matched_shift = p.hd_slot_2
+        elif p.hd_day_3 == day_name:
+            matched_shift = p.hd_slot_3
+            
+        if matched_shift in shift_data:
+            shift_data[matched_shift].append(p)
+            
+    return templates.TemplateResponse("schedule.html", {
+        "request": request,
+        "selected_date": target_date.strftime("%Y-%m-%d"),
+        "display_date": display_date,
+        "day_of_week": day_name,
+        "shift_data": shift_data,
+        "user": get_user(request),
+    })
 
 @app.get("/entry", response_class=HTMLResponse)
 def entry_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
@@ -1285,8 +1334,8 @@ def delete_event(event_id: int, request: Request, db: Session = Depends(get_db))
     return RedirectResponse(url=ref, status_code=303)
 
 
-@app.get("/whatsapp-links", response_class=HTMLResponse)
-def whatsapp_links_page(month: Optional[str] = None, request: Request = None,
+@app.get("/alerts", response_class=HTMLResponse)
+def alerts_page(month: Optional[str] = None, request: Request = None,
                          db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     month_label = get_month_label(month_str)
@@ -1333,7 +1382,7 @@ def whatsapp_links_page(month: Optional[str] = None, request: Request = None,
             "remarks": remarks, "link": link,
         })
 
-    return templates.TemplateResponse("whatsapp_links.html", {
+    return templates.TemplateResponse("alerts.html", {
         "request": request, "alert_links": alert_links,
         "schedule_links": schedule_links, "month_str": month_str,
         "month_label": month_label, "user": get_user(request),
