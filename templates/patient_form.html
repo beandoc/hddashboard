@@ -136,11 +136,7 @@
         {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
         <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
-        <a href="/">Dashboard</a>
-        <a href="/entry">Data Entry</a>
-        <a href="/patients">Patients</a>
-        <a href="/logout" style="color:#ffc107">Logout</a>
-    </div>
+
     <header>
         <h1>{{ "Edit" if mode=="edit" else "Add New" }} Patient</h1>
     </header>

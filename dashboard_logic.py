@@ -197,7 +197,7 @@ def compute_dashboard(db: Session, month: str = None):
             if r.idwg and r.idwg > 2.5:
                 metrics['idwg_high']['count'] += 1
                 metrics['idwg_high']['names'].append(name)
-                row["alerts"].append("High IDWG")
+                row["alerts"].append("High Interdialytic Weight Gain")
 
             # Hb < 9 g/dL — tracked for Hemoglobin trendline
             if r.hb and r.hb < 9:
@@ -318,7 +318,7 @@ def get_patients_needing_alerts(db: Session, month: str = None):
         if access and "AVF" not in access.upper():
             alerts.append("Non-AVF")
         if r.idwg and r.idwg > 2.5:
-            alerts.append("High IDWG")
+            alerts.append("High Interdialytic Weight Gain")
         if r.albumin and r.albumin < 2.5:
             alerts.append("Low Albumin")
         # Corrected Calcium check
@@ -344,7 +344,7 @@ def get_patients_needing_alerts(db: Session, month: str = None):
                     "hb": r.hb,
                     "albumin": r.albumin,
                     "phosphorus": r.phosphorus,
-                    "corrected_ca": r.calcium,
+                    "corrected_ca": _corr_ca,
                     "idwg": r.idwg,
                     "ipth": r.ipth,
                 },

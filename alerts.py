@@ -47,11 +47,11 @@ def build_whatsapp_message(patient_name: str, alerts: list,
         if lab_values.get("phosphorus"):
             critical_labs.append(f"Phosphorus: {lab_values['phosphorus']} mg/dL")
         if lab_values.get("corrected_ca"):
-            critical_labs.append(f"Corrected Ca: {round(lab_values['corrected_ca'], 2)} mg/dL")
+            critical_labs.append(f"Corrected Calcium: {'{:.2f}'.format(float(lab_values['corrected_ca']))} mg/dL")
         if lab_values.get("ipth"):
             critical_labs.append(f"iPTH: {lab_values['ipth']} pg/mL")
-        if lab_values.get("idwg"):
-            critical_labs.append(f"IDWG: {lab_values['idwg']} kg")
+        if lab_values.get("idwg") is not None:
+            critical_labs.append(f"Interdialytic Weight Gain: {'{:.2f}'.format(float(lab_values['idwg']))} kg")
         if critical_labs:
             lab_section = "\n\nCurrent values:\n" + "\n".join(f"  {l}" for l in critical_labs)
 
@@ -135,11 +135,11 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
         if access and access.upper() != "AVF":
             alerts.append("Non-AVF Access")
         if record.idwg and record.idwg > 2.5:
-            alerts.append(f"High IDWG ({record.idwg} kg)")
+            alerts.append(f"High Interdialytic Weight Gain ({record.idwg} kg)")
         if record.albumin and record.albumin < 3.5:
             alerts.append(f"Low Albumin ({record.albumin} g/dL)")
         if record.calcium and record.calcium < 8.5:
-            alerts.append(f"Low Calcium ({record.calcium} mg/dL)")
+            alerts.append(f"Low Corrected Calcium ({'{:.2f}'.format(float(record.calcium))} mg/dL)")
         if record.phosphorus and record.phosphorus > 5.5:
             alerts.append(f"High Phosphorus ({record.phosphorus} mg/dL)")
         _epo_iu = record.epo_weekly_units
@@ -311,7 +311,7 @@ def build_ward_report_html(alert_patients: list,
         def fmt(val, unit="", decimals=1):
             if val is None:
                 return '<span style="color:#bbb">—</span>'
-            return f"{round(float(val), decimals)} {unit}".strip()
+            return "{:.{}f} {}".format(float(val), decimals, unit).strip()
 
         def cell_color(val, low=None, high=None):
             if val is None:
@@ -364,7 +364,7 @@ def build_ward_report_html(alert_patients: list,
           <td style="padding:10px 12px;border-bottom:1px solid #eee;
               background:{cell_color(ca, low=8.5)};
               text-align:center;font-family:monospace">
-              {fmt(ca, 'mg/dL')}</td>
+              {fmt(ca, 'mg/dL', decimals=2)}</td>
           <td style="padding:10px 12px;border-bottom:1px solid #eee;
               background:{cell_color(idwg, high=2.5)};
               text-align:center;font-family:monospace">
@@ -452,7 +452,7 @@ def build_ward_report_html(alert_patients: list,
         <tr>
           <th>Patient</th><th>Access</th>
           <th>Hb</th><th>Albumin</th><th>Phos</th>
-          <th>Ca(corr)</th><th>IDWG</th>
+          <th>Calcium(corr)</th><th>Int.Wt.Gain</th>
           <th>Alerts</th><th>WhatsApp</th>
         </tr>
       </thead>
@@ -528,9 +528,9 @@ def send_entry_alert_email(patient_name: str, hid: str, month_label: str,
                 for a in alerts
             )
 
-            def _row(label, val, unit="", warn=False):
+            def _row(label, val, unit="", warn=False, decimals=1):
                 bg = "#fff0f0" if warn and val is not None else "#f9fafb"
-                display = f"{val} {unit}".strip() if val is not None else "—"
+                display = "{:.{}f} {}".format(float(val), decimals, unit).strip() if val is not None else "—"
                 return (f'<tr><td style="padding:8px 12px;color:#64748b;font-size:13px">{label}</td>'
                         f'<td style="padding:8px 12px;background:{bg};font-family:monospace;'
                         f'font-weight:600;font-size:13px">{display}</td></tr>')
@@ -539,8 +539,8 @@ def send_entry_alert_email(patient_name: str, hid: str, month_label: str,
                 _row("Haemoglobin", labs.get("hb"), "g/dL", warn=(labs.get("hb") or 99) < 10) +
                 _row("Albumin", labs.get("albumin"), "g/dL", warn=(labs.get("albumin") or 99) < 2.5) +
                 _row("Phosphorus", labs.get("phosphorus"), "mg/dL", warn=(labs.get("phosphorus") or 0) > 5.5) +
-                _row("Corrected Ca", labs.get("corrected_ca"), "mg/dL", warn=(labs.get("corrected_ca") or 99) < 8.0) +
-                _row("IDWG", labs.get("idwg"), "kg", warn=(labs.get("idwg") or 0) > 2.5) +
+                _row("Corrected Calcium", labs.get("corrected_ca"), "mg/dL", warn=(labs.get("corrected_ca") or 99) < 8.0, decimals=2) +
+                _row("Interdialytic Weight Gain", labs.get("idwg"), "kg", warn=(labs.get("idwg") or 0) > 2.5, decimals=2) +
                 _row("iPTH", labs.get("ipth"), "pg/mL")
             )
 

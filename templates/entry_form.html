@@ -146,11 +146,7 @@
         {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
         <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
-        <a href="/">Dashboard</a>
-        <a href="/entry">Data Entry</a>
-        <a href="/patients">Patients</a>
-        <a href="/logout" style="color:#ffc107">Logout</a>
-    </div>
+
     <header>
         <h1>Clinical Data Entry: {{ month_label }}</h1>
     </header>
@@ -188,7 +184,7 @@
                         <input type="number" step="0.01" name="target_dry_weight" inputmode="decimal" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
                     </div>
                     <div class="form-group">
-                        <label>IDWG (kg)</label>
+                        <label>Interdialytic Weight Gain (kg)</label>
                         <input type="number" step="0.01" name="idwg" min="0" max="15" inputmode="decimal" value="{{ record.idwg if record else '' }}">
                     </div>
                     <div class="form-group">

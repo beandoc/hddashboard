@@ -775,7 +775,7 @@ def save_entry(
         if _raw and "AVF" not in _raw:
             _alerts_for_patient.append("Non-AVF Access")
         if idwg and idwg > 2.5:
-            _alerts_for_patient.append("High IDWG")
+            _alerts_for_patient.append("High Interdialytic Weight Gain")
         if albumin and albumin < 2.5:
             _alerts_for_patient.append("Low Albumin")
         _corr_ca = (calcium + 0.8 * (4.0 - albumin)) if (calcium and albumin) else calcium
