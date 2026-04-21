@@ -16,6 +16,8 @@
             --muted: #64748b;
             --border: #e2e8f0;
             --radius: 16px;
+            --accent-red: #ef4444;
+            --accent-orange: #f59e0b;
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 50px; }
         
@@ -242,6 +244,7 @@
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            spanGaps: true,
             plugins: { legend: { display: false } },
             scales: {
                 y: { beginAtZero: false, grid: { color: '#f1f5f9' } },

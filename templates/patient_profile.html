@@ -171,7 +171,8 @@
             </div>
             <div class="stat-item">
                 <span class="stat-label">Diagnosis</span>
-                <span class="stat-value" title="{{ patient.diagnosis }}">{{ patient.diagnosis[:25] }}{{ '...' if patient.diagnosis|length > 25 else '' }}</span>
+                {% set diag = patient.diagnosis or 'Not Documented' %}
+                <span class="stat-value" title="{{ diag }}">{{ diag[:25] }}{{ '...' if diag|length > 25 else '' }}</span>
                 <span class="stat-sub">{{ patient.primary_renal_disease or 'CKD origin' }}</span>
             </div>
             <div class="stat-item">
@@ -378,11 +379,11 @@
                 {% for lab in interims %}
                 <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 8px;">
                     <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700; color:var(--text-muted);">
-                        <span>{{ lab.date.strftime('%d %b %y') }}</span>
-                        <span style="color:var(--accent-orange)">{{ lab.trigger_reason or 'PRN' }}</span>
+                        <span>{{ lab.lab_date.strftime('%d %b %y') if lab.lab_date else '—' }}</span>
+                        <span style="color:var(--accent-orange)">{{ lab.trigger or 'PRN' }}</span>
                     </div>
                     <div style="font-size: 0.85rem; font-weight: 600; margin-top:2px;">
-                        Hb: {{ lab.hb or '—' }} | K: {{ lab.potassium or '—' }}
+                        {{ lab.parameter | upper }}: {{ lab.value or '—' }}
                     </div>
                 </div>
                 {% endfor %}

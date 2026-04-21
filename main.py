@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Optional
 
 # Database engine and session for startup logic
-from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, SessionRecord, engine, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, engine, SessionLocal
 from passlib.context import CryptContext
 from itsdangerous import URLSafeSerializer
 
@@ -1738,22 +1738,23 @@ def admin_test_email(request: Request):
 @app.get("/patient/dashboard", response_class=HTMLResponse)
 def patient_dashboard(request: Request, db: Session = Depends(get_db)):
     u = get_user(request)
-    if not u or (isinstance(u, dict) and u.get("role") != "patient"):
-        if isinstance(u, dict) and u.get("role") == "patient": pass
-        else: return RedirectResponse(url="/login")
+    if not u or not isinstance(u, dict) or u.get("role") != "patient":
+        return RedirectResponse(url="/login")
     
     p = db.query(Patient).filter(Patient.id == u["id"]).first()
-    
+    if not p:
+        return RedirectResponse(url="/login")
+
     # Get last 6 months records for trends
     history = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id).order_by(MonthlyRecord.record_month.asc()).limit(6).all()
     latest_monthly = history[-1] if history else None
-    
-    # Pack trends for charts
+
+    # Pack trends — replace None with null-safe sentinel so Chart.js draws continuous lines
     trends = {
         "labels": [r.record_month for r in history],
-        "hb": [r.hb for r in history],
-        "alb": [r.albumin for r in history],
-        "phos": [r.phosphorus for r in history]
+        "hb":   [r.hb        if r.hb        is not None else None for r in history],
+        "alb":  [r.albumin   if r.albumin   is not None else None for r in history],
+        "phos": [r.phosphorus if r.phosphorus is not None else None for r in history],
     }
 
     # Vaccination Logic

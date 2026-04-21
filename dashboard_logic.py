@@ -177,7 +177,7 @@ def compute_dashboard(db: Session, month: str = None):
             "hb": r.hb if r else None,
             "ferritin": r.serum_ferritin if r else None,
             "tsat": r.tsat if r else None,
-            "corrected_ca": round(r.calcium + 0.8 * (4.0 - r.albumin), 2) if (r and r.calcium and r.albumin) else (r.calcium if r else None),
+            "corrected_ca": round(r.calcium + 0.8 * (4.0 - r.albumin), 2) if (r and r.calcium and r.albumin and r.calcium is not None and r.albumin is not None) else (r.calcium if r else None),
             "phosphorus": r.phosphorus if r else None,
             "albumin": r.albumin if r else None,
             "ipth": r.ipth if r else None,
@@ -250,6 +250,7 @@ def compute_dashboard(db: Session, month: str = None):
             # Hb < 9 g/dL — tracked for Hemoglobin trendline
             if r.hb and r.hb < 9:
                 metrics['trend_hb'].append({
+                    "id": p.id,
                     "name": name,
                     "current": r.hb,
                     "previous": prev_r.hb if prev_r else None
@@ -260,6 +261,7 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['albumin_low']['count'] += 1
                 metrics['albumin_low']['names'].append(name)
                 metrics['trend_albumin'].append({
+                    "id": p.id,
                     "name": name,
                     "current": r.albumin,
                     "previous": prev_r.albumin if prev_r else None
@@ -278,6 +280,7 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['phos_high']['count'] += 1
                 metrics['phos_high']['names'].append(name)
                 metrics['trend_phosphorus'].append({
+                    "id": p.id,
                     "name": name,
                     "current": r.phosphorus,
                     "previous": prev_r.phosphorus if prev_r else None
