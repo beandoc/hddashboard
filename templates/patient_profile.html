@@ -196,7 +196,7 @@
                 {% if latest_monthly %}
                 <div class="labs-summary">
                     {% macro lab_box(label, value, unit, prior_val=None, low=None, high=None) %}
-                        {% set is_danger = (low and value < low) or (high and value > high) %}
+                        {% set is_danger = (low is not none and value is not none and value < low) or (high is not none and value is not none and value > high) %}
                         <div class="lab-box {{ 'danger' if is_danger else '' }}">
                             <span class="stat-label" style="font-size: 0.65rem;">{{ label }}</span>
                             <span class="value">{{ "%.1f"|format(value) if value is not none else '—' }}</span>
