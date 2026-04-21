@@ -139,20 +139,53 @@ async def auth_middleware(request: Request, call_next):
     
     if session_cookie:
         try:
-            username = serializer.loads(session_cookie)
+            raw_identity = serializer.loads(session_cookie)
             db = SessionLocal()
-            user = db.query(User).filter(User.username == username, User.is_active == True).first()
-            if user:
-                request.state.user = user
+            
+            if ":" in raw_identity:
+                role_prefix, username = raw_identity.split(":", 1)
+            else:
+                role_prefix, username = "staff", raw_identity # backward compatibility
+
+            if role_prefix == "staff":
+                user = db.query(User).filter(User.username == username, User.is_active == True).first()
+                if user:
+                    request.state.user = user
+            elif role_prefix == "patient":
+                p = db.query(Patient).filter(Patient.login_username == username, Patient.is_active == True).first()
+                if p:
+                    # Create a polymorphic user object for the request state
+                    request.state.user = {
+                        "id": p.id,
+                        "username": p.login_username,
+                        "full_name": p.name,
+                        "role": "patient"
+                    }
             db.close()
         except Exception:
             pass # Invalid cookie
 
-    # Protect all routes excpet public ones
+    # Protect all routes except public ones
     public_paths = ["/login", "/static", "/health"]
-    if not request.state.user and request.url.path not in public_paths:
-        if not any(request.url.path.startswith(p) for p in public_paths):
+    path = request.url.path
+    
+    if not request.state.user and path not in public_paths:
+        if not any(path.startswith(p) for p in public_paths):
             return RedirectResponse(url="/login")
+
+    # If logged in as patient, restrict to patient portal
+    if request.state.user:
+        is_patient = isinstance(request.state.user, dict) and request.state.user.get("role") == "patient"
+        
+        # Patient trying to access staff pages
+        staff_paths = ["/patients", "/entry", "/schedule", "/alerts", "/variables", "/events", "/admin"]
+        is_staff_path = (path == "/" or any(path.startswith(p) for p in staff_paths))
+        if is_patient and is_staff_path:
+            return RedirectResponse(url="/patient/dashboard")
+            
+        # Staff trying to access patient pages (allow it if needed, but let's keep them apart)
+        if not is_patient and path.startswith("/patient/"):
+            return RedirectResponse(url="/")
 
     response = await call_next(request)
     return response
@@ -1699,6 +1732,84 @@ def admin_test_email(request: Request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# PATIENT PORTAL
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/patient/dashboard", response_class=HTMLResponse)
+def patient_dashboard(request: Request, db: Session = Depends(get_db)):
+    u = get_user(request)
+    if not u or (isinstance(u, dict) and u.get("role") != "patient"):
+        if isinstance(u, dict) and u.get("role") == "patient": pass
+        else: return RedirectResponse(url="/login")
+    
+    p = db.query(Patient).filter(Patient.id == u["id"]).first()
+    
+    # Get last 6 months records for trends
+    history = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id).order_by(MonthlyRecord.record_month.asc()).limit(6).all()
+    latest_monthly = history[-1] if history else None
+    
+    # Pack trends for charts
+    trends = {
+        "labels": [r.record_month for r in history],
+        "hb": [r.hb for r in history],
+        "alb": [r.albumin for r in history],
+        "phos": [r.phosphorus for r in history]
+    }
+
+    # Vaccination Logic
+    vax_reminders = []
+    from datetime import date, timedelta
+    today = date.today()
+    
+    if not p.influenza_date or (today - p.influenza_date).days > 365:
+        vax_reminders.append("Influenza (Yearly) due")
+    if p.hep_b_status != "Immune":
+        vax_reminders.append("Hepatitis B Vaccination/Titer pending")
+    if not p.pcv13_date:
+        vax_reminders.append("Pneumococcal (PCV13) due")
+    if p.pcv13_date and not p.ppsv23_date:
+        vax_reminders.append("Pneumococcal (PPSV23) due")
+
+    # Get last 7 days of meals
+    seven_days_ago = today - timedelta(days=7)
+    meals = db.query(PatientMealRecord).filter(PatientMealRecord.patient_id == p.id, PatientMealRecord.date >= seven_days_ago).order_by(PatientMealRecord.date.desc()).all()
+    
+    import json
+    anti_meds = []
+    if latest_monthly and latest_monthly.antihypertensive_details:
+        try: anti_meds = json.loads(latest_monthly.antihypertensive_details)
+        except: pass
+
+    return templates.TemplateResponse("patient_view.html", {
+        "request": request,
+        "patient": p,
+        "latest_monthly": latest_monthly,
+        "anti_meds": anti_meds,
+        "meals": meals,
+        "trends": trends,
+        "vax_reminders": vax_reminders,
+        "user": u
+    })
+
+@app.post("/patient/meals")
+def log_meal(request: Request, calories: float = Form(...), protein: float = Form(...), notes: str = Form(""), db: Session = Depends(get_db)):
+    u = get_user(request)
+    if not u or not isinstance(u, dict) or u.get("role") != "patient":
+        raise HTTPException(status_code=403)
+    
+    meal = PatientMealRecord(
+        patient_id=u["id"],
+        date=datetime.utcnow().date(),
+        calories=calories,
+        protein=protein,
+        notes=notes
+    )
+    db.add(meal)
+    db.commit()
+    return RedirectResponse(url="/patient/dashboard", status_code=303)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # AUTHENTICATION
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1708,18 +1819,41 @@ def login_page(request: Request, error: str = None):
 
 @app.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    # 1. Try Staff table
     user = db.query(User).filter(User.username == username, User.is_active == True).first()
-    if not user or not pwd_context.verify(password, user.hashed_password):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password"})
+    if user and pwd_context.verify(password, user.hashed_password):
+        user.last_login = datetime.utcnow()
+        db.commit()
+        token = serializer.dumps(f"staff:{user.username}")
+        response = RedirectResponse(url="/", status_code=303)
+        response.set_cookie(key="hd_session", value=token, httponly=True)
+        return response
+
+    # 2. Try Patient table
+    # Standardize username check
+    p = db.query(Patient).filter(Patient.login_username == username.lower(), Patient.is_active == True).first()
     
-    user.last_login = datetime.utcnow()
-    db.commit()
-    
-    response = RedirectResponse(url="/", status_code=303)
-    # Sign the session cookie
-    token = serializer.dumps(user.username)
-    response.set_cookie(key="hd_session", value=token, httponly=True)
-    return response
+    # Auto-provision logic if user asked for "first name / chsc"
+    if not p and password == "chsc":
+        # Check if username matches any patient's first name
+        all_patients = db.query(Patient).filter(Patient.is_active == True).all()
+        for candidate in all_patients:
+            first_name = candidate.name.split()[0].lower()
+            if first_name == username.lower() and not candidate.login_username:
+                # Provision this patient
+                candidate.login_username = first_name
+                candidate.hashed_password = pwd_context.hash("chsc")
+                db.commit()
+                p = candidate
+                break
+
+    if p and pwd_context.verify(password, p.hashed_password):
+        token = serializer.dumps(f"patient:{p.login_username}")
+        response = RedirectResponse(url="/patient/dashboard", status_code=303)
+        response.set_cookie(key="hd_session", value=token, httponly=True)
+        return response
+
+    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
 
 @app.get("/logout")
 def logout():

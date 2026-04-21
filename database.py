@@ -123,9 +123,13 @@ class Patient(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    login_username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
     records = relationship("MonthlyRecord", back_populates="patient", cascade="all, delete-orphan")
     sessions = relationship("SessionRecord", back_populates="patient", cascade="all, delete-orphan")
     interim_labs = relationship("InterimLabRecord", back_populates="patient", cascade="all, delete-orphan")
+    meal_records = relationship("PatientMealRecord", back_populates="patient", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -409,6 +413,20 @@ class ClinicalEvent(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
     patient = relationship("Patient")
+
+
+class PatientMealRecord(Base):
+    __tablename__ = "patient_meal_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    date = Column(Date, default=lambda: datetime.utcnow().date())
+    calories = Column(Float)   # kcal
+    protein = Column(Float)    # grams
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient", back_populates="meal_records")
 
 
 def get_db():
