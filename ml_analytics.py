@@ -1323,47 +1323,150 @@ def run_cohort_analytics(db: Session) -> Dict:
     if not records:
         return {"available": False}
 
+    # Define parameters to track
+    params = [
+        "hb", "albumin", "phosphorus", "calcium", "serum_ferritin", 
+        "tsat", "single_pool_ktv", "urr", "ipth", "serum_potassium", "serum_creatinine", "idwg"
+    ]
+
     trends: Dict = {}
     for r in records:
         m = r.record_month
         if m not in trends:
-            trends[m] = {"hb": [], "alb": [], "phos": []}
-        if r.hb:        trends[m]["hb"].append(r.hb)
-        if r.albumin:   trends[m]["alb"].append(r.albumin)
-        if r.phosphorus: trends[m]["phos"].append(r.phosphorus)
+            trends[m] = {p: [] for p in params}
+        
+        for p in params:
+            val = getattr(r, p, None)
+            if val is not None:
+                trends[m][p].append(val)
 
     months = sorted(trends.keys())
-    hb_stats, alb_stats, phos_stats = [], [], []
-    for m in months:
-        for key, stats_list in [("hb", hb_stats), ("alb", alb_stats), ("phos", phos_stats)]:
-            vals = trends[m][key]
+    result = {
+        "available": True,
+        "months": months,
+        "latest_month": months[-1] if months else None,
+    }
+
+    for p in params:
+        stats_list = []
+        for m in months:
+            vals = trends[m][p]
             if not vals:
                 stats_list.append({"median": 0, "p25": 0, "p75": 0})
                 continue
+            
             med = statistics.median(vals)
             sv = sorted(vals)
             n = len(sv)
             if n == 1:
                 stats_list.append({
-                    "median": round(sv[0], 1),
-                    "p25": round(sv[0], 1),
-                    "p75": round(sv[0], 1),
+                    "median": round(sv[0], 2),
+                    "p25": round(sv[0], 2),
+                    "p75": round(sv[0], 2),
                     "n": 1
                 })
                 continue
 
             stats_list.append({
-                "median": round(med, 1),
-                "p25": round(sv[int(n * 0.25)], 1),
-                "p75": round(sv[int(n * 0.75)], 1),
+                "median": round(med, 2),
+                "p25": round(sv[int(n * 0.25)], 2),
+                "p75": round(sv[int(n * 0.75)], 2),
                 "n": n
             })
+        result[p] = stats_list
+
+    return result
+
+
+def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
+    """
+    Find patients whose current report for 'parameter' is out of range,
+    and return their trend for the last 4 months.
+    """
+    if not month:
+        from dashboard_logic import get_current_month_str
+        month = get_current_month_str()
+
+    # Define normal ranges for filtering
+    thresholds = {
+        "hb": {"min": 10.0},
+        "albumin": {"min": 3.5},
+        "phosphorus": {"max": 5.5},
+        "calcium": {"min": 8.4, "max": 10.2},
+        "serum_ferritin": {"min": 200},
+        "tsat": {"min": 20},
+        "single_pool_ktv": {"min": 1.2},
+        "urr": {"min": 65},
+        "ipth": {"min": 150, "max": 600},
+        "serum_potassium": {"min": 3.5, "max": 5.5},
+        "idwg": {"max": 2.5}
+    }
+
+    thresh = thresholds.get(parameter)
+    if not thresh:
+        return {"patients": []}
+
+    # Fetch current records
+    curr_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
+    at_risk_patient_ids = []
+    
+    for r in curr_records:
+        val = getattr(r, parameter, None)
+        if parameter == "calcium" and r.calcium is not None and r.albumin is not None:
+            val = r.calcium + 0.8 * (4.0 - r.albumin)
+        
+        if val is None: continue
+        
+        is_out = False
+        if "min" in thresh and val < thresh["min"]: is_out = True
+        if "max" in thresh and val > thresh["max"]: is_out = True
+        
+        if is_out:
+            at_risk_patient_ids.append(r.patient_id)
+
+    if not at_risk_patient_ids:
+        return {"patients": []}
+
+    # Get months for last 4 months (including current)
+    from datetime import datetime, timedelta
+    def get_prev_month(m_str):
+        y, m = int(m_str[:4]), int(m_str[5:7])
+        if m == 1: return f"{y-1}-12"
+        return f"{y}-{m-1:02d}"
+
+    target_months = [month]
+    m = month
+    for _ in range(3):
+        m = get_prev_month(m)
+        target_months.append(m)
+    target_months.reverse() # [m-3, m-2, m-1, m]
+
+    # Fetch history for at-risk patients
+    results = []
+    for pid in at_risk_patient_ids:
+        patient = db.query(Patient).filter(Patient.id == pid).first()
+        if not patient: continue
+        
+        history = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == pid,
+            MonthlyRecord.record_month.in_(target_months)
+        ).order_by(MonthlyRecord.record_month).all()
+        
+        hist_map = {}
+        for h in history:
+            h_val = getattr(h, parameter)
+            if parameter == "calcium" and h.calcium is not None and h.albumin is not None:
+                h_val = h.calcium + 0.8 * (4.0 - h.albumin)
+            hist_map[h.record_month] = h_val
+        
+        results.append({
+            "id": patient.id,
+            "name": patient.name,
+            "trend": [round(hist_map.get(m), 2) if hist_map.get(m) is not None else None for m in target_months]
+        })
 
     return {
-        "available": True,
-        "months": months,
-        "hb": hb_stats,
-        "alb": alb_stats,
-        "phos": phos_stats,
-        "latest_month": months[-1] if months else None,
+        "months": target_months,
+        "patients": results,
+        "parameter": parameter
     }

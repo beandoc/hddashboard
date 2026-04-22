@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Backup & Restore - HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <style>
+        :root {
+            --primary: #0ea5e9; --primary-dark: #0284c7;
+            --bg-main: #f8fafc; --radius: 12px;
+            --text-main: #1e293b; --text-muted: #64748b; --text-header: #0f172a;
+            --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-main); color: var(--text-main); }
+        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
+
+        .app-nav {
+            background: rgba(15,23,42,0.95); backdrop-filter: blur(12px);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
+        .app-nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
+        .app-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+        header { background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color: white; padding: 36px 24px; text-align: center; }
+        header h1 { margin: 0; font-size: 1.8em; }
+
+        .container { max-width: 800px; margin: 32px auto; padding: 0 24px 80px; }
+        .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 24px; margin-bottom: 28px; }
+        .card h3 { margin: 0 0 16px; font-size: 1.1em; color: var(--text-header); display: flex; align-items: center; gap: 8px; }
+        
+        .alert { border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.9em; display: flex; align-items: center; gap: 10px; }
+        .alert-success { background: #dcfce7; color: #166534; border-left: 4px solid #22c55e; }
+        .alert-error { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+        .alert-warning { background: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
+
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9em; font-weight: 600; transition: all 0.2s; text-decoration: none; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(14,165,233,0.3); }
+        .btn-secondary { background: #f1f5f9; color: #475569; }
+
+        .upload-zone { border: 2px dashed #e2e8f0; border-radius: 12px; padding: 40px; text-align: center; background: #f8fafc; transition: all 0.2s; cursor: pointer; }
+        .upload-zone:hover { border-color: var(--primary); background: #f0f9ff; }
+        .upload-zone input { display: none; }
+        
+        .info-list { list-style: none; padding: 0; margin: 20px 0; font-size: 0.88em; color: var(--text-muted); }
+        .info-list li { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px; }
+        .info-list li .material-icons { font-size: 16px; margin-top: 2px; color: var(--primary); }
+
+        .action-area { margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 24px; display: flex; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+    <div class="app-nav">
+        <span class="brand">CH(SC) · Nephrology Unit</span>
+        <div style="display:flex;gap:8px;">
+            <a href="/">Dashboard</a>
+            <a href="/patients">Patients</a>
+            <a href="/admin/users">Users</a>
+            <a href="/logout" style="color:#ffc107">Logout</a>
+        </div>
+    </div>
+
+    <header>
+        <h1><i class="material-icons" style="vertical-align:middle;margin-right:8px">storage</i> Manage Data</h1>
+    </header>
+
+    <div class="container">
+
+        {% if success %}
+        <div class="alert alert-success">
+            <i class="material-icons">check_circle</i> {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-error">
+            <i class="material-icons">error</i> {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Backup Card -->
+        <div class="card">
+            <h3><i class="material-icons">cloud_download</i> Download Backup</h3>
+            <p style="color:var(--text-muted); font-size: 0.9em; margin-bottom: 24px;">
+                Download your entire database as a single JSON file. This includes all patient demographics, clinical records, session logs, and user data.
+            </p>
+            <div class="alert alert-warning" style="margin-bottom: 24px;">
+                <i class="material-icons">info</i> 
+                On the Render Free Tier, your database will be <strong>deleted every 90 days</strong>. Download a backup regularly to ensure your data stays safe.
+            </div>
+            <a href="/admin/db/export" class="btn btn-primary">
+                <i class="material-icons">download</i> Generate & Download Backup
+            </a>
+        </div>
+
+        <!-- Restore Card -->
+        <div class="card">
+            <h3><i class="material-icons">cloud_upload</i> Restore from Backup</h3>
+            <p style="color:var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">
+                Upload a previously downloaded JSON backup file to restore your data.
+            </p>
+            
+            <form action="/admin/db/import" method="POST" enctype="multipart/form-data" id="restoreForm">
+                <label class="upload-zone" for="backup_file">
+                    <i class="material-icons" style="font-size: 48px; color: var(--text-muted); margin-bottom: 12px;">upload_file</i>
+                    <div id="file-name" style="font-weight: 600; color: var(--text-header);">Click to select backup file</div>
+                    <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 4px;">Supports .json files only</div>
+                    <input type="file" name="backup_file" id="backup_file" accept=".json" required onchange="updateFileName(this)">
+                </label>
+
+                <ul class="info-list">
+                    <li><i class="material-icons">check</i> All records will be merged. If a record already exists, it will be updated.</li>
+                    <li><i class="material-icons">check</i> Patient IDs and relationships will be preserved.</li>
+                    <li><i class="material-icons">warning</i> This operation cannot be easily undone. We recommend downloading a backup of your current state first.</li>
+                </ul>
+
+                <div class="action-area">
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('WARNING: You are about to initiate a database restoration. This will overwrite/merge records. Are you sure?')">
+                        <i class="material-icons">restore</i> Start Restoration
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        function updateFileName(input) {
+            const label = document.getElementById('file-name');
+            if (input.files && input.files.length > 0) {
+                label.textContent = input.files[0].name;
+                label.style.color = 'var(--primary)';
+            } else {
+                label.textContent = 'Click to select backup file';
+                label.style.color = 'var(--text-header)';
+            }
+        }
+    </script>
+</body>
+</html>

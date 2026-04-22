@@ -179,13 +179,14 @@ async def auth_middleware(request: Request, call_next):
         
         # Patient trying to access staff pages
         staff_paths = ["/patients", "/entry", "/schedule", "/alerts", "/variables", "/events", "/admin"]
-        is_staff_path = (path == "/" or any(path.startswith(p) for p in staff_paths))
-        if is_patient and is_staff_path:
-            return RedirectResponse(url="/patient/dashboard")
-            
-        # Staff trying to access patient pages (allow it if needed, but let's keep them apart)
-        if not is_patient and path.startswith("/patient/"):
-            return RedirectResponse(url="/")
+        is_admin_path = path.startswith("/admin")
+        is_admin = not is_patient and request.state.user.role == "admin"
+        
+        if is_admin_path and not is_admin:
+             return RedirectResponse(url="/", status_code=303)
+
+        # Patient trying to access staff pages
+        staff_paths_only = ["/patients", "/entry", "/schedule", "/alerts", "/variables", "/events", "/admin"]
 
     response = await call_next(request)
     return response
@@ -1377,6 +1378,16 @@ def api_cohort_trends(db: Session = Depends(get_db)):
     return JSONResponse(content=data)
 
 
+@app.get("/api/at-risk-trends")
+def api_at_risk_trends(parameter: str, month: Optional[str] = None, db: Session = Depends(get_db)):
+    try:
+        from ml_analytics import get_at_risk_trends
+        data = get_at_risk_trends(db, parameter, month)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse(content=data)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CLINICAL EVENTS TIMELINE
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1726,6 +1737,146 @@ def admin_test_email(request: Request):
     )
     return JSONResponse({"status": "ok",
                          "message": f"Test email fired from {SMTP_USER} → {DOCTOR_EMAIL}. Check inbox (may take ~30 sec)."})
+
+
+@app.get("/admin/db", response_class=HTMLResponse)
+def admin_db_page(request: Request, db: Session = Depends(get_db)):
+    _require_admin(request)
+    return templates.TemplateResponse("admin_db.html", {
+        "request": request,
+        "user": get_user(request),
+    })
+
+@app.get("/admin/db/export")
+def admin_db_export(request: Request, db: Session = Depends(get_db)):
+    """Export all database tables to a JSON file."""
+    _require_admin(request)
+    import json
+    from dynamic_vars import VariableDefinition, VariableValue
+
+    data = {
+        "patients": [p.__dict__ for p in db.query(Patient).all()],
+        "users": [u.__dict__ for u in db.query(User).all()],
+        "monthly_records": [r.__dict__ for r in db.query(MonthlyRecord).all()],
+        "session_records": [s.__dict__ for s in db.query(SessionRecord).all()],
+        "interim_lab_records": [i.__dict__ for i in db.query(InterimLabRecord).all()],
+        "clinical_events": [e.__dict__ for e in db.query(ClinicalEvent).all()],
+        "patient_meal_records": [m.__dict__ for m in db.query(PatientMealRecord).all()],
+        "variable_definitions": [v.__dict__ for v in db.query(VariableDefinition).all()],
+        "variable_values": [v.__dict__ for v in db.query(VariableValue).all()],
+        "alert_logs": [a.__dict__ for a in db.query(AlertLog).all()],
+    }
+
+    # Clean up SQLAlchemy internal state before serializing
+    for table in data:
+        for row in data[table]:
+            row.pop('_sa_instance_state', None)
+            # Convert dates and datetimes to ISO strings
+            for k, v in row.items():
+                if isinstance(v, (date, datetime)):
+                    row[k] = v.isoformat()
+
+    content = json.dumps(data, indent=2)
+    filename = f"hd_dashboard_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+    
+    from fastapi.responses import Response
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@app.post("/admin/db/import")
+async def admin_db_import(request: Request, db: Session = Depends(get_db)):
+    """Import database from a JSON file. Caution: This will likely cause PK conflicts
+    if records already exist; designed for restoring to a fresh DB."""
+    _require_admin(request)
+    from fastapi import UploadFile, File
+    import json
+    from dynamic_vars import VariableDefinition, VariableValue
+
+    form_data = await request.form()
+    file = form_data.get("backup_file")
+    if not file or not isinstance(file, UploadFile):
+        raise HTTPException(status_code=400, detail="No file uploaded")
+
+    try:
+        raw_data = await file.read()
+        data = json.loads(raw_data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON file: {e}")
+
+    # Order of operations matters due to foreign keys
+    # 1. Parents (Patients, Users, VariableDefinitions)
+    # 2. Children (Records, Events, etc.)
+
+    def _parse_dates(row, model):
+        for k, v in row.items():
+            if v and hasattr(model, k):
+                col_type = getattr(model, k).type
+                if isinstance(col_type, Date) and isinstance(v, str):
+                    row[k] = date.fromisoformat(v)
+                elif isinstance(col_type, DateTime) and isinstance(v, str):
+                    row[k] = datetime.fromisoformat(v)
+        return row
+
+    try:
+        # We use a merge (upsert) strategy to avoid duplicate PK errors
+        # This allows the tool to be used for syncing as well as full restores
+        
+        # 1. Patients
+        for p_data in data.get("patients", []):
+            db.merge(Patient(**_parse_dates(p_data, Patient)))
+        
+        # 2. Users
+        for u_data in data.get("users", []):
+            db.merge(User(**_parse_dates(u_data, User)))
+
+        # 3. Variable Definitions
+        for v_data in data.get("variable_definitions", []):
+            db.merge(VariableDefinition(**_parse_dates(v_data, VariableDefinition)))
+        
+        db.commit() # Commit parents first to satisfy FKs
+
+        # 4. Monthly Records
+        for m_data in data.get("monthly_records", []):
+            db.merge(MonthlyRecord(**_parse_dates(m_data, MonthlyRecord)))
+
+        # 5. Session Records
+        for s_data in data.get("session_records", []):
+            db.merge(SessionRecord(**_parse_dates(s_data, SessionRecord)))
+
+        # 6. Interim Labs
+        for i_data in data.get("interim_lab_records", []):
+            db.merge(InterimLabRecord(**_parse_dates(i_data, InterimLabRecord)))
+
+        # 7. Clinical Events
+        for e_data in data.get("clinical_events", []):
+            db.merge(ClinicalEvent(**_parse_dates(e_data, ClinicalEvent)))
+
+        # 8. Meal Records
+        for ml_data in data.get("patient_meal_records", []):
+            db.merge(PatientMealRecord(**_parse_dates(ml_data, PatientMealRecord)))
+
+        # 9. Variable Values
+        for vv_data in data.get("variable_values", []):
+            db.merge(VariableValue(**_parse_dates(vv_data, VariableValue)))
+
+        # 10. Alert Logs
+        for a_data in data.get("alert_logs", []):
+            db.merge(AlertLog(**_parse_dates(a_data, AlertLog)))
+
+        db.commit()
+        return templates.TemplateResponse("admin_db.html", {
+            "request": request, "user": get_user(request),
+            "success": "Data restoration complete! All records merged successfully."
+        })
+    except Exception as e:
+        db.rollback()
+        return templates.TemplateResponse("admin_db.html", {
+            "request": request, "user": get_user(request),
+            "error": f"Restoration failed: {e}"
+        })
 
 
 # ─────────────────────────────────────────────────────────────────────────────

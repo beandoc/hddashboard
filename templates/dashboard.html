@@ -667,7 +667,10 @@
             <a href="/events" class="">Events</a>
             <a href="/alerts" class="">Alerts</a>
             <a href="/variables" class="">Variables</a>
-            {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
+            {% if user and user.role == "admin" %}
+                <a href="/admin/users">Users</a>
+                <a href="/admin/db">Manage Data</a>
+            {% endif %}
             <a href="/logout" style="color:#ffc107">Logout</a>
         </div>
   <button class="mobile-menu-btn" onclick="toggleDrawer()">
@@ -688,7 +691,10 @@
         <a href="/events" class="">Events</a>
         <a href="/alerts" class="">Alerts</a>
         <a href="/variables" class="">Variables</a>
-        {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
+        {% if user and user.role == "admin" %}
+        <a href="/admin/users">Users</a>
+        <a href="/admin/db">Manage Data</a>
+        {% endif %}
         <a href="/logout" style="color:#ffc107">Logout</a>
     </div>
 
@@ -804,7 +810,7 @@
   </div>
 
   <!-- UNIT-WIDE TRENDS (PHASE 4) -->
-  <h2 class="trend-section-title">Unit-Wide Trends (Last 12 Months)</h2>
+  <h2 class="trend-section-title">Unit-Wide Median Trends (Last 12 Months)</h2>
   <div class="trend-charts-section" style="border-top: none; padding-top: 10px;">
       <div class="chart-container" style="margin: 0;">
               <h3>Median Hemoglobin</h3>
@@ -818,6 +824,42 @@
               <h3>Median Phosphorus</h3>
               <div id="cohortPhosChart" class="chart-content"></div>
           </div>
+  </div>
+
+  <!-- DYNAMIC AT-RISK CAROUSEL -->
+  <div style="max-width: 1440px; margin: 40px auto; padding: 0 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 class="trend-section-title" style="margin: 0;">Dynamic Patient Trends (At-Risk)</h2>
+      <div class="month-picker-wrap" style="background: #fff; padding: 8px 16px; border-radius: 12px; box-shadow: var(--shadow-sm); border: 1px solid #e2e8f0;">
+        <label style="font-weight: 700; color: var(--text-header); margin-right: 12px;">Parameter:</label>
+        <select id="atRiskParamSelector" onchange="loadAtRiskTrends()" style="border: none; outline: none; font-family: 'Inter', sans-serif; font-weight: 600; color: var(--primary); cursor: pointer;">
+          <option value="hb">Hemoglobin (< 10)</option>
+          <option value="albumin">Albumin (< 3.5)</option>
+          <option value="phosphorus">Phosphorus (> 5.5)</option>
+          <option value="calcium">Calcium (< 8.4 or > 10.2)</option>
+          <option value="serum_ferritin">Ferritin (< 200)</option>
+          <option value="tsat">TSAT (< 20%)</option>
+          <option value="single_pool_ktv">Kt/V (< 1.2)</option>
+          <option value="urr">URR (< 65%)</option>
+          <option value="ipth">iPTH (< 150 or > 600)</option>
+          <option value="serum_potassium">Potassium (< 3.5 or > 5.5)</option>
+          <option value="idwg">IDWG (> 2.5kg)</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="trend-chart-wrapper" style="border-top: 3px solid var(--primary);">
+      <h3 id="atRiskChartTitle">At-Risk Patient Trendline</h3>
+      <div id="atRiskTrendChart" class="trend-chart-content" style="height: 300px;"></div>
+      <div id="atRiskEmptyMsg" style="display: none; text-align: center; padding: 60px 0; color: #94a3b8; font-style: italic;">
+        No patients currently in the at-risk range for this parameter.
+      </div>
+      <div class="patient-nav" id="atRiskNav" style="display: none;">
+        <button onclick="navigateAtRiskPatient(-1)" id="atRiskPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
+        <span id="atRiskPatientName" class="patient-name-display"></span>
+        <button onclick="navigateAtRiskPatient(1)" id="atRiskNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+      </div>
+    </div>
   </div>
 
 
@@ -945,6 +987,7 @@ function loadCohortTrends() {
     .then(data => {
         const renderCohort = (divId, statKey, color) => {
             const months = data.months;
+            if (!data[statKey]) return;
             const medians = data[statKey].map(s => s.median);
             const p25 = data[statKey].map(s => s.p25);
             const p75 = data[statKey].map(s => s.p75);
@@ -952,34 +995,112 @@ function loadCohortTrends() {
             const traceMedian = {
                 x: months, y: medians,
                 name: 'Median', type: 'scatter', mode: 'lines+markers',
-                line: { color: color, width: 3 }
+                line: { color: color, width: 3 },
+                hovertemplate: "Month: %{x}<br>Median: <b>%{y}</b><extra></extra>"
             };
 
             const traceIQR = {
                 x: months.concat(months.slice().reverse()),
                 y: p75.concat(p25.slice().reverse()),
                 fill: 'toself',
-                fillcolor: color.replace(')', ', 0.2)').replace('rgb', 'rgba'),
+                fillcolor: color.replace(')', ', 0.15)').replace('rgb', 'rgba'),
                 line: { color: 'transparent' },
                 name: '25-75th Percentile',
                 showlegend: false,
-                type: 'scatter'
+                type: 'scatter',
+                hoverinfo: 'skip'
             };
 
             Plotly.newPlot(divId, [traceIQR, traceMedian], {
                 margin: { t: 10, b: 40, l: 40, r: 10 },
-                xaxis: { tickangle: -45 },
+                xaxis: { tickangle: -45, gridcolor: "rgba(0,0,0,0.05)" },
+                yaxis: { gridcolor: "rgba(0,0,0,0.05)" },
                 showlegend: false,
                 paper_bgcolor: "transparent", plot_bgcolor: "transparent",
-            }, { displayModeBar: false });
+                font: FONT
+            }, { displayModeBar: false, responsive: true });
         };
 
         renderCohort('cohortHbChart', 'hb', 'rgb(198, 40, 40)');
-        renderCohort('cohortAlbChart', 'alb', 'rgb(26, 115, 232)');
-        renderCohort('cohortPhosChart', 'phos', 'rgb(46, 125, 50)');
+        renderCohort('cohortAlbChart', 'albumin', 'rgb(26, 115, 232)');
+        renderCohort('cohortPhosChart', 'phosphorus', 'rgb(46, 125, 50)');
     });
 }
 loadCohortTrends();
+
+// ── DYNAMIC AT-RISK TRENDS ──
+let atRiskData = { months: [], patients: [], parameter: "" };
+let atRiskIdx = 0;
+
+async function loadAtRiskTrends() {
+  const param = document.getElementById("atRiskParamSelector").value;
+  const chartDiv = document.getElementById("atRiskTrendChart");
+  const emptyMsg = document.getElementById("atRiskEmptyMsg");
+  const navDiv = document.getElementById("atRiskNav");
+  const titleEl = document.getElementById("atRiskChartTitle");
+
+  titleEl.textContent = `At-Risk ${param.toUpperCase()} Trendline`;
+
+  try {
+    const res = await fetch(`/api/at-risk-trends?parameter=${param}&month=${MONTH_STR}`);
+    atRiskData = await res.json();
+    atRiskIdx = 0;
+
+    if (!atRiskData.patients || atRiskData.patients.length === 0) {
+      chartDiv.style.display = "none";
+      emptyMsg.style.display = "block";
+      navDiv.style.display = "none";
+      return;
+    }
+
+    chartDiv.style.display = "block";
+    emptyMsg.style.display = "none";
+    navDiv.style.display = "flex";
+
+    renderAtRiskTrend();
+  } catch (e) {
+    console.error("Failed to load at-risk trends:", e);
+  }
+}
+
+function renderAtRiskTrend() {
+  const d = atRiskData.patients[atRiskIdx];
+  const months = atRiskData.months;
+  const param = atRiskData.parameter;
+  
+  const nameEl = document.getElementById("atRiskPatientName");
+  nameEl.innerHTML = `<a href="/patients/${d.id}/profile" style="color:inherit; text-decoration:none; border-bottom:1px dashed var(--primary);">${d.name}</a> (${atRiskIdx+1}/${atRiskData.patients.length})`;
+  
+  document.getElementById("atRiskPrevBtn").disabled = (atRiskIdx === 0);
+  document.getElementById("atRiskNextBtn").disabled = (atRiskIdx === atRiskData.patients.length - 1);
+
+  Plotly.newPlot("atRiskTrendChart", [{
+    type: "scatter",
+    x: months,
+    y: d.trend,
+    mode: "lines+markers",
+    line: { color: "var(--primary)", width: 3 },
+    marker: { color: "var(--primary)", size: 10 },
+    hovertemplate: "%{x}: <b>%{y}</b><extra></extra>",
+    connectgaps: true
+  }], {
+    margin: { t: 10, b: 40, l: 55, r: 10 },
+    paper_bgcolor: "transparent", plot_bgcolor: "transparent",
+    yaxis: { title: { text: param.toUpperCase(), font: { size: 11 } }, gridcolor: "rgba(0,0,0,0.08)" },
+    xaxis: { gridcolor: "rgba(0,0,0,0.05)" },
+    showlegend: false, font: FONT,
+  }, { displayModeBar: false, responsive: true });
+}
+
+function navigateAtRiskPatient(dir) {
+  const n = atRiskIdx + dir;
+  if (n >= 0 && n < atRiskData.patients.length) {
+    atRiskIdx = n;
+    renderAtRiskTrend();
+  }
+}
+
+loadAtRiskTrends();
 
 // ── REAL-TIME POLLING ──────────────────────────────────────────
 const POLL_INTERVAL_MS = 120000; // 2 minutes
