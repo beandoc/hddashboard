@@ -283,7 +283,7 @@
                 <div class="ring-target">Target: {{ nutrition_targets.calories }} kcal</div>
                 <div class="progress-bar-container">
                     {% set cal_raw = (today_stats.total_cal / nutrition_targets.calories * 100)|int %}
-                    {% set cal_perc = [cal_raw, 100]|min %}
+                    {% set cal_perc = cal_raw if cal_raw < 100 else 100 %}
                     <div class="progress-bar {% if cal_raw > 100 %}progress-bar-over{% else %}cal-bar{% endif %}" style="width: {{ cal_perc }}%"></div>
                 </div>
                 {% if cal_raw > 100 %}<div class="over-badge">⚠ {{ cal_raw - 100 }}% over target</div>{% endif %}
@@ -294,7 +294,7 @@
                 <div class="ring-target">Target: {{ nutrition_targets.protein }}g</div>
                 <div class="progress-bar-container">
                     {% set prot_raw = (today_stats.total_prot / nutrition_targets.protein * 100)|int %}
-                    {% set prot_perc = [prot_raw, 100]|min %}
+                    {% set prot_perc = prot_raw if prot_raw < 100 else 100 %}
                     <div class="progress-bar {% if prot_raw > 100 %}progress-bar-over{% else %}prot-bar{% endif %}" style="width: {{ prot_perc }}%"></div>
                 </div>
                 {% if prot_raw > 100 %}<div class="over-badge">⚠ {{ prot_raw - 100 }}% over target</div>{% endif %}
@@ -429,7 +429,7 @@
             <div class="symptom-history-item">
                 <div>
                     <div class="symptom-chips-display" style="margin-bottom:6px;">
-                        {% for sym in s.symptoms.split(',') %}{% if sym.strip() %}
+                        {% for sym in (s.symptoms or "").split(',') %}{% if sym.strip() %}
                         <span class="symptom-pill">{{ sym.strip() }}</span>
                         {% endif %}{% endfor %}
                     </div>

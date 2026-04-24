@@ -1980,7 +1980,8 @@ def patient_dashboard(request: Request, db: Session = Depends(get_db)):
         idwg = round(last_session.weight_pre - p.dry_weight, 2)
 
     # Fluid allowance: residual urine output + 500 mL base
-    fluid_allowance_ml = 500 + int(p.residual_urine_output or 0)
+    ruo = latest_monthly.residual_urine_output if (latest_monthly and latest_monthly.residual_urine_output) else 0
+    fluid_allowance_ml = 500 + int(ruo)
 
     # Last 5 symptom reports for display
     recent_symptoms = db.query(PatientSymptomReport).filter(
