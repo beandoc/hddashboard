@@ -333,7 +333,43 @@
                 {% endif %}
             </section>
 
-            <!-- 7. SESSION SUMMARY STRIP -->
+            <!-- 7. NUTRITION TRACKER (Patient Logged) -->
+            <section class="card">
+                <h2 class="section-title"><i class="material-icons">restaurant_menu</i> Patient Nutrition Log (Last 7 Days)</h2>
+                {% if meals_by_day %}
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div style="background:#f0fdf4; padding:15px; border-radius:12px; border:1px solid #bbf7d0;">
+                        <span class="stat-label">Calorie Target</span>
+                        <div class="stat-value" style="color:#166534">{{ nutrition_targets.calories }} kcal/day</div>
+                    </div>
+                    <div style="background:#eff6ff; padding:15px; border-radius:12px; border:1px solid #bfdbfe;">
+                        <span class="stat-label">Protein Target</span>
+                        <div class="stat-value" style="color:#1d4ed8">{{ nutrition_targets.protein }} g/day</div>
+                    </div>
+                </div>
+                
+                <div class="meal-history-staff">
+                    {% for date_str, day_data in meals_by_day.items() %}
+                    <div style="margin-bottom:15px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+                        <div style="background:#f8fafc; padding:8px 12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700; font-size:0.85rem;">{{ day_data.date.strftime('%d %b') }}</span>
+                            <span style="font-size:0.8rem; font-weight:600; color:var(--primary);">{{ day_data.total_cal|int }} kcal / {{ day_data.total_prot|round(1) }}g P</span>
+                        </div>
+                        <div style="padding:10px;">
+                            {% for m in day_data.entries %}
+                            <div style="display:flex; justify-content:space-between; font-size:0.85rem; padding:4px 0; border-bottom:1px dashed #f1f5f9;">
+                                <span><b style="color:var(--text-muted)">{{ m.meal_type }}:</b> {{ m.notes }}</span>
+                                <span style="color:var(--text-muted)">{{ m.calories|int }}k / {{ m.protein }}g</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No nutrition logs submitted by patient this week.</div>
+                {% endif %}
+            </section>
             <section class="card">
                 <h2 class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
                     <span><i class="material-icons">history</i> Recent Session Snapshots</span>

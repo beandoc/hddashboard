@@ -59,6 +59,80 @@
         .meal-stats b { color: var(--text); }
 
         .badge-red { background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
+
+        /* Nutrition Tracker Premium Styles */
+        .nutrition-card { padding: 0; overflow: hidden; border: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .nutrition-summary { background: #0f172a; color: white; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .stat-ring { text-align: center; }
+        .ring-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 8px; }
+        .ring-value { font-family: 'Outfit'; font-size: 2.5rem; font-weight: 700; line-height: 1; }
+        .ring-value span { font-size: 1rem; color: #64748b; }
+        .ring-target { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+        .progress-bar-container { background: #334155; height: 6px; border-radius: 3px; margin-top: 15px; overflow: hidden; }
+        .progress-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+        .cal-bar { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+        .prot-bar { background: linear-gradient(90deg, #6366f1, #818cf8); }
+
+        .meal-entry-section { padding: 24px; background: white; border-bottom: 1px solid var(--border); }
+        .entry-subtitle { font-family: 'Outfit'; font-size: 1rem; font-weight: 700; margin-bottom: 15px; color: var(--text); }
+        
+        .meal-form-v2 { display: flex; flex-direction: column; gap: 16px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+        .form-group input, .form-group select { padding: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; font-family: 'Inter'; background: #f8fafc; }
+        .full-width { grid-column: 1 / -1; }
+        .btn-primary-v2 { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.3); }
+        .btn-primary-v2:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(14, 165, 233, 0.4); }
+
+        .meal-history { padding: 24px; background: #f8fafc; }
+        .history-day { background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; overflow: hidden; }
+        .day-header { padding: 12px 16px; background: #f1f5f9; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .day-date { font-weight: 700; font-size: 0.9rem; color: #334155; }
+        .day-totals { font-size: 0.8rem; font-weight: 600; color: var(--primary); }
+        
+        .day-entries { padding: 0 16px; }
+        .entry-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .entry-row:last-child { border-bottom: none; }
+        .entry-meta { display: flex; align-items: center; gap: 12px; }
+        .meal-tag { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px; }
+        .meal-tag.breakfast { background: #dcfce7; color: #15803d; }
+        .meal-tag.lunch { background: #dbeafe; color: #1d4ed8; }
+        .meal-tag.dinner { background: #fef9c3; color: #a16207; }
+        .meal-tag.snack { background: #f3e8ff; color: #7e22ce; }
+        .meal-notes { font-size: 0.9rem; color: #475569; font-weight: 500; }
+        .entry-stats { text-align: right; font-size: 0.8rem; color: #64748b; font-weight: 600; display: flex; flex-direction: column; }
+
+        /* Fluid / IDWG Card */
+        .fluid-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+        .fluid-stat { background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid var(--border); }
+        .fluid-stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px; }
+        .fluid-stat-value { font-family: 'Outfit'; font-size: 1.8rem; font-weight: 700; line-height: 1; }
+        .fluid-stat-unit { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+        .idwg-ok { color: #16a34a; }
+        .idwg-warn { color: #d97706; }
+        .idwg-bad { color: #dc2626; }
+
+        /* Progress bar overflow */
+        .progress-bar-over { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+        .over-badge { font-size: 0.65rem; font-weight: 800; color: #dc2626; margin-top: 4px; }
+
+        /* Symptom Reporter */
+        .symptom-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .symptom-chip input[type=checkbox] { display: none; }
+        .symptom-chip label { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 2px solid var(--border); border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; background: white; }
+        .symptom-chip input:checked + label { border-color: var(--primary); background: #e0f2fe; color: #0369a1; }
+        .severity-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .severity-row label { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+        .severity-row input[type=range] { flex: 1; min-width: 120px; accent-color: var(--primary); }
+        .severity-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+        .symptom-history-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; background: #f8fafc; border-radius: 10px; margin-bottom: 8px; font-size: 0.85rem; }
+        .symptom-chips-display { display: flex; flex-wrap: wrap; gap: 6px; }
+        .symptom-pill { background: #fee2e2; color: #991b1b; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+        .severity-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+        .sev-1, .sev-2 { background: #86efac; }
+        .sev-3 { background: #fbbf24; }
+        .sev-4, .sev-5 { background: #f87171; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -110,16 +184,22 @@
         <div style="height:300px;">
             <canvas id="patientTrendChart"></canvas>
         </div>
-        <div style="display:flex; justify-content:center; gap:20px; margin-top:15px; font-size:0.8rem; font-weight:700;">
-            <span style="color:#0ea5e9">● Hemoglobin</span>
-            <span style="color:#6366f1">● Albumin</span>
-            <span style="color:#f59e0b">● Phosphorus</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; gap:20px; font-size:0.8rem; font-weight:700;">
+                <span style="color:#0ea5e9">● Hemoglobin</span>
+                <span style="color:#6366f1">● Albumin</span>
+                <span style="color:#f59e0b">● Phosphorus</span>
+            </div>
+            {% if trends and trends.labels %}
+            <span style="font-size:0.75rem; color:var(--muted);">Last updated: {{ trends.labels[-1] }}</span>
+            {% endif %}
         </div>
     </div>
 
     <!-- DIALYSIS SCHEDULE -->
     <h2 class="section-title"><i class="material-icons">event</i> My Dialysis Schedule</h2>
     <div class="card">
+        {% if patient.hd_day_1 or patient.hd_day_2 or patient.hd_day_3 %}
         <div class="schedule-grid">
             {% if patient.hd_day_1 %}
             <div class="sched-item">
@@ -140,40 +220,146 @@
             </div>
             {% endif %}
         </div>
+        {% else %}
+        <div style="text-align:center; padding:24px; color:var(--muted); font-size:0.9rem;">
+            <i class="material-icons" style="font-size:36px; opacity:0.3; display:block; margin-bottom:8px;">event_busy</i>
+            No schedule assigned yet. Contact your care team.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- FLUID & IDWG -->
+    <h2 class="section-title"><i class="material-icons">water_drop</i> Fluid & Weight Status</h2>
+    <div class="card">
+        <div class="fluid-grid">
+            <div class="fluid-stat">
+                <div class="fluid-stat-label">Interdialytic Weight Gain</div>
+                {% if idwg is not none %}
+                    {% if idwg <= 2.0 %}
+                        <div class="fluid-stat-value idwg-ok">+{{ idwg }}</div>
+                    {% elif idwg <= 3.0 %}
+                        <div class="fluid-stat-value idwg-warn">+{{ idwg }}</div>
+                    {% else %}
+                        <div class="fluid-stat-value idwg-bad">+{{ idwg }}</div>
+                    {% endif %}
+                    <div class="fluid-stat-unit">kg since last session
+                        {% if idwg > 3.0 %}<br><span style="font-size:0.7rem; color:#dc2626; font-weight:700;">High — contact your team</span>{% endif %}
+                    </div>
+                {% else %}
+                    <div class="fluid-stat-value" style="color:var(--muted); font-size:1.2rem;">—</div>
+                    <div class="fluid-stat-unit">No session data yet</div>
+                {% endif %}
+            </div>
+            <div class="fluid-stat">
+                <div class="fluid-stat-label">Daily Fluid Allowance</div>
+                <div class="fluid-stat-value" style="color:var(--primary);">{{ fluid_allowance_ml }}</div>
+                <div class="fluid-stat-unit">mL/day (500 mL base + urine output)</div>
+            </div>
+            {% if last_session %}
+            <div class="fluid-stat">
+                <div class="fluid-stat-label">Last UF Removed</div>
+                <div class="fluid-stat-value" style="color:var(--secondary);">{{ (last_session.actual_uf_volume or last_session.uf_volume or 0)|int }}</div>
+                <div class="fluid-stat-unit">mL on {{ last_session.session_date.strftime('%d %b') }}</div>
+            </div>
+            {% if last_session.bp_pre_sys and last_session.bp_post_sys %}
+            <div class="fluid-stat">
+                <div class="fluid-stat-label">BP Last Session</div>
+                <div class="fluid-stat-value" style="color:var(--text); font-size:1.3rem;">{{ last_session.bp_pre_sys|int }}/{{ last_session.bp_pre_dia|int }}</div>
+                <div class="fluid-stat-unit">Pre → {{ last_session.bp_post_sys|int }}/{{ last_session.bp_post_dia|int }} Post (mmHg)</div>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
     </div>
 
     <!-- MEAL TRACKER -->
-    <h2 class="section-title"><i class="material-icons">restaurant</i> Daily Nutrition Tracker</h2>
-    <div class="card">
-        <p style="font-size:0.9rem; color:var(--muted); margin-bottom:20px;">Track your daily intake to help us monitor your health better.</p>
-        <form action="/patient/meals" method="POST" class="meal-form">
-            <div>
-                <label style="font-size: 0.8rem; font-weight:600; margin-bottom:4px; display:block;">Calories (kcal)</label>
-                <input type="number" step="1" name="calories" placeholder="e.g. 1800" required>
+    <h2 class="section-title"><i class="material-icons">restaurant_menu</i> Daily Nutrition Tracker</h2>
+    <div class="card nutrition-card">
+        <!-- Dashboard Summary -->
+        <div class="nutrition-summary">
+            <div class="stat-ring">
+                <div class="ring-label">Calories</div>
+                <div class="ring-value">{{ today_stats.total_cal|int }}</div>
+                <div class="ring-target">Target: {{ nutrition_targets.calories }} kcal</div>
+                <div class="progress-bar-container">
+                    {% set cal_raw = (today_stats.total_cal / nutrition_targets.calories * 100)|int %}
+                    {% set cal_perc = [cal_raw, 100]|min %}
+                    <div class="progress-bar {% if cal_raw > 100 %}progress-bar-over{% else %}cal-bar{% endif %}" style="width: {{ cal_perc }}%"></div>
+                </div>
+                {% if cal_raw > 100 %}<div class="over-badge">⚠ {{ cal_raw - 100 }}% over target</div>{% endif %}
             </div>
-            <div>
-                <label style="font-size: 0.8rem; font-weight:600; margin-bottom:4px; display:block;">Protein (grams)</label>
-                <input type="number" step="0.1" name="protein" placeholder="e.g. 65.5" required>
+            <div class="stat-ring">
+                <div class="ring-label">Protein</div>
+                <div class="ring-value">{{ today_stats.total_prot|round(1) }}<span>g</span></div>
+                <div class="ring-target">Target: {{ nutrition_targets.protein }}g</div>
+                <div class="progress-bar-container">
+                    {% set prot_raw = (today_stats.total_prot / nutrition_targets.protein * 100)|int %}
+                    {% set prot_perc = [prot_raw, 100]|min %}
+                    <div class="progress-bar {% if prot_raw > 100 %}progress-bar-over{% else %}prot-bar{% endif %}" style="width: {{ prot_perc }}%"></div>
+                </div>
+                {% if prot_raw > 100 %}<div class="over-badge">⚠ {{ prot_raw - 100 }}% over target</div>{% endif %}
             </div>
-            <div style="grid-column: 1 / -1;">
-                <label style="font-size: 0.8rem; font-weight:600; margin-bottom:4px; display:block;">What did you eat today?</label>
-                <input type="text" name="notes" placeholder="e.g. Dal, Rice, 2 Rotis, Egg whites">
-            </div>
-            <button type="submit">Save Today's Intake</button>
-        </form>
+        </div>
 
-        <div class="meal-log">
-            <h3 style="font-size:0.9rem; margin: 20px 0 10px; color:var(--muted); text-transform:uppercase;">Recent Log</h3>
-            {% for m in meals %}
-            <div class="meal-row">
-                <div style="font-weight:600;">{{ m.date.strftime('%A, %d %b') }}</div>
-                <div class="meal-stats">
-                    <b>{{ m.calories|int }}</b> kcal · <b>{{ m.protein }}</b>g Protein
+        <div class="meal-entry-section">
+            <h3 class="entry-subtitle">Log a Meal</h3>
+            <form action="/patient/meals" method="POST" class="meal-form-v2">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Meal Type</label>
+                        <select name="meal_type" required>
+                            <option value="Breakfast">Breakfast</option>
+                            <option value="Lunch">Lunch</option>
+                            <option value="Dinner">Dinner</option>
+                            <option value="Snack">Snack / Beverage</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Calories (kcal)</label>
+                        <input type="number" step="1" name="calories" placeholder="e.g. 450" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Protein (g)</label>
+                        <input type="number" step="0.1" name="protein" placeholder="e.g. 15.5" required>
+                    </div>
+                </div>
+                <div class="form-group full-width">
+                    <label>What did you have?</label>
+                    <input type="text" name="notes" placeholder="e.g. 2 Rotis with Dal and Curd" required>
+                </div>
+                <button type="submit" class="btn-primary-v2">Add to My Log</button>
+            </form>
+        </div>
+
+        <div class="meal-history">
+            <h3 class="entry-subtitle">Recent Log</h3>
+            {% for date_str, day_data in meals_by_day.items() %}
+            <div class="history-day">
+                <div class="day-header">
+                    <span class="day-date">{{ day_data.date.strftime('%A, %d %b') }}</span>
+                    <span class="day-totals">{{ day_data.total_cal|int }} kcal · {{ day_data.total_prot|round(1) }}g P</span>
+                </div>
+                <div class="day-entries">
+                    {% for m in day_data.entries %}
+                    <div class="entry-row">
+                        <div class="entry-meta">
+                            <span class="meal-tag {{ m.meal_type|lower }}">{{ m.meal_type }}</span>
+                            <span class="meal-notes">{{ m.notes }}</span>
+                        </div>
+                        <div class="entry-stats">
+                            <span>{{ m.calories|int }} kcal</span>
+                            <span>{{ m.protein }}g</span>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
             {% endfor %}
-            {% if not meals %}
-            <div style="text-align:center; padding:10px; color:var(--muted); font-size:0.85rem; font-style:italic;">No records yet for this week.</div>
+            {% if not meals_by_day %}
+            <div style="text-align:center; padding:30px; color:var(--muted); font-size:0.9rem;">
+                <i class="material-icons" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 10px;">no_meals</i>
+                No records yet. Start tracking your health!
+            </div>
             {% endif %}
         </div>
     </div>
@@ -204,6 +390,58 @@
 
         {% if not latest_monthly or (not latest_monthly.esa_type and not anti_meds) %}
         <div style="text-align:center; color:var(--muted); font-size:0.85rem; padding:20px;">No active medications found in your record.</div>
+        {% endif %}
+    </div>
+
+    <!-- SYMPTOM REPORTER -->
+    <h2 class="section-title"><i class="material-icons">sentiment_very_dissatisfied</i> How Are You Feeling?</h2>
+    <div class="card">
+        <p style="color:var(--muted); font-size:0.85rem; margin:0 0 16px 0;">Tap any symptoms you're experiencing between sessions. Your care team will be notified.</p>
+        <form action="/patient/symptoms" method="POST" class="meal-form-v2">
+            <div class="symptom-chips">
+                <div class="symptom-chip"><input type="checkbox" name="symptom_cramping" id="sc1" value="cramping"><label for="sc1"><i class="material-icons" style="font-size:16px;">bolt</i> Cramping</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_breathlessness" id="sc2" value="breathlessness"><label for="sc2"><i class="material-icons" style="font-size:16px;">air</i> Breathlessness</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_itching" id="sc3" value="itching"><label for="sc3"><i class="material-icons" style="font-size:16px;">back_hand</i> Itching</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_fatigue" id="sc4" value="fatigue"><label for="sc4"><i class="material-icons" style="font-size:16px;">battery_1_bar</i> Fatigue</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_nausea" id="sc5" value="nausea"><label for="sc5"><i class="material-icons" style="font-size:16px;">sick</i> Nausea</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_dizziness" id="sc6" value="dizziness"><label for="sc6"><i class="material-icons" style="font-size:16px;">rotate_right</i> Dizziness</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_swelling" id="sc7" value="swelling"><label for="sc7"><i class="material-icons" style="font-size:16px;">water</i> Swelling</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_headache" id="sc8" value="headache"><label for="sc8"><i class="material-icons" style="font-size:16px;">psychology</i> Headache</label></div>
+            </div>
+            <div>
+                <div class="form-group" style="margin-bottom:6px;">
+                    <label>Symptom Severity</label>
+                    <input type="range" name="severity" min="1" max="5" value="3" id="severitySlider" oninput="document.getElementById('sevLabel').textContent=this.value">
+                </div>
+                <div class="severity-labels"><span>Mild (1)</span><span id="sevLabel" style="color:var(--primary); font-weight:700;">3</span><span>Severe (5)</span></div>
+            </div>
+            <div class="form-group">
+                <label>Additional notes (optional)</label>
+                <input type="text" name="notes" placeholder="e.g. cramps started after dinner">
+            </div>
+            <button type="submit" class="btn-primary-v2" onclick="collectSymptoms(this.form)">Submit Report</button>
+        </form>
+
+        {% if recent_symptoms %}
+        <div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px;">
+            <div class="entry-subtitle" style="margin-bottom:12px;">Recent Reports</div>
+            {% for s in recent_symptoms %}
+            <div class="symptom-history-item">
+                <div>
+                    <div class="symptom-chips-display" style="margin-bottom:6px;">
+                        {% for sym in s.symptoms.split(',') %}{% if sym.strip() %}
+                        <span class="symptom-pill">{{ sym.strip() }}</span>
+                        {% endif %}{% endfor %}
+                    </div>
+                    {% if s.notes %}<div style="font-size:0.8rem; color:var(--muted);">{{ s.notes }}</div>{% endif %}
+                </div>
+                <div style="text-align:right; flex-shrink:0; margin-left:12px;">
+                    <div><span class="severity-dot sev-{{ s.severity }}"></span><span style="font-size:0.75rem; font-weight:700; color:var(--muted);">Sev {{ s.severity }}/5</span></div>
+                    <div style="font-size:0.7rem; color:var(--muted); margin-top:4px;">{{ s.reported_at.strftime('%d %b, %H:%M') }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
         {% endif %}
     </div>
 
@@ -252,6 +490,18 @@
             }
         }
     });
+
+    function collectSymptoms(form) {
+        const checked = Array.from(form.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+        let hidden = form.querySelector('input[name=symptoms]');
+        if (!hidden) {
+            hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'symptoms';
+            form.appendChild(hidden);
+        }
+        hidden.value = checked.join(',');
+    }
 </script>
 </body>
 </html>

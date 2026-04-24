@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Optional
 
 # Database engine and session for startup logic
-from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, engine, SessionLocal
+from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, PatientSymptomReport, engine, SessionLocal
 from passlib.context import CryptContext
 from itsdangerous import URLSafeSerializer
 
@@ -432,6 +432,25 @@ def patient_profile(patient_id: int, request: Request, db: Session = Depends(get
         except:
             pass
 
+    # Nutrition Logic
+    from datetime import date, timedelta
+    seven_days_ago = date.today() - timedelta(days=7)
+    meal_records = db.query(PatientMealRecord).filter(PatientMealRecord.patient_id == patient_id, PatientMealRecord.date >= seven_days_ago).order_by(PatientMealRecord.date.desc()).all()
+    
+    meals_by_day = {}
+    for m in meal_records:
+        d_str = m.date.strftime("%Y-%m-%d")
+        if d_str not in meals_by_day:
+            meals_by_day[d_str] = {"date": m.date, "total_cal": 0, "total_prot": 0, "entries": []}
+        meals_by_day[d_str]["total_cal"] += (m.calories or 0)
+        meals_by_day[d_str]["total_prot"] += (m.protein or 0)
+        meals_by_day[d_str]["entries"].append(m)
+
+    nutrition_targets = {
+        "calories": round((p.dry_weight or 60) * 30),
+        "protein": round((p.dry_weight or 60) * 1.2, 1)
+    }
+
     return templates.TemplateResponse("patient_profile.html", {
         "request": request,
         "patient": p,
@@ -442,6 +461,8 @@ def patient_profile(patient_id: int, request: Request, db: Session = Depends(get
         "interims": interims,
         "events": events,
         "eri": eri,
+        "meals_by_day": meals_by_day,
+        "nutrition_targets": nutrition_targets,
         "user": get_user(request),
     })
 
@@ -1921,27 +1942,70 @@ def patient_dashboard(request: Request, db: Session = Depends(get_db)):
 
     # Get last 7 days of meals
     seven_days_ago = today - timedelta(days=7)
-    meals = db.query(PatientMealRecord).filter(PatientMealRecord.patient_id == p.id, PatientMealRecord.date >= seven_days_ago).order_by(PatientMealRecord.date.desc()).all()
+    meal_records = db.query(PatientMealRecord).filter(PatientMealRecord.patient_id == p.id, PatientMealRecord.date >= seven_days_ago).order_by(PatientMealRecord.date.desc()).all()
     
+    # Group meals by day and calculate totals
+    meals_by_day = {}
+    for m in meal_records:
+        d_str = m.date.strftime("%Y-%m-%d")
+        if d_str not in meals_by_day:
+            meals_by_day[d_str] = {"date": m.date, "total_cal": 0, "total_prot": 0, "entries": []}
+        meals_by_day[d_str]["total_cal"] += (m.calories or 0)
+        meals_by_day[d_str]["total_prot"] += (m.protein or 0)
+        meals_by_day[d_str]["entries"].append(m)
+
+    # Calculate Nutrition Targets (Typical for Dialysis: 1.2g/kg protein, 30-35 kcal/kg calories)
+    nutrition_targets = {
+        "calories": round((p.dry_weight or 60) * 30),
+        "protein": round((p.dry_weight or 60) * 1.2, 1)
+    }
+
+    # Today's stats
+    today_str = today.strftime("%Y-%m-%d")
+    today_stats = meals_by_day.get(today_str, {"total_cal": 0, "total_prot": 0})
+
     import json
     anti_meds = []
     if latest_monthly and latest_monthly.antihypertensive_details:
         try: anti_meds = json.loads(latest_monthly.antihypertensive_details)
         except: pass
 
+    # Last session for IDWG / fluid / BP summary
+    last_session = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == p.id
+    ).order_by(SessionRecord.session_date.desc()).first()
+
+    idwg = None
+    if last_session and last_session.weight_pre is not None and p.dry_weight is not None:
+        idwg = round(last_session.weight_pre - p.dry_weight, 2)
+
+    # Fluid allowance: residual urine output + 500 mL base
+    fluid_allowance_ml = 500 + int(p.residual_urine_output or 0)
+
+    # Last 5 symptom reports for display
+    recent_symptoms = db.query(PatientSymptomReport).filter(
+        PatientSymptomReport.patient_id == p.id
+    ).order_by(PatientSymptomReport.reported_at.desc()).limit(5).all()
+
     return templates.TemplateResponse("patient_view.html", {
         "request": request,
         "patient": p,
         "latest_monthly": latest_monthly,
         "anti_meds": anti_meds,
-        "meals": meals,
+        "meals_by_day": meals_by_day,
+        "today_stats": today_stats,
+        "nutrition_targets": nutrition_targets,
         "trends": trends,
         "vax_reminders": vax_reminders,
+        "last_session": last_session,
+        "idwg": idwg,
+        "fluid_allowance_ml": fluid_allowance_ml,
+        "recent_symptoms": recent_symptoms,
         "user": u
     })
 
 @app.post("/patient/meals")
-def log_meal(request: Request, calories: float = Form(...), protein: float = Form(...), notes: str = Form(""), db: Session = Depends(get_db)):
+def log_meal(request: Request, calories: float = Form(...), protein: float = Form(...), meal_type: str = Form("Breakfast"), notes: str = Form(""), db: Session = Depends(get_db)):
     u = get_user(request)
     if not u or not isinstance(u, dict) or u.get("role") != "patient":
         raise HTTPException(status_code=403)
@@ -1951,9 +2015,32 @@ def log_meal(request: Request, calories: float = Form(...), protein: float = For
         date=datetime.utcnow().date(),
         calories=calories,
         protein=protein,
+        meal_type=meal_type,
         notes=notes
     )
     db.add(meal)
+    db.commit()
+    return RedirectResponse(url="/patient/dashboard", status_code=303)
+
+
+@app.post("/patient/symptoms")
+def log_symptoms(
+    request: Request,
+    symptoms: str = Form(""),
+    severity: int = Form(3),
+    notes: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    u = get_user(request)
+    if not u or not isinstance(u, dict) or u.get("role") != "patient":
+        raise HTTPException(status_code=403)
+    report = PatientSymptomReport(
+        patient_id=u["id"],
+        symptoms=symptoms,
+        severity=severity,
+        notes=notes,
+    )
+    db.add(report)
     db.commit()
     return RedirectResponse(url="/patient/dashboard", status_code=303)
 
