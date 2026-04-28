@@ -67,32 +67,41 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
 async def user_manager(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
     users = db.query(User).all()
-    return templates.TemplateResponse("user_manager.html", {"request": request, "users": users, "user": get_user(request)})
+    return templates.TemplateResponse("admin_users.html", {"request": request, "users": users, "user": get_user(request)})
 
-@router.post("/users/new")
-async def create_user(request: Request, username: str = Form(...), password: str = Form(...), role: str = Form("viewer"), db: Session = Depends(get_db)):
+@router.post("/users/create")
+async def create_user(request: Request, username: str = Form(...), full_name: str = Form(""), password: str = Form(...), role: str = Form("viewer"), db: Session = Depends(get_db)):
     _require_admin(request)
     hashed = pwd_context.hash(password)
-    new_user = User(username=username, hashed_password=hashed, role=role)
+    new_user = User(username=username, full_name=full_name, hashed_password=hashed, role=role)
     db.add(new_user)
     db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
-@router.post("/users/{user_id}/delete")
-async def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
+@router.post("/users/{user_id}/toggle")
+async def toggle_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
     u = db.query(User).filter(User.id == user_id).first()
     if u:
-        db.delete(u)
+        u.is_active = not u.is_active
+        db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_password(user_id: int, request: Request, new_password: str = Form(...), db: Session = Depends(get_db)):
+    _require_admin(request)
+    u = db.query(User).filter(User.id == user_id).first()
+    if u:
+        u.hashed_password = pwd_context.hash(new_password)
         db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
 @router.get("/backup", response_class=HTMLResponse)
 async def backup_page(request: Request):
     _require_admin(request)
-    return templates.TemplateResponse("backup.html", {"request": request, "user": get_user(request)})
+    return templates.TemplateResponse("admin_db.html", {"request": request, "user": get_user(request)})
 
-@router.get("/backup/download")
+@router.get("/db/export")
 async def download_backup(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
     data = {
@@ -119,7 +128,7 @@ async def download_backup(request: Request, db: Session = Depends(get_db)):
         headers={"Content-Disposition": f"attachment; filename=hd_dashboard_backup_{date.today().isoformat()}.json"}
     )
 
-@router.post("/backup/restore")
+@router.post("/db/import")
 async def restore_backup(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
     _require_admin(request)
     content = await file.read()
@@ -129,4 +138,4 @@ async def restore_backup(request: Request, file: UploadFile = File(...), db: Ses
     # In a real app, you'd want to merge or handle conflicts
     # For now, let's just log and provide a placeholder
     logger.warning("Restore initiated by %s", get_user(request).get("username"))
-    return {"message": "Restore feature is under development. Please contact support."}
+    return templates.TemplateResponse("admin_db.html", {"request": request, "error": "Restore feature is under development. Please contact support.", "user": get_user(request)})
