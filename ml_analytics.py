@@ -1586,3 +1586,289 @@ def analyze_pds(db: Session, patient_id: int) -> Dict:
         "events": correlated_events
     }
 
+
+
+def analyze_mia_cascade(db, patient_id: int) -> dict:
+    """
+    Builds a month-by-month MIA Cascade timeline for a patient.
+    Scores each month across 5 domains and generates a risk trajectory
+    with plain-English event markers — like a clinical weather radar.
+    """
+    from database import MonthlyRecord, PatientSymptomReport
+
+    records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id
+    ).order_by(MonthlyRecord.record_month.asc()).all()
+
+    if not records:
+        return {"available": False}
+
+    records = records[-9:]  # Last 9 months max
+
+    symptom_reports = db.query(PatientSymptomReport).filter(
+        PatientSymptomReport.patient_id == patient_id
+    ).all()
+
+    symptom_by_month = {}
+    for rep in symptom_reports:
+        m = rep.reported_at.strftime("%Y-%m")
+        symptom_by_month.setdefault(m, []).append(rep)
+
+    timeline = []
+    cascade_scores = []
+
+    for rec in records:
+        m = rec.record_month
+        events = []
+        score = 0
+
+        # Domain 1: Nutrition
+        nutrition_score = 0
+        if rec.albumin is not None:
+            if rec.albumin < 3.0:
+                nutrition_score = 3
+                events.append({"icon": "🥩", "color": "#ef4444", "text": f"Critically low albumin ({rec.albumin} g/dL) — severe malnutrition"})
+            elif rec.albumin < 3.5:
+                nutrition_score = 2
+                events.append({"icon": "🥩", "color": "#f59e0b", "text": f"Low albumin ({rec.albumin} g/dL) — early protein-energy wasting"})
+            elif rec.albumin < 4.0:
+                nutrition_score = 1
+        if rec.av_daily_protein is not None and rec.av_daily_protein < 1.0:
+            nutrition_score = max(nutrition_score, 2)
+            events.append({"icon": "🍽️", "color": "#f59e0b", "text": f"Low protein intake ({rec.av_daily_protein} g/kg/day)"})
+        score += nutrition_score
+
+        # Domain 2: Anemia
+        anemia_score = 0
+        if rec.hb is not None:
+            if rec.hb < 8.0:
+                anemia_score = 3
+                events.append({"icon": "🩸", "color": "#ef4444", "text": f"Severe anemia (Hb {rec.hb} g/dL)"})
+            elif rec.hb < 10.0:
+                anemia_score = 2
+                events.append({"icon": "🩸", "color": "#f59e0b", "text": f"Anemia worsening (Hb {rec.hb} g/dL)"})
+            elif rec.hb < 11.0:
+                anemia_score = 1
+        score += anemia_score
+
+        # Domain 3: Fluid / Residual Renal Function
+        fluid_score = 0
+        if rec.residual_urine_output is not None:
+            if rec.residual_urine_output < 100:
+                fluid_score = 3
+                events.append({"icon": "💧", "color": "#ef4444", "text": f"Minimal urine output ({rec.residual_urine_output} mL/day) — loss of residual renal function"})
+            elif rec.residual_urine_output < 300:
+                fluid_score = 2
+                events.append({"icon": "💧", "color": "#f59e0b", "text": f"Declining urine output ({rec.residual_urine_output} mL/day)"})
+            elif rec.residual_urine_output < 600:
+                fluid_score = 1
+        if rec.idwg is not None and rec.idwg > 3.0:
+            fluid_score = max(fluid_score, 2)
+            events.append({"icon": "⚖️", "color": "#f59e0b", "text": f"High fluid gain between sessions ({rec.idwg} kg IDWG)"})
+        score += fluid_score
+
+        # Domain 4: Post-Dialysis Symptoms
+        symptom_score = 0
+        month_symptoms = symptom_by_month.get(m, [])
+        if month_symptoms:
+            drts = [s.dialysis_recovery_time_mins for s in month_symptoms if s.dialysis_recovery_time_mins]
+            avg_drt = sum(drts) / max(1, len(drts)) if drts else 0
+            missed_events = sum(1 for s in month_symptoms if s.missed_social_or_work_event)
+            if avg_drt > 480:
+                symptom_score = 3
+                events.append({"icon": "😴", "color": "#ef4444", "text": f"Severe fatigue — avg {round(avg_drt/60,1)} hrs to recover"})
+            elif avg_drt > 240:
+                symptom_score = 2
+                events.append({"icon": "😴", "color": "#f59e0b", "text": f"Prolonged recovery — avg {round(avg_drt/60,1)} hrs after sessions"})
+            if missed_events > 0:
+                symptom_score = max(symptom_score, 2)
+                events.append({"icon": "🚫", "color": "#f59e0b", "text": f"Missed {missed_events} work/social event(s) due to fatigue"})
+        score += symptom_score
+
+        # Domain 5: Hospitalization
+        hosp_score = 0
+        if rec.hospitalization_this_month:
+            hosp_score = 3
+            events.append({"icon": "🏥", "color": "#ef4444", "text": "Hospitalized this month"})
+        score += hosp_score
+
+        color = "green" if score <= 2 else "amber" if score <= 5 else "orange" if score <= 9 else "red"
+        label = "Stable" if score <= 2 else "Watch" if score <= 5 else "At Risk" if score <= 9 else "Critical"
+
+        cascade_scores.append(score)
+        timeline.append({
+            "month": m, "score": score, "color": color, "label": label, "events": events,
+            "albumin": rec.albumin, "hb": rec.hb,
+            "urine_output": rec.residual_urine_output, "protein": rec.av_daily_protein,
+        })
+
+    cascade_alert = False
+    cascade_message = ""
+    cascade_level = "stable"
+
+    if len(cascade_scores) >= 3:
+        r = cascade_scores[-3:]
+        if r[2] > r[1] > r[0]:
+            cascade_alert = True
+            cascade_level = "worsening"
+            cascade_message = "⚠️ Clinical cascade detected — scores have worsened each of the last 3 months. Early intervention recommended."
+        elif cascade_scores[-1] >= 10:
+            cascade_alert = True
+            cascade_level = "critical"
+            cascade_message = "🚨 Patient is in critical state across multiple domains. Immediate clinical review required."
+        elif cascade_scores[-1] >= 6:
+            cascade_level = "at_risk"
+            cascade_message = "Patient is showing multi-domain stress. Monitor closely."
+
+    return {
+        "available": True,
+        "timeline": timeline,
+        "cascade_alert": cascade_alert,
+        "cascade_level": cascade_level,
+        "cascade_message": cascade_message,
+        "latest_score": cascade_scores[-1] if cascade_scores else 0,
+        "chart_labels": [t["month"] for t in timeline],
+        "chart_scores": cascade_scores,
+    }
+
+def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
+    """
+    Cardiorenal / Fluid Overload Cascade:
+    - Decreasing urine output
+    - High interdialytic weight gain (IDWG)
+    - Poor ejection fraction
+    - High diastolic dysfunction
+    - Resulting in hospitalizations with fluid overload
+    """
+    from database import Patient, MonthlyRecord
+
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        return {"available": False}
+
+    records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id
+    ).order_by(MonthlyRecord.record_month.asc()).all()
+
+    if not records:
+        return {"available": False}
+
+    # Analyze last 6 months
+    records = records[-6:]
+    
+    events = []
+    risk_score = 0
+    
+    # 1. Cardiac Status
+    ef = p.ejection_fraction
+    dd = p.diastolic_dysfunction or "None"
+    
+    if ef is not None and ef < 40:
+        risk_score += 3
+        events.append({"type": "cardiac", "text": f"Severe LV systolic dysfunction (EF: {ef}%)"})
+    elif ef is not None and ef < 50:
+        risk_score += 2
+        events.append({"type": "cardiac", "text": f"Mild/Moderate LV systolic dysfunction (EF: {ef}%)"})
+        
+    if "Grade III" in dd or "Grade 3" in dd:
+        risk_score += 3
+        events.append({"type": "cardiac", "text": f"Severe Diastolic Dysfunction ({dd}) — high filling pressures"})
+    elif "Grade II" in dd or "Grade 2" in dd:
+        risk_score += 2
+        events.append({"type": "cardiac", "text": f"Moderate Diastolic Dysfunction ({dd})"})
+
+    # 2. Renal / Fluid Overload Status
+    urine_outputs = [r.residual_urine_output for r in records if r.residual_urine_output is not None]
+    idwgs = [r.idwg for r in records if r.idwg is not None]
+    
+    if urine_outputs and len(urine_outputs) >= 2:
+        if urine_outputs[-1] < 200:
+            risk_score += 2
+            events.append({"type": "renal", "text": f"Oliguria/Anuria (Urine Output: {urine_outputs[-1]} mL/day) limits fluid buffering capacity."})
+        elif urine_outputs[0] - urine_outputs[-1] > 200:
+            risk_score += 1
+            events.append({"type": "renal", "text": f"Rapid decline in residual urine output ({urine_outputs[0]} -> {urine_outputs[-1]} mL/day)."})
+
+    if idwgs and len(idwgs) >= 2:
+        avg_idwg = sum(idwgs) / len(idwgs)
+        if avg_idwg > 3.0 or idwgs[-1] > 3.5:
+            risk_score += 2
+            events.append({"type": "fluid", "text": f"High Interdialytic Weight Gain (Recent: {idwgs[-1]} kg) precipitating volume overload."})
+
+    # 3. Outcomes (Hospitalizations)
+    recent_hosps = [r for r in records if r.hospitalization_this_month]
+    fluid_hosps = sum(1 for r in recent_hosps if r.hospitalization_icd_code and ("fluid" in r.hospitalization_icd_code.lower() or "j81" in r.hospitalization_icd_code.lower() or "i50" in r.hospitalization_icd_code.lower() or "oedema" in r.hospitalization_icd_code.lower() or "edema" in r.hospitalization_icd_code.lower()))
+    
+    if fluid_hosps > 0:
+        risk_score += 4
+        events.append({"type": "outcome", "text": f"Recent hospitalization(s) heavily linked to fluid overload / pulmonary edema."})
+    elif len(recent_hosps) > 0:
+        events.append({"type": "outcome", "text": f"{len(recent_hosps)} hospitalization(s) in the last {len(records)} months."})
+
+    cascade_detected = risk_score >= 5
+    
+    return {
+        "available": True,
+        "cascade_detected": cascade_detected,
+        "risk_score": risk_score,
+        "events": events,
+        "message": "High Cardiorenal / Fluid Overload Cascade risk detected." if cascade_detected else "No active Cardiorenal fluid cascade detected."
+    }
+
+def analyze_avf_maturation(db, patient_id: int) -> dict:
+    """
+    AVF Maturation Failure Cascade:
+    - Date of AVF surgery vs Date of first cannulation
+    - Correlates with: Age > 65, Diabetes, Poor handgrip strength
+    """
+    from database import Patient
+    from datetime import date
+    
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        return {"available": False}
+        
+    if not p.access_date or not p.date_first_cannulation:
+        return {"available": False}
+        
+    delay_days = (p.date_first_cannulation - p.access_date).days
+    
+    if delay_days <= 0:
+        return {"available": False} # Invalid data or not an AVF maturation scenario
+        
+    events = []
+    risk_score = 0
+    
+    events.append({"text": f"Time to first cannulation: {delay_days} days."})
+    
+    if delay_days > 45:
+        risk_score += 2
+        events.append({"text": "Delayed AVF Maturation (> 6 weeks)."})
+    if delay_days > 90:
+        risk_score += 1
+        events.append({"text": "Severe Maturation Failure (> 3 months)."})
+        
+    # Correlating factors
+    if p.age and p.age >= 65:
+        risk_score += 1
+        events.append({"text": f"Advanced Age ({p.age} yrs) correlates with impaired vascular remodeling."})
+        
+    if p.dm_status and "diabetes" in p.dm_status.lower():
+        risk_score += 2
+        events.append({"text": "Diabetes Mellitus history accelerates intimal hyperplasia and calcification."})
+        
+    if p.handgrip_strength and p.handgrip_strength < 20: # Example threshold
+        risk_score += 2
+        events.append({"text": f"Poor Handgrip Strength ({p.handgrip_strength} kg) reflects sarcopenia/frailty, strongly linked to fistula failure."})
+
+    cascade_detected = delay_days > 45 and risk_score >= 3
+
+    return {
+        "available": True,
+        "cascade_detected": cascade_detected,
+        "delay_days": delay_days,
+        "risk_score": risk_score,
+        "events": events,
+        "message": "Delayed AVF Maturation linked to patient demographics." if cascade_detected else "AVF Maturation within expected parameters or uncorrelated."
+    }
+

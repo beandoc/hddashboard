@@ -105,6 +105,8 @@ class Patient(Base):
     # ── Mortality Model Inputs ────────────────────────────────────────────────
     age = Column(Integer)                    # years — required for mortality prediction
     ejection_fraction = Column(Float, default=60.0)  # % — echocardiographic EF; default 60 (normal)
+    diastolic_dysfunction = Column(String)           # Grade I / II / III or None
+    handgrip_strength = Column(Float)                # kg — objective marker for frailty/sarcopenia
     echo_date = Column(Date)                 # Date of 2D Echo
     echo_report = Column(Text)               # Detailed Echo findings
 

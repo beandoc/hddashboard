@@ -113,8 +113,15 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     # Real trend data (chronological) for chart
     trend_records = list(reversed(monthly_records))
     hb_trend_labels = [r.record_month for r in trend_records]
-    hb_trend_data = [r.hb for r in trend_records]
-    esa_trend_data = [round(r.epo_weekly_units / 100, 1) if r.epo_weekly_units else None for r in trend_records]
+    
+    hb_trend_data = []
+    esa_trend_data = []
+    for r in trend_records:
+        try: hb_trend_data.append(float(r.hb) if r.hb else None)
+        except: hb_trend_data.append(None)
+        
+        try: esa_trend_data.append(round(float(r.epo_weekly_units) / 100, 1) if r.epo_weekly_units else None)
+        except: esa_trend_data.append(None)
 
     csrf_token = _csrf_signer.sign(f"interim-{patient_id}").decode()
 
@@ -157,7 +164,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
 
     eri = None
     if latest_monthly and p.dry_weight and latest_monthly.hb and latest_monthly.epo_weekly_units:
-        try: eri = round(latest_monthly.epo_weekly_units / p.dry_weight / latest_monthly.hb, 2)
+        try: eri = round(float(latest_monthly.epo_weekly_units) / float(p.dry_weight) / float(latest_monthly.hb), 2)
         except: pass
 
     # Nutrition Logic
@@ -170,13 +177,20 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         d_str = m.date.strftime("%Y-%m-%d")
         if d_str not in meals_by_day:
             meals_by_day[d_str] = {"date": m.date, "total_cal": 0, "total_prot": 0, "entries": []}
-        meals_by_day[d_str]["total_cal"] += (m.calories or 0)
-        meals_by_day[d_str]["total_prot"] += (m.protein or 0)
+        try: meals_by_day[d_str]["total_cal"] += float(m.calories or 0)
+        except: pass
+        try: meals_by_day[d_str]["total_prot"] += float(m.protein or 0)
+        except: pass
         meals_by_day[d_str]["entries"].append(m)
 
+    try:
+        w = float(p.dry_weight) if p.dry_weight else 60.0
+    except:
+        w = 60.0
+        
     nutrition_targets = {
-        "calories": round((p.dry_weight or 60) * 30),
-        "protein": round((p.dry_weight or 60) * 1.2, 1)
+        "calories": round(w * 30),
+        "protein": round(w * 1.2, 1)
     }
 
     return templates.TemplateResponse("patient_profile.html", {

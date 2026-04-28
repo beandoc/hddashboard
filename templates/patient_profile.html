@@ -345,7 +345,7 @@
             <!-- RISK SUMMARY -->
             <div class="card" style="padding: 16px;">
                 <h2 class="stat-label" style="font-size:0.8rem; margin-bottom:12px;">Comorbidity &amp; Risk</h2>
-                {% set has_high_crp = (latest_monthly and latest_monthly.crp and latest_monthly.crp >= 5) %}
+                {% set has_high_crp = (latest_monthly and latest_monthly.crp and (latest_monthly.crp | float >= 5)) %}
                 {% set is_high_risk = patient.history_of_access_thrombosis or has_high_crp %}
                 <div class="risk-badge {{ 'risk-high' if is_high_risk else 'risk-low' }}"
                      aria-label="Risk level: {{ 'High Risk' if is_high_risk else 'Low Risk' }}">
