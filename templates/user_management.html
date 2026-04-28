@@ -4,20 +4,16 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>User Management — HD Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
 <style>
 :root {
-  --blue:#007bff; --red:#c62828; --green:#2e7d32; --orange:#e65100;
-  --bg:#f4f7fa; --white:#fff; --border:#eee; --ink:#1e2d3d;
+  --blue:#0ea5e9; --red:#ef4444; --green:#10b981; --orange:#f59e0b;
+  --bg:#f8fafc; --white:#fff; --border:#e2e8f0; --ink:#1e293b;
   --shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 * { box-sizing:border-box; margin:0; padding:0; }
-body { font-family:'Roboto',sans-serif; background:var(--bg); color:var(--ink); }
-
-nav { background:#1a237e; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:46px; position:sticky; top:0; z-index:100; }
-nav .brand { color:rgba(255,255,255,0.7); font-size:0.85rem; }
-nav .links { display:flex; gap:4px; }
-nav a { color:rgba(255,255,255,0.65); text-decoration:none; font-size:0.78rem; padding:5px 13px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; transition:all .15s; }
+body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }
 nav a:hover, nav a.active { color:#fff; background:rgba(255,255,255,0.12); }
 
 .container { max-width:1100px; margin:30px auto; padding:0 20px; }
@@ -62,16 +58,7 @@ input:focus { border-color:var(--blue); }
 </head>
 <body>
 
-<nav>
-  <span class="brand">HD Dashboard — User Management</span>
-  <div class="links">
-    <a href="/">Dashboard</a>
-    <a href="/patients">Patients</a>
-    <a href="/entry">Data Entry</a>
-    <a href="/variables">Variables</a>
-    <a href="/admin/users" class="active">Admin</a>
-  </div>
-</nav>
+{% include "_nav.html" %}
 
 <div class="container">
   <div class="header-row">

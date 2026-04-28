@@ -17,452 +17,661 @@
             --text-header: #0f172a;
             --radius: 12px;
             --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-green: #22c55e;
         }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: var(--bg-main); color: var(--text-main); -webkit-font-smoothing: antialiased; }
+        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
 
-        body { 
-            font-family: 'Inter', sans-serif; 
-            margin: 0; 
-            padding: 0; 
-            background-color: var(--bg-main); 
-            color: var(--text-main); 
-            -webkit-font-smoothing: antialiased;
-        }
-        h1, h2, .brand { font-family: 'Outfit', sans-serif; }
-
-        .app-nav { 
-            background: rgba(15, 23, 42, 0.95); 
-            backdrop-filter: blur(12px);
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            padding: 0 32px; 
-            height: 60px; 
-            position: sticky; 
-            top: 0; 
-            z-index: 1000; 
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        }
+        /* ── NAV ── */
+        .app-nav { background: rgba(15,23,42,0.95); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
         .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
         .app-nav .nav-links { display: flex; gap: 8px; }
-        .app-nav a { 
-            color: rgba(255,255,255,0.7); 
-            text-decoration: none; 
-            font-size: 0.85rem; 
-            padding: 8px 16px; 
-            border-radius: 8px; 
-            transition: all 0.2s;
-        }
+        .app-nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
         .app-nav a:hover, .app-nav a.active { color: #fff; background: rgba(255,255,255,0.1); }
-
         .mobile-menu-btn { display: none; }
 
-        header { 
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-            color: white; 
-            padding: 40px 24px; 
-            text-align: center; 
-        }
-        header h1 { margin: 0; font-size: 2em; letter-spacing: -0.02em; }
-
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 24px; }
-        
-        .btn { 
-            background: var(--primary); 
-            color: white; 
-            padding: 10px 24px; 
-            text-decoration: none; 
-            border-radius: var(--radius); 
-            display: inline-flex; 
-            align-items: center;
-            font-weight: 600;
-            font-size: 0.9em;
-            transition: all 0.2s;
-            border: none;
-            cursor: pointer;
-        }
-        .btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
-
-        .search-wrap {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-            gap: 16px;
-        }
-        .search-input { 
-            flex-grow: 1;
-            max-width: 400px;
-            padding: 12px 18px; 
-            border: 1px solid #e2e8f0; 
-            border-radius: var(--radius); 
-            outline: none; 
-            font-family: 'Inter', sans-serif;
-            transition: border-color 0.2s;
-        }
-        .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
-
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            background: white; 
-            border-radius: var(--radius); 
-            overflow: hidden; 
-            box-shadow: var(--shadow-md); 
-            font-size: 0.9em;
-        }
-        th, td { padding: 16px; text-align: left; border-bottom: 1px solid #f1f5f9; }
-        th { background: #f1f5f9; color: var(--text-header); font-weight: 700; text-transform: uppercase; font-size: 0.75em; letter-spacing: 0.05em; }
-        tr:hover { background: #f8fafc; }
-
-        .actions { display: flex; gap: 12px; align-items: center; }
-        .actions a { color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.85em; }
-        .deactivate { color: #ef4444 !important; font-weight: 600; font-size: 0.85em; background: none; border: none; cursor: pointer; padding: 0; }
-
-        /* MOBILE DRAWER (harmonized) */
-        .mobile-drawer {
-            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
-            z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px;
-        }
+        .mobile-drawer { position: fixed; inset: 0; background: rgba(15,23,42,0.9); backdrop-filter: blur(8px); z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px; }
         .mobile-drawer.open { display: flex; }
-        .mobile-drawer a {
-            color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px;
-            background: rgba(255,255,255,0.05); font-weight: 600;
-        }
+        .mobile-drawer a { color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px; background: rgba(255,255,255,0.05); font-weight: 600; }
 
+        /* ── PAGE HEADER ── */
+        header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 28px 24px 24px; text-align: center; }
+        header h1 { margin: 0 0 4px; font-size: 1.8em; letter-spacing: -0.02em; }
+        header p { margin: 0; font-size: 0.85rem; color: rgba(255,255,255,0.5); }
+
+        .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+        /* ── STATS BAR ── */
+        .stats-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: #fff; border-radius: var(--radius); padding: 14px 18px; border: 1px solid #e2e8f0; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 12px; }
+        .stat-card .stat-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .stat-card .stat-icon i { font-size: 1.1rem; }
+        .stat-card .stat-body .val { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700; line-height: 1; }
+        .stat-card .stat-body .lbl { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-top: 2px; }
+        .stat-total   .stat-icon { background: #eff6ff; color: #3b82f6; }
+        .stat-record  .stat-icon { background: #f0fdf4; color: #16a34a; }
+        .stat-missing .stat-icon { background: #fff7ed; color: #ea580c; }
+        .stat-alerts  .stat-icon { background: #fef2f2; color: #dc2626; }
+        .stat-stable  .stat-icon { background: #f0fdf4; color: #15803d; }
+
+        /* ── UNIFIED FILTER BAR ── */
+        .filter-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: var(--shadow-md); }
+        .month-nav-group { display: flex; align-items: center; background: #f1f5f9; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+        .month-nav-group a { display: flex; align-items: center; padding: 7px 10px; color: #475569; text-decoration: none; transition: background 0.2s; }
+        .month-nav-group a:hover { background: #e2e8f0; }
+        .month-nav-group a i { font-size: 1.1rem; }
+        .month-nav-center { position: relative; }
+        .month-nav-center input[type=month] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; border: none; }
+        .month-nav-center span { display: block; padding: 7px 14px; font-weight: 700; font-size: 0.85rem; color: #0f172a; white-space: nowrap; pointer-events: none; font-family: 'Outfit', sans-serif; }
+        .filter-divider { width: 1px; height: 28px; background: #e2e8f0; flex-shrink: 0; }
+        .filter-search { position: relative; flex: 1; min-width: 180px; }
+        .filter-search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.1rem; pointer-events: none; }
+        .filter-search input { width: 100%; padding: 8px 12px 8px 34px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.875rem; font-family: 'Inter', sans-serif; outline: none; box-sizing: border-box; transition: border-color 0.2s; background: #f8fafc; }
+        .filter-search input:focus { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px rgba(14,165,233,0.1); }
+        .filter-select { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.875rem; font-family: 'Inter', sans-serif; outline: none; background: #f8fafc; cursor: pointer; color: var(--text-main); flex-shrink: 0; transition: border-color 0.2s; }
+        .filter-select:focus { border-color: var(--primary); }
+        .btn-add { background: var(--primary); color: white; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
+        .btn-add:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+        /* ── TABLE ── */
+        .table-wrap { overflow-x: auto; padding-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md); font-size: 0.875em; }
+        th, td { padding: 13px 14px; text-align: left; border-bottom: 1px solid #f1f5f9; }
+        th { background: #f1f5f9; color: var(--text-header); font-weight: 700; text-transform: uppercase; font-size: 0.72em; letter-spacing: 0.05em; white-space: nowrap; }
+        tbody tr { transition: background 0.15s; }
+        tbody tr:hover { background: #f8fafc; }
+        tbody tr:last-child td { border-bottom: none; }
+
+        /* sortable header */
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { background: #e8edf2; }
+        .sort-wrap { display: flex; align-items: center; gap: 4px; }
+        .sort-icons { display: flex; flex-direction: column; line-height: 1; opacity: 0.35; }
+        .sort-icons span { font-size: 0.55rem; }
+        th.sort-asc .sort-icons { opacity: 1; }
+        th.sort-asc .sort-icons .asc { color: var(--primary); }
+        th.sort-desc .sort-icons { opacity: 1; }
+        th.sort-desc .sort-icons .desc { color: var(--primary); }
+
+        /* row states */
+        .row-missing { border-left: 3px solid #f97316 !important; }
+        .row-missing td:first-child { padding-left: 11px; }
+
+        /* value colors */
+        .val-none { color: #94a3b8; }
+        .val-ok   { color: #16a34a; font-weight: 600; }
+        .val-warn { color: #d97706; font-weight: 600; }
+        .val-bad  { color: #dc2626; font-weight: 700; background: #fef2f2; border-radius: 4px; padding: 2px 5px; }
+
+        /* interim tooltip */
+        .val-interim { position: relative; border-bottom: 2px dashed #f59e0b; color: #d97706 !important; cursor: help; }
+        .interim-tooltip { visibility: hidden; position: absolute; background: #1e293b; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 0.72rem; width: 190px; bottom: 130%; left: 50%; transform: translateX(-50%); z-index: 200; opacity: 0; transition: opacity 0.15s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); line-height: 1.5; }
+        .interim-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1e293b; }
+        .val-interim:hover .interim-tooltip { visibility: visible; opacity: 1; }
+        .val-interim:hover { background: #fffbeb; border-radius: 3px; }
+        .interim-marker { font-size: 0.65em; background: #fbbf24; color: #000; padding: 1px 4px; border-radius: 3px; font-weight: 800; margin-left: 3px; vertical-align: middle; }
+
+        /* patient cell */
+        .cell-name { font-weight: 600; color: #0f172a; text-decoration: none; transition: color 0.15s; }
+        .cell-name:hover { color: var(--primary); }
+        .cell-hid  { font-size: 0.75em; color: #64748b; margin-top: 2px; font-family: monospace; }
+        .sex-badge { display: inline-block; font-size: 0.65rem; padding: 1px 6px; border-radius: 10px; font-weight: 700; margin-top: 3px; }
+        .sex-m   { background: #eff6ff; color: #1d4ed8; }
+        .sex-f   { background: #fdf2f8; color: #9d174d; }
+        .sex-unk { background: #fef9c3; color: #854d0e; }
+
+        /* alerts */
+        .alert-tag { display: inline-block; font-size: 0.68em; background: #fee2e2; color: #dc2626; padding: 2px 7px; border-radius: 10px; margin: 1px; font-weight: 700; }
+        .stable-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.75em; color: #15803d; font-weight: 600; }
+        .missing-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 0.72em; background: #fff7ed; color: #c2410c; padding: 3px 8px; border-radius: 10px; font-weight: 700; border: 1px solid #fed7aa; }
+
+        /* ── ACTIONS COLUMN ── */
+        .actions-cell { white-space: nowrap; }
+        .act-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; transition: all 0.15s; vertical-align: middle; }
+        .act-btn i { font-size: 1rem; }
+        .act-profile { background: #f0f9ff; color: #0369a1; }
+        .act-profile:hover { background: #bae6fd; }
+        .act-lab { background: #fef9c3; color: #92400e; }
+        .act-lab:hover { background: #fde68a; }
+        .act-data { background: #f0fdf4; color: #15803d; }
+        .act-data:hover { background: #bbf7d0; }
+        .act-more { background: #f1f5f9; color: #475569; }
+        .act-more:hover { background: #e2e8f0; }
+
+        /* overflow dropdown */
+        .more-wrap { position: relative; display: inline-block; vertical-align: middle; }
+        .more-dropdown { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); min-width: 180px; z-index: 500; overflow: hidden; }
+        .more-dropdown.open { display: block; }
+        .more-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; font-size: 0.82rem; color: var(--text-main); background: none; border: none; cursor: pointer; text-decoration: none; font-family: 'Inter', sans-serif; transition: background 0.15s; text-align: left; box-sizing: border-box; }
+        .more-item:hover { background: #f8fafc; }
+        .more-item i { font-size: 1rem; color: #64748b; }
+        .more-divider { height: 1px; background: #f1f5f9; margin: 4px 0; }
+        .more-danger { color: #dc2626 !important; }
+        .more-danger i { color: #dc2626 !important; }
+        .more-danger:hover { background: #fef2f2 !important; }
+
+        /* ── MODALS ── */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.55); backdrop-filter: blur(4px); z-index: 4000; align-items: center; justify-content: center; padding: 20px; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #fff; border-radius: 16px; padding: 28px; width: 100%; max-width: 460px; box-shadow: 0 25px 50px rgba(0,0,0,0.2); position: relative; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .modal-header h3 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; color: #0f172a; }
+        .modal-close { background: #f1f5f9; border: none; border-radius: 8px; padding: 6px; cursor: pointer; line-height: 0; transition: background 0.15s; }
+        .modal-close:hover { background: #e2e8f0; }
+        .form-field { margin-bottom: 14px; }
+        .form-field label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 5px; letter-spacing: 0.04em; }
+        .form-field input, .form-field select, .form-field textarea { width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.875rem; font-family: 'Inter', sans-serif; box-sizing: border-box; background: #f8fafc; outline: none; transition: border-color 0.2s; }
+        .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 3px rgba(14,165,233,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn-primary { background: var(--primary); color: #fff; border: none; border-radius: 10px; padding: 12px 20px; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: 'Outfit', sans-serif; transition: background 0.2s; width: 100%; margin-top: 6px; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-secondary { background: #f1f5f9; color: #475569; border: none; border-radius: 10px; padding: 12px 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.2s; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 20px; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: 'Outfit', sans-serif; transition: all 0.2s; }
+        .btn-danger:hover:not(:disabled) { background: #dc2626; color: #fff; }
+        .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── MOBILE ── */
         @media(max-width: 768px) {
             .app-nav .nav-links { display: none; }
-            .mobile-menu-btn { 
-                display: block; color: #fff; background: rgba(255,255,255,0.1); 
-                border: none; border-radius: 8px; padding: 8px; cursor: pointer;
-            }
-            .search-wrap { flex-direction: column; align-items: stretch; }
-            .search-input { max-width: none; }
-
-            /* Table to Cards */
+            .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .stats-bar .stat-card:first-child { grid-column: 1 / -1; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .filter-divider { display: none; }
             table, thead, tbody, th, td, tr { display: block; }
             thead tr { position: absolute; top: -9999px; left: -9999px; }
             tbody tr { background: #fff; border-radius: 16px; margin-bottom: 16px; padding: 20px; box-shadow: var(--shadow-md); border: 1px solid rgba(0,0,0,0.05); }
-            tbody td { border: none; padding: 10px 0; position: relative; padding-left: 45%; text-align: right; display: flex; justify-content: space-between; align-items: center; }
-            tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 0.75em; text-transform: uppercase; }
-            tbody td:first-child { display: block; padding-left: 0; text-align: left; border-bottom: 1px solid #f1f5f9; margin-bottom: 10px; padding-bottom: 15px; }
+            tbody tr.row-missing { border-left: 4px solid #f97316; }
+            tbody td { border: none; padding: 8px 0; display: flex; justify-content: space-between; align-items: center; }
+            tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 0.72em; text-transform: uppercase; }
+            tbody td:first-child { display: block; padding: 0 0 12px; border-bottom: 1px solid #f1f5f9; margin-bottom: 8px; }
             tbody td:first-child::before { display: none; }
-            tbody td:first-child::after { content: " (Patient)"; font-size: 0.8em; color: var(--text-muted); }
-            
-            .actions { flex-wrap: wrap; justify-content: flex-end; }
         }
-
-        /* Value Colors for Detailed Table */
-        .val-none { color: #94a3b8; }
-        .val-ok { color: #16a34a; font-weight: 600; }
-        .val-warn { color: #d97706; font-weight: 600; }
-        .val-bad { color: #dc2626; font-weight: 700; background: #fef2f2; border-radius: 4px; padding: 2px 4px; }
-        .alert-tag { display: inline-block; font-size: 0.72em; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 12px; margin: 1px; font-weight: 600; }
-        .no-rec { font-size: 0.8em; color: #94a3b8; font-style: italic; }
-        .cell-name { font-weight: 600; color: #0f172a; }
-        .cell-hid { font-size: 0.8em; color: #64748b; }
-        .month-picker-wrap { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        
-        .val-interim { position: relative; border-bottom: 2px dashed var(--accent-orange); color: var(--accent-orange) !important; cursor: help; }
-        .interim-tooltip-content {
-            visibility: hidden; position: absolute; background: #334155; color: #fff;
-            padding: 8px 12px; border-radius: 6px; font-size: 0.75rem; width: 180px;
-            bottom: 125%; left: 50%; transform: translateX(-50%); z-index: 100;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); pointer-events: none; opacity: 0;
-            transition: opacity 0.2s;
-        }
-        .val-interim:hover .interim-tooltip-content { visibility: visible; opacity: 1; }
-        .val-interim:hover { background: #fffbeb; }
-        .interim-marker { font-size: 0.7em; background: #fbbf24; color: #000; padding: 1px 4px; border-radius: 3px; font-weight: 800; margin-left: 4px; vertical-align: middle; }
-
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     </style>
 </head>
 <body>
-    <div class="app-nav">
-        <span class="brand">CH(SC) · Nephrology Unit</span>
-        <div class="nav-links">
-            <a href="/" class="">Dashboard</a>
-            <a href="/schedule" class="">Schedule</a>
-            <a href="/patients" class="active">Patients</a>
-            <a href="/entry" class="">Data Entry</a>
-            <a href="/events" class="">Events</a>
-            <a href="/alerts" class="">Alerts</a>
-            <a href="/variables" class="">Variables</a>
-            {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
-            <a href="/logout" style="color:#ffc107">Logout</a>
-        </div>
-        <button class="mobile-menu-btn" onclick="toggleDrawer()">
-            <i class="material-icons">menu</i>
-        </button>
-    </div>
 
-    <!-- Mobile Nav Drawer -->
-    <div class="mobile-drawer" id="mobileDrawer">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <span class="brand" style="color:rgba(255,255,255,0.6)">Menu</span>
-            <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
-        </div>
-        <a href="/" class="">Dashboard</a>
-        <a href="/schedule" class="">Schedule</a>
-        <a href="/patients" class="active">Patients</a>
-        <a href="/entry" class="">Data Entry</a>
-        <a href="/events" class="">Events</a>
-        <a href="/alerts" class="">Alerts</a>
-        <a href="/variables" class="">Variables</a>
-        {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
-        <a href="/logout" style="color:#ffc107">Logout</a>
-    </div>
+{% include "_nav.html" %}
 
-    <header>
-        <h1>Patient Management</h1>
-    </header>
-    <div class="container">
-        <div class="search-wrap">
-            <div class="month-picker-wrap">
-                <label style="font-weight:600; color:var(--text-header);">Clinical Month:</label>
-                <input type="month" value="{{ month_str }}" onchange="location.href='/patients?month='+this.value" class="search-input" style="padding: 8px; width: auto; max-width: none;">
+<!-- ── PAGE HEADER ── -->
+<header>
+    <h1>Patient Management</h1>
+    <p>{{ data.month_label }} · CH(SC) Nephrology Unit</p>
+</header>
+
+{% set ns = namespace(missing=0, alert_count=0, stable=0) %}
+{% for row in data.patient_rows %}
+    {% if not row.has_record %}{% set ns.missing = ns.missing + 1 %}
+    {% elif row.alerts %}{% set ns.alert_count = ns.alert_count + 1 %}
+    {% else %}{% set ns.stable = ns.stable + 1 %}{% endif %}
+{% endfor %}
+{% set total = data.patient_rows|length %}
+
+<!-- ── STATS BAR ── -->
+<div class="container" style="padding-bottom: 0;">
+    <div class="stats-bar">
+        <div class="stat-card stat-total">
+            <div class="stat-icon"><i class="material-icons">people</i></div>
+            <div class="stat-body"><div class="val">{{ total }}</div><div class="lbl">Active Patients</div></div>
+        </div>
+        <div class="stat-card stat-record">
+            <div class="stat-icon"><i class="material-icons">assignment_turned_in</i></div>
+            <div class="stat-body"><div class="val">{{ total - ns.missing }}</div><div class="lbl">Records This Month</div></div>
+        </div>
+        <div class="stat-card stat-missing">
+            <div class="stat-icon"><i class="material-icons">assignment_late</i></div>
+            <div class="stat-body"><div class="val">{{ ns.missing }}</div><div class="lbl">Missing Data</div></div>
+        </div>
+        <div class="stat-card stat-alerts">
+            <div class="stat-icon"><i class="material-icons">notifications_active</i></div>
+            <div class="stat-body"><div class="val">{{ ns.alert_count }}</div><div class="lbl">Active Alerts</div></div>
+        </div>
+        <div class="stat-card stat-stable">
+            <div class="stat-icon"><i class="material-icons">check_circle</i></div>
+            <div class="stat-body"><div class="val">{{ ns.stable }}</div><div class="lbl">Stable Patients</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── MONTH MATH ── -->
+{% set yr = month_str[:4]|int %}
+{% set mo = month_str[5:]|int %}
+{% set prev_yr = yr if mo > 1 else yr - 1 %}
+{% set prev_mo = mo - 1 if mo > 1 else 12 %}
+{% set next_yr = yr if mo < 12 else yr + 1 %}
+{% set next_mo = mo + 1 if mo < 12 else 1 %}
+{% set prev_ms = prev_yr|string ~ "-" ~ ("0" ~ prev_mo if prev_mo < 10 else prev_mo|string) %}
+{% set next_ms = next_yr|string ~ "-" ~ ("0" ~ next_mo if next_mo < 10 else next_mo|string) %}
+
+<!-- ── UNIFIED FILTER BAR ── -->
+<div class="container" style="padding-top: 16px; padding-bottom: 0;">
+    <div class="filter-bar">
+        <!-- Month navigator -->
+        <div class="month-nav-group">
+            <a href="/patients?month={{ prev_ms }}" title="Previous month">
+                <i class="material-icons">chevron_left</i>
+            </a>
+            <div class="month-nav-center">
+                <input type="month" value="{{ month_str }}" onchange="location.href='/patients?month='+this.value">
+                <span>{{ data.month_label }} <i class="material-icons" style="font-size:0.8rem; vertical-align:middle; opacity:0.5;">arrow_drop_down</i></span>
             </div>
-            <div style="display:flex; gap: 16px;">
-                <input type="text" id="patientSearch" class="search-input" placeholder="Search name or HID..." oninput="filterPatients()">
-                <a href="/patients/new" class="btn" style="white-space: nowrap;">+ Add Patient</a>
-            </div>
+            <a href="/patients?month={{ next_ms }}" title="Next month">
+                <i class="material-icons">chevron_right</i>
+            </a>
         </div>
-        
-        <div style="overflow-x: auto; padding-bottom: 20px;">
-            <table id="patientTable" style="min-width: 1200px;">
-                <thead>
-                    <tr>
-                        <th data-label="Patient">Patient</th>
-                        <th data-label="Sex">Sex</th>
-                        <th data-label="Hb">Hb</th>
-                        <th data-label="TSAT%">TSAT%</th>
-                        <th data-label="Ca(corr)">Ca(corr)</th>
-                        <th data-label="Phos">Phos</th>
-                        <th data-label="Albumin">Albumin</th>
-                        <th data-label="iPTH">iPTH</th>
-                        <th data-label="Alerts">Alerts</th>
-                        <th data-label="Analytics">Analytics</th>
-                        <th data-label="WA">WA</th>
-                        <th data-label="Action">Management</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in data.patient_rows %}
-                    {% set p = patients_by_id[row.id] %}
-                    {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
-                    <tr style="{{ 'background:#fff5f5;' if unknown_gender else '' }}">
-                        <td data-label="Patient">
-                            <div class="cell-name"><a href="/patients/{{ row.id }}/profile" style="color:#0f172a; text-decoration:none;">{{ row.name }}</a></div>
-                            <div class="cell-hid">HID: {{ row.hid }}</div>
-                        </td>
-                        <td data-label="Sex" style="{{ 'color:#ef4444;font-weight:600;' if unknown_gender else '' }}">
-                            {{ p.sex or 'Unknown' }}
-                        </td>
-                        {% set is_hb_interim = row.is_interim and row.interim_details.get('hb') %}
-                        <td data-label="Hb" class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }} {{ 'val-interim' if is_hb_interim }}">
-                            {{ "%.1f"|format(row.hb) if row.hb else "—" }}
-                            {% if is_hb_interim %}
-                                <span class="interim-marker">INT</span>
-                                <div class="interim-tooltip-content">
-                                    <strong>Interim Recheck</strong><br>
-                                    Date: {{ row.interim_details.hb.date }}<br>
-                                    Trigger: {{ row.interim_details.hb.trigger }}
-                                </div>
-                            {% endif %}
-                        </td>
-                        <td data-label="TSAT%" class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">{{ "%.0f"|format(row.tsat) if row.tsat else "—" }}</td>
-                        
-                        {% set is_ca_interim = row.is_interim and (row.interim_details.get('calcium') or row.interim_details.get('albumin')) %}
-                        <td data-label="Ca(corr)" class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }} {{ 'val-interim' if is_ca_interim }}">
-                            {{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}
-                            {% if is_ca_interim %}
-                                <span class="interim-marker">INT</span>
-                                <div class="interim-tooltip-content">
-                                    <strong>Corrected Value</strong><br>
-                                    {% if row.interim_details.get('calcium') %}Ca Date: {{ row.interim_details.calcium.date }}<br>{% endif %}
-                                    {% if row.interim_details.get('albumin') %}Alb Date: {{ row.interim_details.albumin.date }}<br>{% endif %}
-                                    Trigger: {{ row.interim_details.get('calcium', row.interim_details.get('albumin')).trigger }}
-                                </div>
-                            {% endif %}
-                        </td>
 
-                        {% set is_phos_interim = row.is_interim and row.interim_details.get('phosphorus') %}
-                        <td data-label="Phos" class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }} {{ 'val-interim' if is_phos_interim }}">
-                            {{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}
-                            {% if is_phos_interim %}
-                                <span class="interim-marker">INT</span>
-                                <div class="interim-tooltip-content">
-                                    <strong>Interim Recheck</strong><br>
-                                    Date: {{ row.interim_details.phosphorus.date }}<br>
-                                    Trigger: {{ row.interim_details.phosphorus.trigger }}
-                                </div>
-                            {% endif %}
-                        </td>
+        <div class="filter-divider"></div>
 
-                        {% set is_alb_interim = row.is_interim and row.interim_details.get('albumin') %}
-                        <td data-label="Albumin" class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }} {{ 'val-interim' if is_alb_interim }}">
-                            {{ "%.1f"|format(row.albumin) if row.albumin else "—" }}
-                            {% if is_alb_interim %}
-                                <span class="interim-marker">INT</span>
-                                <div class="interim-tooltip-content">
-                                    <strong>Interim Recheck</strong><br>
-                                    Date: {{ row.interim_details.albumin.date }}<br>
-                                    Trigger: {{ row.interim_details.albumin.trigger }}
-                                </div>
-                            {% endif %}
-                        </td>
-
-                        {% set is_ipth_interim = row.is_interim and row.interim_details.get('ipth') %}
-                        <td data-label="iPTH" class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }} {{ 'val-interim' if is_ipth_interim }}">
-                            {{ "%.0f"|format(row.ipth) if row.ipth else "—" }}
-                            {% if is_ipth_interim %}
-                                <span class="interim-marker">INT</span>
-                                <div class="interim-tooltip-content">
-                                    <strong>Interim Recheck</strong><br>
-                                    Date: {{ row.interim_details.ipth.date }}<br>
-                                    Trigger: {{ row.interim_details.ipth.trigger }}
-                                </div>
-                            {% endif %}
-                        </td>
-                        
-                        <td data-label="Alerts">
-                            {% if not row.has_record %}<span class="no-rec">No record for {{ data.month_label }}</span>
-                            {% else %}
-                                {% for a in row.alerts %}
-                                <span class="alert-tag">{{ a }}</span>
-                                {% endfor %}
-                                {% if not row.alerts %}<span style="color:#16a34a;font-size:0.8em;font-weight:600;">✓ Stable</span>{% endif %}
-                            {% endif %}
-                        </td>
-                        
-                        <td data-label="Analytics">
-                            <a href="/patients/{{ row.id }}/analytics" style="color:var(--primary); font-weight:600; text-decoration:none;">📈 View</a>
-                        </td>
-                        <td data-label="WA">
-                            <button onclick="sendSchedule({{ row.id }})" class="btn" style="padding:4px 8px; font-size:0.7em; background:#25d366;">📲 Remind</button>
-                        </td>
-                        <td data-label="Management" class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <a href="/events?patient_id={{ p.id }}" style="background:#fef3c7; padding:4px 8px; border-radius:4px; font-size:0.8em; color:#92400e;">Timeline</a>
-                            <a href="#" onclick="openInterimModal({{ row.id }}, '{{ row.name }}')" style="background:#fde68a; padding:4px 8px; border-radius:4px; font-size:0.8em; color:#92400e;">+Lab</a>
-                            <a href="/entry/{{ row.id }}?month={{ month_str }}" style="background:#e0f2fe; padding:4px 8px; border-radius:4px; font-size:0.8em;">Data</a>
-                            <a href="/patients/{{ p.id }}/edit" style="background:#f1f5f9; padding:4px 8px; border-radius:4px; font-size:0.8em;">Edit</a>
-                            <form action="/patients/{{ p.id }}/deactivate" method="POST" style="margin:0;">
-                                <button type="submit" class="deactivate" onclick="return confirm('Deactivate this patient?')" style="padding:4px 8px; font-size:0.8em;">Deactivate</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <!-- Search (name/HID only) -->
+        <div class="filter-search">
+            <i class="material-icons">search</i>
+            <input type="text" id="patientSearch" placeholder="Search name or HID…" oninput="applyFilters()" autocomplete="off">
         </div>
+
+        <!-- Status filter -->
+        <select class="filter-select" id="statusFilter" onchange="applyFilters()">
+            <option value="all">All Patients</option>
+            <option value="missing">Missing Data</option>
+            <option value="alert">Has Alerts</option>
+            <option value="stable">Stable Only</option>
+        </select>
+
+        <div class="filter-divider"></div>
+
+        <a href="/patients/new" class="btn-add">
+            <i class="material-icons" style="font-size:1rem;">person_add</i> Add Patient
+        </a>
     </div>
+</div>
 
-    <!-- Interim Lab Modal -->
-    <div id="interimModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:5000; align-items:center; justify-content:center;">
-        <div style="background:white; padding:24px; border-radius:12px; width:400px; max-width:90%; box-shadow:var(--shadow-md);">
-            <h3 id="modalPatientName" style="margin-top:0; font-family:'Outfit';">Add Interim Lab</h3>
-            <form id="interimForm" method="POST">
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Date</label>
-                    <input type="date" name="lab_date" id="modal_date" required class="search-input" style="width:100%; box-sizing:border-box;">
+<!-- ── TABLE ── -->
+<div class="container">
+    <div class="table-wrap">
+        <table id="patientTable">
+            <thead>
+                <tr>
+                    <th data-label="Patient">Patient</th>
+                    <th class="sortable" data-col="1" title="Haemoglobin — Target: 10–12 g/dL">
+                        <div class="sort-wrap">Hb <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
+                    </th>
+                    <th class="sortable" data-col="2" title="Transferrin Saturation — Target: ≥30%">
+                        <div class="sort-wrap">TSAT% <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
+                    </th>
+                    <th class="sortable" data-col="3" title="Corrected Calcium — Target: 8.4–10.2 mg/dL">
+                        <div class="sort-wrap">Ca(corr) <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
+                    </th>
+                    <th class="sortable" data-col="4" title="Serum Phosphorus — Target: 3.5–5.5 mg/dL">
+                        <div class="sort-wrap">Phos <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
+                    </th>
+                    <th class="sortable" data-col="5" title="Serum Albumin — Target: ≥3.5 g/dL">
+                        <div class="sort-wrap">Albumin <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
+                    </th>
+                    <th class="sortable" data-col="6" title="Intact Parathyroid Hormone — Target: 150–300 pg/mL">
+                        <div class="sort-wrap">iPTH <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
+                    </th>
+                    <th data-label="Status">Status / Alerts</th>
+                    <th data-label="Actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data.patient_rows %}
+                {% set p = patients_by_id[row.id] %}
+                {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
+                {% set row_status = 'missing' if not row.has_record else ('alert' if row.alerts else 'stable') %}
+                <tr class="{{ 'row-missing' if not row.has_record else '' }}" data-status="{{ row_status }}">
+
+                    <!-- Patient: name + HID + sex badge -->
+                    <td data-label="Patient">
+                        <a href="/patients/{{ row.id }}/profile" class="cell-name">{{ row.name }}</a>
+                        <div class="cell-hid">{{ row.hid }}</div>
+                        <span class="sex-badge {{ 'sex-m' if p.sex == 'Male' else ('sex-f' if p.sex == 'Female' else 'sex-unk') }}">
+                            {{ p.sex or '?' }}
+                        </span>
+                    </td>
+
+                    <!-- Hb -->
+                    {% set is_hb_interim = row.is_interim and row.interim_details.get('hb') %}
+                    <td data-label="Hb" data-sort-val="{{ row.hb or '' }}"
+                        class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}{{ ' val-interim' if is_hb_interim }}">
+                        {{ "%.1f"|format(row.hb) if row.hb else "—" }}
+                        {% if is_hb_interim %}
+                            <span class="interim-marker">INT</span>
+                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.hb.date }}<br>Trigger: {{ row.interim_details.hb.trigger }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- TSAT% -->
+                    <td data-label="TSAT%" data-sort-val="{{ row.tsat or '' }}"
+                        class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">
+                        {{ "%.0f"|format(row.tsat) if row.tsat else "—" }}
+                    </td>
+
+                    <!-- Ca(corr) -->
+                    {% set is_ca_interim = row.is_interim and (row.interim_details.get('calcium') or row.interim_details.get('albumin')) %}
+                    <td data-label="Ca(corr)" data-sort-val="{{ row.corrected_ca or '' }}"
+                        class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}{{ ' val-interim' if is_ca_interim }}">
+                        {{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}
+                        {% if is_ca_interim %}
+                            <span class="interim-marker">INT</span>
+                            <div class="interim-tooltip"><strong>Corrected Ca</strong><br>
+                            {% if row.interim_details.get('calcium') %}Ca: {{ row.interim_details.calcium.date }}<br>{% endif %}
+                            {% if row.interim_details.get('albumin') %}Alb: {{ row.interim_details.albumin.date }}<br>{% endif %}
+                            Trigger: {{ (row.interim_details.get('calcium') or row.interim_details.get('albumin')).trigger }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Phosphorus -->
+                    {% set is_phos_interim = row.is_interim and row.interim_details.get('phosphorus') %}
+                    <td data-label="Phos" data-sort-val="{{ row.phosphorus or '' }}"
+                        class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}{{ ' val-interim' if is_phos_interim }}">
+                        {{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}
+                        {% if is_phos_interim %}
+                            <span class="interim-marker">INT</span>
+                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.phosphorus.date }}<br>Trigger: {{ row.interim_details.phosphorus.trigger }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Albumin -->
+                    {% set is_alb_interim = row.is_interim and row.interim_details.get('albumin') %}
+                    <td data-label="Albumin" data-sort-val="{{ row.albumin or '' }}"
+                        class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}{{ ' val-interim' if is_alb_interim }}">
+                        {{ "%.1f"|format(row.albumin) if row.albumin else "—" }}
+                        {% if is_alb_interim %}
+                            <span class="interim-marker">INT</span>
+                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.albumin.date }}<br>Trigger: {{ row.interim_details.albumin.trigger }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- iPTH -->
+                    {% set is_ipth_interim = row.is_interim and row.interim_details.get('ipth') %}
+                    <td data-label="iPTH" data-sort-val="{{ row.ipth or '' }}"
+                        class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}{{ ' val-interim' if is_ipth_interim }}">
+                        {{ "%.0f"|format(row.ipth) if row.ipth else "—" }}
+                        {% if is_ipth_interim %}
+                            <span class="interim-marker">INT</span>
+                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.ipth.date }}<br>Trigger: {{ row.interim_details.ipth.trigger }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Status / Alerts -->
+                    <td data-label="Status">
+                        {% if not row.has_record %}
+                            <span class="missing-pill"><i class="material-icons" style="font-size:0.85rem;">warning_amber</i> No data</span>
+                        {% elif row.alerts %}
+                            {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
+                        {% else %}
+                            <span class="stable-tag"><i class="material-icons" style="font-size:0.9rem; color:#22c55e;">check_circle</i> Stable</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Actions: 3 icon buttons + overflow menu -->
+                    <td data-label="Actions" class="actions-cell">
+                        <a href="/patients/{{ row.id }}/profile" class="act-btn act-profile" title="Patient profile">
+                            <i class="material-icons">person</i>
+                        </a>
+                        <a href="#" onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}'); return false;"
+                           class="act-btn act-lab" title="Add interim lab">
+                            <i class="material-icons">add_circle_outline</i>
+                        </a>
+                        <a href="/entry/{{ row.id }}?month={{ month_str }}" class="act-btn act-data" title="Monthly data entry">
+                            <i class="material-icons">edit_note</i>
+                        </a>
+                        <div class="more-wrap">
+                            <button class="act-btn act-more" onclick="toggleMore('more-{{ row.id }}', event)" title="More options">
+                                <i class="material-icons">more_vert</i>
+                            </button>
+                            <div class="more-dropdown" id="more-{{ row.id }}">
+                                <a href="/patients/{{ row.id }}/analytics" class="more-item">
+                                    <i class="material-icons">bar_chart</i> Analytics
+                                </a>
+                                <a href="/events?patient_id={{ p.id }}" class="more-item">
+                                    <i class="material-icons">timeline</i> Timeline
+                                </a>
+                                <a href="/patients/{{ p.id }}/edit" class="more-item">
+                                    <i class="material-icons">edit</i> Edit Demographics
+                                </a>
+                                <button onclick="sendSchedule({{ row.id }}, event)" class="more-item">
+                                    <i class="material-icons" style="color:#25d366;">phone_android</i> WhatsApp Remind
+                                </button>
+                                <div class="more-divider"></div>
+                                <button onclick="openDeactivateModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
+                                    <i class="material-icons">person_off</i> Deactivate Patient
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     INTERIM LAB MODAL (fixed: unit field, textarea, no jargon)
+     ══════════════════════════════════════════════════════ -->
+<div id="interimModal" class="modal-overlay" onclick="if(event.target===this)closeInterimModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:var(--primary);font-size:1.1rem;">emergency</i> <span id="interimModalTitle">Add Interim Lab</span></h3>
+            <button class="modal-close" onclick="closeInterimModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+        </div>
+        <form id="interimForm" method="POST">
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Date</label>
+                    <input type="date" name="lab_date" id="modal_date" required>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Parameter</label>
-                    <select name="parameter" required class="search-input" style="width:100%; box-sizing:border-box;">
+                <div class="form-field">
+                    <label>Parameter</label>
+                    <select name="parameter" id="modal_param" onchange="updateInterimUnit(this.value)" required>
+                        <option value="">-- Select --</option>
                         <option value="hb">Hemoglobin (Hb)</option>
-                        <option value="potassium">Serum Potassium</option>
-                        <option value="calcium">Serum Calcium</option>
-                        <option value="phosphorus">Phosphorus</option>
-                        <option value="albumin">Serum Albumin</option>
+                        <option value="potassium">Potassium (K)</option>
+                        <option value="calcium">Calcium (Ca)</option>
+                        <option value="phosphorus">Phosphorus (PO₄)</option>
+                        <option value="albumin">Albumin</option>
                         <option value="ipth">iPTH</option>
                         <option value="crp">CRP</option>
+                        <option value="hba1c">HbA1c</option>
+                        <option value="sodium">Sodium (Na)</option>
+                        <option value="bicarbonate">Bicarbonate</option>
+                        <option value="creatinine">Creatinine</option>
+                        <option value="ferritin">Ferritin</option>
+                        <option value="tsat">TSAT</option>
+                        <option value="other">Other</option>
                     </select>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Value</label>
-                    <input type="number" name="value" step="0.01" required class="search-input" style="width:100%; box-sizing:border-box;" placeholder="e.g. 9.5">
+            </div>
+            <div class="form-row">
+                <div class="form-field">
+                    <label>Value</label>
+                    <input type="number" name="value" step="0.01" required placeholder="e.g. 9.5">
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Clinical Trigger (ML Feature)</label>
-                    <select name="trigger" required class="search-input" style="width:100%; box-sizing:border-box;">
-                        <option value="Routine Recheck">Routine Recheck</option>
-                        <option value="Symptomatic">Symptomatic</option>
-                        <option value="Post-transfusion">Post-transfusion</option>
-                        <option value="Post-Medication (K/Ca)">Post-Medication (K/Ca)</option>
-                        <option value="Post-Hospitalization">Post-Hospitalization</option>
-                        <option value="Other">Other</option>
-                    </select>
+                <div class="form-field">
+                    <label>Unit</label>
+                    <input type="text" name="unit" id="modal_unit" placeholder="g/dL">
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; font-size:0.8em; font-weight:700; margin-bottom:4px; color:var(--text-muted); text-transform:uppercase;">Notes</label>
-                    <input type="text" name="notes" class="search-input" style="width:100%; box-sizing:border-box;" placeholder="Optional context...">
-                </div>
-                <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
-                    <button type="button" onclick="closeInterimModal()" class="btn" style="background:#64748b;">Cancel</button>
-                    <button type="submit" class="btn">Save Interim Lab</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="form-field">
+                <label>Clinical Trigger</label>
+                <select name="trigger" required>
+                    <option value="Routine Recheck">Routine Recheck</option>
+                    <option value="Symptomatic">Symptomatic</option>
+                    <option value="Post-transfusion">Post-transfusion</option>
+                    <option value="Post-Medication (K/Ca)">Post-Medication (K/Ca)</option>
+                    <option value="Post-Hospitalization">Post-Hospitalization</option>
+                    <option value="Pre-procedure">Pre-procedure</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Notes <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+                <textarea name="notes" rows="2" placeholder="Any clinical context…" style="resize:vertical;"></textarea>
+            </div>
+            <button type="submit" class="btn-primary">Save Interim Lab</button>
+        </form>
     </div>
-    <script>
-        function filterPatients() {
-            const query = document.getElementById('patientSearch').value.toLowerCase();
-            const rows = document.querySelectorAll('#patientTable tbody tr');
-            rows.forEach(row => {
-                const text = row.innerText.toLowerCase();
-                row.style.display = text.includes(query) ? '' : 'none';
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     DEACTIVATE CONFIRMATION MODAL (HID required)
+     ══════════════════════════════════════════════════════ -->
+<div id="deactivateModal" class="modal-overlay" onclick="if(event.target===this)closeDeactivateModal()">
+    <div class="modal-box" style="max-width:400px;">
+        <div class="modal-header">
+            <h3 style="color:#dc2626;"><i class="material-icons" style="font-size:1.1rem;">person_off</i> Deactivate Patient</h3>
+            <button class="modal-close" onclick="closeDeactivateModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+        </div>
+        <p style="margin:0 0 8px; font-size:0.875rem; color:#475569;">
+            You are about to deactivate <strong id="deact_name"></strong>. This removes the patient from all active lists.
+        </p>
+        <p style="margin:0 0 16px; font-size:0.875rem; color:#475569;">
+            Type the patient HID <code id="deact_hid_display" style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;"></code> to confirm:
+        </p>
+        <div class="form-field">
+            <input type="text" id="deact_confirm_input" placeholder="Enter HID to confirm" oninput="checkDeactivateInput()" autocomplete="off">
+        </div>
+        <form id="deactivateForm" method="POST" style="display:flex; gap:10px; margin-top:8px;">
+            <button type="button" class="btn-secondary" onclick="closeDeactivateModal()" style="flex:1;">Cancel</button>
+            <button type="submit" id="deact_submit_btn" class="btn-danger" disabled style="flex:1;">Confirm Deactivate</button>
+        </form>
+    </div>
+</div>
+
+
+<script>
+    // ── FILTER (search name/HID + status) ──────────────────────────────────
+    function applyFilters() {
+        const query  = document.getElementById('patientSearch').value.toLowerCase().trim();
+        const status = document.getElementById('statusFilter').value;
+        document.querySelectorAll('#patientTable tbody tr').forEach(row => {
+            const nameEl = row.querySelector('.cell-name');
+            const hidEl  = row.querySelector('.cell-hid');
+            const nameText = (nameEl ? nameEl.textContent : '').toLowerCase();
+            const hidText  = (hidEl  ? hidEl.textContent  : '').toLowerCase();
+            const matchSearch = !query || nameText.includes(query) || hidText.includes(query);
+            const rowStatus   = row.dataset.status || 'stable';
+            const matchStatus = status === 'all' || rowStatus === status;
+            row.style.display = (matchSearch && matchStatus) ? '' : 'none';
+        });
+    }
+
+    // ── SORT ───────────────────────────────────────────────────────────────
+    let sortState = { col: null, dir: 'asc' };
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = parseInt(th.dataset.col);
+            if (sortState.col === col) {
+                sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.col = col;
+                sortState.dir = 'asc';
+            }
+            document.querySelectorAll('th.sortable').forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
             });
-        }
-        function showToast(msg, isError = false) {
-            const toast = document.createElement("div");
-            toast.textContent = msg;
-            toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:${isError ? '#e74c3c' : '#27ae60'};
-                color:#fff;padding:12px 24px;border-radius:8px;font-size:0.9em;font-weight:500;
-                z-index:999;box-shadow:0 6px 18px rgba(0,0,0,0.2);animation:slideIn 0.3s ease-out`;
-            document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.5s';
-                setTimeout(() => toast.remove(), 500);
-            }, 4000);
-        }
+            th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+            sortTable(col, sortState.dir);
+        });
+    });
 
-        const style = document.createElement('style');
-        style.textContent = `@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }`;
-        document.head.appendChild(style);
+    function sortTable(colIdx, dir) {
+        const tbody = document.querySelector('#patientTable tbody');
+        const rows  = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+            const aCell = a.querySelectorAll('td')[colIdx];
+            const bCell = b.querySelectorAll('td')[colIdx];
+            const aVal  = parseFloat((aCell ? aCell.dataset.sortVal : '') || 'NaN');
+            const bVal  = parseFloat((bCell ? bCell.dataset.sortVal : '') || 'NaN');
+            const aNum  = isNaN(aVal);
+            const bNum  = isNaN(bVal);
+            if (aNum && bNum) return 0;
+            if (aNum) return 1;   // blanks always last
+            if (bNum) return -1;
+            return dir === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+    }
 
-        function sendSchedule(pid) {
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = "⏳ Sending...";
-            btn.disabled = true;
+    // ── OVERFLOW DROPDOWN ─────────────────────────────────────────────────
+    function toggleMore(id, event) {
+        event.stopPropagation();
+        const dd = document.getElementById(id);
+        const isOpen = dd.classList.contains('open');
+        document.querySelectorAll('.more-dropdown.open').forEach(d => d.classList.remove('open'));
+        if (!isOpen) dd.classList.add('open');
+    }
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.more-dropdown.open').forEach(d => d.classList.remove('open'));
+    });
 
-            fetch('/api/send-schedule/' + pid, {method: 'POST'})
+    // ── INTERIM LAB MODAL ─────────────────────────────────────────────────
+    const INTERIM_UNITS = {
+        hb:'g/dL', potassium:'mEq/L', calcium:'mg/dL', phosphorus:'mg/dL',
+        albumin:'g/dL', ipth:'pg/mL', crp:'mg/L', hba1c:'%',
+        sodium:'mmol/L', bicarbonate:'mmol/L', creatinine:'mg/dL',
+        ferritin:'ng/mL', tsat:'%'
+    };
+    function updateInterimUnit(param) {
+        document.getElementById('modal_unit').value = INTERIM_UNITS[param] || '';
+    }
+    function openInterimModal(pid, name) {
+        document.getElementById('interimModalTitle').textContent = 'Lab Entry: ' + name;
+        document.getElementById('interimForm').action = '/patients/' + pid + '/interim-labs/new';
+        document.getElementById('modal_date').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('interimModal').classList.add('open');
+    }
+    function closeInterimModal() {
+        document.getElementById('interimModal').classList.remove('open');
+    }
+
+    // ── DEACTIVATE MODAL ──────────────────────────────────────────────────
+    let _deactHid = '';
+    function openDeactivateModal(pid, name, hid) {
+        _deactHid = hid;
+        document.getElementById('deact_name').textContent = name;
+        document.getElementById('deact_hid_display').textContent = hid;
+        document.getElementById('deact_confirm_input').value = '';
+        document.getElementById('deact_submit_btn').disabled = true;
+        document.getElementById('deactivateForm').action = '/patients/' + pid + '/deactivate';
+        document.getElementById('deactivateModal').classList.add('open');
+        setTimeout(() => document.getElementById('deact_confirm_input').focus(), 100);
+    }
+    function closeDeactivateModal() {
+        document.getElementById('deactivateModal').classList.remove('open');
+    }
+    function checkDeactivateInput() {
+        const val = document.getElementById('deact_confirm_input').value.trim();
+        document.getElementById('deact_submit_btn').disabled = (val !== _deactHid);
+    }
+
+    // ── WHATSAPP REMIND ───────────────────────────────────────────────────
+    function sendSchedule(pid, event) {
+        event.stopPropagation();
+        document.querySelectorAll('.more-dropdown.open').forEach(d => d.classList.remove('open'));
+        fetch('/api/send-schedule/' + pid, { method: 'POST' })
             .then(r => r.json())
-            .then(d => {
-                showToast(d.message);
-                btn.textContent = originalText;
-                btn.disabled = false;
-            })
-            .catch(() => {
-                showToast("❌ Connection error", true);
-                btn.textContent = originalText;
-                btn.disabled = false;
-            });
-        }
+            .then(d => showToast(d.message))
+            .catch(() => showToast('Connection error', true));
+    }
 
-        function openInterimModal(pid, name) {
-            document.getElementById('modalPatientName').textContent = "Lab Entry: " + name;
-            document.getElementById('interimForm').action = "/patients/" + pid + "/interim-labs/new";
-            document.getElementById('modal_date').value = new Date().toISOString().split('T')[0];
-            document.getElementById('interimModal').style.display = 'flex';
-        }
-        function closeInterimModal() {
-            document.getElementById('interimModal').style.display = 'none';
-        }
+    // ── TOAST ─────────────────────────────────────────────────────────────
+    function showToast(msg, isError = false) {
+        const t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${isError ? '#dc2626' : '#16a34a'};color:#fff;padding:12px 20px;border-radius:10px;font-size:0.875rem;font-weight:600;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,0.2);animation:slideIn 0.3s ease-out`;
+        document.body.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.4s'; setTimeout(() => t.remove(), 400); }, 4000);
+    }
 
-        function toggleDrawer() {
-            document.getElementById("mobileDrawer").classList.toggle("open");
-        }
-    </script>
+</script>
 </body>
 </html>

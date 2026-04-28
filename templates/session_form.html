@@ -124,18 +124,11 @@
 </head>
 <body>
 
-<nav>
-  <span class="brand">HD Dashboard</span>
-  <div class="links">
-    <a href="/">Dashboard</a>
-    <a href="/patients">Registry</a>
-    <a href="javascript:history.back()">← Back</a>
-  </div>
-</nav>
+{% include "_nav.html" %}
 
 <div class="page-header">
-  <a href="javascript:history.back()" class="back-btn">
-    <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back
+  <a href="/patients/{{ patient.id }}/profile" class="back-btn">
+    <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back to Profile
   </a>
   <div>
     <h1>{{ "Edit Session" if mode=="edit" else "Log Dialysis Session" }} — {{ patient.name }}</h1>

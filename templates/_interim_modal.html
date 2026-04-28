@@ -1,0 +1,89 @@
+{# Interim Lab Entry Modal — included by patient_profile.html #}
+<div id="interimModal"
+     class="modal-overlay"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="interimModalTitle">
+
+    <div class="modal-box" id="interimModalBox">
+        <div class="modal-header">
+            <h3 class="modal-title" id="interimModalTitle">
+                <i class="material-icons" style="color:var(--primary); font-size:1.2rem;" aria-hidden="true">emergency</i>
+                Add Interim Lab
+            </h3>
+            <button class="modal-close" onclick="closeInterimModal()" aria-label="Close dialog">
+                <i class="material-icons" style="font-size:1.1rem; color:#64748b;" aria-hidden="true">close</i>
+            </button>
+        </div>
+
+        <form method="POST" action="/patients/{{ patient.id }}/interim-labs/new">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-row form-row-2">
+                <div class="form-group">
+                    <label for="interimDate">Date</label>
+                    <input type="date" name="lab_date" id="interimDate" required class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="interimParam">Parameter</label>
+                    <select name="parameter" id="interimParam" onchange="updateUnit(this.value)" required class="form-control">
+                        <option value="">— Select —</option>
+                        <option value="hb">Hemoglobin (Hb)</option>
+                        <option value="potassium">Potassium (K)</option>
+                        <option value="calcium">Calcium (Ca)</option>
+                        <option value="phosphorus">Phosphorus (PO₄)</option>
+                        <option value="albumin">Albumin</option>
+                        <option value="crp">CRP</option>
+                        <option value="hba1c">HbA1c</option>
+                        <option value="sodium">Sodium (Na)</option>
+                        <option value="bicarbonate">Bicarbonate</option>
+                        <option value="urea">Urea</option>
+                        <option value="creatinine">Creatinine</option>
+                        <option value="ferritin">Ferritin</option>
+                        <option value="tsat">TSAT</option>
+                        <option value="ipth">iPTH</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row form-row-21">
+                <div class="form-group">
+                    <label for="interimValue">Value</label>
+                    <input type="number" name="value" id="interimValue" step="0.01" required
+                           placeholder="e.g. 10.5" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="interimUnit">Unit</label>
+                    <input type="text" name="unit" id="interimUnit" placeholder="g/dL" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="interimTrigger">Clinical Trigger</label>
+                    <select name="trigger" id="interimTrigger" class="form-control">
+                        <option value="">— Optional —</option>
+                        <option value="Routine Recheck">Routine Recheck</option>
+                        <option value="Symptomatic">Symptomatic</option>
+                        <option value="Post-transfusion">Post-transfusion</option>
+                        <option value="Post-Medication (K/Ca)">Post-Medication (K/Ca)</option>
+                        <option value="Post-Hospitalization">Post-Hospitalization</option>
+                        <option value="Pre-procedure">Pre-procedure</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-bottom: 20px;">
+                <div class="form-group">
+                    <label for="interimNotes">Notes <span style="font-weight:400; text-transform:none;">(optional)</span></label>
+                    <textarea name="notes" id="interimNotes" rows="2"
+                              placeholder="Any clinical context..." class="form-control"></textarea>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">Save Interim Lab</button>
+        </form>
+    </div>
+</div>

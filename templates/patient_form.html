@@ -102,48 +102,15 @@
     </style>
 </head>
 <body>
-    <div class="app-nav">
-        <span class="brand">CH(SC) · Nephrology Unit</span>
-        <div class="nav-links">
-            <a href="/" class="">Dashboard</a>
-            <a href="/schedule" class="">Schedule</a>
-            <a href="/patients" class="active">Patients</a>
-            <a href="/entry" class="">Data Entry</a>
-            <a href="/events" class="">Events</a>
-            <a href="/alerts" class="">Alerts</a>
-            <a href="/variables" class="">Variables</a>
-            {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
-            <a href="/logout" style="color:#ffc107">Logout</a>
-        </div>
-        <button class="mobile-menu-btn" onclick="toggleDrawer()">
-            <i class="material-icons">menu</i>
-        </button>
-    </div>
-
-    <!-- Mobile Nav Drawer -->
-    <div class="mobile-drawer" id="mobileDrawer">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <span class="brand" style="color:rgba(255,255,255,0.6)">Menu</span>
-            <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
-        </div>
-        <a href="/" class="">Dashboard</a>
-        <a href="/schedule" class="">Schedule</a>
-        <a href="/patients" class="active">Patients</a>
-        <a href="/entry" class="">Data Entry</a>
-        <a href="/events" class="">Events</a>
-        <a href="/alerts" class="">Alerts</a>
-        <a href="/variables" class="">Variables</a>
-        {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
-        <a href="/logout" style="color:#ffc107">Logout</a>
-    </div>
+    {% include "_nav.html" %}
 
     <header>
         <h1>{{ "Edit" if mode=="edit" else "Add New" }} Patient</h1>
     </header>
 
     <div style="max-width: 1000px; margin: 20px auto -10px; padding: 0 24px;">
-        <a href="javascript:history.back()" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
-            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back
+        <a href="/patients" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
+            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back to Patients
         </a>
     </div>
 
@@ -190,7 +157,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Age (years)</label>
-                        <input type="number" name="age" min="1" max="120" value="{{ patient.age if patient and patient.age else '' }}" placeholder="e.g. 58" inputmode="numeric">
+                        <input type="number" name="age" id="cci_age" min="1" max="120" value="{{ patient.age if patient and patient.age else '' }}" placeholder="e.g. 58" inputmode="numeric" oninput="calculateCCI()">
                     </div>
                     <div class="form-group">
                         <label>Height (cm)</label>
@@ -296,8 +263,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Diabetes Mellitus</label>
-                        <select name="dm_status">
-                            <option value="">-- Select --</option>
+                        <select name="dm_status" id="cci_dm_status" onchange="calculateCCI()">
                             <option value="None" {{ 'selected' if patient and patient.dm_status == 'None' }}>None</option>
                             <option value="Type 1" {{ 'selected' if patient and patient.dm_status == 'Type 1' }}>Type 1</option>
                             <option value="Type 2" {{ 'selected' if patient and patient.dm_status == 'Type 2' }}>Type 2</option>
@@ -327,19 +293,51 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Charlson Comorbidity Index</label>
-                        <input type="number" name="charlson_comorbidity_index" min="0" max="40" step="1" inputmode="numeric" value="{{ patient.charlson_comorbidity_index if patient and patient.charlson_comorbidity_index is not none else '' }}" placeholder="0–37">
+                        <label>Charlson Comorbidity Index (Calculated)</label>
+                        <input type="number" name="charlson_comorbidity_index" id="cci_score" min="0" max="40" step="1" inputmode="numeric" value="{{ patient.charlson_comorbidity_index if patient and patient.charlson_comorbidity_index is not none else '' }}" placeholder="Auto-calculated" readonly style="background-color: #e2e8f0; opacity: 0.8;">
                     </div>
                 </div>
                 <div class="form-row" style="grid-template-columns: repeat(3, 1fr);">
-                    {% for field, label in [('htn_status','Hypertension'),('cad_status','Coronary Artery Disease'),('chf_status','Congestive Heart Failure'),('history_of_stroke','History of Stroke')] %}
+                    {% for field, label in [
+                        ('htn_status','Hypertension'),
+                        ('cad_status','Myocardial Infarction / CAD'),
+                        ('chf_status','Congestive Heart Failure'),
+                        ('history_of_stroke','CVA / TIA / Stroke'),
+                        ('history_of_pvd','Peripheral Vascular Disease'),
+                        ('history_of_dementia','Dementia'),
+                        ('history_of_cpd','Chronic Pulmonary Disease'),
+                        ('history_of_ctd','Connective Tissue Disease'),
+                        ('history_of_pud','Peptic Ulcer Disease'),
+                        ('hemiplegia','Hemiplegia'),
+                        ('leukemia','Leukemia'),
+                        ('lymphoma','Lymphoma'),
+                        ('dm_end_organ_damage','Diabetes with End-Organ Damage')
+                    ] %}
                     <div class="form-group">
                         <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                            <input type="checkbox" name="{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} style="width:18px;height:18px;">
+                            <input type="checkbox" name="{{ field }}" id="cci_{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} style="width:18px;height:18px;" onchange="calculateCCI()">
                             <span>{{ label }}</span>
                         </label>
                     </div>
                     {% endfor %}
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Liver Disease</label>
+                        <select name="liver_disease" id="cci_liver_disease" onchange="calculateCCI()">
+                            <option value="None" {{ 'selected' if not patient or patient.liver_disease == 'None' }}>None</option>
+                            <option value="Mild" {{ 'selected' if patient and patient.liver_disease == 'Mild' }}>Mild</option>
+                            <option value="Moderate to severe" {{ 'selected' if patient and patient.liver_disease == 'Moderate to severe' }}>Moderate to severe</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Solid Tumor</label>
+                        <select name="solid_tumor" id="cci_solid_tumor" onchange="calculateCCI()">
+                            <option value="None" {{ 'selected' if not patient or patient.solid_tumor == 'None' }}>None</option>
+                            <option value="Localized" {{ 'selected' if patient and patient.solid_tumor == 'Localized' }}>Localized</option>
+                            <option value="Metastatic" {{ 'selected' if patient and patient.solid_tumor == 'Metastatic' }}>Metastatic</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Other Comorbidities (free text)</label>
@@ -406,7 +404,7 @@
                     </div>
                     <div class="form-group">
                         <label>HIV</label>
-                        <select name="viral_hiv">
+                        <select name="viral_hiv" id="cci_viral_hiv" onchange="calculateCCI()">
                             <option value="">-- Select --</option>
                             <option value="Negative" {{ 'selected' if patient and patient.viral_hiv == 'Negative' }}>Negative</option>
                             <option value="Positive" {{ 'selected' if patient and patient.viral_hiv == 'Positive' }}>Positive</option>
@@ -595,10 +593,6 @@
     </div>
 
     <script>
-        function toggleDrawer() {
-            document.getElementById("mobileDrawer").classList.toggle("open");
-        }
-
         // Show "Due: DD MMM YYYY" hint when a source date is entered
         function setDue(srcId, targetSpanId, offsetDays) {
             const val = document.getElementById(srcId).value;
@@ -615,7 +609,6 @@
             if (el && el.value) el.dispatchEvent(new Event("input"));
         });
 
-        // Toggle Death fields visibility
         function toggleDeathFields() {
             const status = document.getElementById('current_survival_status').value;
             const dod = document.getElementById('date_of_death');
@@ -639,7 +632,66 @@
                 cod.style.background = "#f8fafc";
             }
         }
-        document.addEventListener("DOMContentLoaded", toggleDeathFields);
+        
+        function calculateCCI() {
+            let score = 0;
+            
+            // Age
+            const ageInput = document.getElementById('cci_age').value;
+            if (ageInput) {
+                const age = parseInt(ageInput, 10);
+                if (age >= 50 && age <= 59) score += 1;
+                else if (age >= 60 && age <= 69) score += 2;
+                else if (age >= 70 && age <= 79) score += 3;
+                else if (age >= 80) score += 4;
+            }
+            
+            if (document.getElementById('cci_cad_status') && document.getElementById('cci_cad_status').checked) score += 1;
+            if (document.getElementById('cci_chf_status') && document.getElementById('cci_chf_status').checked) score += 1;
+            if (document.getElementById('cci_history_of_pvd') && document.getElementById('cci_history_of_pvd').checked) score += 1;
+            if (document.getElementById('cci_history_of_stroke') && document.getElementById('cci_history_of_stroke').checked) score += 1;
+            if (document.getElementById('cci_history_of_dementia') && document.getElementById('cci_history_of_dementia').checked) score += 1;
+            if (document.getElementById('cci_history_of_cpd') && document.getElementById('cci_history_of_cpd').checked) score += 1;
+            if (document.getElementById('cci_history_of_ctd') && document.getElementById('cci_history_of_ctd').checked) score += 1;
+            if (document.getElementById('cci_history_of_pud') && document.getElementById('cci_history_of_pud').checked) score += 1;
+            
+            const liverDisease = document.getElementById('cci_liver_disease');
+            if (liverDisease && liverDisease.value === 'Mild') score += 1;
+            else if (liverDisease && liverDisease.value === 'Moderate to severe') score += 3;
+            
+            const dmStatus = document.getElementById('cci_dm_status');
+            if (dmStatus && ['Type 1', 'Type 2', 'Secondary'].includes(dmStatus.value)) {
+                if (document.getElementById('cci_dm_end_organ_damage') && document.getElementById('cci_dm_end_organ_damage').checked) {
+                    score += 2;
+                } else {
+                    score += 1;
+                }
+            }
+            
+            if (document.getElementById('cci_hemiplegia') && document.getElementById('cci_hemiplegia').checked) score += 2;
+            
+            score += 2; // Moderate to severe CKD (all ESRD patients)
+            
+            const solidTumor = document.getElementById('cci_solid_tumor');
+            if (solidTumor && solidTumor.value === 'Localized') score += 2;
+            else if (solidTumor && solidTumor.value === 'Metastatic') score += 6;
+            
+            if (document.getElementById('cci_leukemia') && document.getElementById('cci_leukemia').checked) score += 2;
+            if (document.getElementById('cci_lymphoma') && document.getElementById('cci_lymphoma').checked) score += 2;
+            
+            const viralHiv = document.getElementById('cci_viral_hiv');
+            if (viralHiv && viralHiv.value === 'Positive') score += 6;
+            
+            const scoreInput = document.getElementById('cci_score');
+            if (scoreInput) {
+                scoreInput.value = score;
+            }
+        }
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            toggleDeathFields();
+            calculateCCI(); // Calculate initially on load
+        });
     </script>
 </body>
 </html>

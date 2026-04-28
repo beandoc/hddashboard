@@ -15,12 +15,13 @@ from typing import Optional
 # Database engine and session for startup logic
 from database import get_db, create_tables, Patient, MonthlyRecord, User, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, PatientSymptomReport, engine, SessionLocal
 from passlib.context import CryptContext
-from itsdangerous import URLSafeSerializer
+from itsdangerous import URLSafeSerializer, TimestampSigner, BadData
 
 # Auth Configuration
 SECRET_KEY = "HD_DASHBOARD_SECRET_SECURE_2026"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 serializer = URLSafeSerializer(SECRET_KEY)
+_csrf_signer = TimestampSigner(SECRET_KEY + "-csrf")
 
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import (send_bulk_whatsapp_alerts, send_ward_email, send_entry_alert_email,
@@ -289,6 +290,40 @@ def new_patient_form(request: Request):
     })
 
 
+def calculate_cci(
+    age: Optional[int], cad_status: bool, chf_status: bool, history_of_pvd: bool, history_of_stroke: bool,
+    history_of_dementia: bool, history_of_cpd: bool, history_of_ctd: bool, history_of_pud: bool,
+    liver_disease: str, dm_status: str, dm_end_organ_damage: bool, hemiplegia: bool,
+    solid_tumor: str, leukemia: bool, lymphoma: bool, viral_hiv: str
+) -> int:
+    score = 0
+    if age:
+        if 50 <= age <= 59: score += 1
+        elif 60 <= age <= 69: score += 2
+        elif 70 <= age <= 79: score += 3
+        elif age >= 80: score += 4
+    if cad_status: score += 1
+    if chf_status: score += 1
+    if history_of_pvd: score += 1
+    if history_of_stroke: score += 1
+    if history_of_dementia: score += 1
+    if history_of_cpd: score += 1
+    if history_of_ctd: score += 1
+    if history_of_pud: score += 1
+    if liver_disease == "Mild": score += 1
+    elif liver_disease == "Moderate to severe": score += 3
+    if dm_status in ["Type 1", "Type 2", "Secondary"]:
+        if dm_end_organ_damage: score += 2
+        else: score += 1
+    if hemiplegia: score += 2
+    score += 2  # Moderate to severe CKD (all ESRD patients)
+    if solid_tumor == "Localized": score += 2
+    elif solid_tumor == "Metastatic": score += 6
+    if leukemia: score += 2
+    if lymphoma: score += 2
+    if viral_hiv == "Positive": score += 6
+    return score
+
 @app.post("/patients/new")
 def create_patient(
     request: Request,
@@ -309,10 +344,21 @@ def create_patient(
     date_esrd_diagnosis: Optional[str] = Form(None),
     native_kidney_biopsy: str = Form(""),
     dm_status: str = Form(""),
+    dm_end_organ_damage: bool = Form(False),
     htn_status: bool = Form(False),
     cad_status: bool = Form(False),
     chf_status: bool = Form(False),
     history_of_stroke: bool = Form(False),
+    history_of_pvd: bool = Form(False),
+    history_of_dementia: bool = Form(False),
+    history_of_cpd: bool = Form(False),
+    history_of_ctd: bool = Form(False),
+    history_of_pud: bool = Form(False),
+    liver_disease: str = Form(""),
+    hemiplegia: bool = Form(False),
+    solid_tumor: str = Form(""),
+    leukemia: bool = Form(False),
+    lymphoma: bool = Form(False),
     smoking_status: str = Form(""),
     alcohol_consumption: str = Form(""),
     charlson_comorbidity_index: Optional[int] = Form(None),
@@ -380,10 +426,19 @@ def create_patient(
         hd_wef_date=_d(hd_wef_date), height=height, education_level=education_level,
         healthcare_facility=healthcare_facility, primary_renal_disease=primary_renal_disease,
         date_esrd_diagnosis=_d(date_esrd_diagnosis), native_kidney_biopsy=native_kidney_biopsy,
-        dm_status=dm_status, htn_status=htn_status, cad_status=cad_status,
-        chf_status=chf_status, history_of_stroke=history_of_stroke,
+        dm_status=dm_status, dm_end_organ_damage=dm_end_organ_damage, htn_status=htn_status, cad_status=cad_status,
+        chf_status=chf_status, history_of_stroke=history_of_stroke, history_of_pvd=history_of_pvd,
+        history_of_dementia=history_of_dementia, history_of_cpd=history_of_cpd, history_of_ctd=history_of_ctd,
+        history_of_pud=history_of_pud, liver_disease=liver_disease, hemiplegia=hemiplegia,
+        solid_tumor=solid_tumor, leukemia=leukemia, lymphoma=lymphoma,
         smoking_status=smoking_status, alcohol_consumption=alcohol_consumption,
-        charlson_comorbidity_index=charlson_comorbidity_index,
+        charlson_comorbidity_index=calculate_cci(
+            age=age, cad_status=cad_status, chf_status=chf_status, history_of_pvd=history_of_pvd,
+            history_of_stroke=history_of_stroke, history_of_dementia=history_of_dementia, history_of_cpd=history_of_cpd,
+            history_of_ctd=history_of_ctd, history_of_pud=history_of_pud, liver_disease=liver_disease,
+            dm_status=dm_status, dm_end_organ_damage=dm_end_organ_damage, hemiplegia=hemiplegia,
+            solid_tumor=solid_tumor, leukemia=leukemia, lymphoma=lymphoma, viral_hiv=viral_hiv
+        ),
         comorbidities=comorbidities, drug_allergies=drug_allergies,
         dialysis_modality=dialysis_modality, previous_krt_modality=previous_krt_modality,
         history_of_renal_transplant=history_of_renal_transplant,
@@ -419,15 +474,24 @@ def create_patient(
 
 
 @app.get("/patients/{patient_id}/profile", response_class=HTMLResponse)
-def patient_profile(patient_id: int, request: Request, db: Session = Depends(get_db)):
+def patient_profile(patient_id: int, request: Request, db: Session = Depends(get_db), msg: Optional[str] = None):
     import json
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    monthly_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).limit(2).all()
+    monthly_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).limit(6).all()
     latest_monthly = monthly_records[0] if len(monthly_records) > 0 else None
     prior_monthly = monthly_records[1] if len(monthly_records) > 1 else None
+
+    # Real trend data (chronological) for chart — only real DB values, no fabricated points
+    trend_records = list(reversed(monthly_records))
+    hb_trend_labels = [r.record_month for r in trend_records]
+    hb_trend_data = [r.hb for r in trend_records]
+    esa_trend_data = [round(r.epo_weekly_units / 100, 1) if r.epo_weekly_units else None for r in trend_records]
+
+    # CSRF token for interim lab form (1-hour expiry)
+    csrf_token = _csrf_signer.sign(f"interim-{patient_id}").decode()
 
     anti_meds = []
     if latest_monthly and latest_monthly.antihypertensive_details:
@@ -439,6 +503,36 @@ def patient_profile(patient_id: int, request: Request, db: Session = Depends(get
     sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
     interims = db.query(InterimLabRecord).filter(InterimLabRecord.patient_id == patient_id).order_by(InterimLabRecord.lab_date.desc()).limit(5).all()
     events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).limit(8).all()
+
+    # 12-month data coverage heatmap
+    from datetime import date as _date
+    _today = _date.today()
+    _y, _m = _today.year, _today.month
+    _months_12 = []
+    for _ in range(12):
+        _months_12.append(f"{_y}-{_m:02d}")
+        _m -= 1
+        if _m == 0:
+            _m = 12
+            _y -= 1
+    _months_12.reverse()
+    _existing_months = {
+        r.record_month
+        for r in db.query(MonthlyRecord.record_month)
+              .filter(MonthlyRecord.patient_id == patient_id,
+                      MonthlyRecord.record_month.in_(_months_12))
+              .all()
+    }
+    month_coverage = [
+        {
+            "month_str": ms,
+            "label": get_month_label(ms),
+            "abbr": get_month_label(ms)[:3],
+            "year": ms[:4],
+            "has_data": ms in _existing_months,
+        }
+        for ms in _months_12
+    ]
 
     eri = None
     if latest_monthly and p.dry_weight and latest_monthly.hb and latest_monthly.epo_weekly_units:
@@ -478,6 +572,12 @@ def patient_profile(patient_id: int, request: Request, db: Session = Depends(get
         "eri": eri,
         "meals_by_day": meals_by_day,
         "nutrition_targets": nutrition_targets,
+        "month_coverage": month_coverage,
+        "hb_trend_labels": hb_trend_labels,
+        "hb_trend_data": hb_trend_data,
+        "esa_trend_data": esa_trend_data,
+        "csrf_token": csrf_token,
+        "success_msg": msg,
         "user": get_user(request),
     })
 
@@ -516,10 +616,21 @@ def update_patient(
     date_esrd_diagnosis: Optional[str] = Form(None),
     native_kidney_biopsy: str = Form(""),
     dm_status: str = Form(""),
+    dm_end_organ_damage: bool = Form(False),
     htn_status: bool = Form(False),
     cad_status: bool = Form(False),
     chf_status: bool = Form(False),
     history_of_stroke: bool = Form(False),
+    history_of_pvd: bool = Form(False),
+    history_of_dementia: bool = Form(False),
+    history_of_cpd: bool = Form(False),
+    history_of_ctd: bool = Form(False),
+    history_of_pud: bool = Form(False),
+    liver_disease: str = Form(""),
+    hemiplegia: bool = Form(False),
+    solid_tumor: str = Form(""),
+    leukemia: bool = Form(False),
+    lymphoma: bool = Form(False),
     smoking_status: str = Form(""),
     alcohol_consumption: str = Form(""),
     charlson_comorbidity_index: Optional[int] = Form(None),
@@ -581,10 +692,21 @@ def update_patient(
     p.hd_wef_date = _d(hd_wef_date); p.height = height; p.education_level = education_level
     p.healthcare_facility = healthcare_facility; p.primary_renal_disease = primary_renal_disease
     p.date_esrd_diagnosis = _d(date_esrd_diagnosis); p.native_kidney_biopsy = native_kidney_biopsy
-    p.dm_status = dm_status; p.htn_status = htn_status; p.cad_status = cad_status
-    p.chf_status = chf_status; p.history_of_stroke = history_of_stroke
+    p.dm_status = dm_status; p.dm_end_organ_damage = dm_end_organ_damage
+    p.htn_status = htn_status; p.cad_status = cad_status; p.chf_status = chf_status
+    p.history_of_stroke = history_of_stroke; p.history_of_pvd = history_of_pvd
+    p.history_of_dementia = history_of_dementia; p.history_of_cpd = history_of_cpd
+    p.history_of_ctd = history_of_ctd; p.history_of_pud = history_of_pud
+    p.liver_disease = liver_disease; p.hemiplegia = hemiplegia
+    p.solid_tumor = solid_tumor; p.leukemia = leukemia; p.lymphoma = lymphoma
     p.smoking_status = smoking_status; p.alcohol_consumption = alcohol_consumption
-    p.charlson_comorbidity_index = charlson_comorbidity_index
+    p.charlson_comorbidity_index = calculate_cci(
+        age=age, cad_status=cad_status, chf_status=chf_status, history_of_pvd=history_of_pvd,
+        history_of_stroke=history_of_stroke, history_of_dementia=history_of_dementia, history_of_cpd=history_of_cpd,
+        history_of_ctd=history_of_ctd, history_of_pud=history_of_pud, liver_disease=liver_disease,
+        dm_status=dm_status, dm_end_organ_damage=dm_end_organ_damage, hemiplegia=hemiplegia,
+        solid_tumor=solid_tumor, leukemia=leukemia, lymphoma=lymphoma, viral_hiv=viral_hiv
+    )
     p.comorbidities = comorbidities; p.drug_allergies = drug_allergies
     p.dialysis_modality = dialysis_modality; p.previous_krt_modality = previous_krt_modality
     p.history_of_renal_transplant = history_of_renal_transplant
@@ -765,7 +887,26 @@ def entry_form(patient_id: int, request: Request, month: Optional[str] = None, d
     if not p: raise HTTPException(status_code=404)
     month_str = month or get_current_month_str()
     rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == month_str).first()
-    
+
+    # Month navigation: compute prev/next month strings and labels
+    year, mon = map(int, month_str.split("-"))
+    prev_y, prev_m = (year, mon - 1) if mon > 1 else (year - 1, 12)
+    next_y, next_m = (year, mon + 1) if mon < 12 else (year + 1, 1)
+    prev_month_str = f"{prev_y}-{prev_m:02d}"
+    next_month_str = f"{next_y}-{next_m:02d}"
+
+    # Copy-forward: fetch prior month's record for stable-field pre-fill
+    prior_rec = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month == prev_month_str
+    ).first()
+    prior_anti_meds = []
+    if prior_rec and prior_rec.antihypertensive_details:
+        try:
+            prior_anti_meds = json.loads(prior_rec.antihypertensive_details)
+        except:
+            pass
+
     anti_meds = []
     if rec and rec.antihypertensive_details:
         try:
@@ -776,7 +917,11 @@ def entry_form(patient_id: int, request: Request, month: Optional[str] = None, d
     return templates.TemplateResponse("entry_form.html", {
         "request": request, "patient": p, "record": rec,
         "anti_meds": anti_meds,
+        "prior_record": prior_rec,
+        "prior_anti_meds": prior_anti_meds,
         "month_str": month_str, "month_label": get_month_label(month_str),
+        "prev_month_str": prev_month_str, "prev_month_label": get_month_label(prev_month_str),
+        "next_month_str": next_month_str, "next_month_label": get_month_label(next_month_str),
         "user": get_user(request),
     })
 
@@ -1555,15 +1700,20 @@ def create_event(
 @app.post("/patients/{patient_id}/interim-labs/new")
 def create_interim_lab(
     patient_id: int,
+    request: Request,
     lab_date: str = Form(...),
     parameter: str = Form(...),
     value: float = Form(...),
     unit: str = Form(""),
     trigger: str = Form(""),
     notes: Optional[str] = Form(None),
+    csrf_token: str = Form(...),
     db: Session = Depends(get_db),
-    request: Request = None
 ):
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
     user = get_user(request)
     interim = InterimLabRecord(
         patient_id=patient_id,
@@ -1578,8 +1728,7 @@ def create_interim_lab(
     )
     db.add(interim)
     db.commit()
-    ref = request.headers.get("referer", f"/patients/{patient_id}/analytics")
-    return RedirectResponse(url=ref, status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/profile?msg=lab_saved", status_code=303)
 
 
 @app.post("/events/{event_id}/delete")

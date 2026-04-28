@@ -1,0 +1,23 @@
+{% macro lab_box(label, value, unit, prior_val=None, low=None, high=None) %}
+    {# Coerce to float to avoid string comparison bugs from DB values #}
+    {% set v = value | float if value is not none else none %}
+    {% set pv = prior_val | float if prior_val is not none else none %}
+    {% set is_danger = (low is not none and v is not none and v < (low | float)) or
+                       (high is not none and v is not none and v > (high | float)) %}
+    <div class="lab-box {{ 'danger' if is_danger else '' }}"
+         {% if is_danger %}role="alert" aria-label="{{ label }}: {{ '%.1f'|format(v) }} {{ unit }} — out of range"{% endif %}>
+        <span class="stat-label" style="font-size: 0.65rem;">{{ label }}</span>
+        <span class="value">{{ "%.1f"|format(v) if v is not none else '—' }}</span>
+        <span class="unit">{{ unit }}</span>
+        {% if pv is not none and v is not none %}
+            {% set diff = (v - pv) | abs %}
+            <div class="trend {{ 'up' if v > pv else 'down' if v < pv else 'stable' }}"
+                 aria-label="{{ 'Rising' if v > pv else 'Falling' if v < pv else 'Stable' }} by {{ '%.1f'|format(diff) }}">
+                <i class="material-icons" style="font-size: 1rem" aria-hidden="true">
+                    {{ 'trending_up' if v > pv else 'trending_down' if v < pv else 'trending_flat' }}
+                </i>
+                {{ "%.1f"|format(diff) }}
+            </div>
+        {% endif %}
+    </div>
+{% endmacro %}

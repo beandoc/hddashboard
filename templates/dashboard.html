@@ -657,46 +657,7 @@
 </head>
 <body>
 
-<div class="app-nav">
-  <span class="brand">CH(SC) · Nephrology Unit</span>
-  <div class="nav-links">
-            <a href="/" class="active">Dashboard</a>
-            <a href="/schedule" class="">Schedule</a>
-            <a href="/patients" class="">Patients</a>
-            <a href="/entry" class="">Data Entry</a>
-            <a href="/events" class="">Events</a>
-            <a href="/alerts" class="">Alerts</a>
-            <a href="/variables" class="">Variables</a>
-            {% if user and user.role == "admin" %}
-                <a href="/admin/users">Users</a>
-                <a href="/admin/db">Manage Data</a>
-            {% endif %}
-            <a href="/logout" style="color:#ffc107">Logout</a>
-        </div>
-  <button class="mobile-menu-btn" onclick="toggleDrawer()">
-    <i class="material-icons">menu</i>
-  </button>
-</div>
-
-<!-- Mobile Nav Drawer -->
-<div class="mobile-drawer" id="mobileDrawer">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <span class="brand" style="color:rgba(255,255,255,0.6)">Menu</span>
-            <button class="mobile-menu-btn" onclick="toggleDrawer()"><i class="material-icons">close</i></button>
-        </div>
-        <a href="/" class="active">Dashboard</a>
-        <a href="/schedule" class="">Schedule</a>
-        <a href="/patients" class="">Patients</a>
-        <a href="/entry" class="">Data Entry</a>
-        <a href="/events" class="">Events</a>
-        <a href="/alerts" class="">Alerts</a>
-        <a href="/variables" class="">Variables</a>
-        {% if user and user.role == "admin" %}
-        <a href="/admin/users">Users</a>
-        <a href="/admin/db">Manage Data</a>
-        {% endif %}
-        <a href="/logout" style="color:#ffc107">Logout</a>
-    </div>
+{% include "_nav.html" %}
 
 
 <header>
@@ -711,7 +672,6 @@
     </div>
     <a href="/entry">+ Enter Data</a>
     <a href="/patients/new">+ New Patient</a>
-    <a href="/patients">All Patients</a>
   </div>
 </header>
 
@@ -1206,9 +1166,6 @@ function showLiveIndicator() {
 
 // Start polling when page loads
 pollDashboard();
-function toggleDrawer() {
-  document.getElementById("mobileDrawer").classList.toggle("open");
-}
 </script>
 </body>
 </html>

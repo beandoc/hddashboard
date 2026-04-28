@@ -9,18 +9,18 @@
   
   <style>
     :root {
-      --primary: #1a237e;
+      --primary: #0ea5e9;
       --accent: #0ea5e9;
-      --bg-main: #f4f7fa;
+      --bg-main: #f8fafc;
       --bg-card: #ffffff;
-      --text-main: #2c3e50;
-      --text-muted: #7f8c8d;
-      --accent-red: #d32f2f;
-      --accent-green: #2e7d32;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --accent-red: #ef4444;
+      --accent-green: #10b981;
       --white: #ffffff;
-      --blue: #1a237e;
+      --blue: #0284c7;
       --shadow: 0 2px 8px rgba(0,0,0,0.08);
-      --border: #e8eaf6;
+      --border: #e2e8f0;
       --radius: 12px;
     }
 
@@ -83,20 +83,7 @@
 </head>
 <body>
 
-  <nav class="app-nav">
-    <div class="brand">CH(SC) • Patient Analytics</div>
-    <div class="nav-links">
-            <a href="/" class="">Dashboard</a>
-            <a href="/schedule" class="">Schedule</a>
-            <a href="/patients" class="active">Patients</a>
-            <a href="/entry" class="">Data Entry</a>
-            <a href="/events" class="">Events</a>
-            <a href="/alerts" class="">Alerts</a>
-            <a href="/variables" class="">Variables</a>
-            {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
-            <a href="/logout" style="color:#ffc107">Logout</a>
-        </div>
-  </nav>
+  {% include "_nav.html" %}
 
   <header class="content-header">
     <div class="patient-banner">
@@ -119,8 +106,8 @@
   </header>
 
     <div style="max-width: 1000px; margin: 20px auto -10px; padding: 0 24px;">
-        <a href="javascript:history.back()" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
-            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back
+        <a href="/patients/{{ patient.id }}/profile" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
+            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back to Profile
         </a>
     </div>
 

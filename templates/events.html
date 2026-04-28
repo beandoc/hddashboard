@@ -191,20 +191,7 @@
 </head>
 <body>
 
-<nav class="app-nav">
-  <div class="brand">CH(SC) · Nephrology Unit</div>
-  <div class="nav-links">
-            <a href="/" class="">Dashboard</a>
-            <a href="/schedule" class="">Schedule</a>
-            <a href="/patients" class="">Patients</a>
-            <a href="/entry" class="">Data Entry</a>
-            <a href="/events" class="active">Events</a>
-            <a href="/alerts" class="">Alerts</a>
-            <a href="/variables" class="">Variables</a>
-            {% if user and user.role == "admin" %}<a href="/admin/users">Admin</a>{% endif %}
-            <a href="/logout" style="color:#ffc107">Logout</a>
-        </div>
-</nav>
+{% include "_nav.html" %}
 
 <div class="page-header">
   <h1><i class="material-icons" style="vertical-align:middle;margin-right:8px;font-size:1.6rem;">timeline</i>Clinical Events Timeline</h1>

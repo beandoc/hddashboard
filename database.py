@@ -43,10 +43,21 @@ class Patient(Base):
 
     # ── Structured Comorbidities ──────────────────────────────────────────────
     dm_status = Column(String)           # None / Type 1 / Type 2 / Secondary
+    dm_end_organ_damage = Column(Boolean)# Diabetes with end-organ damage
     htn_status = Column(Boolean)         # HypertensionStatus
-    cad_status = Column(Boolean)         # CoronaryArteryDiseaseStatus
+    cad_status = Column(Boolean)         # CoronaryArteryDiseaseStatus (used for MI)
     chf_status = Column(Boolean)         # CongestiveHeartFailureStatus
-    history_of_stroke = Column(Boolean)  # HistoryOfStroke
+    history_of_stroke = Column(Boolean)  # HistoryOfStroke (used for CVA/TIA)
+    history_of_pvd = Column(Boolean)     # Peripheral Vascular Disease
+    history_of_dementia = Column(Boolean)# Dementia
+    history_of_cpd = Column(Boolean)     # Chronic Pulmonary Disease
+    history_of_ctd = Column(Boolean)     # Connective Tissue Disease
+    history_of_pud = Column(Boolean)     # Peptic Ulcer Disease
+    liver_disease = Column(String)       # None / Mild / Moderate to severe
+    hemiplegia = Column(Boolean)         # Hemiplegia
+    solid_tumor = Column(String)         # None / Localized / Metastatic
+    leukemia = Column(Boolean)           # Leukemia
+    lymphoma = Column(Boolean)           # Lymphoma
     smoking_status = Column(String)      # Never / Ex-smoker / Current
     alcohol_consumption = Column(String) # None / Occasional / Regular
     charlson_comorbidity_index = Column(Integer)  # Calculated CCI score
