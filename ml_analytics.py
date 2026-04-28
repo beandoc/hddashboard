@@ -1247,14 +1247,17 @@ def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
 
 # ── Main Entry Points ─────────────────────────────────────────────────────────
 
-def run_patient_analytics(db: Session, patient_id: int) -> Dict:
-    records = (
-        db.query(MonthlyRecord)
-        .filter(MonthlyRecord.patient_id == patient_id)
-        .order_by(desc(MonthlyRecord.record_month))
-        .limit(12)
-        .all()
-    )
+def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Optional[List[MonthlyRecord]] = None) -> Dict:
+    if prefetched_records is not None:
+        records = prefetched_records
+    else:
+        records = (
+            db.query(MonthlyRecord)
+            .filter(MonthlyRecord.patient_id == patient_id)
+            .order_by(desc(MonthlyRecord.record_month))
+            .limit(12)
+            .all()
+        )
     df = [
         {
             "month": r.record_month,
@@ -1441,29 +1444,49 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
         target_months.append(m)
     target_months.reverse() # [m-3, m-2, m-1, m]
 
-    # Fetch history for at-risk patients
+    # ── Batch Fetch Data to Avoid N+1 Problem ──
+    # 1. Fetch all at-risk patients in one go
+    patients = db.query(Patient).filter(Patient.id.in_(at_risk_patient_ids)).all()
+    patient_map = {p.id: p for p in patients}
+    
+    # 2. Fetch all relevant history in one go
+    all_history = (
+        db.query(MonthlyRecord)
+        .filter(
+            MonthlyRecord.patient_id.in_(at_risk_patient_ids),
+            MonthlyRecord.record_month.in_(target_months)
+        )
+        .order_by(MonthlyRecord.record_month.asc())
+        .all()
+    )
+    
+    # 3. Group history by patient_id
+    history_by_patient = {}
+    for h in all_history:
+        if h.patient_id not in history_by_patient:
+            history_by_patient[h.patient_id] = {}
+        
+        h_val = getattr(h, parameter, None)
+        if parameter == "calcium" and h.calcium is not None and h.albumin is not None:
+            h_val = h.calcium + 0.8 * (4.0 - h.albumin)
+        
+        history_by_patient[h.patient_id][h.record_month] = h_val
+
+    # ── Build Results ──
     results = []
     for pid in at_risk_patient_ids:
-        patient = db.query(Patient).filter(Patient.id == pid).first()
-        if not patient: continue
-        
-        history = db.query(MonthlyRecord).filter(
-            MonthlyRecord.patient_id == pid,
-            MonthlyRecord.record_month.in_(target_months)
-        ).order_by(MonthlyRecord.record_month).all()
-        
-        hist_map = {}
-        for h in history:
-            h_val = getattr(h, parameter)
-            if parameter == "calcium" and h.calcium is not None and h.albumin is not None:
-                h_val = h.calcium + 0.8 * (4.0 - h.albumin)
-            hist_map[h.record_month] = h_val
+        patient = patient_map.get(pid)
+        if not patient:
+            continue
+            
+        hist_map = history_by_patient.get(pid, {})
         
         results.append({
             "id": patient.id,
             "name": patient.name,
             "trend": [round(hist_map.get(m), 2) if hist_map.get(m) is not None else None for m in target_months]
         })
+
 
     return {
         "months": target_months,

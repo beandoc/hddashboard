@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -173,6 +173,14 @@ class MonthlyRecord(Base):
     record_month = Column(String, nullable=False)    # YYYY-MM e.g. "2026-04"
     timestamp = Column(DateTime, default=datetime.utcnow)
     entered_by = Column(String)
+
+    # Composite index and unique constraint for data integrity
+    __table_args__ = (
+        Index('ix_monthly_patient_month', 'patient_id', 'record_month'),
+        UniqueConstraint('patient_id', 'record_month', name='uq_patient_month'),
+    )
+
+
 
     # ── Fluid & Weight ────────────────────────────────────────────────────────
     idwg = Column(Float)                     # Interdialytic Weight Gain — kg (monthly worst/avg)
@@ -409,6 +417,11 @@ class InterimLabRecord(Base):
     entered_by = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Composite index for performance on interim lab lookups
+    __table_args__ = (
+        Index('ix_interim_patient_month', 'patient_id', 'record_month'),
+    )
+
     patient = relationship("Patient", back_populates="interim_labs")
     session = relationship("SessionRecord")
 
@@ -458,6 +471,13 @@ class PatientSymptomReport(Base):
     notes = Column(Text)
 
     patient = relationship("Patient", back_populates="symptom_reports")
+
+
+def to_dict(obj):
+    """Serialize SQLAlchemy model to dictionary, skipping internal state and relationships."""
+    if not obj:
+        return None
+    return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
 
 
 def get_db():

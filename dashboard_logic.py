@@ -7,11 +7,15 @@ Locked - Do not modify without clinical validation.
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import Patient, MonthlyRecord, InterimLabRecord
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from ml_analytics import normalize_epo_dose
 
 logger = logging.getLogger(__name__)
+
+# In-memory cache for dashboard results
+_DASHBOARD_CACHE = {}
+_CACHE_EXPIRY_SECONDS = 60
 
 
 def _resolve_epo_dose(r):
@@ -75,19 +79,35 @@ def get_month_label(month_str: str) -> str:
 
 def compute_dashboard(db: Session, month: str = None):
     """
-    Computes all clinical metrics and alerts for the dashboard.
-    Returns: dict of metric objects.
+    Compute aggregate metrics and per-patient rows for the clinical dashboard.
+    Uses in-memory caching to avoid redundant heavy calculations.
     """
     if not month:
+        from dashboard_logic import get_current_month_str
         month = get_current_month_str()
 
-    # Derive previous month string for trendlines
-    from datetime import date
+    # 1. Check Cache
+    global _DASHBOARD_CACHE
+    
+    # Get last modification timestamp for this month to invalidate cache if data changed
+    last_mod = db.query(func.max(MonthlyRecord.timestamp)).filter(MonthlyRecord.record_month == month).scalar()
+    last_mod_str = last_mod.isoformat() if last_mod else "none"
+    
+    cache_key = f"{month}_{last_mod_str}"
+    now = datetime.utcnow()
+    
+    if cache_key in _DASHBOARD_CACHE:
+        cached_data, expiry = _DASHBOARD_CACHE[cache_key]
+        if now < expiry:
+            return cached_data
+
+    # 2. If not in cache or expired, compute from scratch
     y, m = int(month[:4]), int(month[5:7])
     if m == 1:
         prev_month = f"{y-1}-12"
     else:
         prev_month = f"{y}-{m-1:02d}"
+
 
     metrics = {
         'total_patients': {'count': 0, 'names': []},
@@ -108,7 +128,7 @@ def compute_dashboard(db: Session, month: str = None):
     }
 
     # Fetch all active patients
-    active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+    active_patients = db.query(Patient).filter(Patient.is_active == True).yield_per(100).all()
     patient_map = {p.id: p for p in active_patients}
     
     # Process Demographics
@@ -125,15 +145,15 @@ def compute_dashboard(db: Session, month: str = None):
             metrics['female_patients']['names'].append(p.name)
 
     # Fetch Clinical Records for selected month
-    records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
+    records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).yield_per(100).all()
     record_map = {r.patient_id: r for r in records}
 
     # Fetch previous month records for trendlines
-    prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()
+    prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).yield_per(100).all()
     prev_record_map = {r.patient_id: r for r in prev_records}
 
     # Fetch interim records for this month
-    interim_labs = db.query(InterimLabRecord).filter(InterimLabRecord.record_month == month).order_by(InterimLabRecord.lab_date.asc()).all()
+    interim_labs = db.query(InterimLabRecord).filter(InterimLabRecord.record_month == month).order_by(InterimLabRecord.lab_date.asc()).yield_per(100).all()
     # Build a map of patient_id -> {parameter: latest_value}
     interim_map = {}
     for il in interim_labs:
@@ -351,13 +371,18 @@ def compute_dashboard(db: Session, month: str = None):
 
         patient_rows.append(row)
 
-    return {
+    result = {
         "metrics": metrics,
         "patient_rows": patient_rows,
         "month_label": get_month_label(month),
         "prev_month_label": get_month_label(prev_month),
         "total_active": len(active_patients)
     }
+    
+    # 3. Store in cache
+    _DASHBOARD_CACHE[cache_key] = (result, now + timedelta(seconds=_CACHE_EXPIRY_SECONDS))
+    
+    return result
 
 
 def get_patients_needing_alerts(db: Session, month: str = None):
