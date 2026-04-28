@@ -76,7 +76,11 @@ app.include_router(alerts.router)
 # CORE ROUTES (Dashboard)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/", response_class=HTMLResponse, methods=["GET", "HEAD"])
+@app.head("/", include_in_schema=False)
+async def dashboard_head():
+    return HTMLResponse(content="")
+
+@app.get("/", response_class=HTMLResponse)
 async def dashboard_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     try:
