@@ -77,6 +77,8 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         interim_k=data.get("interim_k"),
         interim_ca=data.get("interim_ca"),
         interim_trigger=data.get("interim_trigger"),
+        intradialytic_exercise_mins=data.get("intradialytic_exercise_mins"),
+        intradialytic_meals_eaten=data.get("intradialytic_meals_eaten", False),
     )
     db.add(rec)
     db.commit()
@@ -122,6 +124,8 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.interim_k = data.get("interim_k")
     sess.interim_ca = data.get("interim_ca")
     sess.interim_trigger = data.get("interim_trigger")
+    sess.intradialytic_exercise_mins = data.get("intradialytic_exercise_mins")
+    sess.intradialytic_meals_eaten = data.get("intradialytic_meals_eaten", False)
     
     db.commit()
     db.refresh(sess)

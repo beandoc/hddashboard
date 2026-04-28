@@ -91,10 +91,41 @@ async def log_meal(request: Request, calories: float = Form(...), protein: float
     return RedirectResponse(url="/patient/dashboard", status_code=303)
 
 @router.post("/symptoms")
-async def log_symptoms(request: Request, symptoms: str = Form(""), severity: int = Form(3), notes: str = Form(""), db: Session = Depends(get_db)):
+async def log_symptoms(
+    request: Request,
+    db: Session = Depends(get_db),
+    # Legacy fields
+    symptoms: str = Form(""),
+    severity: int = Form(3),
+    notes: str = Form(""),
+    # PDS Specific fields
+    dialysis_recovery_time_mins: int = Form(None),
+    tiredness_score: int = Form(None),
+    energy_level_score: int = Form(None),
+    daily_activity_impact: int = Form(None),
+    cognitive_alertness: str = Form(None),
+    post_hd_mood: str = Form(None),
+    sleepiness_severity: int = Form(None),
+    missed_social_or_work_event: bool = Form(False)
+):
     u = get_user(request)
-    if not u or not isinstance(u, dict) or u.get("role") != "patient": raise HTTPException(status_code=403)
-    report = PatientSymptomReport(patient_id=u["id"], symptoms=symptoms, severity=severity, notes=notes)
+    if not u or not isinstance(u, dict) or u.get("role") != "patient":
+        raise HTTPException(status_code=403)
+        
+    report = PatientSymptomReport(
+        patient_id=u["id"],
+        symptoms=symptoms,
+        severity=severity,
+        notes=notes,
+        dialysis_recovery_time_mins=dialysis_recovery_time_mins,
+        tiredness_score=tiredness_score,
+        energy_level_score=energy_level_score,
+        daily_activity_impact=daily_activity_impact,
+        cognitive_alertness=cognitive_alertness,
+        post_hd_mood=post_hd_mood,
+        sleepiness_severity=sleepiness_severity,
+        missed_social_or_work_event=missed_social_or_work_event
+    )
     db.add(report)
     db.commit()
     return RedirectResponse(url="/patient/dashboard", status_code=303)

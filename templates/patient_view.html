@@ -393,32 +393,99 @@
         {% endif %}
     </div>
 
-    <!-- SYMPTOM REPORTER -->
-    <h2 class="section-title"><i class="material-icons">sentiment_very_dissatisfied</i> How Are You Feeling?</h2>
+    <!-- SYMPTOM REPORTER & PDS LOGGER -->
+    <h2 class="section-title"><i class="material-icons">sentiment_very_dissatisfied</i> Post-Dialysis Symptom Log</h2>
     <div class="card">
-        <p style="color:var(--muted); font-size:0.85rem; margin:0 0 16px 0;">Tap any symptoms you're experiencing between sessions. Your care team will be notified.</p>
+        <p style="color:var(--muted); font-size:0.85rem; margin:0 0 16px 0;">Help your care team adjust your treatment by logging your recovery experience after your last session.</p>
         <form action="/patient/symptoms" method="POST" class="meal-form-v2">
+            
+            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-top:10px; margin-bottom:10px; color:var(--primary);">1. Dialysis Recovery Time</h3>
+            <div class="form-group" style="margin-bottom:16px;">
+                <label>How long did it take you to recover your normal energy after the last session?</label>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+                    <input type="number" name="dialysis_recovery_time_mins" placeholder="Minutes" min="0" max="1440" style="width:100px;">
+                    <span style="font-size:0.8rem; color:var(--muted);">minutes (e.g. 120 for 2 hours)</span>
+                </div>
+            </div>
+
+            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-bottom:10px; color:var(--primary);">2. Energy & Fatigue (SONG-HD)</h3>
+            <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                    <label>Tiredness Score (1-10)</label>
+                    <input type="range" name="tiredness_score" min="1" max="10" value="5" oninput="document.getElementById('tiredLabel').textContent=this.value">
+                    <div style="font-size:0.7rem; color:var(--muted); text-align:center;">Score: <b id="tiredLabel">5</b></div>
+                </div>
+                <div class="form-group">
+                    <label>Energy Level (1-10)</label>
+                    <input type="range" name="energy_level_score" min="1" max="10" value="5" oninput="document.getElementById('energyLabel').textContent=this.value">
+                    <div style="font-size:0.7rem; color:var(--muted); text-align:center;">Score: <b id="energyLabel">5</b></div>
+                </div>
+            </div>
+            
+            <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr 1fr;">
+                 <div class="form-group">
+                    <label>Daily Activity Impact (1-5)</label>
+                    <select name="daily_activity_impact">
+                        <option value="">Select impact...</option>
+                        <option value="1">1 - None</option>
+                        <option value="2">2 - Mildly limited</option>
+                        <option value="3">3 - Moderately limited</option>
+                        <option value="4">4 - Severely limited</option>
+                        <option value="5">5 - Unable to do activities</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display:flex; justify-content:center; align-items:center;">
+                     <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text); cursor:pointer;">
+                        <input type="checkbox" name="missed_social_or_work_event" value="true" style="width:auto; height:auto;">
+                        Missed work or social event due to fatigue?
+                    </label>
+                </div>
+            </div>
+
+            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-bottom:10px; color:var(--primary);">3. Mood & Cognition</h3>
+            <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr 1fr;">
+                <div class="form-group">
+                    <label>Cognitive Alertness</label>
+                    <select name="cognitive_alertness">
+                        <option value="">Select...</option>
+                        <option value="Sharp">Sharp / Clear</option>
+                        <option value="Slight Brain Fog">Slight Brain Fog</option>
+                        <option value="Severe Brain Fog">Severe Brain Fog</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Post-Session Mood</label>
+                    <select name="post_hd_mood">
+                        <option value="">Select...</option>
+                        <option value="Positive">Positive</option>
+                        <option value="Neutral">Neutral</option>
+                        <option value="Negative">Negative / Depressed</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-bottom:10px; color:var(--primary);">4. Physical Symptoms</h3>
             <div class="symptom-chips">
                 <div class="symptom-chip"><input type="checkbox" name="symptom_cramping" id="sc1" value="cramping"><label for="sc1"><i class="material-icons" style="font-size:16px;">bolt</i> Cramping</label></div>
                 <div class="symptom-chip"><input type="checkbox" name="symptom_breathlessness" id="sc2" value="breathlessness"><label for="sc2"><i class="material-icons" style="font-size:16px;">air</i> Breathlessness</label></div>
                 <div class="symptom-chip"><input type="checkbox" name="symptom_itching" id="sc3" value="itching"><label for="sc3"><i class="material-icons" style="font-size:16px;">back_hand</i> Itching</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_fatigue" id="sc4" value="fatigue"><label for="sc4"><i class="material-icons" style="font-size:16px;">battery_1_bar</i> Fatigue</label></div>
                 <div class="symptom-chip"><input type="checkbox" name="symptom_nausea" id="sc5" value="nausea"><label for="sc5"><i class="material-icons" style="font-size:16px;">sick</i> Nausea</label></div>
                 <div class="symptom-chip"><input type="checkbox" name="symptom_dizziness" id="sc6" value="dizziness"><label for="sc6"><i class="material-icons" style="font-size:16px;">rotate_right</i> Dizziness</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_swelling" id="sc7" value="swelling"><label for="sc7"><i class="material-icons" style="font-size:16px;">water</i> Swelling</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_headache" id="sc8" value="headache"><label for="sc8"><i class="material-icons" style="font-size:16px;">psychology</i> Headache</label></div>
             </div>
-            <div>
+            
+            <div style="margin-bottom:16px;">
                 <div class="form-group" style="margin-bottom:6px;">
-                    <label>Symptom Severity</label>
+                    <label>Overall Physical Symptom Severity</label>
                     <input type="range" name="severity" min="1" max="5" value="3" id="severitySlider" oninput="document.getElementById('sevLabel').textContent=this.value">
                 </div>
                 <div class="severity-labels"><span>Mild (1)</span><span id="sevLabel" style="color:var(--primary); font-weight:700;">3</span><span>Severe (5)</span></div>
             </div>
-            <div class="form-group">
+
+            <div class="form-group" style="margin-bottom:20px;">
                 <label>Additional notes (optional)</label>
                 <input type="text" name="notes" placeholder="e.g. cramps started after dinner">
             </div>
+
             <button type="submit" class="btn-primary-v2" onclick="collectSymptoms(this.form)">Submit Report</button>
         </form>
 
@@ -428,6 +495,9 @@
             {% for s in recent_symptoms %}
             <div class="symptom-history-item">
                 <div>
+                    <div style="font-size:0.8rem; font-weight:bold; color:var(--text); margin-bottom:4px;">
+                        {% if s.dialysis_recovery_time_mins %}Recovery Time: {{ s.dialysis_recovery_time_mins }} mins{% endif %}
+                    </div>
                     <div class="symptom-chips-display" style="margin-bottom:6px;">
                         {% for sym in (s.symptoms or "").split(',') %}{% if sym.strip() %}
                         <span class="symptom-pill">{{ sym.strip() }}</span>

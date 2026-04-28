@@ -372,6 +372,8 @@ class SessionRecord(Base):
     arrhythmia = Column(Boolean)             # ArrhythmiaEvent
     early_termination = Column(Boolean)      # EarlySessionTerminationStatus
     reason_early_termination = Column(String)  # ReasonForEarlyTermination
+    intradialytic_exercise_mins = Column(Integer)  # PDS mitigating factor
+    intradialytic_meals_eaten = Column(Boolean)    # PDS mitigating factor (nutritional)
 
     # ── General Complications ─────────────────────────────────────────────────
     complications_occurred = Column(Boolean, default=False)
@@ -465,12 +467,32 @@ class PatientSymptomReport(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("session_records.id"), nullable=True) # Linked to session if EMA
     reported_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Legacy generic symptoms
     symptoms = Column(Text)   # comma-separated list e.g. "cramping,fatigue"
     severity = Column(Integer)  # 1–5
     notes = Column(Text)
+    
+    # ── Post-Dialysis Syndrome (PDS) Specifics ───────────────────────────────
+    dialysis_recovery_time_mins = Column(Integer)  # DRT in minutes
+    
+    # SONG-HD Fatigue Scale
+    tiredness_score = Column(Integer)        # 1-10
+    energy_level_score = Column(Integer)     # 1-10
+    daily_activity_impact = Column(Integer)  # 1-5
+    
+    # Mood & Cognition (EMA)
+    cognitive_alertness = Column(String)     # Sharp / Slight Brain Fog / Severe Brain Fog
+    post_hd_mood = Column(String)            # Positive / Neutral / Negative
+    sleepiness_severity = Column(Integer)    # 1-10
+    
+    # Impact Dimensions
+    missed_social_or_work_event = Column(Boolean)
 
     patient = relationship("Patient", back_populates="symptom_reports")
+    session = relationship("SessionRecord")
 
 
 def to_dict(obj):

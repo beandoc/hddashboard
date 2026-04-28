@@ -8,7 +8,7 @@ from database import get_db, Patient, ClinicalEvent, SessionRecord
 from config import templates
 from dependencies import get_user
 from dashboard_logic import compute_dashboard
-from ml_analytics import run_patient_analytics, analyze_bfr_trend, run_cohort_analytics, get_at_risk_trends
+from ml_analytics import run_patient_analytics, analyze_bfr_trend, run_cohort_analytics, get_at_risk_trends, analyze_pds
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
 logger = logging.getLogger(__name__)
@@ -40,11 +40,13 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
         for s in recent_sessions
     ]
     bfr_analytics = analyze_bfr_trend(session_dicts)
+    pds_analytics = analyze_pds(db, patient_id)
     
     return templates.TemplateResponse("patient_analytics.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
         "bfr_analytics": bfr_analytics, "recent_sessions": recent_sessions,
+        "pds_analytics": pds_analytics,
         "user": get_user(request),
     })
 

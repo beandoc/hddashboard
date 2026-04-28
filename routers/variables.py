@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
-from database import get_db, Patient, VariableDefinition, VariableValue, MonthlyRecord
+from database import get_db, Patient, MonthlyRecord
+from dynamic_vars import VariableDefinition, VariableValue, get_all_variables, upsert_variable_value
 from config import templates
 from dependencies import get_user
-from dashboard_logic import get_current_month_str, get_all_variables, upsert_variable_value
+from dashboard_logic import get_current_month_str
 from constants import VAR_TO_MONTHLY
 
 logger = logging.getLogger(__name__)

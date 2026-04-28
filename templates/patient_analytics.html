@@ -6,6 +6,7 @@
   <title>Patient Analytics | HD Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
   <style>
     :root {
@@ -363,6 +364,49 @@
       </div>
 
     </div>
+
+    <!-- PDS Analytics Row -->
+    <div class="dashboard-row" style="grid-template-columns: 1fr; margin-top: 24px;">
+      <!-- Post-Dialysis Syndrome (PDS) -->
+      {% set pds = pds_analytics %}
+      <div class="insight-card" style="border-top: 3px solid {% if pds.css_class == 'danger' %}#dc2626{% else %}#16a34a{% endif %};">
+        <div class="card-head">
+          <i class="material-icons">bedtime</i>
+          <h3>Post-Dialysis Syndrome (PDS) Analytics</h3>
+          {% if pds.available %}
+          <span class="status-pill {{ pds.css_class }}">
+            {{ pds.risk_level | capitalize }} Risk
+          </span>
+          {% endif %}
+        </div>
+        {% if pds.available %}
+          <div class="card-val" style="color:{% if pds.css_class == 'danger' %}#dc2626{% else %}#16a34a{% endif %};">
+            {{ pds.avg_drt_hours }} <small>hrs avg DRT</small>
+          </div>
+          {% if pds.flags %}
+          <ul class="risk-factors" style="margin-top:12px;">
+            {% for f in pds.flags %}
+            <li><i class="material-icons" style="font-size: 1rem;">warning</i> {{ f }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% if pds.interventions %}
+          <ul class="risk-factors" style="border-top:none; padding-top:0;">
+            {% for i in pds.interventions %}
+            <li style="color:#0ea5e9;"><i class="material-icons" style="font-size: 1rem;">medical_services</i> {{ i }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          
+          <div style="margin-top: 20px; height: 250px;">
+            <canvas id="pdsChart"></canvas>
+          </div>
+        {% else %}
+          <div class="card-val" style="font-size:1rem;color:#94a3b8;">No PDS Data</div>
+          <div class="card-desc">{{ pds.message }}</div>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
   </div>
 
@@ -461,6 +505,89 @@
       var d = document.querySelector('#ptEvtForm input[name="event_date"]');
       if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
     })();
+
+    {% if pds_analytics and pds_analytics.available %}
+    (function(){
+        const ctx = document.getElementById('pdsChart');
+        if (!ctx) return;
+        
+        const events = {{ pds_analytics.events | tojson }};
+        if (events.length === 0) return;
+        
+        // Reverse to show oldest to newest (since they are ordered by desc)
+        const sortedEvents = events.slice().reverse();
+        
+        const labels = sortedEvents.map(e => e.date);
+        const drtData = sortedEvents.map(e => e.drt_mins);
+        const ufrData = sortedEvents.map(e => e.ufr || null);
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'DRT (mins)',
+                        data: drtData,
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: 'UFR (mL/h/kg)',
+                        data: ufrData,
+                        borderColor: 'rgb(14, 165, 233)',
+                        backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Recovery Time (mins)' },
+                        grid: { color: '#f1f5f9' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'UFR (mL/h/kg)' },
+                        grid: { drawOnChartArea: false }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function(context) {
+                                const index = context.dataIndex;
+                                const ev = sortedEvents[index];
+                                let details = [];
+                                if (ev.temp) details.push(`Dialysate Temp: ${ev.temp}°C`);
+                                if (ev.idh) details.push('IDH Episode: Yes');
+                                if (ev.tiredness) details.push(`Tiredness: ${ev.tiredness}/10`);
+                                return details;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    })();
+    {% endif %}
   </script>
 
 </body>

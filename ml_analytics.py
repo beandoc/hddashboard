@@ -1493,3 +1493,96 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
         "patients": results,
         "parameter": parameter
     }
+
+# ── Post-Dialysis Syndrome (PDS) Analytics ────────────────────────────────────
+
+def analyze_pds(db: Session, patient_id: int) -> Dict:
+    """
+    Correlates PatientSymptomReports (specifically DRT) with recent SessionRecords
+    to identify clinical drivers of PDS.
+    """
+    from database import PatientSymptomReport, SessionRecord, MonthlyRecord
+    from datetime import timedelta
+
+    # Get recent symptom reports that have PDS data
+    reports = db.query(PatientSymptomReport).filter(
+        PatientSymptomReport.patient_id == patient_id,
+        PatientSymptomReport.dialysis_recovery_time_mins != None
+    ).order_by(PatientSymptomReport.reported_at.desc()).limit(10).all()
+
+    if not reports:
+        return {"available": False, "message": "No PDS symptom logs available."}
+
+    # Fetch recent sessions for correlation
+    recent_sessions = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == patient_id
+    ).order_by(SessionRecord.session_date.desc()).limit(20).all()
+
+    # Link reports to sessions by session_id, or by proximity (within 24 hours)
+    correlated_events = []
+    for rep in reports:
+        sess = None
+        if rep.session_id:
+            sess = next((s for s in recent_sessions if s.id == rep.session_id), None)
+        else:
+            # Fallback to proximity matching
+            rep_date = rep.reported_at.date()
+            sess = next((s for s in recent_sessions if s.session_date == rep_date or s.session_date == rep_date - timedelta(days=1)), None)
+            
+        if sess:
+            ufr = None
+            if sess.weight_pre and sess.weight_post and sess.duration_hours:
+                ufr = round(((sess.weight_pre - sess.weight_post) * 1000) / (sess.duration_hours + (sess.duration_minutes or 0)/60), 1)
+
+            correlated_events.append({
+                "date": str(rep.reported_at.date()),
+                "drt_mins": rep.dialysis_recovery_time_mins,
+                "tiredness": rep.tiredness_score,
+                "mood": rep.post_hd_mood,
+                "ufr": ufr,
+                "idh": sess.idh_episode,
+                "temp": sess.dialysate_temperature,
+                "exercise": sess.intradialytic_exercise_mins
+            })
+
+    # Average DRT
+    avg_drt = sum(e["drt_mins"] for e in correlated_events) / len(correlated_events)
+    
+    # Flags & Interventions
+    flags = []
+    interventions = []
+    risk_level = "low"
+    
+    if avg_drt > 360: # > 6 hours
+        risk_level = "high"
+        flags.append(f"Prolonged average recovery time: {round(avg_drt/60, 1)} hours.")
+        
+        # Check for UFR correlation
+        high_ufr_events = [e for e in correlated_events if e["ufr"] and e["ufr"] > 10.0 and e["drt_mins"] > 360]
+        if high_ufr_events:
+            flags.append("Prolonged DRT correlates with high Ultrafiltration Rate.")
+            interventions.append("Review fluid allowance and target dry weight.")
+            
+        # Check for IDH correlation
+        idh_events = [e for e in correlated_events if e["idh"] and e["drt_mins"] > 360]
+        if idh_events:
+            flags.append("Prolonged DRT correlates with Intradialytic Hypotension.")
+            interventions.append("Consider cool dialysate or adjusting dialysate sodium.")
+            
+        # Check nutritional status
+        latest_monthly = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+        if latest_monthly and latest_monthly.albumin and latest_monthly.albumin < 3.5:
+            flags.append("Prolonged DRT in setting of hypoalbuminemia.")
+            interventions.append("Evaluate for protein-energy wasting; encourage intradialytic meals if appropriate.")
+
+    return {
+        "available": True,
+        "avg_drt_mins": round(avg_drt),
+        "avg_drt_hours": round(avg_drt / 60, 1),
+        "risk_level": risk_level,
+        "css_class": "danger" if risk_level == "high" else "success",
+        "flags": flags,
+        "interventions": interventions,
+        "events": correlated_events
+    }
+
