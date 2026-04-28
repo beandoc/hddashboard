@@ -13,14 +13,14 @@ from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(tags=["analytics"])
 
-@router.get("/patients", tags=["api"])
+@router.get("/analytics/patients", tags=["api"])
 async def api_patients(q: str = "", db: Session = Depends(get_db)):
     patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(20).all()
     return [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
 
-@router.get("/patients/{patient_id}", response_class=HTMLResponse)
+@router.get("/analytics/patients/{patient_id}", response_class=HTMLResponse)
 async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
