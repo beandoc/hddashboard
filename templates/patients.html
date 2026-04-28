@@ -205,7 +205,7 @@
 
 {% set ns = namespace(missing=0, alert_count=0, stable=0) %}
 {% for row in data.patient_rows %}
-    {% if not row.has_record %}{% set ns.missing = ns.missing + 1 %}
+    {% if not row.has_record or row.has_missing_data %}{% set ns.missing = ns.missing + 1 %}
     {% elif row.alerts %}{% set ns.alert_count = ns.alert_count + 1 %}
     {% else %}{% set ns.stable = ns.stable + 1 %}{% endif %}
 {% endfor %}
@@ -321,8 +321,8 @@
                 {% for row in data.patient_rows %}
                 {% set p = patients_by_id[row.id] %}
                 {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
-                {% set row_status = 'missing' if not row.has_record else ('alert' if row.alerts else 'stable') %}
-                <tr class="{{ 'row-missing' if not row.has_record else '' }}" data-status="{{ row_status }}">
+                {% set row_status = 'missing' if (not row.has_record or row.has_missing_data) else ('alert' if row.alerts else 'stable') %}
+                <tr class="{{ 'row-missing' if (not row.has_record or row.has_missing_data) else '' }}" data-status="{{ row_status }}">
 
                     <!-- Patient: name + HID + sex badge -->
                     <td data-label="Patient">
@@ -401,6 +401,9 @@
                     <td data-label="Status">
                         {% if not row.has_record %}
                             <span class="missing-pill"><i class="material-icons" style="font-size:0.85rem;">warning_amber</i> No data</span>
+                        {% elif row.has_missing_data %}
+                            {% for f in row.missing_fields %}<span class="missing-pill" title="{{ f }} not entered this month" style="margin:1px;"><i class="material-icons" style="font-size:0.8rem;">remove_circle_outline</i> {{ f }}</span>{% endfor %}
+                            {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
                         {% elif row.alerts %}
                             {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
                         {% else %}

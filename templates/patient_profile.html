@@ -423,18 +423,46 @@
                 </div>
             </div>
 
+            <!-- CLINICAL BACKGROUND (POMR) -->
+            <div class="card">
+                <h2 class="section-title" style="font-size: 1rem;">
+                    <i class="material-icons" aria-hidden="true">history_edu</i> POMR & Background
+                </h2>
+                {% if patient.clinical_background %}
+                <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">
+                    <strong>Longitudinal History:</strong><br/>
+                    {{ patient.clinical_background }}
+                </div>
+                {% endif %}
+                
+                {% if patient.native_kidney_biopsy_report or patient.native_kidney_biopsy == 'Done' %}
+                <div style="font-size: 0.8rem; line-height: 1.5; background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 8px;">
+                    <strong>Biopsy ({{ patient.native_kidney_biopsy_date.strftime('%b %Y') if patient.native_kidney_biopsy_date else 'Date Unknown' }}):</strong><br/>
+                    {{ patient.native_kidney_biopsy_report or patient.native_kidney_biopsy }}
+                </div>
+                {% endif %}
+
+                {% if patient.echo_report or patient.echo_date %}
+                <div style="font-size: 0.8rem; line-height: 1.5; background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 8px;">
+                    <strong>2D Echo ({{ patient.echo_date.strftime('%b %Y') if patient.echo_date else 'Date Unknown' }}):</strong><br/>
+                    {{ patient.echo_report or 'EF: ' ~ patient.ejection_fraction ~ '%' }}
+                </div>
+                {% endif %}
+                
+                <div style="margin-top:12px; border-top:1px solid #f1f5f9; padding-top:10px;">
+                    <button class="btn-action btn-ghost" style="width: 100%; justify-content: center; font-size: 0.8rem;" aria-label="Upload report (Echo or Biopsy)">
+                        <i class="material-icons" style="font-size: 1rem;" aria-hidden="true">upload_file</i> Upload Scanned Reports
+                    </button>
+                </div>
+            </div>
+
             <!-- CLINICAL NOTES -->
             <div class="card">
                 <h2 class="section-title" style="font-size: 1rem;">
-                    <i class="material-icons" aria-hidden="true">description</i> Clinical Notes
+                    <i class="material-icons" aria-hidden="true">description</i> Monthly Clinical Notes
                 </h2>
                 <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-main); background: #fffbeb; padding: 12px; border-radius: 8px; border: 1px solid #fef3c7;">
                     {{ latest_monthly.issues if latest_monthly and latest_monthly.issues else 'No clinician review entries found for the current cycle.' }}
-                </div>
-                <div style="margin-top:16px; border-top:1px solid #f1f5f9; padding-top:12px;">
-                    <button class="btn-action btn-ghost" style="width: 100%; justify-content: center; font-size: 0.8rem;" aria-label="Upload report (Echo or Biopsy)">
-                        <i class="material-icons" style="font-size: 1rem;" aria-hidden="true">upload_file</i> Upload Report (Echo/Biopsy)
-                    </button>
                 </div>
             </div>
         </aside>

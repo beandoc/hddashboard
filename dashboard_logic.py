@@ -167,11 +167,26 @@ def compute_dashboard(db: Session, month: str = None):
 
     for p in active_patients:
         r = record_map.get(p.id)
+
+        # Determine which core fields are missing (for the Missing Data counter)
+        # Core fields required for complete clinical review:
+        _CORE_FIELDS = {
+            "Hb": r.hb if r else None,
+            "Albumin": r.albumin if r else None,
+            "Phosphorus": r.phosphorus if r else None,
+            "Calcium": r.calcium if r else None,
+            "TSAT": r.tsat if r else None,
+        }
+        _missing_fields = [k for k, v in _CORE_FIELDS.items() if v is None]
+        _has_missing_data = bool(_missing_fields)  # True if any core field is blank
+
         row = {
             "id": p.id,
             "name": p.name,
             "hid": p.hid_no,
             "has_record": r is not None,
+            "has_missing_data": _has_missing_data,
+            "missing_fields": _missing_fields,
             "access": r.access_type if r else p.access_type,
             "idwg": r.idwg if r else None,
             "hb": r.hb if r else None,

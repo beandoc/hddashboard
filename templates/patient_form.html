@@ -261,6 +261,14 @@
                             <option value="Inconclusive" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Inconclusive' }}>Inconclusive</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label>Biopsy Date</label>
+                        <input type="date" name="native_kidney_biopsy_date" value="{{ patient.native_kidney_biopsy_date if patient and patient.native_kidney_biopsy_date else '' }}">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Biopsy Report Details</label>
+                        <textarea name="native_kidney_biopsy_report" rows="2" placeholder="e.g. Findings from the biopsy report..." style="resize: vertical;">{{ patient.native_kidney_biopsy_report if patient and patient.native_kidney_biopsy_report else '' }}</textarea>
+                    </div>
                 </div>
             </div>
 
@@ -280,6 +288,14 @@
                     <div class="form-group">
                         <label>Ejection Fraction (%) <small style="color:#888">Default 60% if unknown</small></label>
                         <input type="number" step="1" name="ejection_fraction" min="10" max="80" value="{{ patient.ejection_fraction if patient and patient.ejection_fraction else '' }}" placeholder="60">
+                    </div>
+                    <div class="form-group">
+                        <label>2D Echo Date</label>
+                        <input type="date" name="echo_date" value="{{ patient.echo_date if patient and patient.echo_date else '' }}">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>2D Echo Report Details</label>
+                        <textarea name="echo_report" rows="2" placeholder="e.g. Detailed findings from the 2D Echo report..." style="resize: vertical;">{{ patient.echo_report if patient and patient.echo_report else '' }}</textarea>
                     </div>
                     <div class="form-group">
                         <label>Smoking Status</label>

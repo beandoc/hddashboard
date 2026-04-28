@@ -343,6 +343,8 @@ def create_patient(
     primary_renal_disease: str = Form(""),
     date_esrd_diagnosis: Optional[str] = Form(None),
     native_kidney_biopsy: str = Form(""),
+    native_kidney_biopsy_date: Optional[str] = Form(None),
+    native_kidney_biopsy_report: str = Form(""),
     dm_status: str = Form(""),
     dm_end_organ_damage: bool = Form(False),
     htn_status: bool = Form(False),
@@ -364,6 +366,7 @@ def create_patient(
     charlson_comorbidity_index: Optional[int] = Form(None),
     comorbidities: str = Form(""),
     drug_allergies: str = Form(""),
+    clinical_background: str = Form(""),
     dialysis_modality: str = Form(""),
     previous_krt_modality: str = Form(""),
     history_of_renal_transplant: bool = Form(False),
@@ -392,6 +395,8 @@ def create_patient(
     catheter_insertion_site: str = Form(""),
     age: Optional[int] = Form(None),
     ejection_fraction: Optional[float] = Form(None),
+    echo_date: Optional[str] = Form(None),
+    echo_report: str = Form(""),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
     hd_day_1: str = Form(""),
@@ -425,7 +430,10 @@ def create_patient(
         sex=sex, contact_no=contact_no, email=email, diagnosis=diagnosis,
         hd_wef_date=_d(hd_wef_date), height=height, education_level=education_level,
         healthcare_facility=healthcare_facility, primary_renal_disease=primary_renal_disease,
-        date_esrd_diagnosis=_d(date_esrd_diagnosis), native_kidney_biopsy=native_kidney_biopsy,
+        date_esrd_diagnosis=_d(date_esrd_diagnosis), 
+        native_kidney_biopsy=native_kidney_biopsy,
+        native_kidney_biopsy_date=_d(native_kidney_biopsy_date),
+        native_kidney_biopsy_report=native_kidney_biopsy_report,
         dm_status=dm_status, dm_end_organ_damage=dm_end_organ_damage, htn_status=htn_status, cad_status=cad_status,
         chf_status=chf_status, history_of_stroke=history_of_stroke, history_of_pvd=history_of_pvd,
         history_of_dementia=history_of_dementia, history_of_cpd=history_of_cpd, history_of_ctd=history_of_ctd,
@@ -439,7 +447,7 @@ def create_patient(
             dm_status=dm_status, dm_end_organ_damage=dm_end_organ_damage, hemiplegia=hemiplegia,
             solid_tumor=solid_tumor, leukemia=leukemia, lymphoma=lymphoma, viral_hiv=viral_hiv
         ),
-        comorbidities=comorbidities, drug_allergies=drug_allergies,
+        comorbidities=comorbidities, drug_allergies=drug_allergies, clinical_background=clinical_background,
         dialysis_modality=dialysis_modality, previous_krt_modality=previous_krt_modality,
         history_of_renal_transplant=history_of_renal_transplant,
         transplant_prospect=transplant_prospect,
@@ -458,6 +466,7 @@ def create_patient(
         access_intervention_history=access_intervention_history,
         catheter_type=catheter_type, catheter_insertion_site=catheter_insertion_site,
         age=age, ejection_fraction=ejection_fraction if ejection_fraction is not None else 60.0,
+        echo_date=_d(echo_date), echo_report=echo_report,
         dry_weight=dry_weight, hd_frequency=hd_frequency,
         hd_day_1=hd_day_1, hd_day_2=hd_day_2, hd_day_3=hd_day_3,
         hd_slot_1=hd_slot_1, hd_slot_2=hd_slot_2, hd_slot_3=hd_slot_3,
@@ -615,6 +624,8 @@ def update_patient(
     primary_renal_disease: str = Form(""),
     date_esrd_diagnosis: Optional[str] = Form(None),
     native_kidney_biopsy: str = Form(""),
+    native_kidney_biopsy_date: Optional[str] = Form(None),
+    native_kidney_biopsy_report: str = Form(""),
     dm_status: str = Form(""),
     dm_end_organ_damage: bool = Form(False),
     htn_status: bool = Form(False),
@@ -636,6 +647,7 @@ def update_patient(
     charlson_comorbidity_index: Optional[int] = Form(None),
     comorbidities: str = Form(""),
     drug_allergies: str = Form(""),
+    clinical_background: str = Form(""),
     dialysis_modality: str = Form(""),
     previous_krt_modality: str = Form(""),
     history_of_renal_transplant: bool = Form(False),
@@ -664,6 +676,8 @@ def update_patient(
     catheter_insertion_site: str = Form(""),
     age: Optional[int] = Form(None),
     ejection_fraction: Optional[float] = Form(None),
+    echo_date: Optional[str] = Form(None),
+    echo_report: str = Form(""),
     dry_weight: Optional[float] = Form(None),
     hd_frequency: int = Form(2),
     hd_day_1: str = Form(""),
@@ -691,7 +705,10 @@ def update_patient(
     p.sex = sex; p.contact_no = contact_no; p.email = email; p.diagnosis = diagnosis
     p.hd_wef_date = _d(hd_wef_date); p.height = height; p.education_level = education_level
     p.healthcare_facility = healthcare_facility; p.primary_renal_disease = primary_renal_disease
-    p.date_esrd_diagnosis = _d(date_esrd_diagnosis); p.native_kidney_biopsy = native_kidney_biopsy
+    p.date_esrd_diagnosis = _d(date_esrd_diagnosis)
+    p.native_kidney_biopsy = native_kidney_biopsy
+    p.native_kidney_biopsy_date = _d(native_kidney_biopsy_date)
+    p.native_kidney_biopsy_report = native_kidney_biopsy_report
     p.dm_status = dm_status; p.dm_end_organ_damage = dm_end_organ_damage
     p.htn_status = htn_status; p.cad_status = cad_status; p.chf_status = chf_status
     p.history_of_stroke = history_of_stroke; p.history_of_pvd = history_of_pvd
@@ -708,6 +725,7 @@ def update_patient(
         solid_tumor=solid_tumor, leukemia=leukemia, lymphoma=lymphoma, viral_hiv=viral_hiv
     )
     p.comorbidities = comorbidities; p.drug_allergies = drug_allergies
+    p.clinical_background = clinical_background
     p.dialysis_modality = dialysis_modality; p.previous_krt_modality = previous_krt_modality
     p.history_of_renal_transplant = history_of_renal_transplant
     p.transplant_prospect = transplant_prospect
@@ -726,6 +744,7 @@ def update_patient(
     p.access_intervention_history = access_intervention_history
     p.catheter_type = catheter_type; p.catheter_insertion_site = catheter_insertion_site
     p.age = age; p.ejection_fraction = ejection_fraction if ejection_fraction is not None else (p.ejection_fraction or 60.0)
+    p.echo_date = _d(echo_date); p.echo_report = echo_report
     p.dry_weight = dry_weight; p.hd_frequency = hd_frequency
     p.hd_day_1 = hd_day_1; p.hd_day_2 = hd_day_2; p.hd_day_3 = hd_day_3
     p.hd_slot_1 = hd_slot_1; p.hd_slot_2 = hd_slot_2; p.hd_slot_3 = hd_slot_3
@@ -985,6 +1004,7 @@ def save_entry(
     hospitalization_this_month: bool = Form(False),
     hospitalization_date: Optional[str] = Form(None),
     hospitalization_icd_code: str = Form(""),
+    clinical_background: str = Form(""),
     issues: str = Form(""),
 ):
     from datetime import date as _date
@@ -1047,6 +1067,8 @@ def save_entry(
             p.access_type = access_type
         if target_dry_weight is not None:
             p.dry_weight = target_dry_weight
+        if clinical_background:
+            p.clinical_background = clinical_background
 
     db.commit()
 

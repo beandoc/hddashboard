@@ -40,6 +40,8 @@ class Patient(Base):
     native_kidney_disease = Column(String)   # Alias — same concept, retained for backward compatibility
     date_esrd_diagnosis = Column(Date)       # Date ESRD was formally diagnosed
     native_kidney_biopsy = Column(String)    # Done / Not Done / Inconclusive
+    native_kidney_biopsy_date = Column(Date)
+    native_kidney_biopsy_report = Column(Text)
 
     # ── Structured Comorbidities ──────────────────────────────────────────────
     dm_status = Column(String)           # None / Type 1 / Type 2 / Secondary
@@ -63,6 +65,7 @@ class Patient(Base):
     charlson_comorbidity_index = Column(Integer)  # Calculated CCI score
     comorbidities = Column(Text)         # Free-text supplementary comorbidity notes
     drug_allergies = Column(String)      # NIL or list of known drug allergies
+    clinical_background = Column(Text)   # POMR chronological history
 
     # ── KRT History ───────────────────────────────────────────────────────────
     dialysis_modality = Column(String)           # Current: HD / HDF / Online-HDF / CAPD / APD
@@ -102,6 +105,8 @@ class Patient(Base):
     # ── Mortality Model Inputs ────────────────────────────────────────────────
     age = Column(Integer)                    # years — required for mortality prediction
     ejection_fraction = Column(Float, default=60.0)  # % — echocardiographic EF; default 60 (normal)
+    echo_date = Column(Date)                 # Date of 2D Echo
+    echo_report = Column(Text)               # Detailed Echo findings
 
     # ── Weight & Facility ─────────────────────────────────────────────────────
     dry_weight = Column(Float)               # kg — baseline dry weight

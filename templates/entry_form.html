@@ -487,18 +487,28 @@
                         <label>Hospitalisation Date</label>
                         <input type="date" name="hospitalization_date" value="{{ record.hospitalization_date if record and record.hospitalization_date else '' }}">
                     </div>
-                    <div class="form-group" style="grid-column: 1 / -1; background:#f8fafc; padding:16px; border-radius:12px; border:1px dashed #cbd5e1;">
-                        <label style="color:#0f172a; font-weight:700;">Clinical Diagnosis (POMR) & ICD-10 Codes</label>
-                        <textarea name="hospitalization_icd_code" rows="2" placeholder="e.g. Acute exacerbation of COPD (J44.1); Primary Hypertension (I10)..." style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;font-size:0.95rem;font-family:'Inter',sans-serif;background:#fff;resize:vertical;margin-top:8px;">{{ record.hospitalization_icd_code if record and record.hospitalization_icd_code else '' }}</textarea>
-                        <div style="font-size:0.8rem; color:#64748b; margin-top:8px;">
-                            <i class="material-icons" style="font-size:1em; vertical-align:middle;">info</i> Enter one or multiple diagnoses along with optional ICD codes to maintain the patient's Problem-Oriented Medical Record (POMR).
-                        </div>
+                    <div class="form-group">
+                        <label>Hospitalisation Reason & ICD-10 Code</label>
+                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. Acute exacerbation of COPD (J44.1)" value="{{ record.hospitalization_icd_code if record and record.hospitalization_icd_code else '' }}">
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
                             <input type="checkbox" name="hospitalization_this_month" value="true" {{ 'checked' if record and record.hospitalization_this_month }} style="width:18px;height:18px;">
                             <span>Hospitalised this month</span>
                         </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Clinical Background / POMR ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">history_edu</i> Clinical Background (POMR)</div>
+                <div class="form-group">
+                    <textarea name="clinical_background" rows="6"
+                        placeholder="e.g. ~15 Years Pre-Transplant: Diagnosed with Type 2 Diabetes..."
+                        style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;box-sizing:border-box;font-size:0.95rem;font-family:'Inter',sans-serif;background:#f8fafc;resize:vertical;line-height:1.6;">{{ patient.clinical_background if patient and patient.clinical_background else '' }}</textarea>
+                    <div style="font-size:0.8rem; color:#64748b; margin-top:8px;">
+                        <i class="material-icons" style="font-size:1em; vertical-align:middle;">info</i> Updates to this section will sync to the patient's core profile (Problem-Oriented Medical Record).
                     </div>
                 </div>
             </div>
