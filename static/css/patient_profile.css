@@ -19,7 +19,7 @@
 body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-body); color: var(--text-main); line-height: 1.5; }
 
 /* ── Navigation (base rules — overridden by _nav.html inline <style>) ─── */
-.app-nav { background: rgba(15,23,42,0.95); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 15px -1px rgb(0 0 0 / 0.1); }
+/* Navigation placeholder (canonical rules in _nav.html) */
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 .container { max-width: 1280px; margin: 24px auto; padding: 0 24px; }
@@ -167,3 +167,11 @@ textarea.form-control { resize: vertical; }
     cursor: pointer; font-family: 'Outfit', sans-serif; transition: background 0.2s;
 }
 .btn-submit:hover { background: var(--primary-dark); }
+
+@media (max-width: 640px) {
+    .patient-identity h1 { font-size: 1.5rem; }
+    .header-stats { grid-template-columns: repeat(2, 1fr); }
+    .profile-header { padding: 20px 16px; }
+    .header-top { flex-direction: column; gap: 12px; }
+    .header-top > div:last-child { text-align: left !important; }
+}

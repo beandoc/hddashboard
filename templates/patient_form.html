@@ -28,20 +28,7 @@
         }
         h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
 
-        .app-nav { 
-            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
-            display: flex; align-items: center; justify-content: space-between; 
-            padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000; 
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        }
-        .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
-        .app-nav .nav-links { display: flex; gap: 8px; }
-        .app-nav a { 
-            color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; 
-            padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
-        }
-        .app-nav a:hover { color: #fff; background: rgba(255,255,255,0.1); }
-        .mobile-menu-btn { display: none; }
+        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
 
         header { 
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
@@ -82,6 +69,7 @@
         .btn-submit:hover { background: var(--primary-dark); transform: translateY(-1px); }
 
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .comorbidity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 
         /* MOBILE DRAWER (standardized) */
         .mobile-drawer {
@@ -97,7 +85,14 @@
         @media(max-width: 640px) {
             .app-nav .nav-links { display: none; }
             .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
+            header { padding: 20px 16px; }
+            header h1 { font-size: 1.4em; }
+            .container { padding-bottom: 100px; }
             .form-row { grid-template-columns: 1fr; }
+            .comorbidity-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media(max-width: 400px) {
+            .comorbidity-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -182,12 +177,24 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Relation Context</label>
-                        <input type="text" name="relation_type" value="{{ patient.relation_type if patient else '' }}" placeholder="S/O, D/O, W/O Guardian">
+                        <select name="relation_type">
+                            <option value="Self" {{ 'selected' if patient and patient.relation_type|upper == 'SELF' }}>Self (Service Person)</option>
+                            <option value="S/O" {{ 'selected' if patient and patient.relation_type|upper == 'S/O' }}>S/O (Son of)</option>
+                            <option value="D/O" {{ 'selected' if patient and patient.relation_type|upper == 'D/O' }}>D/O (Daughter of)</option>
+                            <option value="W/O" {{ 'selected' if patient and patient.relation_type|upper == 'W/O' }}>W/O (Wife of)</option>
+                            <option value="F/O" {{ 'selected' if patient and patient.relation_type|upper == 'F/O' }}>F/O (Father of)</option>
+                            <option value="M/O" {{ 'selected' if patient and patient.relation_type|upper == 'M/O' }}>M/O (Mother of)</option>
+                            <option value="Other" {{ 'selected' if patient and patient.relation_type and patient.relation_type|upper not in ['SELF','S/O','D/O','W/O','F/O','M/O'] }}>Other / Guardian</option>
+                        </select>
                     </div>
                     <div class="form-group">
-                        <label>Healthcare Facility</label>
-                        <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else '' }}" placeholder="Hospital / Centre Name">
+                        <label>Relative / Guardian Name</label>
+                        <input type="text" name="relation" value="{{ patient.relation if patient else '' }}" placeholder="Enter name (or 'SELF' for service person)">
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Healthcare Facility</label>
+                    <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else '' }}" placeholder="Hospital / Centre Name">
                 </div>
             </div>
 
@@ -297,7 +304,7 @@
                         <input type="number" name="charlson_comorbidity_index" id="cci_score" min="0" max="40" step="1" inputmode="numeric" value="{{ patient.charlson_comorbidity_index if patient and patient.charlson_comorbidity_index is not none else '' }}" placeholder="Auto-calculated" readonly style="background-color: #e2e8f0; opacity: 0.8;">
                     </div>
                 </div>
-                <div class="form-row" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="comorbidity-grid">
                     {% for field, label in [
                         ('htn_status','Hypertension'),
                         ('cad_status','Myocardial Infarction / CAD'),

@@ -53,8 +53,27 @@
                 </div>
             </div>
             <div style="text-align: right">
-                <div class="stat-label" style="letter-spacing: 0.05em;">Patient Type</div>
-                <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); font-family: 'Outfit', sans-serif;">{{ patient.relation_type or 'General' }} Selection</div>
+                <div class="stat-label" style="letter-spacing: 0.05em;">Patient Category</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); font-family: 'Outfit', sans-serif;">
+                    {% set rt = (patient.relation_type or '')|upper %}
+                    {% if rt in ['SELF', 'SERVICE'] %}
+                        Service Person
+                    {% elif rt == 'F/O' %}
+                        Dependent (Father)
+                    {% elif rt == 'M/O' %}
+                        Dependent (Mother)
+                    {% elif rt == 'S/O' %}
+                        Dependent (Son)
+                    {% elif rt == 'D/O' %}
+                        Dependent (Daughter)
+                    {% elif rt == 'W/O' %}
+                        Dependent (Wife)
+                    {% elif rt %}
+                        {{ patient.relation_type }}
+                    {% else %}
+                        General Selection
+                    {% endif %}
+                </div>
             </div>
         </div>
 
@@ -62,7 +81,13 @@
             <div class="stat-item">
                 <span class="stat-label">Demographics</span>
                 <span class="stat-value">{{ patient.age or '—' }}y / {{ patient.sex }}</span>
-                <span class="stat-sub">Relation: {{ patient.relation or '—' }}</span>
+                <span class="stat-sub">
+                    {% if patient.relation|upper == 'SELF' %}
+                        Status: Service Person
+                    {% else %}
+                        Relation: {{ patient.relation or '—' }}
+                    {% endif %}
+                </span>
             </div>
             <div class="stat-item">
                 <span class="stat-label">Diagnosis</span>

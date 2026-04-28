@@ -43,41 +43,8 @@
       font-family: 'Outfit', sans-serif; 
     }
 
-    /* App nav shell with Glassmorphism */
-    .app-nav { 
-      background: rgba(15, 23, 42, 0.95); 
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      display: flex; 
-      align-items: center; 
-      justify-content: space-between; 
-      padding: 0 32px; 
-      height: 60px; 
-      position: sticky; 
-      top: 0; 
-      z-index: 1000; 
-      box-shadow: var(--shadow-md);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .app-nav .brand { 
-      color: #fff; 
-      font-size: 1.1rem; 
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-    .app-nav .nav-links { display: flex; gap: 8px; }
-    .app-nav a { 
-      color: rgba(255,255,255,0.7); 
-      text-decoration: none; 
-      font-size: 0.85rem; 
-      font-weight: 500; 
-      padding: 8px 16px; 
-      border-radius: 8px; 
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .app-nav a:hover, .app-nav a.active { 
-      color: #fff; 
-      background: rgba(255,255,255,0.1); 
+    h1, h2, h3, .brand { 
+      font-family: 'Outfit', sans-serif; 
     }
 
     /* Header Refinement */
@@ -526,6 +493,26 @@
       }
       .btn-wa, .btn-email {
         justify-content: center;
+        padding: 10px 16px;
+      }
+
+      /* Tooltip fix for touch devices */
+      .card .tooltip { display: none; }
+      .card.touch-active .tooltip { 
+        display: block; 
+        opacity: 1; 
+        position: static; 
+        transform: none; 
+        background: #f1f5f9; 
+        color: var(--text-main); 
+        padding: 12px; 
+        border-radius: 8px; 
+        margin-top: 12px; 
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .card.touch-active {
+        border-color: var(--primary);
       }
 
       /* Trend charts section stacking */
@@ -1166,6 +1153,18 @@ function showLiveIndicator() {
 
 // Start polling when page loads
 pollDashboard();
+
+// Tap-to-expand tooltips for mobile
+if ('ontouchstart' in window) {
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', function(e) {
+      const hasTooltip = card.querySelector('.tooltip');
+      if (hasTooltip) {
+        card.classList.toggle('touch-active');
+      }
+    });
+  });
+}
 </script>
 </body>
 </html>
