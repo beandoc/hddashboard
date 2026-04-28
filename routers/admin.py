@@ -7,13 +7,61 @@ import json
 import io
 import logging
 
-from database import get_db, User, Patient, MonthlyRecord, SessionRecord, InterimLabRecord, ClinicalEvent
+from datetime import date, datetime
+from database import get_db, User, Patient, MonthlyRecord, SessionRecord, InterimLabRecord, ClinicalEvent, engine
 from config import templates, pwd_context
 from dependencies import get_user, _require_admin
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+@router.get("/run-migration", response_class=HTMLResponse)
+async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
+    """Triggers the PDS schema migration. Useful for Render free tier."""
+    _require_admin(request)
+    
+    results = []
+    # Columns to add to session_records
+    session_cols = [
+        ("intradialytic_exercise_mins", "INTEGER"),
+        ("intradialytic_meals_eaten", "BOOLEAN DEFAULT FALSE")
+    ]
+    
+    # Columns to add to patient_symptom_reports
+    symptom_cols = [
+        ("session_id", "INTEGER"),
+        ("dialysis_recovery_time_mins", "INTEGER"),
+        ("tiredness_score", "INTEGER"),
+        ("energy_level_score", "INTEGER"),
+        ("daily_activity_impact", "INTEGER"),
+        ("cognitive_alertness", "VARCHAR"),
+        ("post_hd_mood", "VARCHAR"),
+        ("sleepiness_severity", "INTEGER"),
+        ("missed_social_or_work_event", "BOOLEAN DEFAULT FALSE")
+    ]
+
+    with engine.connect() as conn:
+        # 1. Update session_records
+        for col, col_type in session_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE session_records ADD COLUMN {col} {col_type}"))
+                conn.commit()
+                results.append(f"✅ Added {col} to session_records")
+            except Exception as e:
+                results.append(f"⚠️ {col} (session): {str(e)[:50]}...")
+
+        # 2. Update patient_symptom_reports
+        for col, col_type in symptom_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE patient_symptom_reports ADD COLUMN {col} {col_type}"))
+                conn.commit()
+                results.append(f"✅ Added {col} to patient_symptom_reports")
+            except Exception as e:
+                results.append(f"⚠️ {col} (symptom): {str(e)[:50]}...")
+
+    res_html = "<h2>Migration Results</h2><ul>" + "".join([f"<li>{r}</li>" for r in results]) + "</ul><a href='/admin/users'>Back to Admin</a>"
+    return HTMLResponse(content=res_html)
 
 @router.get("/users", response_class=HTMLResponse)
 async def user_manager(request: Request, db: Session = Depends(get_db)):
