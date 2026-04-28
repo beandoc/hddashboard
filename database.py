@@ -194,6 +194,8 @@ class MonthlyRecord(Base):
     urr = Column(Float)                      # Urea Reduction Ratio %
     single_pool_ktv = Column(Float)          # spKt/V — SinglePoolKtV
     equilibrated_ktv = Column(Float)         # eKt/V — EquilibratedKtV
+    npcr = Column(Float)                     # normalized Protein Catabolic Rate (g/kg/day)
+    ufr = Column(Float)                      # Ultrafiltration Rate (mL/kg/hr)
     pre_dialysis_urea = Column(Float)        # mg/dL — PreDialysisUrea
     post_dialysis_urea = Column(Float)       # mg/dL — PostDialysisUrea
     serum_creatinine = Column(Float)         # mg/dL — SerumCreatinine
@@ -231,6 +233,9 @@ class MonthlyRecord(Base):
 
     # ── Nutrition ─────────────────────────────────────────────────────────────
     albumin = Column(Float)                  # g/dL — SerumAlbumin
+    prealbumin = Column(Float)               # mg/dL
+    sga_score = Column(String)               # SGA/MIS assessment (e.g. "Severe")
+    mis_score = Column(Integer)              # Malnutrition-Inflammation Score (0-30)
     av_daily_calories = Column(Float)        # kcal/day
     av_daily_protein = Column(Float)         # g/kg/day
 
@@ -240,6 +245,8 @@ class MonthlyRecord(Base):
 
     # ── Haematology ───────────────────────────────────────────────────────────
     wbc_count = Column(Float)                # ×10³/µL — WhiteBloodCellCount
+    neutrophil_count = Column(Float)         # % or abs
+    lymphocyte_count = Column(Float)         # % or abs
     platelet_count = Column(Float)           # ×10³/µL — PlateletCount
     hba1c = Column(Float)                    # % — HbA1c
 
@@ -249,6 +256,8 @@ class MonthlyRecord(Base):
 
     # ── Inflammatory Marker ───────────────────────────────────────────────────
     crp = Column(Float)                      # mg/L — CReactiveProtein
+    il6 = Column(Float)                      # pg/mL - Interleukin 6
+    tnf_alpha = Column(Float)                # pg/mL - Tumor Necrosis Factor alpha
 
     # ── Medications Summary ───────────────────────────────────────────────────
     antihypertensive_count = Column(Integer) # Number of antihypertensive classes — AntihypertensiveClassCount
@@ -256,6 +265,9 @@ class MonthlyRecord(Base):
 
     # ── Vitals (monthly representative) ──────────────────────────────────────
     bp_sys = Column(Float)                   # Systolic BP mmHg — monthly representative
+    bp_dia = Column(Float)                   # Diastolic BP mmHg
+    troponin_i = Column(Float)               # ng/mL
+    nt_probnp = Column(Float)                # pg/mL
     access_type = Column(String)             # AVF / Permacath — monthly access status
 
     # ── Quality of Life ───────────────────────────────────────────────────────

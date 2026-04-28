@@ -73,6 +73,29 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
             except Exception as e:
                 results.append(f"⚠️ {col} (patient): {str(e)[:50]}...")
 
+        # 4. Update monthly_records
+        monthly_cols = [
+            ("npcr", "FLOAT"),
+            ("ufr", "FLOAT"),
+            ("prealbumin", "FLOAT"),
+            ("sga_score", "VARCHAR"),
+            ("mis_score", "INTEGER"),
+            ("neutrophil_count", "FLOAT"),
+            ("lymphocyte_count", "FLOAT"),
+            ("il6", "FLOAT"),
+            ("tnf_alpha", "FLOAT"),
+            ("bp_dia", "FLOAT"),
+            ("troponin_i", "FLOAT"),
+            ("nt_probnp", "FLOAT")
+        ]
+        for col, col_type in monthly_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE monthly_records ADD COLUMN {col} {col_type}"))
+                conn.commit()
+                results.append(f"✅ Added {col} to monthly_records")
+            except Exception as e:
+                results.append(f"⚠️ {col} (monthly): {str(e)[:50]}...")
+
     res_html = "<h2>Migration Results</h2><ul>" + "".join([f"<li>{r}</li>" for r in results]) + "</ul><a href='/admin/users'>Back to Admin</a>"
     return HTMLResponse(content=res_html)
 
