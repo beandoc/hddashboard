@@ -13,7 +13,7 @@ from constants import VAR_TO_MONTHLY
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/variables", tags=["variables"])
+router = APIRouter(prefix="/variables", tags=["variables"])
 
 def _monthly_field_values(db: Session, field: str, patient_ids: list[int], from_m: str, to_m: str) -> dict:
     """Pull {patient_id: {month: value}} from MonthlyRecord for a given column."""

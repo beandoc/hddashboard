@@ -595,121 +595,122 @@
   <div style="max-width:1200px;margin:0 auto 40px;padding:0 20px;">
     <h2 style="font-family:'Outfit',sans-serif;font-size:1.3rem;color:#1e293b;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
       <i class="material-icons" style="color:#6366f1;">timeline</i>
-      Clinical Trajectory — MIA Cascade Monitor
+      MIA Syndrome Early Warning Tracker
     </h2>
 
     <!-- Alert Banner -->
-    {% if mia_cascade.cascade_alert %}
-    <div style="background:{% if mia_cascade.cascade_level == 'critical' %}#fef2f2;border-color:#fca5a5;{% else %}#fffbeb;border-color:#fde68a;{% endif %};border:1px solid;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
-      <i class="material-icons" style="color:{% if mia_cascade.cascade_level == 'critical' %}#ef4444{% else %}#f59e0b{% endif %};font-size:28px;">{% if mia_cascade.cascade_level == 'critical' %}emergency{% else %}warning{% endif %}</i>
+    {% if mia_cascade.alert_triggered %}
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 12px rgba(239,68,68,0.15);">
+      <i class="material-icons" style="color:#ef4444;font-size:28px;">emergency</i>
       <div>
-        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;">{{ mia_cascade.cascade_message }}</div>
+        <div style="font-weight:700;font-size:1.05rem;color:#991b1b;font-family:'Outfit';">⚠️ Early Cascade Detected</div>
+        <div style="font-size:0.85rem;color:#7f1d1d;margin-top:2px;">Multiple clinical domains are showing simultaneous deterioration. High risk for adverse events.</div>
       </div>
     </div>
     {% endif %}
 
     <div style="display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start;">
 
-      <!-- Left: Score Summary -->
+      <!-- Left: Current Domain Status -->
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="text-align:center;margin-bottom:20px;">
-          {% set ls = mia_cascade.latest_score %}
-          <div style="width:90px;height:90px;border-radius:50%;border:6px solid {% if ls<=2 %}#10b981{% elif ls<=5 %}#f59e0b{% elif ls<=9 %}#f97316{% else %}#ef4444{% endif %};display:flex;align-items:center;justify-content:center;margin:0 auto 10px;">
-            <span style="font-family:'Outfit';font-size:2rem;font-weight:700;color:{% if ls<=2 %}#10b981{% elif ls<=5 %}#f59e0b{% elif ls<=9 %}#f97316{% else %}#ef4444{% endif %};">{{ ls }}</span>
-          </div>
-          <div style="font-weight:700;font-size:0.85rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Current Risk Score / 15</div>
-        </div>
-        <!-- Domain Bars -->
-        {% set last = mia_cascade.timeline[-1] %}
-        {% for domain, val, icon in [
-          ('Nutrition', last.albumin, '🥩'),
-          ('Anemia (Hb)', last.hb, '🩸'),
-          ('Urine Output', last.urine_output, '💧'),
-          ('PDS / Fatigue', '-', '😴'),
-          ('Hospitalization', '-', '🏥')
-        ] %}
-        <div style="margin-bottom:12px;">
-          <div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:600;color:#64748b;margin-bottom:4px;">
-            <span>{{ icon }} {{ domain }}</span>
-            {% if val and val != '-' %}<span style="color:#1e293b;">{{ val }}</span>{% endif %}
-          </div>
-          <div style="background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden;">
-            <div style="height:100%;border-radius:4px;background:{% if loop.index0 == 0 %}{% if last.albumin and last.albumin < 3.5 %}#ef4444{% else %}#10b981{% endif %}{% elif loop.index0 == 1 %}{% if last.hb and last.hb < 10 %}#ef4444{% else %}#10b981{% endif %}{% elif loop.index0 == 2 %}{% if last.urine_output is not none and last.urine_output < 300 %}#ef4444{% else %}#10b981{% endif %}{% else %}#64748b{% endif %};width:{% if loop.index0 == 0 %}{% if last.albumin %}{{ [((4.5 - (last.albumin or 4.5)) / 4.5 * 100)|int, 100]|min }}{% else %}10{% endif %}{% elif loop.index0 == 1 %}{% if last.hb %}{{ [((14 - (last.hb or 14)) / 14 * 100)|int, 100]|min }}{% else %}10{% endif %}{% elif loop.index0 == 2 %}{% if last.urine_output is not none %}{{ [(1 - last.urine_output / 1200) * 100|int, 100]|min|int }}{% else %}10{% endif %}{% else %}30{% endif %}%;"></div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-
-      <!-- Right: Month-by-Month Timeline -->
-      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-weight:700;font-size:0.9rem;color:#1e293b;margin-bottom:16px;">📅 Month-by-Month Patient Story</div>
-
-        <!-- Chart -->
-        <div style="height:120px;margin-bottom:20px;">
-          <canvas id="cascadeChart"></canvas>
-        </div>
-
-        <!-- Event Timeline -->
-        <div style="max-height:340px;overflow-y:auto;padding-right:4px;">
-          {% for month_data in mia_cascade.timeline|reverse %}
-          <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
-            <!-- Month badge -->
-            <div style="flex-shrink:0;width:70px;text-align:center;">
-              <div style="background:{% if month_data.color=='green' %}#dcfce7{% elif month_data.color=='amber' %}#fef9c3{% elif month_data.color=='orange' %}#ffedd5{% else %}#fee2e2{% endif %};border-radius:8px;padding:6px 4px;">
-                <div style="font-size:0.65rem;font-weight:700;color:{% if month_data.color=='green' %}#166534{% elif month_data.color=='amber' %}#92400e{% elif month_data.color=='orange' %}#9a3412{% else %}#991b1b{% endif %};text-transform:uppercase;">{{ month_data.label }}</div>
-                <div style="font-size:0.8rem;font-weight:700;color:#1e293b;">{{ month_data.month[5:] }}/{{ month_data.month[:4] }}</div>
-              </div>
+        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:20px;font-family:'Outfit';">Current Status by Domain</div>
+        
+        {% set last = mia_cascade.timeline[-1] if mia_cascade.timeline else None %}
+        {% if last %}
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          {% for dom_key, dom_name, icon in [
+            ('nutrition', 'Nutrition (PEM)', '🥩'),
+            ('inflammation', 'Inflammation', '🔥'),
+            ('atherosclerosis', 'Vascular Stress', '🫀'),
+            ('dialysis', 'Dialysis Factors', '⚙️'),
+            ('events', 'Clinical Events', '🏥')
+          ] %}
+          {% set score = last.scores[dom_key] %}
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;background:{% if score == 2 %}#fee2e2{% elif score == 1 %}#fef3c7{% else %}#dcfce7{% endif %};border:1px solid {% if score == 2 %}#fca5a5{% elif score == 1 %}#fde68a{% else %}#86efac{% endif %};">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:1.1rem;">{{ icon }}</span>
+              <span style="font-weight:600;font-size:0.85rem;color:#1e293b;">{{ dom_name }}</span>
             </div>
-            <!-- Events -->
-            <div style="flex:1;">
-              {% if month_data.events %}
-                {% for ev in month_data.events %}
-                <div style="font-size:0.82rem;color:#374151;padding:4px 0;display:flex;gap:6px;align-items:flex-start;">
-                  <span>{{ ev.icon }}</span>
-                  <span style="color:{{ ev.color }};font-weight:500;">{{ ev.text }}</span>
-                </div>
-                {% endfor %}
-              {% else %}
-                <div style="font-size:0.82rem;color:#94a3b8;padding:4px 0;">✅ No significant clinical events this month.</div>
-              {% endif %}
+            <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:{% if score == 2 %}#991b1b{% elif score == 1 %}#92400e{% else %}#166534{% endif %};">
+              {% if score == 2 %}HIGH RISK{% elif score == 1 %}WARNING{% else %}STABLE{% endif %}
             </div>
           </div>
           {% endfor %}
         </div>
+        {% endif %}
+      </div>
+
+      <!-- Right: Month-by-Month Domain Matrix -->
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);overflow-x:auto;">
+        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:16px;font-family:'Outfit';">Longitudinal Domain Tracking (Radar)</div>
+        
+        <table style="width:100%;border-collapse:separate;border-spacing:4px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;font-size:0.8rem;color:#64748b;font-weight:600;padding-bottom:8px;width:120px;">Domain</th>
+              {% for m in mia_cascade.timeline %}
+              <th style="text-align:center;font-size:0.75rem;color:#64748b;font-weight:600;padding-bottom:8px;width:60px;">{{ m.label }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for dom_key, dom_name in [
+              ('nutrition', 'Nutrition'),
+              ('inflammation', 'Inflammation'),
+              ('atherosclerosis', 'Atherosclerosis'),
+              ('dialysis', 'Dialysis Factors')
+            ] %}
+            <tr>
+              <td style="font-size:0.8rem;font-weight:600;color:#334155;padding:6px 0;">{{ dom_name }}</td>
+              {% for m in mia_cascade.timeline %}
+              {% set s = m.scores[dom_key] %}
+              <td style="background:{% if s == 2 %}#ef4444{% elif s == 1 %}#f59e0b{% else %}#10b981{% endif %};height:24px;border-radius:4px;" title="{{ dom_name }} in {{ m.label }}: {% if s==2 %}High Risk{% elif s==1 %}Warning{% else %}Stable{% endif %}"></td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+            <!-- Events row (Icons) -->
+            <tr>
+              <td style="font-size:0.8rem;font-weight:600;color:#334155;padding:12px 0 6px 0;border-top:1px dashed #cbd5e1;">Major Events</td>
+              {% for m in mia_cascade.timeline %}
+              <td style="text-align:center;padding:12px 0 6px 0;border-top:1px dashed #cbd5e1;font-size:1.1rem;" title="{{ m.events|map(attribute='text')|join(' | ') }}">
+                {% if m.scores['events'] > 0 %}🏥{% endif %}
+                {% for ev in m.events %}
+                  {% if ev.icon != '🏥' and ev.icon != '🥩' and ev.icon != '🔥' and ev.icon != '🫀' and ev.icon != '⚖️' %}
+                    {{ ev.icon }}
+                  {% endif %}
+                {% endfor %}
+              </td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Event Timeline Details -->
+        <div style="margin-top:24px;border-top:1px solid #e2e8f0;padding-top:16px;">
+          <h4 style="font-size:0.85rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Recent Significant Events</h4>
+          <div style="max-height:200px;overflow-y:auto;padding-right:4px;">
+            {% for month_data in mia_cascade.timeline|reverse %}
+              {% if month_data.events %}
+              <div style="display:flex;gap:12px;margin-bottom:12px;align-items:flex-start;">
+                <div style="font-size:0.75rem;font-weight:700;color:#64748b;width:60px;flex-shrink:0;">{{ month_data.label }}</div>
+                <div style="flex:1;">
+                  {% for ev in month_data.events %}
+                  <div style="font-size:0.82rem;color:#374151;padding:2px 0;display:flex;gap:6px;align-items:center;">
+                    <span>{{ ev.icon }}</span>
+                    <span style="color:{{ ev.color }};font-weight:500;">{{ ev.text }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
       </div>
 
     </div>
   </div>
-
-  <script>
-  (function() {
-    const cascadeCtx = document.getElementById('cascadeChart').getContext('2d');
-    const labels = {{ mia_cascade.chart_labels | tojson }};
-    const scores = {{ mia_cascade.chart_scores | tojson }};
-    const bgColors = scores.map(s => s <= 2 ? 'rgba(16,185,129,0.7)' : s <= 5 ? 'rgba(245,158,11,0.7)' : s <= 9 ? 'rgba(249,115,22,0.7)' : 'rgba(239,68,68,0.8)');
-    new Chart(cascadeCtx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Risk Score',
-          data: scores,
-          backgroundColor: bgColors,
-          borderRadius: 6,
-          borderSkipped: false,
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, max: 15, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
-          x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-        }
-      }
-    });
-  })();
-  </script>
   {% endif %}
 
   <!-- ══════════════════ ADDITIONAL CLINICAL CASCADES ══════════════════ -->
