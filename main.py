@@ -43,89 +43,104 @@ def health_check():
 # Create tables on startup
 @app.on_event("startup")
 def startup():
+    import threading
+
+    # ── Phase 1: Critical — must complete before server accepts requests ──────
+    # Only create the base tables so the DB is minimally ready.
     create_tables()
-    
-    # 🚨 Self-Healing Migration — auto-syncs ALL ORM model columns to the live DB.
-    # Compares SQLAlchemy metadata against actual table columns; adds any missing
-    # ones. No manual column lists needed — works for any future additions too.
-    from database import Base
-    from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text
+    print("✅ Core tables ready — server is now accepting requests.")
 
-    def _pg_type(col):
-        """Map SQLAlchemy column type to a safe PostgreSQL DDL string."""
-        t = col.type
-        if isinstance(t, Boolean):   return "BOOLEAN"
-        if isinstance(t, Integer):   return "INTEGER"
-        if isinstance(t, Float):     return "FLOAT"
-        if isinstance(t, Date):      return "DATE"
-        if isinstance(t, DateTime):  return "TIMESTAMP"
-        if isinstance(t, Text):      return "TEXT"
-        return "VARCHAR"  # String and anything else
+    # ── Phase 2: Non-critical — run in background to avoid cold-start errors ──
+    # Migrations, seeding, and historic data sync are heavy operations that
+    # can run asynchronously without blocking the HTTP server from starting.
+    def _background_init():
+        from database import Base
+        from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text
 
-    inspector = inspect(engine)
-    with engine.connect() as conn:
-        for table_name, orm_table in Base.metadata.tables.items():
-            try:
-                existing_cols = {c['name'] for c in inspector.get_columns(table_name)}
-            except Exception:
-                continue  # table doesn't exist yet — create_all() will handle it
-            for col in orm_table.columns:
-                if col.name not in existing_cols:
-                    ddl_type = _pg_type(col)
-                    try:
-                        conn.execute(text(
-                            f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {ddl_type}'
-                        ))
-                        conn.commit()
-                        print(f"✅ Migration: added {table_name}.{col.name} ({ddl_type})")
-                    except Exception as e:
-                        print(f"⚠️  Migration skip {table_name}.{col.name}: {e}")
+        # 🚨 Self-Healing Migration — auto-syncs ALL ORM model columns to the live DB.
+        def _pg_type(col):
+            """Map SQLAlchemy column type to a safe PostgreSQL DDL string."""
+            t = col.type
+            if isinstance(t, Boolean):   return "BOOLEAN"
+            if isinstance(t, Integer):   return "INTEGER"
+            if isinstance(t, Float):     return "FLOAT"
+            if isinstance(t, Date):      return "DATE"
+            if isinstance(t, DateTime):  return "TIMESTAMP"
+            if isinstance(t, Text):      return "TEXT"
+            return "VARCHAR"  # String and anything else
 
-        # Keep the users-specific defaults that need DEFAULT values
         try:
-            u_existing = {c['name'] for c in inspector.get_columns('users')}
-            u_missing = [
-                ("last_login", "TIMESTAMP"),
-                ("created_at", "TIMESTAMP DEFAULT NOW()"),
-                ("full_name", "VARCHAR"),
-                ("role", "VARCHAR DEFAULT 'staff'"),
-                ("is_active", "BOOLEAN DEFAULT TRUE"),
-            ]
-            for col, dtype in u_missing:
-                if col not in u_existing:
+            inspector = inspect(engine)
+            with engine.connect() as conn:
+                for table_name, orm_table in Base.metadata.tables.items():
                     try:
-                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {dtype}"))
-                        conn.commit()
-                    except Exception: pass
-        except Exception:
-            pass  # users table doesn't exist yet — create_all() will handle it
+                        existing_cols = {c['name'] for c in inspector.get_columns(table_name)}
+                    except Exception:
+                        continue  # table doesn't exist yet — create_all() will handle it
+                    for col in orm_table.columns:
+                        if col.name not in existing_cols:
+                            ddl_type = _pg_type(col)
+                            try:
+                                conn.execute(text(
+                                    f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {ddl_type}'
+                                ))
+                                conn.commit()
+                                print(f"✅ Migration: added {table_name}.{col.name} ({ddl_type})")
+                            except Exception as e:
+                                print(f"⚠️  Migration skip {table_name}.{col.name}: {e}")
 
+                # Keep the users-specific defaults that need DEFAULT values
+                try:
+                    u_existing = {c['name'] for c in inspector.get_columns('users')}
+                    u_missing = [
+                        ("last_login", "TIMESTAMP"),
+                        ("created_at", "TIMESTAMP DEFAULT NOW()"),
+                        ("full_name", "VARCHAR"),
+                        ("role", "VARCHAR DEFAULT 'staff'"),
+                        ("is_active", "BOOLEAN DEFAULT TRUE"),
+                    ]
+                    for col, dtype in u_missing:
+                        if col not in u_existing:
+                            try:
+                                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {dtype}"))
+                                conn.commit()
+                            except Exception: pass
+                except Exception:
+                    pass  # users table doesn't exist yet — create_all() will handle it
+        except Exception as e:
+            print(f"⚠️  Background migration error: {e}")
 
-    # Create dynamic variable tables and seed presets
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_preset_variables(db)
-        # Ensure default admin user exists
-        admin = db.query(User).filter(User.username == "admin").first()
-        if not admin:
-            hashed = pwd_context.hash("admin123")
-            db.add(User(username="admin", full_name="System Admin", hashed_password=hashed, role="admin"))
-            db.commit()
-            print("✅ Default admin user created (admin / admin123)")
-    finally:
-        db.close()
+        # Create dynamic variable tables and seed presets
+        try:
+            Base.metadata.create_all(bind=engine)
+            db = SessionLocal()
+            try:
+                seed_preset_variables(db)
+                # Ensure default admin user exists
+                admin = db.query(User).filter(User.username == "admin").first()
+                if not admin:
+                    hashed = pwd_context.hash("admin123")
+                    db.add(User(username="admin", full_name="System Admin", hashed_password=hashed, role="admin"))
+                    db.commit()
+                    print("✅ Default admin user created (admin / admin123)")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"⚠️  Background seed error: {e}")
 
+        # ── Retrospective Data Sync ───────────────────────────────────────────
+        # Runs on every boot — safely skips records that already exist.
+        try:
+            import push_historic_data
+            push_historic_data.run()
+            print("✅ Retrospective data sync complete.")
+        except Exception as e:
+            print(f"⚠️  Retrospective sync skipped: {e}")
 
-    # ── Retrospective Data Sync ───────────────────────────────────────────────
-    # Runs on every boot — safely skips records that already exist.
-    # Populates production PostgreSQL with all historical monthly records.
-    try:
-        import push_historic_data
-        push_historic_data.run()
-        print("✅ Retrospective data sync complete.")
-    except Exception as e:
-        print(f"⚠️  Retrospective sync skipped: {e}")
+        print("✅ Background initialisation complete.")
+
+    thread = threading.Thread(target=_background_init, daemon=True)
+    thread.start()
 
 # Helper to inject user into every template
 def get_user(request: Request):
