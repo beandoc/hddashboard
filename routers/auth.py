@@ -65,7 +65,7 @@ async def logout():
 async def get_current_user_api(request: Request):
     # This still refers to main.py's get_user. 
     # In a full refactor, get_user would be in a dependencies.py or shared module.
-    from main import get_user
+    from dependencies import get_user
     user = get_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")

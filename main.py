@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
-from database import engine, Base, get_db, Patient
-from config import templates
+from database import engine, Base, get_db, Patient, SessionLocal, User
+from config import templates, serializer
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label
 from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts
@@ -19,6 +19,42 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0")
+
+# Authentication Middleware
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Processes session cookie and populates request.state.user."""
+    token = request.cookies.get("hd_session")
+    request.state.user = None
+    
+    if token:
+        try:
+            data = serializer.loads(token)
+            user_type, username = data.split(":", 1)
+            
+            db = SessionLocal()
+            try:
+                if user_type == "staff":
+                    user = db.query(User).filter(User.username == username, User.is_active == True).first()
+                    if user:
+                        request.state.user = user
+                elif user_type == "patient":
+                    p = db.query(Patient).filter(Patient.login_username == username, Patient.is_active == True).first()
+                    if p:
+                        # Convert to dict for consistency if needed, or keep as object
+                        request.state.user = {
+                            "username": p.login_username,
+                            "full_name": p.name,
+                            "role": "patient",
+                            "patient_id": p.id
+                        }
+            finally:
+                db.close()
+        except Exception:
+            pass
+            
+    response = await call_next(request)
+    return response
 
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
