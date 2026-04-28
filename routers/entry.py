@@ -119,8 +119,6 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
 
 from services import entry_service
 
-router = APIRouter(prefix="/entry", tags=["entry"])
-
 @router.post("/{patient_id}")
 async def save_entry(
     patient_id: int, db: Session = Depends(get_db),
