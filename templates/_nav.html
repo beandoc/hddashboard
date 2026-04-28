@@ -192,11 +192,9 @@
     <a href="/entry">Data Entry</a>
     <a href="/events">Events</a>
     <a href="/alerts">Alerts</a>
-    {% if user and user.role == "admin" %}
     <a href="/admin/users">Admin</a>
-    <a href="/admin/db">Data</a>
-    <a href="/variables">Variables</a>
-    {% endif %}
+    <a href="/admin/backup">Data</a>
+    <a href="/api/variables/manager">Variables</a>
     <a href="/logout" class="nav-logout">Logout</a>
   </div>
   <button class="mobile-menu-btn" onclick="toggleDrawer()" aria-label="Open navigation">
@@ -218,12 +216,9 @@
   <a href="/entry">Data Entry</a>
   <a href="/events">Events</a>
   <a href="/alerts">Alerts</a>
-  {% if user and user.role == "admin" %}
-  <div class="drawer-divider"></div>
   <a href="/admin/users">Admin Users</a>
-  <a href="/admin/db">Manage Data</a>
-  <a href="/variables">Variables</a>
-  {% endif %}
+  <a href="/admin/backup">Manage Data</a>
+  <a href="/api/variables/manager">Variables</a>
   <a href="/logout" class="drawer-logout">Logout</a>
 </div>
 
