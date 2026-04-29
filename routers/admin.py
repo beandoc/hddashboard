@@ -96,7 +96,9 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
             ("tnf_alpha", "FLOAT"),
             ("bp_dia", "FLOAT"),
             ("troponin_i", "FLOAT"),
-            ("nt_probnp", "FLOAT")
+            ("nt_probnp", "FLOAT"),
+            ("hospitalization_diagnosis", "TEXT"),
+            ("hospitalization_icd_diagnosis", "TEXT")
         ]
         for col, col_type in monthly_cols:
             try:

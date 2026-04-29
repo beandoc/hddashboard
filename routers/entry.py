@@ -177,7 +177,9 @@ async def save_entry(
     hrqol_score: Optional[float] = Form(None),
     hospitalization_this_month: bool = Form(False),
     hospitalization_date: Optional[str] = Form(None),
+    hospitalization_diagnosis: str = Form(""),
     hospitalization_icd_code: str = Form(""),
+    hospitalization_icd_diagnosis: str = Form(""),
     clinical_background: str = Form(""),
     issues: str = Form(""),
 ):

@@ -85,7 +85,9 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         hrqol_score=data.get("hrqol_score"),
         hospitalization_this_month=data.get("hospitalization_this_month", False),
         hospitalization_date=_d(data.get("hospitalization_date")),
+        hospitalization_diagnosis=data.get("hospitalization_diagnosis", ""),
         hospitalization_icd_code=data.get("hospitalization_icd_code", ""),
+        hospitalization_icd_diagnosis=data.get("hospitalization_icd_diagnosis", ""),
     )
 
     if rec:

@@ -289,7 +289,9 @@ class MonthlyRecord(Base):
     # ── Hospitalisation (this month) ─────────────────────────────────────────
     hospitalization_this_month = Column(Boolean)
     hospitalization_date = Column(Date)      # DateOfHospitalAdmission
+    hospitalization_diagnosis = Column(Text)   # Clinical diagnosis string
     hospitalization_icd_code = Column(String)  # ICD-10 code — ICDReasonForHospitalization
+    hospitalization_icd_diagnosis = Column(Text) # Official ICD-10 diagnosis description
 
     # ── Clinical Notes ────────────────────────────────────────────────────────
     issues = Column(Text)

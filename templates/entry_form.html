@@ -488,22 +488,30 @@
                 </div>
             </div>
 
-            <!-- ── Hospitalizations & Outcomes ── -->
+            <!-- ── Emergency & Hospitalizations ── -->
             <div class="form-section">
-                <div class="section-title"><i class="material-icons">emergency</i> Hospitalizations & Events</div>
+                <div class="section-title"><i class="material-icons">emergency</i> Emergency & Hospitalizations</div>
                 <div class="grid">
                     <div class="form-group">
-                        <label>Hospitalisation Date</label>
+                        <label>Event Date</label>
                         <input type="date" name="hospitalization_date" value="{{ record.hospitalization_date if record and record.hospitalization_date else '' }}">
                     </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Clinical Diagnosis</label>
+                        <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD" value="{{ record.hospitalization_diagnosis if record and record.hospitalization_diagnosis else '' }}">
+                    </div>
                     <div class="form-group">
-                        <label>Hospitalisation Reason & ICD-10 Code</label>
-                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. Acute exacerbation of COPD (J44.1)" value="{{ record.hospitalization_icd_code if record and record.hospitalization_icd_code else '' }}">
+                        <label>ICD-10 Code</label>
+                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1" value="{{ record.hospitalization_icd_code if record and record.hospitalization_icd_code else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>ICD-10 Diagnosis</label>
+                        <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease with (acute) exacerbation" value="{{ record.hospitalization_icd_diagnosis if record and record.hospitalization_icd_diagnosis else '' }}">
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
                             <input type="checkbox" name="hospitalization_this_month" value="true" {{ 'checked' if record and record.hospitalization_this_month }} style="width:18px;height:18px;">
-                            <span>Hospitalised this month</span>
+                            <span>Emergency / Hospitalization this month</span>
                         </label>
                     </div>
                 </div>
