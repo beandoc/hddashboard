@@ -85,7 +85,7 @@
             </div>
             <div class="target-lbl">Non-AVF access > 90 days</div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ (metrics.watchlist_count / 10 * 100)|min(100) }}%; background: #ef4444"></div>
+                <div class="indicator-fill" style="width: {{ [metrics.watchlist_count / 10 * 100, 100] | min }}%; background: #ef4444"></div>
             </div>
         </div>
     </div>
