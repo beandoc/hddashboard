@@ -149,6 +149,19 @@ class Patient(Base):
     interim_labs = relationship("InterimLabRecord", back_populates="patient", cascade="all, delete-orphan")
     meal_records = relationship("PatientMealRecord", back_populates="patient", cascade="all, delete-orphan")
     symptom_reports = relationship("PatientSymptomReport", back_populates="patient", cascade="all, delete-orphan")
+    reminders = relationship("PatientReminder", back_populates="patient", cascade="all, delete-orphan")
+
+class PatientReminder(Base):
+    __tablename__ = "patient_reminders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"))
+    reminder_date = Column(Date, nullable=False)
+    message = Column(Text, nullable=False)
+    is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient", back_populates="reminders")
 
 
 class User(Base):

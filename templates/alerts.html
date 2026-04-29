@@ -73,6 +73,11 @@
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
 
         .patient-card { 
             background: #fff; border-radius: var(--radius); padding: 20px; margin-bottom: 16px; 
@@ -157,6 +162,7 @@
         
         <div class="tabs">
             <div class="tab active" onclick="showTab('alerts')">Clinical Alerts ({{ alert_links|length }})</div>
+            <div class="tab" onclick="showTab('reminders')">Clinical Reminders ({{ clinical_reminders|length }})</div>
             <div class="tab" onclick="showTab('schedules')">Weekly Schedules</div>
         </div>
         
@@ -185,6 +191,48 @@
                     {% else %}
                     <span style="color:#94a3b8; font-size:0.85em; font-weight:500;">No Contact No.</span>
                     {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div id="remindersTab" class="tab-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+                <p style="font-size:0.9em; color:var(--text-muted); margin:0; font-style:italic;">
+                    Specific clinical tasks, lab investigations, or AVF maturation milestones tracked by the unit.
+                </p>
+                {% if clinical_reminders %}
+                <button class="btn-send email" onclick="sendRemindersDigest()" style="white-space:nowrap;">
+                    <i class="material-icons">mail</i> Email Reminders Digest
+                </button>
+                {% endif %}
+            </div>
+            {% if not clinical_reminders %}
+                <div style="text-align:center; padding:60px; color:var(--text-muted); background:#fff; border-radius:var(--radius); box-shadow:var(--shadow-md);">
+                    <i class="material-icons" style="font-size:3em; color:#22c55e; margin-bottom:10px;">check_circle</i>
+                    <p style="font-weight:500;">No pending clinical reminders. ✅</p>
+                </div>
+            {% endif %}
+            {% for r in clinical_reminders %}
+                <div class="patient-card" style="border-left-color: #f59e0b;">
+                    <div class="patient-info">
+                        <div style="font-size:0.85em; font-weight:700; color:#b45309; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                <i class="material-icons" style="font-size:1.1em;">event</i>
+                                {{ r.reminder_date.strftime('%d %b %Y') }}
+                            </div>
+                            {% set today = now_date %}
+                            {% if r.reminder_date <= today %}
+                                <span style="background:#ef4444; color:white; padding:2px 8px; border-radius:10px; font-size:0.7rem; animation: pulse 2s infinite;">DUE</span>
+                            {% else %}
+                                <span style="background:#64748b; color:white; padding:2px 8px; border-radius:10px; font-size:0.7rem;">UPCOMING</span>
+                            {% endif %}
+                        </div>
+                        <h3>{{ r.patient.name }} <span style="font-size:0.75em; font-weight:normal; color:var(--text-muted);">#{{ r.patient.hid_no }}</span></h3>
+                        <p style="margin:8px 0 0; color:#334155; line-height:1.4;">{{ r.message }}</p>
+                    </div>
+                    <button onclick="completeReminder({{ r.id }}, this)" class="btn-send" style="background:#f59e0b;">
+                        <i class="material-icons">task_alt</i> Mark Done
+                    </button>
                 </div>
             {% endfor %}
         </div>
@@ -237,7 +285,7 @@
             const s = document.getElementById("alertStatus");
             s.style.color = "#0ea5e9";
             s.textContent = "⏳ Authenticating and sending email report…";
-            fetch(`/api/send-email?month=${MONTH_STR}`, { method:"POST" })
+            fetch(`/alerts/send-email?month=${MONTH_STR}`, { method:"POST" })
                 .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
                 .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ Email report sent successfully."; })
                 .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Email error. Check Render logs."); });
@@ -247,10 +295,36 @@
             const s = document.getElementById("alertStatus");
             s.style.color = "#d97706";
             s.textContent = "⏳ Dispatching bulk WhatsApp messages…";
-            fetch(`/api/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
+            fetch(`/alerts/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
                 .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
                 .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ WhatsApp dispatch complete."; })
                 .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Error — check server logs."); });
+        }
+
+        function sendRemindersDigest() {
+            const s = document.getElementById("alertStatus");
+            s.style.color = "#0ea5e9";
+            s.textContent = "⏳ Sending clinical reminders digest email…";
+            fetch(`/alerts/send-reminders-email`, { method: "POST" })
+                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
+                .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ Reminders digest sent."; })
+                .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Email error. Check server logs."); });
+        }
+
+        function completeReminder(id, btn) {
+            if (!confirm("Mark this reminder as completed?")) return;
+            btn.disabled = true;
+            btn.textContent = "Updating...";
+            fetch(`/alerts/reminders/${id}/complete`, { method: "POST" })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') {
+                        btn.closest('.patient-card').style.opacity = '0.5';
+                        btn.closest('.patient-card').style.pointerEvents = 'none';
+                        btn.textContent = "Completed";
+                    }
+                })
+                .catch(err => alert("Error updating reminder"));
         }
 
         function showTab(tabId) {
@@ -260,12 +334,14 @@
             if (tabId === 'alerts') {
                 document.querySelector('.tab:nth-child(1)').classList.add('active');
                 document.getElementById('alertsTab').classList.add('active');
-            } else {
+            } else if (tabId === 'reminders') {
                 document.querySelector('.tab:nth-child(2)').classList.add('active');
+                document.getElementById('remindersTab').classList.add('active');
+            } else {
+                document.querySelector('.tab:nth-child(3)').classList.add('active');
                 document.getElementById('schedulesTab').classList.add('active');
             }
         }
-        
     </script>
 </body>
 </html>

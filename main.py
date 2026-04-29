@@ -86,7 +86,7 @@ async def auth_middleware(request: Request, call_next):
                             "username": p.login_username,
                             "full_name": p.name,
                             "role": "patient",
-                            "patient_id": p.id
+                            "id": p.id
                         }
             finally:
                 db.close()

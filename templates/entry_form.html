@@ -428,61 +428,70 @@
                 </div>
             </div>
 
-            <!-- ── Medications & Outcomes ── -->
+            <!-- ── Antihypertensive Medications ── -->
             <div class="form-section">
-                <div class="section-title"><i class="material-icons">medication</i> Medications & Clinical Outcomes</div>
-                <div class="grid">
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>Antihypertensive Drugs & Regimen</label>
-                        <div id="antiMedsWrapper" style="display:flex; flex-direction:column; gap:8px;">
-                            {% set display_meds = anti_meds if anti_meds else (prior_anti_meds if prior_anti_meds and not record else []) %}
-                            {% for med in display_meds %}
-                            <div class="anti-med-row" style="display:flex; gap:8px; align-items:center;">
-                                <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
-                                    <option value="">-- Choose Drug --</option>
-                                    {% for d in ["Nifedipine", "Amlodipine", "Clinidipine", "Prazocin", "Clonidine", "Metoprolol", "Dytor", "Minoxidil", "Telmisartan", "Atenolol", "Other"] %}
-                                    <option value="{{ d }}" {{ 'selected' if med.name == d else '' }}>{{ d }}</option>
-                                    {% endfor %}
-                                </select>
-                                <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)" value="{{ med.dose }}">
-                                <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
-                                    <option value="">Freq</option>
-                                    {% for f in ["OD", "BD", "TDS", "QID", "SOS"] %}
-                                    <option value="{{ f }}" {{ 'selected' if med.freq == f else '' }}>{{ f }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
-                            </div>
+                <div class="section-title"><i class="material-icons">medication</i> Antihypertensive Drugs & Regimen</div>
+                <div id="antiMedsWrapper" style="display:flex; flex-direction:column; gap:8px;">
+                    {% set display_meds = anti_meds if anti_meds else (prior_anti_meds if prior_anti_meds and not record else []) %}
+                    {% for med in display_meds %}
+                    <div class="anti-med-row" style="display:flex; gap:8px; align-items:center;">
+                        <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
+                            <option value="">-- Choose Drug --</option>
+                            {% for d in ["Nifedipine", "Amlodipine", "Clinidipine", "Prazocin", "Clonidine", "Metoprolol", "Dytor", "Minoxidil", "Telmisartan", "Atenolol", "Other"] %}
+                            <option value="{{ d }}" {{ 'selected' if med.name == d else '' }}>{{ d }}</option>
                             {% endfor %}
-
-                            {% if not display_meds %}
-                            <div class="anti-med-row" style="display:flex; gap:8px; align-items:center;">
-                                <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
-                                    <option value="">-- Choose Drug --</option>
-                                    {% for d in ["Nifedipine", "Amlodipine", "Clinidipine", "Prazocin", "Clonidine", "Metoprolol", "Dytor", "Minoxidil", "Telmisartan", "Atenolol", "Other"] %}
-                                    <option value="{{ d }}">{{ d }}</option>
-                                    {% endfor %}
-                                </select>
-                                <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)">
-                                <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
-                                    <option value="">Freq</option>
-                                    <option value="OD">OD</option>
-                                    <option value="BD">BD</option>
-                                    <option value="TDS">TDS</option>
-                                    <option value="QID">QID</option>
-                                    <option value="SOS">SOS</option>
-                                </select>
-                                <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
-                            </div>
-                            {% endif %}
-                        </div>
-                        <button type="button" onclick="addAntiMedRow()" style="margin-top:10px; background:#f1f5f9; color:#0f172a; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s;">+ Add Another Medication</button>
-                        <div style="font-size:0.75rem; color:#64748b; margin-top:8px;">* The total count is automatically saved based on the number of non-empty entries.</div>
+                        </select>
+                        <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)" value="{{ med.dose }}">
+                        <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
+                            <option value="">Freq</option>
+                            {% for f in ["OD", "BD", "TDS", "QID", "SOS"] %}
+                            <option value="{{ f }}" {{ 'selected' if med.freq == f else '' }}>{{ f }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
                     </div>
+                    {% endfor %}
+
+                    {% if not display_meds %}
+                    <div class="anti-med-row" style="display:flex; gap:8px; align-items:center;">
+                        <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
+                            <option value="">-- Choose Drug --</option>
+                            {% for d in ["Nifedipine", "Amlodipine", "Clinidipine", "Prazocin", "Clonidine", "Metoprolol", "Dytor", "Minoxidil", "Telmisartan", "Atenolol", "Other"] %}
+                            <option value="{{ d }}">{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)">
+                        <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
+                            <option value="">Freq</option>
+                            <option value="OD">OD</option>
+                            <option value="BD">BD</option>
+                            <option value="TDS">TDS</option>
+                            <option value="QID">QID</option>
+                            <option value="SOS">SOS</option>
+                        </select>
+                        <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
+                    </div>
+                    {% endif %}
+                </div>
+                <button type="button" onclick="addAntiMedRow()" style="margin-top:10px; background:#f1f5f9; color:#0f172a; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s;">+ Add Another Medication</button>
+                <div style="font-size:0.75rem; color:#64748b; margin-top:8px;">* The total count is automatically saved based on the number of non-empty entries.</div>
+            </div>
+
+            <!-- ── Quality of Life ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">sentiment_satisfied</i> Quality of Life</div>
+                <div class="grid">
                     <div class="form-group">
                         <label>HRQoL Score (0–100)</label>
                         <input type="number" step="1" min="0" max="100" name="hrqol_score" inputmode="numeric" placeholder="EQ-5D or KDQoL" value="{{ record.hrqol_score if record and record.hrqol_score else '' }}">
                     </div>
+                </div>
+            </div>
+
+            <!-- ── Hospitalizations & Outcomes ── -->
+            <div class="form-section">
+                <div class="section-title"><i class="material-icons">emergency</i> Hospitalizations & Events</div>
+                <div class="grid">
                     <div class="form-group">
                         <label>Hospitalisation Date</label>
                         <input type="date" name="hospitalization_date" value="{{ record.hospitalization_date if record and record.hospitalization_date else '' }}">

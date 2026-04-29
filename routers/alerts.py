@@ -1,16 +1,17 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime, date
 import logging
 
-from database import get_db, Patient, MonthlyRecord
+from database import get_db, Patient, MonthlyRecord, PatientReminder
 from config import templates
 from dependencies import get_user
 from dashboard_logic import get_current_month_str, get_month_label, get_patients_needing_alerts
 from alerts import (
     build_individual_whatsapp_link, build_schedule_message, send_whatsapp,
-    send_bulk_whatsapp_alerts, send_ward_email
+    send_bulk_whatsapp_alerts, send_ward_email, send_reminders_digest_email
 )
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,19 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
             "remarks": remarks, "link": link,
         })
 
+    # 3. Get clinical reminders
+    clinical_reminders = db.query(PatientReminder).filter(
+        PatientReminder.is_completed == False
+    ).order_by(PatientReminder.reminder_date).all()
+
     return templates.TemplateResponse("alerts.html", {
         "request": request, "alert_links": alert_links,
-        "schedule_links": schedule_links, "month_str": month_str,
-        "month_label": month_label, "user": get_user(request),
+        "schedule_links": schedule_links, 
+        "clinical_reminders": clinical_reminders,
+        "month_str": month_str,
+        "month_label": month_label,
+        "now_date": date.today(),
+        "user": get_user(request),
     })
 
 @router.get("/wa-link/{patient_id}")
@@ -104,3 +114,38 @@ async def api_send_email_bulk(month: Optional[str] = None, db: Session = Depends
         return JSONResponse(content={"message": f"✅ {detail}"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/send-reminders-email")
+async def api_send_reminders_email(db: Session = Depends(get_db)):
+    reminders = db.query(PatientReminder).filter(
+        PatientReminder.is_completed == False
+    ).order_by(PatientReminder.reminder_date).all()
+    success, detail = send_reminders_digest_email(reminders)
+    if not success:
+        raise HTTPException(status_code=500, detail=detail)
+    return JSONResponse(content={"message": f"✅ {detail}"})
+
+
+@router.post("/reminders/create")
+async def create_reminder(
+    patient_id: int = Form(...),
+    reminder_date: str = Form(...),
+    message: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    new_rem = PatientReminder(
+        patient_id=patient_id,
+        reminder_date=datetime.strptime(reminder_date, "%Y-%m-%d").date(),
+        message=message
+    )
+    db.add(new_rem)
+    db.commit()
+    return RedirectResponse(url="/patients", status_code=303)
+
+@router.post("/reminders/{reminder_id}/complete")
+async def complete_reminder(reminder_id: int, db: Session = Depends(get_db)):
+    rem = db.query(PatientReminder).filter(PatientReminder.id == reminder_id).first()
+    if not rem: raise HTTPException(status_code=404)
+    rem.is_completed = True
+    db.commit()
+    return JSONResponse(content={"status": "success"})

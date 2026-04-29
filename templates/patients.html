@@ -440,6 +440,9 @@
                                 <button onclick="sendSchedule({{ row.id }}, event)" class="more-item">
                                     <i class="material-icons" style="color:#25d366;">phone_android</i> WhatsApp Remind
                                 </button>
+                                <button onclick="openReminderModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
+                                    <i class="material-icons" style="color:var(--accent-orange);">event_note</i> Clinical Reminder
+                                </button>
                                 <div class="more-divider"></div>
                                 <button onclick="openDeactivateModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
                                     <i class="material-icons">person_off</i> Deactivate Patient
@@ -549,6 +552,34 @@
 </div>
 
 
+<!-- ══════════════════════════════════════════════════════
+     CLINICAL REMINDER MODAL
+     ══════════════════════════════════════════════════════ -->
+<div id="reminderModal" class="modal-overlay" onclick="if(event.target===this)closeReminderModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:var(--accent-orange);font-size:1.1rem;">event_note</i> Set Clinical Reminder</h3>
+            <button class="modal-close" onclick="closeReminderModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+        </div>
+        <p style="margin:0 0 16px; font-size:0.875rem; color:#475569;">
+            Set a reminder for <strong id="reminder_patient_name"></strong>. This will appear on the Alerts page on the specified date.
+        </p>
+        <form id="reminderForm" method="POST" action="/alerts/reminders/create">
+            <input type="hidden" name="patient_id" id="reminder_patient_id">
+            <div class="form-field">
+                <label>Reminder Date</label>
+                <input type="date" name="reminder_date" id="reminder_date" required>
+            </div>
+            <div class="form-field">
+                <label>Reminder Message / Task</label>
+                <textarea name="message" id="reminder_message" rows="3" placeholder="e.g. Specific Lab investigation, AVF cannulation check, Radiological investigation etc." required style="resize:vertical;"></textarea>
+            </div>
+            <button type="submit" class="btn-primary" style="background:var(--accent-orange);">Set Reminder</button>
+        </form>
+    </div>
+</div>
+
+
 <script>
     // ── FILTER (search name/HID + status) ──────────────────────────────────
     function applyFilters() {
@@ -653,6 +684,18 @@
     function checkDeactivateInput() {
         const val = document.getElementById('deact_confirm_input').value.trim();
         document.getElementById('deact_submit_btn').disabled = (val !== _deactHid);
+    }
+
+    // ── CLINICAL REMINDER MODAL ──────────────────────────────────────────
+    function openReminderModal(pid, name) {
+        document.getElementById('reminder_patient_id').value = pid;
+        document.getElementById('reminder_patient_name').textContent = name;
+        document.getElementById('reminder_date').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('reminder_message').value = '';
+        document.getElementById('reminderModal').classList.add('open');
+    }
+    function closeReminderModal() {
+        document.getElementById('reminderModal').classList.remove('open');
     }
 
     // ── WHATSAPP REMIND ───────────────────────────────────────────────────

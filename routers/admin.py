@@ -21,7 +21,13 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
     """Triggers the PDS schema migration. Useful for Render free tier."""
     _require_admin(request)
     
-    results = []
+    from database import Base, PatientReminder
+    try:
+        Base.metadata.create_all(bind=engine)
+        results.append("✅ Ensured all tables exist (PatientReminder, etc.)")
+    except Exception as e:
+        results.append(f"⚠️ Table creation: {str(e)}")
+    
     # Columns to add to session_records
     session_cols = [
         ("intradialytic_exercise_mins", "INTEGER"),

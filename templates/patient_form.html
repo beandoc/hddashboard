@@ -254,7 +254,7 @@
                     </div>
                     <div class="form-group">
                         <label>Native Kidney Biopsy</label>
-                        <select name="native_kidney_biopsy">
+                        <select name="native_kidney_biopsy" id="native_kidney_biopsy" onchange="toggleBiopsyFields()">
                             <option value="">-- Select --</option>
                             <option value="Done" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Done' }}>Done</option>
                             <option value="Not Done" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Not Done' }}>Not Done</option>
@@ -263,11 +263,11 @@
                     </div>
                     <div class="form-group">
                         <label>Biopsy Date</label>
-                        <input type="date" name="native_kidney_biopsy_date" value="{{ patient.native_kidney_biopsy_date if patient and patient.native_kidney_biopsy_date else '' }}">
+                        <input type="date" name="native_kidney_biopsy_date" id="native_kidney_biopsy_date" value="{{ patient.native_kidney_biopsy_date if patient and patient.native_kidney_biopsy_date else '' }}">
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>Biopsy Report Details</label>
-                        <textarea name="native_kidney_biopsy_report" rows="2" placeholder="e.g. Findings from the biopsy report..." style="resize: vertical;">{{ patient.native_kidney_biopsy_report if patient and patient.native_kidney_biopsy_report else '' }}</textarea>
+                        <textarea name="native_kidney_biopsy_report" id="native_kidney_biopsy_report" rows="2" placeholder="e.g. Findings from the biopsy report..." style="resize: vertical;">{{ patient.native_kidney_biopsy_report if patient and patient.native_kidney_biopsy_report else '' }}</textarea>
                     </div>
                 </div>
             </div>
@@ -389,7 +389,7 @@
                         <label>Transplant Prospect</label>
                         <select name="transplant_prospect">
                             <option value="">-- Select --</option>
-                            {% for s in ["Active","Listed","Inactive","Contraindicated","Post-Transplant Return"] %}
+                            {% for s in ["Active","Listed","Inactive","Contraindicated","Post-Transplant Return","NO"] %}
                             <option value="{{ s }}" {{ 'selected' if patient and patient.transplant_prospect == s }}>{{ s }}</option>
                             {% endfor %}
                         </select>
@@ -487,9 +487,8 @@
                     <div class="form-group">
                         <label>Current Survival Status</label>
                         <select name="current_survival_status" id="current_survival_status" onchange="toggleDeathFields()">
-                            <option value="">-- Select --</option>
                             {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
-                            <option value="{{ s }}" {{ 'selected' if patient and patient.current_survival_status == s }}>{{ s }}</option>
+                            <option value="{{ s }}" {{ 'selected' if (patient and patient.current_survival_status == s) or (not patient and s == 'Active') }}>{{ s }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -655,6 +654,30 @@
                 cod.style.background = "#f8fafc";
             }
         }
+
+        function toggleBiopsyFields() {
+            const status = document.getElementById('native_kidney_biopsy').value;
+            const bDate = document.getElementById('native_kidney_biopsy_date');
+            const bReport = document.getElementById('native_kidney_biopsy_report');
+            
+            const isNotDone = (status === 'Not Done' || status === '');
+            bDate.disabled = isNotDone;
+            bReport.disabled = isNotDone;
+            
+            if (isNotDone) {
+                bDate.value = "";
+                bReport.value = "";
+                bDate.style.opacity = "0.5";
+                bReport.style.opacity = "0.5";
+                bDate.style.background = "#e2e8f0";
+                bReport.style.background = "#e2e8f0";
+            } else {
+                bDate.style.opacity = "1";
+                bReport.style.opacity = "1";
+                bDate.style.background = "#f8fafc";
+                bReport.style.background = "#f8fafc";
+            }
+        }
         
         function calculateCCI() {
             let score = 0;
@@ -713,6 +736,7 @@
         
         document.addEventListener("DOMContentLoaded", () => {
             toggleDeathFields();
+            toggleBiopsyFields();
             calculateCCI(); // Calculate initially on load
         });
     </script>

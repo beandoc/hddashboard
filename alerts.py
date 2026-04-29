@@ -514,6 +514,153 @@ def send_ward_email(alert_patients: list,
         return False, str(e)
 
 
+def send_reminders_digest_email(reminders: list) -> tuple:
+    """
+    Send a single composite email listing all pending clinical reminders.
+    reminders: list of PatientReminder ORM objects (is_completed=False).
+    """
+    if not SMTP_USER or not SMTP_PASSWORD:
+        return False, "Email not configured — add SMTP_USER and SMTP_PASSWORD"
+    if not DOCTOR_EMAIL:
+        return False, "DOCTOR_EMAIL not set in environment"
+    if not reminders:
+        return False, "No pending reminders to send"
+
+    from datetime import date
+    today = date.today()
+
+    due = [r for r in reminders if r.reminder_date <= today]
+    upcoming = [r for r in reminders if r.reminder_date > today]
+
+    def _reminder_row(r, is_due: bool):
+        badge_bg   = "#dc2626" if is_due else "#64748b"
+        badge_text = "DUE" if is_due else "UPCOMING"
+        date_str   = r.reminder_date.strftime("%d %b %Y")
+        return (
+            f'<tr style="border-bottom:1px solid #f1f5f9">'
+            f'<td style="padding:10px 14px;font-weight:600;white-space:nowrap">'
+            f'  {r.patient.name}'
+            f'  <span style="font-size:11px;color:#94a3b8;font-weight:400"> #{r.patient.hid_no}</span>'
+            f'</td>'
+            f'<td style="padding:10px 14px;white-space:nowrap;font-size:13px;color:#475569">{date_str}</td>'
+            f'<td style="padding:10px 14px">'
+            f'  <span style="background:{badge_bg};color:#fff;border-radius:10px;'
+            f'    padding:2px 9px;font-size:11px;font-weight:700">{badge_text}</span>'
+            f'</td>'
+            f'<td style="padding:10px 14px;font-size:13px;color:#334155;line-height:1.5">{r.message}</td>'
+            f'</tr>'
+        )
+
+    due_rows      = "".join(_reminder_row(r, True)  for r in due)
+    upcoming_rows = "".join(_reminder_row(r, False) for r in upcoming)
+
+    section_due = ""
+    if due_rows:
+        section_due = f"""
+        <h3 style="margin:24px 0 10px;font-size:15px;color:#dc2626">
+          &#9888;&#65039; Due Reminders ({len(due)})
+        </h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;
+                      border:1px solid #fee2e2;border-radius:8px;overflow:hidden">
+          <thead>
+            <tr style="background:#fee2e2">
+              <th style="padding:8px 14px;text-align:left;color:#991b1b;font-size:12px">Patient</th>
+              <th style="padding:8px 14px;text-align:left;color:#991b1b;font-size:12px">Date</th>
+              <th style="padding:8px 14px;text-align:left;color:#991b1b;font-size:12px">Status</th>
+              <th style="padding:8px 14px;text-align:left;color:#991b1b;font-size:12px">Reminder</th>
+            </tr>
+          </thead>
+          <tbody>{due_rows}</tbody>
+        </table>"""
+
+    section_upcoming = ""
+    if upcoming_rows:
+        section_upcoming = f"""
+        <h3 style="margin:24px 0 10px;font-size:15px;color:#0369a1">
+          &#128197; Upcoming Reminders ({len(upcoming)})
+        </h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;
+                      border:1px solid #bae6fd;border-radius:8px;overflow:hidden">
+          <thead>
+            <tr style="background:#e0f2fe">
+              <th style="padding:8px 14px;text-align:left;color:#0369a1;font-size:12px">Patient</th>
+              <th style="padding:8px 14px;text-align:left;color:#0369a1;font-size:12px">Date</th>
+              <th style="padding:8px 14px;text-align:left;color:#0369a1;font-size:12px">Status</th>
+              <th style="padding:8px 14px;text-align:left;color:#0369a1;font-size:12px">Reminder</th>
+            </tr>
+          </thead>
+          <tbody>{upcoming_rows}</tbody>
+        </table>"""
+
+    generated = datetime.now().strftime("%d %b %Y %H:%M")
+    html = f"""
+    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:680px;margin:0 auto">
+      <div style="background:linear-gradient(135deg,#0f172a,#1e293b);
+                  padding:24px 28px;border-radius:10px 10px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:18px">
+          &#128203; Clinical Reminders Digest
+        </h2>
+        <p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px">
+          {len(reminders)} pending reminder{'s' if len(reminders)!=1 else ''} &nbsp;&middot;&nbsp;
+          Generated {generated}
+        </p>
+      </div>
+      <div style="background:#fff;padding:20px 28px;
+                  border:1px solid #e2e8f0;border-top:none">
+        <div style="display:flex;gap:16px;margin-bottom:20px">
+          <div style="flex:1;background:#fff0f0;border:1px solid #fee2e2;
+                      border-radius:8px;padding:14px 18px;text-align:center">
+            <div style="font-size:2em;font-weight:700;color:#dc2626">{len(due)}</div>
+            <div style="font-size:11px;color:#991b1b;margin-top:2px;font-weight:600">DUE</div>
+          </div>
+          <div style="flex:1;background:#f0f9ff;border:1px solid #bae6fd;
+                      border-radius:8px;padding:14px 18px;text-align:center">
+            <div style="font-size:2em;font-weight:700;color:#0369a1">{len(upcoming)}</div>
+            <div style="font-size:11px;color:#0369a1;margin-top:2px;font-weight:600">UPCOMING</div>
+          </div>
+          <div style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;
+                      border-radius:8px;padding:14px 18px;text-align:center">
+            <div style="font-size:2em;font-weight:700;color:#475569">{len(reminders)}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px;font-weight:600">TOTAL PENDING</div>
+          </div>
+        </div>
+        {section_due}
+        {section_upcoming}
+      </div>
+      <div style="background:#f8fafc;padding:14px 28px;border:1px solid #e2e8f0;
+                  border-top:none;border-radius:0 0 10px 10px">
+        <p style="margin:0;font-size:12px;color:#94a3b8">
+          {CLINIC_NAME} &middot; HD Dashboard automated digest &middot; Do not reply
+        </p>
+      </div>
+    </div>"""
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = (
+            f"Clinical Reminders Digest — {len(due)} Due, {len(upcoming)} Upcoming | {CLINIC_NAME}"
+        )
+        msg["From"] = SMTP_USER
+        msg["To"]   = DOCTOR_EMAIL
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, DOCTOR_EMAIL, msg.as_string())
+
+        logger.info(f"Reminders digest sent to {DOCTOR_EMAIL} ({len(reminders)} reminders)")
+        return True, f"Digest sent to {DOCTOR_EMAIL} — {len(due)} due, {len(upcoming)} upcoming"
+    except smtplib.SMTPAuthenticationError:
+        return False, (
+            "Gmail authentication failed. "
+            "Use an App Password — Google Account → Security → 2FA → App Passwords"
+        )
+    except Exception as e:
+        logger.error(f"Reminders digest email failed: {e}")
+        return False, str(e)
+
+
 def send_entry_alert_email(patient_name: str, hid: str, month_label: str,
                             alerts: list, labs: dict, entered_by: str = "") -> None:
     """
