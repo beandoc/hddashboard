@@ -63,7 +63,11 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
         # 3. Update patients
         patient_cols = [
             ("diastolic_dysfunction", "VARCHAR"),
-            ("handgrip_strength", "FLOAT")
+            ("handgrip_strength", "FLOAT"),
+            ("native_kidney_biopsy_date", "DATE"),
+            ("native_kidney_biopsy_report", "TEXT"),
+            ("echo_date", "DATE"),
+            ("echo_report", "TEXT"),
         ]
         for col, col_type in patient_cols:
             try:

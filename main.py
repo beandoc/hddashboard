@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, Request, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import Optional
 import logging
 
@@ -17,6 +18,45 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
+
+# Auto-migrate: sync DB schema with SQLAlchemy models on every startup
+def _run_startup_migrations():
+    # Map SQLAlchemy column types to SQL DDL strings
+    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import Integer, String, Float, Boolean, Date, DateTime, Text
+
+    type_map = {
+        Integer: "INTEGER",
+        String: "VARCHAR",
+        Float: "FLOAT",
+        Boolean: "BOOLEAN",
+        Date: "DATE",
+        DateTime: "DATETIME",
+        Text: "TEXT",
+    }
+
+    inspector = sa_inspect(engine)
+    with engine.connect() as conn:
+        for mapper in Base.registry.mappers:
+            table_name = mapper.persist_selectable.name
+            if not inspector.has_table(table_name):
+                continue
+            existing = {col["name"] for col in inspector.get_columns(table_name)}
+            for col in mapper.persist_selectable.columns:
+                if col.name in existing or col.primary_key:
+                    continue
+                sql_type = type_map.get(type(col.type), "VARCHAR")
+                default_clause = ""
+                if col.default is not None and hasattr(col.default, "arg") and not callable(col.default.arg):
+                    default_clause = f" DEFAULT {col.default.arg}"
+                try:
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {sql_type}{default_clause}"))
+                    conn.commit()
+                    logging.info(f"Migration: added {col.name} to {table_name}")
+                except Exception:
+                    pass  # column already exists or unsupported
+
+_run_startup_migrations()
 
 app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0")
 
