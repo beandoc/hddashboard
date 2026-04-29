@@ -13,18 +13,19 @@ logger = logging.getLogger(__name__)
 
 from services import session_service
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+router = APIRouter(prefix="/patients", tags=["sessions"])
+session_router = APIRouter(prefix="/sessions", tags=["sessions"])
 
-@router.get("/new/{patient_id}", response_class=HTMLResponse)
+@router.get("/{patient_id}/sessions/new", response_class=HTMLResponse)
 async def new_session_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient: raise HTTPException(status_code=404)
+    if not patient: raise HTTPException(status_code=404, detail="Patient not found")
     return templates.TemplateResponse("session_form.html", {
         "request": request, "patient": patient, "session": None, "mode": "new",
         "user": get_user(request),
     })
 
-@router.post("/new/{patient_id}")
+@router.post("/{patient_id}/sessions/new")
 async def create_session(
     patient_id: int, db: Session = Depends(get_db),
     session_date: str = Form(...),
@@ -67,7 +68,7 @@ async def create_session(
         raise HTTPException(status_code=404, detail=str(e))
     return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
 
-@router.get("/{session_id}/edit", response_class=HTMLResponse)
+@session_router.get("/{session_id}/edit", response_class=HTMLResponse)
 async def edit_session_form(session_id: int, request: Request, db: Session = Depends(get_db)):
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
     if not sess: raise HTTPException(status_code=404)
@@ -77,7 +78,7 @@ async def edit_session_form(session_id: int, request: Request, db: Session = Dep
         "user": get_user(request),
     })
 
-@router.post("/{session_id}/edit")
+@session_router.post("/{session_id}/edit")
 async def update_session(
     session_id: int, db: Session = Depends(get_db),
     session_date: str = Form(...),
@@ -122,7 +123,7 @@ async def update_session(
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
     return RedirectResponse(url=f"/patients/{sess.patient_id}/analytics", status_code=303)
 
-@router.post("/{session_id}/delete")
+@session_router.post("/{session_id}/delete")
 async def delete_session(session_id: int, db: Session = Depends(get_db)):
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
     if sess:
