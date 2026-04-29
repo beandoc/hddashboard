@@ -1,0 +1,170 @@
+{% extends "_nav.html" %}
+{% block content %}
+<style>
+    :root {
+        --primary: #0ea5e9;
+        --bg-main: #f8fafc;
+        --radius: 16px;
+        --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    }
+    body { background: var(--bg-main); }
+    .analytics-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: white;
+        padding: 60px 20px;
+        text-align: center;
+        margin-bottom: -40px;
+    }
+    .analytics-header h1 { font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin: 0; }
+    .analytics-header p { opacity: 0.8; font-size: 1.1rem; margin-top: 10px; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+    
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 30px; }
+    
+    .insight-card {
+        background: white;
+        border-radius: var(--radius);
+        padding: 30px;
+        box-shadow: var(--shadow-lg);
+        border: 1px solid rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.2s;
+    }
+    .insight-card:hover { transform: translateY(-5px); }
+    .card-icon {
+        width: 50px; height: 50px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+    }
+    .icon-kalman { background: #e0f2fe; color: #0369a1; }
+    .icon-ml { background: #fef3c7; color: #92400e; }
+    .icon-risk { background: #fee2e2; color: #991b1b; }
+
+    .card-title { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; margin-bottom: 10px; }
+    .card-desc { color: #64748b; line-height: 1.6; font-size: 0.95rem; flex-grow: 1; margin-bottom: 25px; }
+    
+    .btn-action {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 12px;
+        background: #f1f5f9;
+        color: #475569;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    .btn-action:hover { background: var(--primary); color: white; }
+
+    .at-risk-section { margin-top: 60px; }
+    .section-title { font-family: 'Outfit', sans-serif; font-size: 1.5rem; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; }
+    
+    .risk-table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-lg); }
+    .risk-table th { text-align: left; padding: 15px 20px; background: #f8fafc; color: #64748b; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .risk-table td { padding: 15px 20px; border-bottom: 1px solid #f1f5f9; }
+    .risk-table tr:last-child td { border-bottom: none; }
+    
+    .risk-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .risk-high { background: #fee2e2; color: #991b1b; }
+    .risk-mod { background: #fef3c7; color: #92400e; }
+</style>
+
+<div class="analytics-header">
+    <h1>Clinical Intelligence Hub</h1>
+    <p>Advanced machine learning and predictive analytics for hemodialysis care</p>
+</div>
+
+<div class="container">
+    <div class="grid">
+        <!-- Kalman Filter Insight -->
+        <div class="insight-card">
+            <div class="card-icon icon-kalman">
+                <i class="material-icons">query_stats</i>
+            </div>
+            <div class="card-title">Kalman Filter Trajectories</div>
+            <div class="card-desc">
+                State-space modeling of individual Hemoglobin and Albumin trends. 
+                Uses constant-velocity Bayesian priors to predict next-month values and identify significant clinical deviations.
+            </div>
+            <a href="/patients" class="btn-action">
+                <i class="material-icons">person_search</i> Select Patient for Analysis
+            </a>
+        </div>
+
+        <!-- Mortality ML -->
+        <div class="insight-card">
+            <div class="card-icon icon-ml">
+                <i class="material-icons">psychology</i>
+            </div>
+            <div class="card-title">Mortality Risk Prediction</div>
+            <div class="card-desc">
+                XGBoost-based prediction model (Xu et al. 2023) calibrated for dialysis cohorts. 
+                Analyzes Age, Albumin, Neutrophils, and EF to flag high-risk trajectories.
+            </div>
+            <a href="/alerts" class="btn-action">
+                <i class="material-icons">notifications_active</i> View Risk Alerts
+            </a>
+        </div>
+
+        <!-- Unit Trends -->
+        <div class="insight-card">
+            <div class="card-icon icon-risk">
+                <i class="material-icons">group_work</i>
+            </div>
+            <div class="card-title">Unit Performance & Census</div>
+            <div class="card-desc">
+                Monitor registrations, mortality events, and hospitalization rates across the unit. 
+                Generate monthly census reports for performance benchmarking.
+            </div>
+            <div style="display:flex; gap:10px;">
+                <a href="/analytics/census" class="btn-action" style="flex:1;">
+                    <i class="material-icons">analytics</i> Census
+                </a>
+                <a href="/analytics/sustainability" class="btn-action" style="flex:1; background:#f0fdf4; color:#166534;">
+                    <i class="material-icons">eco</i> Carbon
+                </a>
+                <a href="/" class="btn-action" style="flex:1;">
+                    <i class="material-icons">dashboard</i> Trends
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="at-risk-section">
+        <h2 class="section-title"><i class="material-icons" style="color:#ef4444">warning</i> Clinical Priority Watchlist</h2>
+        <div class="risk-table-wrap">
+            <table class="risk-table">
+                <thead>
+                    <tr>
+                        <th>Patient Name</th>
+                        <th>Parameter</th>
+                        <th>Status</th>
+                        <th>Model Recommendation</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in patients %}
+                        {% if p.alerts %}
+                        <tr>
+                            <td><strong>{{ p.name }}</strong></td>
+                            <td>{{ p.alerts[0] }}</td>
+                            <td><span class="risk-badge risk-high">High Risk</span></td>
+                            <td>Trend deviation detected (Kalman)</td>
+                            <td><a href="/patients/{{ p.id }}/analytics" class="btn-action" style="padding: 6px 12px; font-size: 0.8rem;">Analyze</a></td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Navigation active state handled by _nav.html script
+</script>
+{% endblock %}

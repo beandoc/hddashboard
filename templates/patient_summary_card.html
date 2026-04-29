@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Clinical Summary - {{ patient.name }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; line-height: 1.4; font-size: 12px; margin: 0; padding: 20px; }
+        .print-only { display: none; }
+        @media print {
+            .no-print { display: none; }
+            .print-only { display: block; }
+            @page { margin: 1cm; }
+        }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+        .section-title { font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #eee; margin-bottom: 10px; font-size: 11px; color: #666; }
+        
+        .data-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .data-label { color: #555; }
+        .data-val { font-weight: bold; }
+        
+        .med-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .med-table th { text-align: left; background: #f5f5f5; padding: 5px; }
+        .med-table td { padding: 5px; border-bottom: 1px solid #eee; }
+        
+        .alert-box { background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 4px; margin-top: 10px; font-weight: bold; color: #cc0000; }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="background:#f8fafc; padding:15px; border-radius:8px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+        <div><strong>Print Preview:</strong> This page is optimized for a single-page A4 clinical summary.</div>
+        <button onclick="window.print()" style="background:#0ea5e9; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:600;">Print Summary</button>
+    </div>
+
+    <div class="header">
+        <div>
+            <h1>{{ patient.name }}</h1>
+            <div>HID: {{ patient.hid_no }} | {{ patient.age }}y | {{ patient.sex }} | {{ patient.blood_group }}</div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-weight:bold;">CH(SC) Nephrology Unit</div>
+            <div>Summary Generated: {{ now.strftime('%d %b %Y %H:%M') }}</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="left-col">
+            <div class="section">
+                <div class="section-title">Clinical Background</div>
+                <div style="font-size:11px; white-space:pre-wrap;">{{ patient.clinical_background or 'No background documented.' }}</div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Dialysis & Access</div>
+                <div class="data-row"><span class="data-label">HD Initiation</span><span class="data-val">{{ patient.hd_wef_date.strftime('%b %Y') if patient.hd_wef_date else '—' }}</span></div>
+                <div class="data-row"><span class="data-label">Frequency</span><span class="data-val">{{ patient.hd_frequency }}x / week</span></div>
+                <div class="data-row"><span class="data-label">Current Access</span><span class="data-val">{{ patient.access_type or '—' }}</span></div>
+                <div class="data-row"><span class="data-label">Access Date</span><span class="data-val">{{ patient.access_date.strftime('%d %b %Y') if patient.access_date else '—' }}</span></div>
+                <div class="data-row"><span class="data-label">Dry Weight</span><span class="data-val">{{ patient.dry_weight or '—' }} kg</span></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Recent Lab Snapshot ({{ record.record_month if record else 'N/A' }})</div>
+                <div class="data-row"><span class="data-label">Hemoglobin</span><span class="data-val">{{ record.hb or '—' }} g/dL</span></div>
+                <div class="data-row"><span class="data-label">Albumin</span><span class="data-val">{{ record.albumin or '—' }} g/dL</span></div>
+                <div class="data-row"><span class="data-label">Phosphorus</span><span class="data-val">{{ record.phosphorus or '—' }} mg/dL</span></div>
+                <div class="data-row"><span class="data-label">Corr. Calcium</span><span class="data-val">{{ record.calcium or '—' }} mg/dL</span></div>
+                <div class="data-row"><span class="data-label">Kt/V (sp)</span><span class="data-val">{{ record.single_pool_ktv or '—' }}</span></div>
+                <div class="data-row"><span class="data-label">iPTH</span><span class="data-val">{{ record.ipth or '—' }} pg/mL</span></div>
+            </div>
+        </div>
+
+        <div class="right-col">
+            <div class="section">
+                <div class="section-title">Active Medications</div>
+                <table class="med-table">
+                    <thead>
+                        <tr><th>Medication</th><th>Dose</th><th>Freq</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for m in meds %}
+                        <tr><td>{{ m.name }}</td><td>{{ m.dose }}</td><td>{{ m.freq }}</td></tr>
+                        {% endfor %}
+                        {% if record.esa_type %}
+                        <tr><td>{{ record.esa_type }} (ESA)</td><td>{{ record.epo_mircera_dose or record.desidustat_dose }}</td><td>Weekly</td></tr>
+                        {% endif %}
+                        {% if record.phosphate_binder_type %}
+                        <tr><td>{{ record.phosphate_binder_type }}</td><td>Regimen</td><td>TDS</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Clinical Flags & Alerts</div>
+                {% if alerts %}
+                    {% for a in alerts %}
+                    <div class="alert-box">⚠ {{ a }}</div>
+                    {% endfor %}
+                {% else %}
+                    <div style="color:#22c55e; font-weight:bold;">✓ No active clinical alerts this month.</div>
+                {% endif %}
+            </div>
+
+            <div class="section">
+                <div class="section-title">Monthly Clinical Issues</div>
+                <div style="font-size:11px; font-style:italic;">{{ record.issues or 'Stable this month.' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top:40px; border-top:1px solid #eee; padding-top:10px; font-size:10px; color:#999; text-align:center;">
+        Clinical summary for internal dialysis unit use only. Confidential patient information.
+    </div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+{% extends "_nav.html" %}
+{% block content %}
+<style>
+    :root {
+        --primary: #10b981; /* Green for sustainability */
+        --radius: 16px;
+        --bg-main: #f0fdf4;
+    }
+    body { background: var(--bg-main); }
+    header {
+        background: linear-gradient(135deg, #064e3b 0%, #059669 100%);
+        color: white; padding: 50px 20px; text-align: center;
+    }
+    header h1 { font-family: 'Outfit', sans-serif; margin:0; font-size: 2.2rem; }
+    
+    .container { max-width: 1100px; margin: -40px auto 60px; padding: 0 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px; }
+    
+    .card { background: white; border-radius: var(--radius); padding: 30px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05); }
+    .card h2 { font-family: 'Outfit', sans-serif; margin-top:0; display:flex; align-items:center; gap:10px; color:#064e3b; }
+    
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 700; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-group input { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; box-sizing: border-box; font-family: inherit; font-size: 1rem; }
+    
+    .btn-save { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+    .btn-save:hover { background: #059669; transform: translateY(-2px); }
+
+    .result-pill { background: #ecfdf5; border: 1px solid #d1fae5; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 25px; }
+    .result-val { font-size: 2.5rem; font-weight: 800; color: #059669; font-family: 'Outfit'; }
+    .result-lbl { font-size: 0.85rem; color: #065f46; font-weight: 600; text-transform: uppercase; }
+
+    .chart-box { height: 350px; width: 100%; }
+    
+    .info-box { background: #f8fafc; border-left: 4px solid #94a3b8; padding: 15px; font-size: 0.85rem; color: #475569; margin-top: 20px; line-height: 1.5; }
+</style>
+
+<header>
+    <h1>ICHD Carbon Calculator (India)</h1>
+    <p style="opacity:0.9; margin-top:10px;">Monitoring the environmental impact of dialysis care at CH(SC)</p>
+</header>
+
+<div class="container">
+    <div class="grid">
+        <!-- Input Form -->
+        <div>
+            <div class="card">
+                <h2><i class="material-icons">edit_note</i> Monthly Consumption</h2>
+                <form action="/analytics/sustainability/save" method="POST">
+                    <input type="hidden" name="month_str" value="{{ month_str }}">
+                    
+                    <div class="form-group">
+                        <label>Total Electricity (kWh)</label>
+                        <input type="number" name="electricity" step="0.1" value="{{ record.electricity_kwh or 0 }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Total Water (m³ / 1000L)</label>
+                        <input type="number" name="water" step="0.1" value="{{ record.water_m3 or 0 }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Biomedical Waste (kg)</label>
+                        <input type="number" name="bio_waste" step="0.1" value="{{ record.biomedical_waste_kg or 0 }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>General Waste (kg)</label>
+                        <input type="number" name="gen_waste" step="0.1" value="{{ record.general_waste_kg or 0 }}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Actual Total Sessions (Monthly)</label>
+                        <input type="number" name="sessions" placeholder="Leave blank to auto-estimate" value="{{ record.total_sessions_override if record and record.total_sessions_override else '' }}">
+                    </div>
+
+                    <button type="submit" class="btn-save">Calculate & Save Footprint</button>
+                </form>
+
+                <div class="info-box">
+                    <strong>Methodology:</strong> Uses ICHD standard conversion factors for India (e.g. 0.82 kg CO₂e/kWh). Consumables and transport are estimated based on session counts.
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard / Results -->
+        <div>
+            <div class="card">
+                <h2><i class="material-icons">eco</i> Carbon Footprint Analysis: {{ month_label }}</h2>
+                
+                {% if analysis %}
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div class="result-pill">
+                        <div class="result-val">{{ analysis.total }}</div>
+                        <div class="result-lbl">Total kg CO₂e</div>
+                    </div>
+                    <div class="result-pill">
+                        <div class="result-val">{{ analysis.per_session }}</div>
+                        <div class="result-lbl">kg CO₂e / Session</div>
+                    </div>
+                </div>
+
+                <div id="carbonPieChart" class="chart-box"></div>
+
+                <div style="margin-top:20px;">
+                    <h3 style="font-size:0.9rem; text-transform:uppercase; color:#64748b; margin-bottom:15px;">Breakdown by Category</h3>
+                    {% for item in analysis.breakdown %}
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.9rem; padding:8px 0; border-bottom:1px solid #f1f5f9;">
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span style="width:12px; height:12px; border-radius:50%; background:{{ item.color }}"></span>
+                            {{ item.label }}
+                        </span>
+                        <span style="font-weight:700; color:#1e293b;">{{ item.val }} kg</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% else %}
+                <div style="text-align:center; padding:60px 20px; color:#94a3b8;">
+                    <i class="material-icons" style="font-size:3.5rem; opacity:0.3;">cloud_off</i>
+                    <p style="margin-top:15px; font-style:italic;">Enter monthly consumption data to generate your carbon footprint analysis.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    {% if analysis %}
+    const data = [{
+        values: {{ analysis.breakdown|map(attribute='val')|list|tojson }},
+        labels: {{ analysis.breakdown|map(attribute='label')|list|tojson }},
+        type: 'pie',
+        marker: { colors: {{ analysis.breakdown|map(attribute='color')|list|tojson }} },
+        hole: 0.4,
+        textinfo: 'percent',
+        hoverinfo: 'label+value'
+    }];
+    
+    const layout = {
+        margin: { t: 20, b: 20, l: 20, r: 20 },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        showlegend: true,
+        legend: { orientation: 'h', y: -0.1 }
+    };
+    
+    Plotly.newPlot('carbonPieChart', data, layout, {displayModeBar: false, responsive: true});
+    {% endif %}
+</script>
+{% endblock %}

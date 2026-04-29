@@ -4,16 +4,76 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
-from database import get_db, Patient, ClinicalEvent, SessionRecord
+from datetime import date, datetime, timedelta
+from database import get_db, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
 from config import templates
 from dependencies import get_user
-from dashboard_logic import compute_dashboard
+from dashboard_logic import compute_dashboard, get_current_month_str
 from ml_analytics import run_patient_analytics, analyze_bfr_trend, run_cohort_analytics, get_at_risk_trends, analyze_pds, analyze_mia_cascade, analyze_cardiorenal_cascade, analyze_avf_maturation
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["analytics"])
+
+@router.get("/analytics/census", response_class=HTMLResponse)
+async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    month_str = month or get_current_month_str()
+    
+    # 1. Monthly Totals
+    patients = db.query(Patient).all()
+    active_patients = [p for p in patients if p.is_active]
+    
+    # 2. New Registrations this month
+    new_regs = [p for p in patients if p.created_at and p.created_at.strftime("%Y-%m") == month_str]
+    
+    # 3. Deaths this month
+    deaths = [p for p in patients if p.current_survival_status == "Deceased" and p.date_of_death and p.date_of_death.strftime("%Y-%m") == month_str]
+    
+    # 4. Transfers this month
+    transfers = [p for p in patients if p.current_survival_status == "Transferred" and p.date_facility_transfer and p.date_facility_transfer.strftime("%Y-%m") == month_str]
+    
+    # 5. Hospitalizations this month
+    monthly_recs = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()
+    hosp_count = sum(1 for r in monthly_recs if r.hospitalization_diagnosis or r.hospitalization_icd_diagnosis)
+    
+    # 6. Admission Rate (Hosp per 100 patient months)
+    hosp_rate = (hosp_count / len(active_patients) * 100) if active_patients else 0
+
+    return templates.TemplateResponse("census_report.html", {
+        "request": request,
+        "month_str": month_str,
+        "metrics": {
+            "total_active": len(active_patients),
+            "new_registrations": len(new_regs),
+            "deaths": len(deaths),
+            "transfers": len(transfers),
+            "hospitalizations": hosp_count,
+            "hosp_rate": round(hosp_rate, 1)
+        },
+        "new_patients": new_regs,
+        "deceased_patients": deaths,
+        "transferred_patients": transfers,
+        "user": get_user(request)
+    })
+
+@router.get("/analytics", response_class=HTMLResponse)
+async def analytics_hub(request: Request, db: Session = Depends(get_db)):
+    # Fetch some "at risk" patients for the summary table
+    from dashboard_logic import get_current_month_str
+    from ml_analytics import run_cohort_analytics
+    
+    # We can reuse the dashboard data logic or fetch patients with alerts
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    # Simple logic to find patients with alerts for the watchlist
+    data = compute_dashboard(db, get_current_month_str())
+    patient_rows = data.get("patient_rows", [])
+    
+    return templates.TemplateResponse("analytics_hub.html", {
+        "request": request,
+        "patients": patient_rows,
+        "user": get_user(request)
+    })
 
 @router.get("/analytics/patients", tags=["api"])
 async def api_patients(q: str = "", db: Session = Depends(get_db)):

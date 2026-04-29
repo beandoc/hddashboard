@@ -299,6 +299,28 @@ class MonthlyRecord(Base):
     patient = relationship("Patient", back_populates="records")
 
 
+class SustainabilityRecord(Base):
+    """Monthly unit-wide sustainability data for Carbon Footprint calculation."""
+    __tablename__ = "sustainability_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    record_month = Column(String, unique=True, nullable=False) # YYYY-MM
+    
+    # Unit-wide inputs for the month
+    electricity_kwh = Column(Float, default=0)
+    water_m3 = Column(Float, default=0)
+    biomedical_waste_kg = Column(Float, default=0)
+    general_waste_kg = Column(Float, default=0)
+    
+    # Optional overrides if the unit wants to be more precise
+    total_sessions_override = Column(Integer) # If null, use sum of MonthlyRecords
+    avg_transport_dist_km = Column(Float, default=15) # Avg round trip per patient
+    
+    # Metadata
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    updated_by = Column(String)
+
+
 class AlertLog(Base):
     __tablename__ = "alert_logs"
 

@@ -157,4 +157,14 @@ async def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
             "p75":    round(_pct(vals, 75), 2),
         })
 
-    return {"patients": patient_rows, "trend": trend}
+    return {
+        "patients": patient_rows, 
+        "trend": trend,
+        "all_data": all_data,
+        "thresholds": {
+            "low": vdef.threshold_low,
+            "high": vdef.threshold_high,
+            "target_low": vdef.target_low,
+            "target_high": vdef.target_high
+        }
+    }

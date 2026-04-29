@@ -214,6 +214,58 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "user": get_user(request),
     })
 
+@router.get("/{patient_id}/summary", response_class=HTMLResponse)
+async def patient_clinical_summary(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    import json
+    from datetime import datetime
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient: raise HTTPException(status_code=404)
+    
+    record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+    
+    meds = []
+    if record and record.antihypertensive_details:
+        try: meds = json.loads(record.antihypertensive_details)
+        except: meds = []
+    
+    # Simple alert logic for the summary card
+    alerts = []
+    if record:
+        if record.hb and record.hb < 10: alerts.append(f"Low Hb: {record.hb} g/dL")
+        if record.phosphorus and record.phosphorus > 5.5: alerts.append(f"High Phos: {record.phosphorus} mg/dL")
+        if record.albumin and record.albumin < 3.5: alerts.append(f"Low Albumin: {record.albumin} g/dL")
+        if record.single_pool_ktv and record.single_pool_ktv < 1.2: alerts.append(f"Inadequate Kt/V: {record.single_pool_ktv}")
+        if record.idwg and record.idwg > 2.5: alerts.append(f"High IDWG: {record.idwg} kg")
+
+    return templates.TemplateResponse("patient_summary_card.html", {
+        "request": request, "patient": patient, "record": record, "meds": meds,
+        "alerts": alerts, "now": datetime.now(), "user": get_user(request)
+    })
+
+@router.get("/{patient_id}/meds", response_class=HTMLResponse)
+async def patient_med_recon(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    import json
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient: raise HTTPException(status_code=404)
+    
+    # Get latest monthly record
+    record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+    
+    meds = []
+    if record and record.antihypertensive_details:
+        try:
+            meds = json.loads(record.antihypertensive_details)
+        except:
+            meds = []
+            
+    return templates.TemplateResponse("med_recon.html", {
+        "request": request,
+        "patient": patient,
+        "record": record,
+        "meds": meds,
+        "user": get_user(request)
+    })
+
 @router.get("/{patient_id}/edit", response_class=HTMLResponse)
 async def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
     p = db.query(Patient).filter(Patient.id == patient_id).first()

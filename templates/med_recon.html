@@ -1,0 +1,135 @@
+{% extends "_nav.html" %}
+{% block content %}
+<style>
+    :root {
+        --primary: #0ea5e9;
+        --radius: 16px;
+        --bg-main: #f8fafc;
+        --accent-red: #ef4444;
+        --accent-green: #10b981;
+        --accent-orange: #f59e0b;
+    }
+    body { background: var(--bg-main); font-family: 'Inter', sans-serif; }
+    header { background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%); color: white; padding: 40px 20px; }
+    .header-content { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .header-content h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 1.8rem; }
+    
+    .container { max-width: 1000px; margin: 20px auto 60px; padding: 0 20px; }
+    
+    .med-card { background: white; border-radius: var(--radius); padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05); }
+    .med-card h2 { font-family: 'Outfit', sans-serif; margin-top: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+    
+    .med-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+    .med-item { display: grid; grid-template-columns: 1fr 100px 100px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; align-items: center; }
+    .med-name { font-weight: 700; color: #1e293b; font-size: 1.1rem; }
+    .med-details { color: #64748b; font-size: 0.9rem; }
+    .med-freq { font-weight: 600; color: var(--primary); text-align: center; background: white; border-radius: 6px; padding: 4px; }
+    
+    .recon-flag { margin-top: 25px; padding: 15px; border-radius: 12px; display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.5; }
+    .flag-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+    .flag-warn { background: #fffbeb; color: #b45309; border: 1px solid #fef3c7; }
+    .flag-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+
+    .print-btn { background: white; color: var(--primary); border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .print-btn:hover { background: #f1f5f9; }
+
+    @media print {
+        .app-nav, .print-btn, .nav-breadcrumb { display: none !important; }
+        body { background: white; }
+        .container { margin-top: 0; }
+        .med-card { box-shadow: none; border: 1px solid #000; }
+    }
+</style>
+
+<header>
+    <div class="header-content">
+        <div>
+            <h1>Medication Reconciliation</h1>
+            <p style="opacity:0.9; margin:5px 0 0;">{{ patient.name }} · HID: {{ patient.hid_no }}</p>
+        </div>
+        <button class="print-btn" onclick="window.print()">
+            <i class="material-icons">print</i> Print Report
+        </button>
+    </div>
+</header>
+
+<div class="container">
+    <div class="med-card">
+        <h2><i class="material-icons" style="color:var(--primary)">medication</i> Current Active Regimen ({{ record.record_month if record else 'Latest' }})</h2>
+        
+        {% if meds %}
+        <div class="med-list">
+            {% for m in meds %}
+            <div class="med-item">
+                <div>
+                    <div class="med-name">{{ m.name }}</div>
+                    <div class="med-details">Class: Clinical Antihypertensive</div>
+                </div>
+                <div style="text-align:center; font-weight:600;">{{ m.dose }}</div>
+                <div class="med-freq">{{ m.freq }}</div>
+            </div>
+            {% endfor %}
+            
+            {% if record.esa_type %}
+            <div class="med-item" style="border-left: 4px solid var(--accent-orange);">
+                <div>
+                    <div class="med-name">{{ record.esa_type }}</div>
+                    <div class="med-details">ESA Therapy</div>
+                </div>
+                <div style="text-align:center; font-weight:600;">{{ record.epo_mircera_dose or record.desidustat_dose }}</div>
+                <div class="med-freq">Weekly</div>
+            </div>
+            {% endif %}
+
+            {% if record.iv_iron_product %}
+            <div class="med-item" style="border-left: 4px solid var(--accent-orange);">
+                <div>
+                    <div class="med-name">{{ record.iv_iron_product }}</div>
+                    <div class="med-details">IV Iron Replacement</div>
+                </div>
+                <div style="text-align:center; font-weight:600;">{{ record.iv_iron_dose }} mg</div>
+                <div class="med-freq">Once</div>
+            </div>
+            {% endif %}
+
+            {% if record.phosphate_binder_type %}
+            <div class="med-item" style="border-left: 4px solid var(--accent-green);">
+                <div>
+                    <div class="med-name">{{ record.phosphate_binder_type }}</div>
+                    <div class="med-details">Phosphate Binder</div>
+                </div>
+                <div style="text-align:center; font-weight:600;">Regimen</div>
+                <div class="med-freq">TDS</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="recon-flag flag-info">
+            <i class="material-icons">info</i>
+            <div>
+                <strong>Clinical Note:</strong> This reconciliation includes Antihypertensives, ESAs, Iron, and Mineral Metabolism drugs. 
+                Always verify OTC medications and supplements during patient interview.
+            </div>
+        </div>
+
+        {% if meds|length > 3 %}
+        <div class="recon-flag flag-warn">
+            <i class="material-icons">warning</i>
+            <div>
+                <strong>Polypharmacy Flag:</strong> Patient is on {{ meds|length }} antihypertensive agents. 
+                Monitor for intradialytic hypotension and consider dose tapering if pre-HD BP is consistently < 120/80 mmHg.
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <p style="color:#94a3b8; font-style:italic; padding:40px 0; text-align:center;">No structured medication data found for this period.</p>
+        {% endif %}
+    </div>
+
+    <div class="med-card" style="background:#f1f5f9;">
+        <h2><i class="material-icons" style="color:#64748b">history</i> Clinical Background & Comorbidities</h2>
+        <div style="line-height:1.6; color:#475569; white-space:pre-wrap;">{{ patient.clinical_background or 'No background documented.' }}</div>
+    </div>
+</div>
+{% endblock %}

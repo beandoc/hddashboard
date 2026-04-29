@@ -22,6 +22,7 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
     
     from database import Base, PatientReminder
+    results = []
     try:
         Base.metadata.create_all(bind=engine)
         results.append("✅ Ensured all tables exist (PatientReminder, etc.)")

@@ -108,7 +108,7 @@
                             <button class="btn btn-warn btn-sm" onclick="showReset({{ u.id }}, '{{ u.username }}')">
                                 <i class="material-icons" style="font-size:14px">lock_reset</i> Reset PW
                             </button>
-                            {% if u.id != user.id %}
+                            {% if user and u.id != user.id %}
                             <form method="POST" action="/admin/users/{{ u.id }}/toggle" class="inline-form">
                                 <button type="submit" class="btn btn-sm {{ 'btn-danger' if u.is_active else 'btn-success' }}">
                                     <i class="material-icons" style="font-size:14px">{{ 'block' if u.is_active else 'check_circle' }}</i>

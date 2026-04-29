@@ -254,10 +254,44 @@ textarea { resize:vertical; min-height:70px; }
         </div>
         <div class="field">
           <label>View Type</label>
-          <select id="viewType" onchange="loadVariableChart()">
+          <select id="viewType" onchange="toggleSubOptions(); loadVariableChart()">
             <option value="cohort">Cohort Distribution (all patients, latest month)</option>
             <option value="trend">Unit Trend (median over time)</option>
+            <option value="ranking">Patient Ranking Table (High → Low)</option>
+            <option value="out_of_range">Out-of-Range Patients Only</option>
+            <option value="individual_trend">Individual Patient Trend</option>
+            <option value="comparison">Month-on-Month Comparison</option>
+            <option value="percentile">Percentile Distribution (Box Plot)</option>
+            <option value="heatmap">Heatmap by Patient × Month</option>
+            <option value="improvement">Improvement / Deterioration View</option>
+            <option value="target_rate">Target Achievement Rate</option>
+            <option value="outliers">Outlier Spotlight (Top/Bottom 5)</option>
+            <option value="correlation">Correlation View (Scatter Plot)</option>
           </select>
+        </div>
+      </div>
+
+      <!-- SUB-OPTIONS (Dynamic) -->
+      <div id="viewSubOptions" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="form-grid three">
+          <div class="field" id="subOptPatient" style="display:none">
+            <label>Select Patient</label>
+            <select id="viewPatientId" onchange="loadVariableChart()">
+              <option value="">— select patient —</option>
+              {% for p in patients %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field" id="subOptVar2" style="display:none">
+            <label>Compare with Variable</label>
+            <select id="viewVar2Select" onchange="loadVariableChart()">
+              <option value="">— select variable 2 —</option>
+              {% for v in variables %}
+              <option value="{{ v.id }}">{{ v.display_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -645,6 +679,17 @@ function filterRetroTable(q) {
 }
 
 // ── VIEW DATA ──
+function toggleSubOptions() {
+  const vt = document.getElementById('viewType').value;
+  const wrap = document.getElementById('viewSubOptions');
+  const optP = document.getElementById('subOptPatient');
+  const optV2 = document.getElementById('subOptVar2');
+
+  wrap.style.display = (vt === 'individual_trend' || vt === 'correlation') ? 'block' : 'none';
+  optP.style.display = (vt === 'individual_trend') ? 'block' : 'none';
+  optV2.style.display = (vt === 'correlation') ? 'block' : 'none';
+}
+
 async function loadVariableChart() {
   const varId = document.getElementById('viewVarSelect').value;
   const viewType = document.getElementById('viewType').value;
@@ -661,89 +706,200 @@ async function loadVariableChart() {
   document.getElementById('viewChartWrap').style.display = 'block';
   document.getElementById('viewChartTitle').textContent = varName;
   document.getElementById('viewSummaryValueHeader').textContent =
-    `Latest Value ${varUnit ? '(' + varUnit + ')' : ''}`;
+    viewType === 'target_rate' ? 'Target Achievement %' : `Latest Value ${varUnit ? '(' + varUnit + ')' : ''}`;
 
   const FONT = { family:"'Roboto',sans-serif", size:11 };
+  const vdef = ALL_VARS.find(x => x.id === parseInt(varId));
 
-  if (viewType === 'cohort') {
-    // Box plot / bar of latest values per patient
-    const names  = data.patients.map(p => p.name);
-    const values = data.patients.map(p => p.latest_value);
+  function isAlert(v) {
+    if (v === null || v === undefined || isNaN(v)) return false;
+    if (!vdef) return false;
+    return (vdef.threshold_high && v > vdef.threshold_high) || (vdef.threshold_low && v < vdef.threshold_low);
+  }
 
-    // Filter out nulls for mapping marker colors
-    const vdef = ALL_VARS.find(x => x.id === parseInt(varId));
+  function getStatusHtml(v) {
+    if (v === null || v === undefined) return '—';
+    if (isAlert(v)) return '<span style="color:var(--red)">⚠ Alert</span>';
+    return '<span style="color:var(--green)">✓ OK</span>';
+  }
+
+  const tbody = document.getElementById('viewSummaryBody');
+  const chartDiv = document.getElementById('viewChart');
+  chartDiv.innerHTML = ''; // Clear for fresh start
+
+  if (viewType === 'cohort' || viewType === 'ranking' || viewType === 'out_of_range' || viewType === 'outliers') {
+    let patients = [...data.patients];
+    if (viewType === 'ranking') patients.sort((a, b) => (b.latest_value || 0) - (a.latest_value || 0));
+    if (viewType === 'out_of_range') patients = patients.filter(p => isAlert(p.latest_value));
+    if (viewType === 'outliers') {
+      const sorted = [...patients].filter(p => p.latest_value !== null).sort((a,b) => a.latest_value - b.latest_value);
+      patients = [...sorted.slice(0,5), ...sorted.slice(-5).reverse()];
+    }
+
+    const names = patients.map(p => p.name);
+    const values = patients.map(p => p.latest_value);
     const markerColors = values.map(v => {
       if (v === null) return '#ccc';
-      if (!vdef) return '#64b5f6';
-      if (vdef.threshold_high && v > vdef.threshold_high) return '#ef5350';
-      if (vdef.threshold_low  && v < vdef.threshold_low)  return '#ef5350';
-      return '#66bb6a';
+      return isAlert(v) ? 'var(--red)' : 'var(--green)';
     });
 
     Plotly.newPlot('viewChart', [{
-      type: 'bar',
-      x: names, y: values,
-      marker: { color: markerColors },
+      type: 'bar', x: names, y: values, marker: { color: markerColors },
       hovertemplate: '<b>%{x}</b><br>%{y} ' + varUnit + '<extra></extra>',
     }], {
-      margin:{ t:20, b:100, l:60, r:20 },
-      paper_bgcolor:'transparent', plot_bgcolor:'transparent',
-      xaxis:{ tickangle:-45, gridcolor:'#f0f0f0' },
-      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' },
+      margin:{ t:20, b:100, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      xaxis:{ tickangle:-45, gridcolor:'#f0f0f0' }, yaxis:{ title: varUnit, gridcolor:'#f0f0f0' },
       font: FONT,
     }, { displayModeBar:false, responsive:true });
 
-    // Summary table
-    const tbody = document.getElementById('viewSummaryBody');
-    tbody.innerHTML = data.patients.map(p => {
-      const v = p.latest_value;
-      const isAlert = v && vdef && (
-        (vdef.threshold_high && v > vdef.threshold_high) ||
-        (vdef.threshold_low  && v < vdef.threshold_low)
-      );
+    tbody.innerHTML = patients.map(p => `<tr>
+      <td class="patient-name-cell">${p.name}</td>
+      <td class="hid-cell">${p.hid}</td>
+      <td style="font-family:monospace; font-weight:600; color:${isAlert(p.latest_value) ? 'var(--red)' : 'var(--ink)'}">${p.latest_value !== null ? p.latest_value : '—'}</td>
+      <td>${getStatusHtml(p.latest_value)}</td>
+    </tr>`).join('');
+
+  } else if (viewType === 'trend') {
+    Plotly.newPlot('viewChart', [{
+      type:'scatter', x: data.trend.map(t => t.month), y: data.trend.map(t => t.median),
+      mode:'lines+markers', name:'Median', line:{ color:'#0ea5e9', width:2.5 },
+      marker:{ color:'#0ea5e9', size:7 }, hovertemplate:'%{x}: <b>%{y}</b> ' + varUnit + '<extra></extra>',
+    }, {
+      type:'scatter', x: data.trend.map(t => t.month), y: data.trend.map(t => t.p75),
+      mode:'lines', name:'75th percentile', line:{ color:'#90caf9', width:1, dash:'dot' }, hoverinfo:'skip',
+    }, {
+      type:'scatter', x: data.trend.map(t => t.month), y: data.trend.map(t => t.p25),
+      mode:'lines', name:'25th percentile', line:{ color:'#90caf9', width:1, dash:'dot' },
+      fill:'tonexty', fillcolor:'rgba(144,202,249,0.15)', hoverinfo:'skip',
+    }], {
+      margin:{ t:20, b:50, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' }, xaxis:{ gridcolor:'#f0f0f0' }, font: FONT, showlegend: true,
+    }, { displayModeBar:false, responsive:true });
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px">See chart for unit trend overview.</td></tr>';
+
+  } else if (viewType === 'individual_trend') {
+    const pid = document.getElementById('viewPatientId').value;
+    if (!pid) {
+      chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Please select a patient to view their individual trend.</div>';
+      return;
+    }
+    const pData = data.all_data[pid] || {};
+    const months = Object.keys(pData).sort();
+    const values = months.map(m => pData[m]);
+
+    Plotly.newPlot('viewChart', [{
+      type:'scatter', x: months, y: values, mode:'lines+markers',
+      line:{ color:'#0ea5e9', width:3 }, marker:{ size:8, color: values.map(v => isAlert(v)?'#ef4444':'#0ea5e9') }
+    }], {
+      margin:{ t:20, b:50, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' }, xaxis:{ gridcolor:'#f0f0f0' }, font: FONT,
+    }, { displayModeBar:false, responsive:true });
+
+    tbody.innerHTML = months.reverse().map(m => `<tr>
+      <td>${m}</td><td>—</td><td style="font-family:monospace">${pData[m]}</td><td>${getStatusHtml(pData[m])}</td>
+    </tr>`).join('');
+
+  } else if (viewType === 'comparison' || viewType === 'improvement') {
+    const currentMonth = generateMonthRange('2020-01', '2030-12').reverse().find(m => m <= new Date().toISOString().slice(0,7));
+    const prevMonth = generateMonthRange('2020-01', currentMonth).slice(-2)[0];
+    
+    let patients = data.patients.map(p => {
+      const cur = data.all_data[p.id]?.[currentMonth] ?? null;
+      const pre = data.all_data[p.id]?.[prevMonth] ?? null;
+      const delta = (cur !== null && pre !== null) ? (cur - pre) : null;
+      return { ...p, current: cur, previous: pre, delta: delta };
+    }).filter(p => p.current !== null || p.previous !== null);
+
+    if (viewType === 'improvement') {
+       // Sort by delta (significant changes first)
+       patients.sort((a,b) => Math.abs(b.delta || 0) - Math.abs(a.delta || 0));
+    }
+
+    Plotly.newPlot('viewChart', [
+      { x: patients.map(p => p.name), y: patients.map(p => p.previous), name: prevMonth, type: 'bar', marker:{color:'#cbd5e1'} },
+      { x: patients.map(p => p.name), y: patients.map(p => p.current), name: currentMonth, type: 'bar', marker:{color:'#0ea5e9'} }
+    ], {
+      barmode: 'group', margin:{ t:20, b:100, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      xaxis:{ tickangle:-45 }, yaxis:{ title: varUnit }, font: FONT, showlegend: true
+    }, { displayModeBar:false, responsive:true });
+
+    tbody.innerHTML = patients.map(p => {
+      const isUp = p.delta > 0;
+      const arrow = p.delta === null ? '' : (isUp ? '↑' : '↓');
+      // For some vars, UP is good (Hb), for others DOWN is good (CRP)
+      // If alert_direction is 'high', then UP is bad.
+      const isGood = p.delta === null ? null : (vdef?.alert_direction === 'high' ? !isUp : isUp);
+      const color = isGood === null ? 'var(--ink)' : (isGood ? 'var(--green)' : 'var(--red)');
+      
       return `<tr>
         <td class="patient-name-cell">${p.name}</td>
-        <td class="hid-cell">${p.hid}</td>
-        <td style="font-family:monospace;color:${isAlert ? 'var(--red)' : 'var(--green)'}">
-          ${v !== null ? v : '—'}
+        <td style="font-family:monospace">${p.current ?? '—'}</td>
+        <td style="font-family:monospace">${p.previous ?? '—'}</td>
+        <td style="color:${color};font-weight:600">
+          ${arrow} ${p.delta !== null ? Math.abs(p.delta).toFixed(1) : ''}
+          ${p.delta !== null ? (isGood ? ' (Improv)' : ' (Worsen)') : ''}
         </td>
-        <td>${isAlert ? '⚠ Alert' : (v !== null ? '✓ OK' : '—')}</td>
       </tr>`;
     }).join('');
 
-  } else {
-    // Median trend over time
+  } else if (viewType === 'heatmap') {
+    const allMonths = Array.from(new Set(Object.values(data.all_data).flatMap(m => Object.keys(m)))).sort();
+    const patients = data.patients.filter(p => data.all_data[p.id]);
+    const zData = patients.map(p => allMonths.map(m => data.all_data[p.id]?.[m] ?? null));
+
     Plotly.newPlot('viewChart', [{
-      type:'scatter',
-      x: data.trend.map(t => t.month),
-      y: data.trend.map(t => t.median),
-      mode:'lines+markers',
-      name:'Median',
-      line:{ color:'#007bff', width:2.5 },
-      marker:{ color:'#007bff', size:7 },
-      hovertemplate:'%{x}: <b>%{y}</b> ' + varUnit + '<extra></extra>',
-    }, {
-      type:'scatter',
-      x: data.trend.map(t => t.month),
-      y: data.trend.map(t => t.p75),
-      mode:'lines', name:'75th percentile',
-      line:{ color:'#90caf9', width:1, dash:'dot' },
-      hoverinfo:'skip',
-    }, {
-      type:'scatter',
-      x: data.trend.map(t => t.month),
-      y: data.trend.map(t => t.p25),
-      mode:'lines', name:'25th percentile',
-      line:{ color:'#90caf9', width:1, dash:'dot' },
-      fill:'tonexty', fillcolor:'rgba(144,202,249,0.15)',
-      hoverinfo:'skip',
+      z: zData, x: allMonths, y: patients.map(p => p.name), type: 'heatmap', colorscale: 'YlGnBu',
+      hovertemplate: '%{y}<br>%{x}: <b>%{z}</b><extra></extra>'
     }], {
-      margin:{ t:20, b:50, l:60, r:20 },
-      paper_bgcolor:'transparent', plot_bgcolor:'transparent',
-      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' },
-      xaxis:{ gridcolor:'#f0f0f0' },
-      font: FONT,
-      showlegend: true,
+      margin:{ t:20, b:50, l:120, r:20 }, font: FONT
+    }, { displayModeBar:false, responsive:true });
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px">Heatmap view active.</td></tr>';
+
+  } else if (viewType === 'percentile') {
+    const allValues = Object.values(data.all_data).flatMap(m => Object.values(m)).filter(v => v !== null);
+    Plotly.newPlot('viewChart', [{ y: allValues, type: 'box', name: varName, marker:{color:'#0ea5e9'} }], {
+      margin:{ t:20, b:50, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      yaxis:{ title: varUnit }, font: FONT
+    }, { displayModeBar:false, responsive:true });
+
+  } else if (viewType === 'target_rate') {
+    const months = Array.from(new Set(Object.values(data.all_data).flatMap(m => Object.keys(m)))).sort();
+    const rates = months.map(m => {
+      const vals = Object.values(data.all_data).map(p => p[m]).filter(v => v !== undefined && v !== null);
+      if (vals.length === 0) return 0;
+      const ok = vals.filter(v => !isAlert(v)).length;
+      return (ok / vals.length) * 100;
+    });
+
+    Plotly.newPlot('viewChart', [{ x: months, y: rates, type:'scatter', mode:'lines+markers', line:{color:'#10b981', width:3} }], {
+      margin:{ t:20, b:50, l:60, r:20 }, yaxis:{ title: 'Achievement %', range:[0,105] }, font: FONT
+    }, { displayModeBar:false, responsive:true });
+
+  } else if (viewType === 'correlation') {
+    const var2Id = document.getElementById('viewVar2Select').value;
+    if (!var2Id) {
+      chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Please select a second variable to correlate.</div>';
+      return;
+    }
+    const res2 = await fetch(`/api/variables/${var2Id}/summary`);
+    const data2 = await res2.json();
+    const var2Name = ALL_VARS.find(x => x.id === parseInt(var2Id)).display_name;
+
+    const xVals = [], yVals = [], text = [];
+    data.patients.forEach(p => {
+      if (p.latest_value !== null && data2.patients.find(p2 => p2.id === p.id)?.latest_value !== null) {
+        xVals.push(p.latest_value);
+        yVals.push(data2.patients.find(p2 => p2.id === p.id).latest_value);
+        text.push(p.name);
+      }
+    });
+
+    Plotly.newPlot('viewChart', [{
+      x: xVals, y: yVals, mode: 'markers', text: text,
+      marker: { size: 10, color: '#0ea5e9', opacity: 0.7 },
+      hovertemplate: '<b>%{text}</b><br>' + varName + ': %{x}<br>' + var2Name + ': %{y}<extra></extra>'
+    }], {
+      margin:{ t:20, b:50, l:60, r:20 }, xaxis:{ title: varName }, yaxis:{ title: var2Name }, font: FONT
     }, { displayModeBar:false, responsive:true });
   }
 }
