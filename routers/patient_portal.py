@@ -37,8 +37,27 @@ async def patient_dashboard(request: Request, db: Session = Depends(get_db)):
     # Vaccination status
     vax_reminders = []
     today = date.today()
-    if p.hep_b_status != "Completed": vax_reminders.append("Hepatitis B Vaccination")
-    if not p.pcv13_date or (today - p.pcv13_date).days > 365: vax_reminders.append("Pneumococcal (PCV13) Booster")
+    if p.hep_b_status not in ("Completed", "Immune"): vax_reminders.append("Hepatitis B Vaccination incomplete — please check with your nurse")
+    if not p.pcv13_date or (today - p.pcv13_date).days > 365: vax_reminders.append("Pneumococcal (PCV13) Booster due")
+
+    # Next session day
+    day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    session_days = [(getattr(p, f"hd_day_{i}"), getattr(p, f"hd_slot_{i}")) for i in (1, 2, 3) if getattr(p, f"hd_day_{i}")]
+    next_session = None
+    if session_days:
+        today_dow = today.weekday()  # 0=Monday
+        best = None
+        for day_name, slot in session_days:
+            try:
+                target_dow = day_order.index(day_name)
+                delta = (target_dow - today_dow) % 7 or 7
+                if best is None or delta < best[0]:
+                    best = (delta, day_name, slot)
+            except ValueError:
+                pass
+        if best:
+            next_date = today + timedelta(days=best[0])
+            next_session = {"date": next_date, "day": best[1], "slot": best[2]}
 
     # Nutrition Tracker
     seven_days_ago = today - timedelta(days=7)
@@ -81,7 +100,8 @@ async def patient_dashboard(request: Request, db: Session = Depends(get_db)):
         "request": request, "patient": p, "latest_monthly": latest_monthly, "anti_meds": anti_meds,
         "meals_by_day": meals_by_day, "today_stats": today_stats, "nutrition_targets": nutrition_targets,
         "trends": trends, "vax_reminders": vax_reminders, "last_session": last_session, "idwg": idwg,
-        "fluid_allowance_ml": fluid_allowance_ml, "recent_symptoms": recent_symptoms, "user": u
+        "fluid_allowance_ml": fluid_allowance_ml, "recent_symptoms": recent_symptoms, "user": u,
+        "next_session": next_session, "today": today
     })
 
 @router.post("/meals")

@@ -18,121 +18,147 @@
             --radius: 16px;
             --accent-red: #ef4444;
             --accent-orange: #f59e0b;
+            --accent-green: #22c55e;
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 50px; }
-        
+
         .app-nav { background: #0f172a; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
         .app-nav .brand { font-family: 'Outfit'; font-weight: 700; font-size: 1.2rem; }
         .app-nav a { color: white; text-decoration: none; font-size: 0.9rem; font-weight: 600; background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 8px; }
 
         .container { max-width: 800px; margin: 20px auto; padding: 0 20px; }
 
-        .welcome-hero { background: white; padding: 30px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 24px; }
-        .welcome-hero h1 { font-family: 'Outfit'; margin: 0 0 10px 0; font-size: 1.8rem; }
-        .welcome-hero p { color: var(--muted); margin: 0; }
+        /* Welcome Hero */
+        .welcome-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 28px 30px; border-radius: var(--radius); margin-bottom: 24px; }
+        .welcome-hero .greet { font-size: 0.85rem; color: #94a3b8; margin: 0 0 4px 0; }
+        .welcome-hero h1 { font-family: 'Outfit'; margin: 0 0 14px 0; font-size: 2rem; font-weight: 700; }
+        .hero-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .hero-badge { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+        .hero-badge.alert { background: rgba(239,68,68,0.25); border-color: rgba(239,68,68,0.5); color: #fca5a5; }
+        .next-session-banner { background: rgba(14,165,233,0.15); border: 1px solid rgba(14,165,233,0.35); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+        .next-session-banner i { color: #38bdf8; font-size: 1.2rem; }
+        .next-session-text { font-size: 0.85rem; color: #bae6fd; }
+        .next-session-text strong { color: white; font-size: 0.95rem; }
 
-        .section-title { font-family: 'Outfit'; font-size: 1.25rem; font-weight: 700; margin: 30px 0 15px; display: flex; align-items: center; gap: 8px; }
-        .section-title i { color: var(--primary); }
+        .section-title { font-family: 'Outfit'; font-size: 1.1rem; font-weight: 700; margin: 28px 0 12px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+        .section-title i { color: var(--primary); font-size: 1.1rem; }
 
         .card { background: white; border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; margin-bottom: 20px; }
 
+        /* Alerts */
+        .alert-card { background: #fff1f2; border: 1px solid #fecdd3; border-left: 4px solid var(--accent-red); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+        .alert-item { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; font-weight: 600; color: #9f1239; padding: 6px 0; border-bottom: 1px solid #fecdd3; }
+        .alert-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .alert-item i { font-size: 1rem; color: var(--accent-red); flex-shrink: 0; }
+
+        /* Team message */
+        .message-card { background: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid var(--accent-orange); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+        .message-card p { font-size: 1rem; line-height: 1.65; color: #78350f; margin: 0 0 8px 0; font-style: italic; }
+        .message-card small { font-size: 0.72rem; color: #b45309; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+
         /* Schedule Grid */
-        .schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-        .sched-item { background: #f1f5f9; padding: 15px; border-radius: 12px; text-align: center; }
-        .sched-day { font-weight: 700; color: var(--text); display: block; }
-        .sched-slot { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
+        .schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+        .sched-item { background: #f0f9ff; padding: 16px; border-radius: 12px; text-align: center; border: 1px solid #bae6fd; }
+        .sched-day { font-weight: 700; color: var(--text); display: block; font-size: 0.95rem; margin-bottom: 4px; }
+        .sched-slot { font-size: 0.8rem; color: var(--primary); font-weight: 600; }
 
-        /* Med List */
-        .med-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px dashed var(--border); }
-        .med-item:last-child { border-bottom: none; }
-        .med-name { font-weight: 600; }
-        .med-dose { color: var(--primary); font-weight: 700; font-size: 0.9rem; }
+        /* Fluid / IDWG */
+        .fluid-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 16px; }
+        .fluid-stat { background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid var(--border); }
+        .fluid-stat-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px; }
+        .fluid-stat-value { font-family: 'Outfit'; font-size: 1.9rem; font-weight: 700; line-height: 1; }
+        .fluid-stat-unit { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+        .idwg-ok { color: #16a34a; }
+        .idwg-warn { color: #d97706; }
+        .idwg-bad { color: #dc2626; }
+        .idwg-neg { color: #7c3aed; }
 
-        /* Meal Form */
-        .meal-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .meal-form input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
-        .meal-form button { grid-column: 1 / -1; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 1rem; }
-        
-        .meal-log { margin-top: 20px; }
-        .meal-row { display: flex; justify-content: space-between; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; font-size: 0.9rem; }
-        .meal-stats { color: var(--muted); }
-        .meal-stats b { color: var(--text); }
-
-        .badge-red { background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
-
-        /* Nutrition Tracker Premium Styles */
-        .nutrition-card { padding: 0; overflow: hidden; border: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .nutrition-summary { background: #0f172a; color: white; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        /* Nutrition Tracker */
+        .nutrition-card { padding: 0; overflow: hidden; border: none; box-shadow: 0 8px 20px -4px rgba(0,0,0,0.1); }
+        .nutrition-summary { background: #0f172a; color: white; padding: 28px 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
         .stat-ring { text-align: center; }
-        .ring-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 8px; }
-        .ring-value { font-family: 'Outfit'; font-size: 2.5rem; font-weight: 700; line-height: 1; }
+        .ring-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
+        .ring-value { font-family: 'Outfit'; font-size: 2.4rem; font-weight: 700; line-height: 1; }
         .ring-value span { font-size: 1rem; color: #64748b; }
-        .ring-target { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
-        .progress-bar-container { background: #334155; height: 6px; border-radius: 3px; margin-top: 15px; overflow: hidden; }
+        .ring-target { font-size: 0.72rem; color: #64748b; margin-top: 4px; }
+        .progress-bar-container { background: #334155; height: 6px; border-radius: 3px; margin-top: 14px; overflow: hidden; }
         .progress-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .cal-bar { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
         .prot-bar { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .progress-bar-over { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+        .over-badge { font-size: 0.65rem; font-weight: 800; color: #f87171; margin-top: 4px; }
 
         .meal-entry-section { padding: 24px; background: white; border-bottom: 1px solid var(--border); }
-        .entry-subtitle { font-family: 'Outfit'; font-size: 1rem; font-weight: 700; margin-bottom: 15px; color: var(--text); }
-        
+        .entry-subtitle { font-family: 'Outfit'; font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: var(--text); }
+
         .meal-form-v2 { display: flex; flex-direction: column; gap: 16px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        .form-group { display: flex; flex-direction: column; gap: 4px; }
-        .form-group label { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
-        .form-group input, .form-group select { padding: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.95rem; font-family: 'Inter'; background: #f8fafc; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+        .form-group input, .form-group select, .form-group textarea { padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 0.95rem; font-family: 'Inter'; background: #f8fafc; transition: border-color 0.15s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); background: white; }
         .full-width { grid-column: 1 / -1; }
-        .btn-primary-v2 { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.3); }
-        .btn-primary-v2:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(14, 165, 233, 0.4); }
+        .btn-primary-v2 { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.25); width: 100%; }
+        .btn-primary-v2:hover { background: #0284c7; box-shadow: 0 8px 12px -2px rgba(14, 165, 233, 0.4); }
 
         .meal-history { padding: 24px; background: #f8fafc; }
-        .history-day { background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; overflow: hidden; }
-        .day-header { padding: 12px 16px; background: #f1f5f9; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .day-date { font-weight: 700; font-size: 0.9rem; color: #334155; }
-        .day-totals { font-size: 0.8rem; font-weight: 600; color: var(--primary); }
-        
+        .history-day { background: white; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden; }
+        .day-header { padding: 10px 16px; background: #f1f5f9; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .day-date { font-weight: 700; font-size: 0.88rem; color: #334155; }
+        .day-totals { font-size: 0.78rem; font-weight: 700; color: var(--primary); }
         .day-entries { padding: 0 16px; }
-        .entry-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .entry-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid #f1f5f9; }
         .entry-row:last-child { border-bottom: none; }
-        .entry-meta { display: flex; align-items: center; gap: 12px; }
-        .meal-tag { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px; }
+        .entry-meta { display: flex; align-items: center; gap: 10px; }
+        .meal-tag { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.4px; }
         .meal-tag.breakfast { background: #dcfce7; color: #15803d; }
         .meal-tag.lunch { background: #dbeafe; color: #1d4ed8; }
         .meal-tag.dinner { background: #fef9c3; color: #a16207; }
         .meal-tag.snack { background: #f3e8ff; color: #7e22ce; }
-        .meal-notes { font-size: 0.9rem; color: #475569; font-weight: 500; }
-        .entry-stats { text-align: right; font-size: 0.8rem; color: #64748b; font-weight: 600; display: flex; flex-direction: column; }
+        .meal-notes { font-size: 0.88rem; color: #475569; font-weight: 500; }
+        .entry-stats { text-align: right; font-size: 0.78rem; color: #64748b; font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
 
-        /* Fluid / IDWG Card */
-        .fluid-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
-        .fluid-stat { background: #f8fafc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid var(--border); }
-        .fluid-stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px; }
-        .fluid-stat-value { font-family: 'Outfit'; font-size: 1.8rem; font-weight: 700; line-height: 1; }
-        .fluid-stat-unit { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
-        .idwg-ok { color: #16a34a; }
-        .idwg-warn { color: #d97706; }
-        .idwg-bad { color: #dc2626; }
-
-        /* Progress bar overflow */
-        .progress-bar-over { background: linear-gradient(90deg, #ef4444, #fca5a5); }
-        .over-badge { font-size: 0.65rem; font-weight: 800; color: #dc2626; margin-top: 4px; }
+        /* Meds */
+        .med-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+        .med-item:last-child { border-bottom: none; }
+        .med-name { font-weight: 600; font-size: 0.95rem; }
+        .med-dose { color: var(--primary); font-weight: 700; font-size: 0.85rem; }
+        .med-category { font-size: 0.7rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
 
         /* Symptom Reporter */
-        .symptom-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .pds-section-heading { font-size: 0.82rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #e0f2fe; }
+        .symptom-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
         .symptom-chip input[type=checkbox] { display: none; }
         .symptom-chip label { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 2px solid var(--border); border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; background: white; }
         .symptom-chip input:checked + label { border-color: var(--primary); background: #e0f2fe; color: #0369a1; }
-        .severity-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .severity-row label { font-size: 0.75rem; font-weight: 700; color: var(--muted); }
-        .severity-row input[type=range] { flex: 1; min-width: 120px; accent-color: var(--primary); }
         .severity-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
-        .symptom-history-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px; background: #f8fafc; border-radius: 10px; margin-bottom: 8px; font-size: 0.85rem; }
-        .symptom-chips-display { display: flex; flex-wrap: wrap; gap: 6px; }
-        .symptom-pill { background: #fee2e2; color: #991b1b; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
-        .severity-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+        .range-display { font-size: 0.75rem; text-align: center; color: var(--primary); font-weight: 700; margin-top: 3px; }
+
+        /* Symptom History */
+        .symptom-history-item { background: #f8fafc; border-radius: 12px; border: 1px solid var(--border); padding: 14px 16px; margin-bottom: 10px; }
+        .sh-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .sh-date { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+        .sh-severity { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 700; }
+        .sh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 8px; }
+        .sh-metric { background: white; border-radius: 8px; padding: 8px 10px; border: 1px solid var(--border); }
+        .sh-metric-label { font-size: 0.65rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+        .sh-metric-value { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-top: 2px; }
+        .symptom-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+        .symptom-pill { background: #fee2e2; color: #991b1b; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+        .severity-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; }
         .sev-1, .sev-2 { background: #86efac; }
         .sev-3 { background: #fbbf24; }
         .sev-4, .sev-5 { background: #f87171; }
+
+        /* Empty states */
+        .empty-state { text-align: center; padding: 32px 20px; color: var(--muted); }
+        .empty-state i { font-size: 40px; opacity: 0.25; display: block; margin-bottom: 10px; }
+        .empty-state p { margin: 0; font-size: 0.88rem; }
+
+        /* Chart */
+        .chart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: var(--muted); gap: 8px; }
+        .chart-empty i { font-size: 36px; opacity: 0.2; }
+        .chart-empty p { margin: 0; font-size: 0.85rem; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -144,56 +170,68 @@
 </div>
 
 <div class="container">
+
+    <!-- WELCOME HERO -->
     <div class="welcome-hero">
-        <p>Welcome back,</p>
+        <p class="greet">Welcome back,</p>
         <h1>{{ patient.name }}</h1>
-        <div style="display:flex; gap:10px; margin-top:10px;">
-            <span class="badge-red">HID: {{ patient.hid_no }}</span>
-            <span style="font-size:0.85rem; color:var(--muted);">Dry Weight: <b>{{ patient.dry_weight }} kg</b></span>
+        <div class="hero-badges">
+            <span class="hero-badge"><i class="material-icons" style="font-size:14px;">badge</i> HID {{ patient.hid_no }}</span>
+            <span class="hero-badge"><i class="material-icons" style="font-size:14px;">monitor_weight</i> {{ patient.dry_weight if patient.dry_weight else '—' }} kg dry wt</span>
+            {% if patient.blood_group %}<span class="hero-badge"><i class="material-icons" style="font-size:14px;">bloodtype</i> {{ patient.blood_group }}</span>{% endif %}
+            {% if vax_reminders %}<span class="hero-badge alert"><i class="material-icons" style="font-size:14px;">warning</i> {{ vax_reminders|length }} health alert{{ 's' if vax_reminders|length > 1 else '' }}</span>{% endif %}
         </div>
+        {% if next_session %}
+        <div class="next-session-banner">
+            <i class="material-icons">event_available</i>
+            <div class="next-session-text">
+                Next session — <strong>{{ next_session.day }}, {{ next_session.date.strftime('%d %b %Y') }}</strong>
+                {% if next_session.slot %} · {{ next_session.slot }}{% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- MESSAGES FROM CLINICAL TEAM -->
     {% if latest_monthly and latest_monthly.issues %}
     <h2 class="section-title"><i class="material-icons">forum</i> Message from Clinical Team</h2>
-    <div class="card" style="background:#fffbeb; border: 1px solid #fef3c7; border-left: 5px solid var(--accent-orange);">
-        <p style="font-size:1.05rem; line-height:1.6; color:#92400e; margin:0; font-weight:500;">
-            "{{ latest_monthly.issues }}"
-        </p>
-        <div style="font-size:0.75rem; color:#d97706; margin-top:10px; font-weight:700; text-transform:uppercase;">
-            Updated: {{ latest_monthly.record_month }}
-        </div>
+    <div class="message-card">
+        <p>"{{ latest_monthly.issues }}"</p>
+        <small>Updated {{ latest_monthly.record_month }}</small>
     </div>
     {% endif %}
 
-    <!-- HEALTH ALERTS / VACCINATIONS -->
+    <!-- HEALTH ALERTS -->
     {% if vax_reminders %}
-    <h2 class="section-title"><i class="material-icons" style="color:var(--accent-red)">notifications_active</i> Health Alerts</h2>
-    <div class="card" style="border-left: 5px solid var(--accent-red); padding: 16px 24px;">
-        <ul style="margin:0; padding-left:20px; color:#991b1b; font-weight:600;">
-            {% for v in vax_reminders %}
-            <li style="margin-bottom:6px;">{{ v }}</li>
-            {% endfor %}
-        </ul>
+    <h2 class="section-title"><i class="material-icons" style="color:var(--accent-red);">notifications_active</i> Health Alerts</h2>
+    <div class="alert-card">
+        {% for v in vax_reminders %}
+        <div class="alert-item"><i class="material-icons">warning_amber</i> {{ v }}</div>
+        {% endfor %}
     </div>
     {% endif %}
 
     <!-- LAB TRENDS -->
     <h2 class="section-title"><i class="material-icons">show_chart</i> My Health Trends</h2>
     <div class="card">
-        <div style="height:300px;">
+        {% if trends.labels %}
+        <div style="height:280px;">
             <canvas id="patientTrendChart"></canvas>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px; flex-wrap:wrap; gap:10px;">
-            <div style="display:flex; gap:20px; font-size:0.8rem; font-weight:700;">
-                <span style="color:#0ea5e9">● Hemoglobin</span>
-                <span style="color:#6366f1">● Albumin</span>
-                <span style="color:#f59e0b">● Phosphorus</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; gap:18px; font-size:0.78rem; font-weight:700;">
+                <span style="color:#0ea5e9;">● Hemoglobin</span>
+                <span style="color:#6366f1;">● Albumin</span>
+                <span style="color:#f59e0b;">● Phosphorus</span>
             </div>
-            {% if trends and trends.labels %}
-            <span style="font-size:0.75rem; color:var(--muted);">Last updated: {{ trends.labels[-1] }}</span>
-            {% endif %}
+            <span style="font-size:0.72rem; color:var(--muted);">Last updated: {{ trends.labels[-1] }}</span>
         </div>
+        {% else %}
+        <div class="chart-empty">
+            <i class="material-icons">bar_chart</i>
+            <p>No lab data recorded yet. Your doctor will add results each month.</p>
+        </div>
+        {% endif %}
     </div>
 
     <!-- DIALYSIS SCHEDULE -->
@@ -204,27 +242,24 @@
             {% if patient.hd_day_1 %}
             <div class="sched-item">
                 <span class="sched-day">{{ patient.hd_day_1 }}</span>
-                <span class="sched-slot">{{ patient.hd_slot_1 }}</span>
+                <span class="sched-slot">{{ patient.hd_slot_1 or 'Morning' }}</span>
             </div>
             {% endif %}
             {% if patient.hd_day_2 %}
             <div class="sched-item">
                 <span class="sched-day">{{ patient.hd_day_2 }}</span>
-                <span class="sched-slot">{{ patient.hd_slot_2 }}</span>
+                <span class="sched-slot">{{ patient.hd_slot_2 or 'Morning' }}</span>
             </div>
             {% endif %}
             {% if patient.hd_day_3 %}
             <div class="sched-item">
                 <span class="sched-day">{{ patient.hd_day_3 }}</span>
-                <span class="sched-slot">{{ patient.hd_slot_3 }}</span>
+                <span class="sched-slot">{{ patient.hd_slot_3 or 'Morning' }}</span>
             </div>
             {% endif %}
         </div>
         {% else %}
-        <div style="text-align:center; padding:24px; color:var(--muted); font-size:0.9rem;">
-            <i class="material-icons" style="font-size:36px; opacity:0.3; display:block; margin-bottom:8px;">event_busy</i>
-            No schedule assigned yet. Contact your care team.
-        </div>
+        <div class="empty-state"><i class="material-icons">event_busy</i><p>No schedule assigned yet. Contact your care team.</p></div>
         {% endif %}
     </div>
 
@@ -235,18 +270,21 @@
             <div class="fluid-stat">
                 <div class="fluid-stat-label">Interdialytic Weight Gain</div>
                 {% if idwg is not none %}
-                    {% if idwg <= 2.0 %}
-                        <div class="fluid-stat-value idwg-ok">+{{ idwg }}</div>
+                    {% if idwg < 0 %}
+                        <div class="fluid-stat-value idwg-neg">{{ idwg }} kg</div>
+                        <div class="fluid-stat-unit">Below dry weight — possible dehydration. Inform your nurse.</div>
+                    {% elif idwg <= 2.0 %}
+                        <div class="fluid-stat-value idwg-ok">+{{ idwg }} kg</div>
+                        <div class="fluid-stat-unit">Good — within target range</div>
                     {% elif idwg <= 3.0 %}
-                        <div class="fluid-stat-value idwg-warn">+{{ idwg }}</div>
+                        <div class="fluid-stat-value idwg-warn">+{{ idwg }} kg</div>
+                        <div class="fluid-stat-unit">Slightly high — reduce fluids today</div>
                     {% else %}
-                        <div class="fluid-stat-value idwg-bad">+{{ idwg }}</div>
+                        <div class="fluid-stat-value idwg-bad">+{{ idwg }} kg</div>
+                        <div class="fluid-stat-unit" style="color:#dc2626; font-weight:700;">High — contact your team today</div>
                     {% endif %}
-                    <div class="fluid-stat-unit">kg since last session
-                        {% if idwg > 3.0 %}<br><span style="font-size:0.7rem; color:#dc2626; font-weight:700;">High — contact your team</span>{% endif %}
-                    </div>
                 {% else %}
-                    <div class="fluid-stat-value" style="color:var(--muted); font-size:1.2rem;">—</div>
+                    <div class="fluid-stat-value" style="color:var(--muted); font-size:1.4rem;">—</div>
                     <div class="fluid-stat-unit">No session data yet</div>
                 {% endif %}
             </div>
@@ -275,26 +313,25 @@
     <!-- MEAL TRACKER -->
     <h2 class="section-title"><i class="material-icons">restaurant_menu</i> Daily Nutrition Tracker</h2>
     <div class="card nutrition-card">
-        <!-- Dashboard Summary -->
         <div class="nutrition-summary">
             <div class="stat-ring">
                 <div class="ring-label">Calories</div>
+                {% set cal_raw = (today_stats.total_cal / nutrition_targets.calories * 100)|int %}
+                {% set cal_perc = cal_raw if cal_raw < 100 else 100 %}
                 <div class="ring-value">{{ today_stats.total_cal|int }}</div>
                 <div class="ring-target">Target: {{ nutrition_targets.calories }} kcal</div>
                 <div class="progress-bar-container">
-                    {% set cal_raw = (today_stats.total_cal / nutrition_targets.calories * 100)|int %}
-                    {% set cal_perc = cal_raw if cal_raw < 100 else 100 %}
                     <div class="progress-bar {% if cal_raw > 100 %}progress-bar-over{% else %}cal-bar{% endif %}" style="width: {{ cal_perc }}%"></div>
                 </div>
                 {% if cal_raw > 100 %}<div class="over-badge">⚠ {{ cal_raw - 100 }}% over target</div>{% endif %}
             </div>
             <div class="stat-ring">
                 <div class="ring-label">Protein</div>
+                {% set prot_raw = (today_stats.total_prot / nutrition_targets.protein * 100)|int %}
+                {% set prot_perc = prot_raw if prot_raw < 100 else 100 %}
                 <div class="ring-value">{{ today_stats.total_prot|round(1) }}<span>g</span></div>
                 <div class="ring-target">Target: {{ nutrition_targets.protein }}g</div>
                 <div class="progress-bar-container">
-                    {% set prot_raw = (today_stats.total_prot / nutrition_targets.protein * 100)|int %}
-                    {% set prot_perc = prot_raw if prot_raw < 100 else 100 %}
                     <div class="progress-bar {% if prot_raw > 100 %}progress-bar-over{% else %}prot-bar{% endif %}" style="width: {{ prot_perc }}%"></div>
                 </div>
                 {% if prot_raw > 100 %}<div class="over-badge">⚠ {{ prot_raw - 100 }}% over target</div>{% endif %}
@@ -316,39 +353,39 @@
                     </div>
                     <div class="form-group">
                         <label>Calories (kcal)</label>
-                        <input type="number" step="1" name="calories" placeholder="e.g. 450" required>
+                        <input type="number" step="1" name="calories" placeholder="e.g. 450" required min="0">
                     </div>
                     <div class="form-group">
                         <label>Protein (g)</label>
-                        <input type="number" step="0.1" name="protein" placeholder="e.g. 15.5" required>
+                        <input type="number" step="0.1" name="protein" placeholder="e.g. 15.5" required min="0">
                     </div>
                 </div>
                 <div class="form-group full-width">
                     <label>What did you have?</label>
-                    <input type="text" name="notes" placeholder="e.g. 2 Rotis with Dal and Curd" required>
+                    <input type="text" name="notes" placeholder="e.g. 2 Rotis with Dal and Curd">
                 </div>
                 <button type="submit" class="btn-primary-v2">Add to My Log</button>
             </form>
         </div>
 
         <div class="meal-history">
-            <h3 class="entry-subtitle">Recent Log</h3>
+            <h3 class="entry-subtitle">Recent Log (last 7 days)</h3>
             {% for date_str, day_data in meals_by_day.items() %}
             <div class="history-day">
                 <div class="day-header">
                     <span class="day-date">{{ day_data.date.strftime('%A, %d %b') }}</span>
-                    <span class="day-totals">{{ day_data.total_cal|int }} kcal · {{ day_data.total_prot|round(1) }}g P</span>
+                    <span class="day-totals">{{ day_data.total_cal|int }} kcal · {{ day_data.total_prot|round(1) }}g protein</span>
                 </div>
                 <div class="day-entries">
                     {% for m in day_data.entries %}
                     <div class="entry-row">
                         <div class="entry-meta">
                             <span class="meal-tag {{ m.meal_type|lower }}">{{ m.meal_type }}</span>
-                            <span class="meal-notes">{{ m.notes }}</span>
+                            <span class="meal-notes">{{ m.notes or '—' }}</span>
                         </div>
                         <div class="entry-stats">
                             <span>{{ m.calories|int }} kcal</span>
-                            <span>{{ m.protein }}g</span>
+                            <span>{{ m.protein }}g prot</span>
                         </div>
                     </div>
                     {% endfor %}
@@ -356,10 +393,7 @@
             </div>
             {% endfor %}
             {% if not meals_by_day %}
-            <div style="text-align:center; padding:30px; color:var(--muted); font-size:0.9rem;">
-                <i class="material-icons" style="font-size: 40px; opacity: 0.3; display: block; margin-bottom: 10px;">no_meals</i>
-                No records yet. Start tracking your health!
-            </div>
+            <div class="empty-state"><i class="material-icons">no_meals</i><p>No records yet — start logging your meals above.</p></div>
             {% endif %}
         </div>
     </div>
@@ -367,83 +401,97 @@
     <!-- MEDICATIONS -->
     <h2 class="section-title"><i class="material-icons">medication</i> My Medications</h2>
     <div class="card">
+        {% set has_any_med = (latest_monthly and (latest_monthly.esa_type or latest_monthly.phosphate_binder_type)) or anti_meds %}
         {% if latest_monthly and latest_monthly.esa_type %}
         <div class="med-item">
-            <span class="med-name">{{ latest_monthly.esa_type }}</span>
-            <span class="med-dose">{{ latest_monthly.epo_mircera_dose or latest_monthly.epo_weekly_units }} units</span>
+            <div>
+                <div class="med-name">{{ latest_monthly.esa_type }}</div>
+                <div class="med-category">Erythropoiesis-stimulating agent</div>
+            </div>
+            <span class="med-dose">{{ latest_monthly.epo_mircera_dose or latest_monthly.epo_weekly_units or '—' }} units</span>
         </div>
         {% endif %}
-        
+
         {% for med in anti_meds %}
         <div class="med-item">
-            <span class="med-name">{{ med.name }}</span>
-            <span class="med-dose">{{ med.dose }} ({{ med.freq }})</span>
+            <div>
+                <div class="med-name">{{ med.name }}</div>
+                <div class="med-category">Antihypertensive · {{ med.freq or '—' }}</div>
+            </div>
+            <span class="med-dose">{{ med.dose or '—' }}</span>
         </div>
         {% endfor %}
 
         {% if latest_monthly and latest_monthly.phosphate_binder_type %}
         <div class="med-item">
-            <span class="med-name">{{ latest_monthly.phosphate_binder_type }}</span>
-            <span class="med-dose">Phosphate Binder</span>
+            <div>
+                <div class="med-name">{{ latest_monthly.phosphate_binder_type }}</div>
+                <div class="med-category">Phosphate binder</div>
+            </div>
+            <span class="med-dose">With meals</span>
         </div>
         {% endif %}
 
-        {% if not latest_monthly or (not latest_monthly.esa_type and not anti_meds) %}
-        <div style="text-align:center; color:var(--muted); font-size:0.85rem; padding:20px;">No active medications found in your record.</div>
+        {% if not has_any_med %}
+        <div class="empty-state" style="padding:20px;"><i class="material-icons">medication_liquid</i><p>No active medications found in your most recent record.</p></div>
         {% endif %}
     </div>
 
     <!-- SYMPTOM REPORTER & PDS LOGGER -->
     <h2 class="section-title"><i class="material-icons">sentiment_very_dissatisfied</i> Post-Dialysis Symptom Log</h2>
     <div class="card">
-        <p style="color:var(--muted); font-size:0.85rem; margin:0 0 16px 0;">Help your care team adjust your treatment by logging your recovery experience after your last session.</p>
-        <form action="/patient/symptoms" method="POST" class="meal-form-v2">
-            
-            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-top:10px; margin-bottom:10px; color:var(--primary);">1. Dialysis Recovery Time</h3>
-            <div class="form-group" style="margin-bottom:16px;">
-                <label>How long did it take you to recover your normal energy after the last session?</label>
-                <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
-                    <input type="number" name="dialysis_recovery_time_mins" placeholder="Minutes" min="0" max="1440" style="width:100px;">
-                    <span style="font-size:0.8rem; color:var(--muted);">minutes (e.g. 120 for 2 hours)</span>
+        <p style="color:var(--muted); font-size:0.85rem; margin:0 0 4px 0;">Help your care team adjust your treatment by logging your recovery experience after your last session.</p>
+        <form action="/patient/symptoms" method="POST" class="meal-form-v2" id="symptomForm">
+
+            <div class="pds-section-heading">1. Dialysis Recovery Time</div>
+            <div class="form-group">
+                <label>How long to recover your normal energy after the last session?</label>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+                    <input type="number" name="dialysis_recovery_time_mins" placeholder="Minutes" min="0" max="1440" style="width:110px;">
+                    <span style="font-size:0.8rem; color:var(--muted);">minutes (e.g. 120 = 2 hours)</span>
                 </div>
             </div>
 
-            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-bottom:10px; color:var(--primary);">2. Energy & Fatigue (SONG-HD)</h3>
-            <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr 1fr;">
+            <div class="pds-section-heading">2. Energy & Fatigue (SONG-HD)</div>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
                 <div class="form-group">
-                    <label>Tiredness Score (1-10)</label>
+                    <label>Tiredness (1=None, 10=Exhausted)</label>
                     <input type="range" name="tiredness_score" min="1" max="10" value="5" oninput="document.getElementById('tiredLabel').textContent=this.value">
-                    <div style="font-size:0.7rem; color:var(--muted); text-align:center;">Score: <b id="tiredLabel">5</b></div>
+                    <div class="range-display">Score: <b id="tiredLabel">5</b></div>
                 </div>
                 <div class="form-group">
-                    <label>Energy Level (1-10)</label>
+                    <label>Energy Level (1=None, 10=Full)</label>
                     <input type="range" name="energy_level_score" min="1" max="10" value="5" oninput="document.getElementById('energyLabel').textContent=this.value">
-                    <div style="font-size:0.7rem; color:var(--muted); text-align:center;">Score: <b id="energyLabel">5</b></div>
+                    <div class="range-display">Score: <b id="energyLabel">5</b></div>
+                </div>
+                <div class="form-group">
+                    <label>Sleepiness (1=None, 10=Severe)</label>
+                    <input type="range" name="sleepiness_severity" min="1" max="10" value="1" oninput="document.getElementById('sleepLabel').textContent=this.value">
+                    <div class="range-display">Score: <b id="sleepLabel">1</b></div>
                 </div>
             </div>
-            
-            <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr 1fr;">
-                 <div class="form-group">
-                    <label>Daily Activity Impact (1-5)</label>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
+                <div class="form-group">
+                    <label>Daily Activity Impact (1–5)</label>
                     <select name="daily_activity_impact">
                         <option value="">Select impact...</option>
-                        <option value="1">1 - None</option>
-                        <option value="2">2 - Mildly limited</option>
-                        <option value="3">3 - Moderately limited</option>
-                        <option value="4">4 - Severely limited</option>
-                        <option value="5">5 - Unable to do activities</option>
+                        <option value="1">1 — No limitation</option>
+                        <option value="2">2 — Mildly limited</option>
+                        <option value="3">3 — Moderately limited</option>
+                        <option value="4">4 — Severely limited</option>
+                        <option value="5">5 — Unable to do activities</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex; justify-content:center; align-items:center;">
-                     <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text); cursor:pointer;">
-                        <input type="checkbox" name="missed_social_or_work_event" value="true" style="width:auto; height:auto;">
-                        Missed work or social event due to fatigue?
+                <div class="form-group" style="justify-content:flex-end; padding-bottom:6px;">
+                    <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600;">
+                        <input type="checkbox" name="missed_social_or_work_event" value="true" style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary);">
+                        Missed work or social event due to fatigue
                     </label>
                 </div>
             </div>
 
-            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-bottom:10px; color:var(--primary);">3. Mood & Cognition</h3>
-            <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr 1fr;">
+            <div class="pds-section-heading">3. Mood & Cognition</div>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
                 <div class="form-group">
                     <label>Cognitive Alertness</label>
                     <select name="cognitive_alertness">
@@ -464,25 +512,23 @@
                 </div>
             </div>
 
-            <h3 class="entry-subtitle" style="font-size:0.9rem; margin-bottom:10px; color:var(--primary);">4. Physical Symptoms</h3>
+            <div class="pds-section-heading">4. Physical Symptoms</div>
             <div class="symptom-chips">
-                <div class="symptom-chip"><input type="checkbox" name="symptom_cramping" id="sc1" value="cramping"><label for="sc1"><i class="material-icons" style="font-size:16px;">bolt</i> Cramping</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_breathlessness" id="sc2" value="breathlessness"><label for="sc2"><i class="material-icons" style="font-size:16px;">air</i> Breathlessness</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_itching" id="sc3" value="itching"><label for="sc3"><i class="material-icons" style="font-size:16px;">back_hand</i> Itching</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_nausea" id="sc5" value="nausea"><label for="sc5"><i class="material-icons" style="font-size:16px;">sick</i> Nausea</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_dizziness" id="sc6" value="dizziness"><label for="sc6"><i class="material-icons" style="font-size:16px;">rotate_right</i> Dizziness</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_cramping" id="sc1" value="cramping"><label for="sc1"><i class="material-icons" style="font-size:15px;">bolt</i> Cramping</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_breathlessness" id="sc2" value="breathlessness"><label for="sc2"><i class="material-icons" style="font-size:15px;">air</i> Breathlessness</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_itching" id="sc3" value="itching"><label for="sc3"><i class="material-icons" style="font-size:15px;">back_hand</i> Itching</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_nausea" id="sc5" value="nausea"><label for="sc5"><i class="material-icons" style="font-size:15px;">sick</i> Nausea</label></div>
+                <div class="symptom-chip"><input type="checkbox" name="symptom_dizziness" id="sc6" value="dizziness"><label for="sc6"><i class="material-icons" style="font-size:15px;">rotate_right</i> Dizziness</label></div>
             </div>
-            
-            <div style="margin-bottom:16px;">
-                <div class="form-group" style="margin-bottom:6px;">
+            <div style="margin-top:12px;">
+                <div class="form-group">
                     <label>Overall Physical Symptom Severity</label>
                     <input type="range" name="severity" min="1" max="5" value="3" id="severitySlider" oninput="document.getElementById('sevLabel').textContent=this.value">
                 </div>
                 <div class="severity-labels"><span>Mild (1)</span><span id="sevLabel" style="color:var(--primary); font-weight:700;">3</span><span>Severe (5)</span></div>
             </div>
-
-            <div class="form-group" style="margin-bottom:20px;">
-                <label>Additional notes (optional)</label>
+            <div class="form-group" style="margin-top:12px;">
+                <label>Additional Notes (optional)</label>
                 <input type="text" name="notes" placeholder="e.g. cramps started after dinner">
             </div>
 
@@ -490,25 +536,63 @@
         </form>
 
         {% if recent_symptoms %}
-        <div style="margin-top:24px; border-top:1px solid var(--border); padding-top:16px;">
-            <div class="entry-subtitle" style="margin-bottom:12px;">Recent Reports</div>
+        <div style="margin-top:24px; border-top:2px solid var(--border); padding-top:18px;">
+            <div class="entry-subtitle">Recent Reports</div>
             {% for s in recent_symptoms %}
             <div class="symptom-history-item">
-                <div>
-                    <div style="font-size:0.8rem; font-weight:bold; color:var(--text); margin-bottom:4px;">
-                        {% if s.dialysis_recovery_time_mins %}Recovery Time: {{ s.dialysis_recovery_time_mins }} mins{% endif %}
-                    </div>
-                    <div class="symptom-chips-display" style="margin-bottom:6px;">
-                        {% for sym in (s.symptoms or "").split(',') %}{% if sym.strip() %}
-                        <span class="symptom-pill">{{ sym.strip() }}</span>
-                        {% endif %}{% endfor %}
-                    </div>
-                    {% if s.notes %}<div style="font-size:0.8rem; color:var(--muted);">{{ s.notes }}</div>{% endif %}
+                <div class="sh-header">
+                    <span class="sh-date">{{ s.reported_at.strftime('%d %b %Y, %H:%M') }}</span>
+                    <span class="sh-severity">
+                        <span class="severity-dot sev-{{ s.severity }}"></span>
+                        Severity {{ s.severity }}/5
+                    </span>
                 </div>
-                <div style="text-align:right; flex-shrink:0; margin-left:12px;">
-                    <div><span class="severity-dot sev-{{ s.severity }}"></span><span style="font-size:0.75rem; font-weight:700; color:var(--muted);">Sev {{ s.severity }}/5</span></div>
-                    <div style="font-size:0.7rem; color:var(--muted); margin-top:4px;">{{ s.reported_at.strftime('%d %b, %H:%M') }}</div>
+                <div class="sh-grid">
+                    {% if s.dialysis_recovery_time_mins is not none %}
+                    <div class="sh-metric">
+                        <div class="sh-metric-label">Recovery Time</div>
+                        <div class="sh-metric-value">{{ s.dialysis_recovery_time_mins }} min</div>
+                    </div>
+                    {% endif %}
+                    {% if s.tiredness_score is not none %}
+                    <div class="sh-metric">
+                        <div class="sh-metric-label">Tiredness</div>
+                        <div class="sh-metric-value">{{ s.tiredness_score }}/10</div>
+                    </div>
+                    {% endif %}
+                    {% if s.energy_level_score is not none %}
+                    <div class="sh-metric">
+                        <div class="sh-metric-label">Energy Level</div>
+                        <div class="sh-metric-value">{{ s.energy_level_score }}/10</div>
+                    </div>
+                    {% endif %}
+                    {% if s.sleepiness_severity is not none %}
+                    <div class="sh-metric">
+                        <div class="sh-metric-label">Sleepiness</div>
+                        <div class="sh-metric-value">{{ s.sleepiness_severity }}/10</div>
+                    </div>
+                    {% endif %}
+                    {% if s.post_hd_mood %}
+                    <div class="sh-metric">
+                        <div class="sh-metric-label">Mood</div>
+                        <div class="sh-metric-value">{{ s.post_hd_mood }}</div>
+                    </div>
+                    {% endif %}
+                    {% if s.cognitive_alertness %}
+                    <div class="sh-metric">
+                        <div class="sh-metric-label">Alertness</div>
+                        <div class="sh-metric-value">{{ s.cognitive_alertness }}</div>
+                    </div>
+                    {% endif %}
                 </div>
+                {% set sym_list = (s.symptoms or "").split(',') | select('string') | list %}
+                {% set sym_clean = sym_list | map('trim') | select | list %}
+                {% if sym_clean %}
+                <div class="symptom-pills">
+                    {% for sym in sym_clean %}<span class="symptom-pill">{{ sym }}</span>{% endfor %}
+                </div>
+                {% endif %}
+                {% if s.notes %}<div style="font-size:0.8rem; color:var(--muted); margin-top:6px;">{{ s.notes }}</div>{% endif %}
             </div>
             {% endfor %}
         </div>
@@ -517,52 +601,34 @@
 
 </div>
 <script>
+    {% if trends.labels %}
     const ctx = document.getElementById('patientTrendChart').getContext('2d');
     new Chart(ctx, {
         type: 'line',
         data: {
-            labels: {{ (trends.labels if trends else []) | tojson }},
+            labels: {{ trends.labels | tojson }},
             datasets: [
-                {
-                    label: 'Hb',
-                    data: {{ (trends.hb if trends else []) | tojson }},
-                    borderColor: '#0ea5e9',
-                    tension: 0.4,
-                    pointRadius: 5,
-                    borderWidth: 3
-                },
-                {
-                    label: 'Albumin',
-                    data: {{ (trends.alb if trends else []) | tojson }},
-                    borderColor: '#6366f1',
-                    tension: 0.4,
-                    pointRadius: 5,
-                    borderWidth: 3
-                },
-                {
-                    label: 'Phosphorus',
-                    data: {{ (trends.phos if trends else []) | tojson }},
-                    borderColor: '#f59e0b',
-                    tension: 0.4,
-                    pointRadius: 5,
-                    borderWidth: 3
-                }
+                { label: 'Hb (g/dL)', data: {{ trends.hb | tojson }}, borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,0.08)', fill: true, tension: 0.4, pointRadius: 5, borderWidth: 2.5 },
+                { label: 'Albumin (g/dL)', data: {{ trends.alb | tojson }}, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.06)', fill: true, tension: 0.4, pointRadius: 5, borderWidth: 2.5 },
+                { label: 'Phosphorus (mg/dL)', data: {{ trends.phos | tojson }}, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.06)', fill: true, tension: 0.4, pointRadius: 5, borderWidth: 2.5 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             spanGaps: true,
-            plugins: { legend: { display: false } },
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y ?? '—') } } },
             scales: {
-                y: { beginAtZero: false, grid: { color: '#f1f5f9' } },
-                x: { grid: { display: false } }
+                y: { beginAtZero: false, grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 } } }
             }
         }
     });
+    {% endif %}
 
     function collectSymptoms(form) {
-        const checked = Array.from(form.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+        const checked = Array.from(form.querySelectorAll('input[type=checkbox][name^=symptom_]:checked')).map(cb => cb.value);
         let hidden = form.querySelector('input[name=symptoms]');
         if (!hidden) {
             hidden = document.createElement('input');
