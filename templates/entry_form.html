@@ -623,33 +623,62 @@
             calcium: { bad: 8.0, warn: 8.5, type: 'low' }
         };
 
+        const physiologicalRanges = {
+            albumin: { lo: 1.5, hi: 6.0, msg: "Likely g/L error? Expected 1.5-6.0 g/dL" },
+            hb: { lo: 4.0, hi: 18.0, msg: "Expected 4.0-18.0 g/dL" },
+            phosphorus: { lo: 1.0, hi: 12.0, msg: "Expected 1.0-12.0 mg/dL" },
+            serum_ferritin: { lo: 5, hi: 5000, msg: "Expected 5-5000 ng/mL" },
+            wbc_count: { lo: 1.0, hi: 30.0, msg: "Expected 1.0-30.0 ×10³/µL" }
+        };
+
         function validate(field) {
             const input = document.querySelector(`input[name="${field}"]`);
-            if (!input || !thresholds[field]) return;
+            if (!input) return;
 
             const val = parseFloat(input.value);
-            const t = thresholds[field];
-
+            
+            // Clear existing status
             input.style.backgroundColor = '';
-            input.style.borderColor = '#ddd';
+            input.style.borderColor = '#e2e8f0';
+            let warningEl = input.parentElement.querySelector('.phys-warning');
+            if (warningEl) warningEl.remove();
 
             if (isNaN(val)) return;
 
-            if (t.type === 'low') {
-                if (val < t.bad) {
-                    input.style.backgroundColor = '#ffe6e6';
-                    input.style.borderColor = '#dc3545';
-                } else if (val < t.warn) {
-                    input.style.backgroundColor = '#fff3e0';
-                    input.style.borderColor = '#e67e22';
+            // 1. Check Physiological Range (Critical Unit Check)
+            if (physiologicalRanges[field]) {
+                const range = physiologicalRanges[field];
+                if (val < range.lo || val > range.hi) {
+                    input.style.backgroundColor = '#fff1f2';
+                    input.style.borderColor = '#e11d48';
+                    const msg = document.createElement('div');
+                    msg.className = 'phys-warning';
+                    msg.style.cssText = "color:#e11d48; font-size:0.75rem; font-weight:700; margin-top:4px; display:flex; align-items:center; gap:4px;";
+                    msg.innerHTML = `<i class="material-icons" style="font-size:1rem;">warning</i> ${range.msg}`;
+                    input.parentElement.appendChild(msg);
+                    return; // Don't show clinical risk warnings if unit error is suspected
                 }
-            } else {
-                if (val > t.bad) {
-                    input.style.backgroundColor = '#ffe6e6';
-                    input.style.borderColor = '#dc3545';
-                } else if (val > t.warn) {
-                    input.style.backgroundColor = '#fff3e0';
-                    input.style.borderColor = '#e67e22';
+            }
+
+            // 2. Check Clinical Risk Thresholds
+            if (thresholds[field]) {
+                const t = thresholds[field];
+                if (t.type === 'low') {
+                    if (val < t.bad) {
+                        input.style.backgroundColor = '#ffe6e6';
+                        input.style.borderColor = '#dc3545';
+                    } else if (val < t.warn) {
+                        input.style.backgroundColor = '#fff3e0';
+                        input.style.borderColor = '#e67e22';
+                    }
+                } else {
+                    if (val > t.bad) {
+                        input.style.backgroundColor = '#ffe6e6';
+                        input.style.borderColor = '#dc3545';
+                    } else if (val > t.warn) {
+                        input.style.backgroundColor = '#fff3e0';
+                        input.style.borderColor = '#e67e22';
+                    }
                 }
             }
         }

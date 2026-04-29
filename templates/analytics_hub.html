@@ -112,11 +112,11 @@
             </div>
             <div class="card-title">Mortality Risk Prediction</div>
             <div class="card-desc">
-                XGBoost-based prediction model (Xu et al. 2023) calibrated for dialysis cohorts. 
-                Analyzes Age, Albumin, Neutrophils, and EF to flag high-risk trajectories.
+                Calibrated log-odds model (Xu et al. 2023). Analyzes Age, Albumin,
+                Neutrophils, and EF across all active patients — ranked by 1-year risk.
             </div>
-            <a href="/alerts" class="btn-action">
-                <i class="material-icons">notifications_active</i> View Risk Alerts
+            <a href="/analytics/mortality-risk" class="btn-action">
+                <i class="material-icons">leaderboard</i> View Cohort Risk Rankings
             </a>
         </div>
 
@@ -168,7 +168,7 @@
                             <td>{{ p.alerts[0] }}</td>
                             <td><span class="risk-badge risk-high">High Risk</span></td>
                             <td>Trend deviation detected (Kalman)</td>
-                            <td><a href="/patients/{{ p.id }}/analytics" class="btn-action" style="padding: 6px 12px; font-size: 0.8rem;">Analyze</a></td>
+                            <td><a href="/analytics/patients/{{ p.id }}" class="btn-action" style="padding: 6px 12px; font-size: 0.8rem;">Analyze</a></td>
                         </tr>
                         {% endif %}
                     {% endfor %}

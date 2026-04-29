@@ -309,6 +309,11 @@
         {% if mort.available %}
         <div class="card-val" style="color:{% if mort.class == 'danger' %}#dc2626{% elif mort.class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">
           {{ (mort.prob_1yr * 100) | round | int }}% <span style="font-size: 0.8rem; font-weight: 500; font-family: 'Inter', sans-serif;">1-Yr Risk</span>
+          {% if mort.risk_ci_lower is defined and mort.risk_ci_upper is defined %}
+          <div style="font-size: 0.75rem; font-weight: 500; color: #64748b; margin-top: 2px;">
+            (95% CI: {{ (mort.risk_ci_lower * 100) | int }}% – {{ (mort.risk_ci_upper * 100) | int }}%)
+          </div>
+          {% endif %}
         </div>
         <div class="card-desc">{{ mort.message }}</div>
         {% if mort.features_used %}

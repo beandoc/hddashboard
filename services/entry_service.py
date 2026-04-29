@@ -6,11 +6,18 @@ from typing import Optional
 from database import Patient, MonthlyRecord
 from alerts import send_entry_alert_email
 from dashboard_logic import get_month_label
+from validators import validate_lab_values
 
 def _d(s: Optional[str]) -> Optional[datetime.date]:
     return datetime.strptime(s, "%Y-%m-%d").date() if s else None
 
 def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyRecord:
+    # Physiological Range Validation (safeguard against unit errors)
+    warnings = validate_lab_values(data)
+    if warnings:
+        for w in warnings:
+            logger.warning(f"Patient {patient_id}: {w}")
+            
     month_str = data["month_str"]
     idwg = data.get("idwg")
     if idwg is not None and idwg > 15:

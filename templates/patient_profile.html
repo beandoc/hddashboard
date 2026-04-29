@@ -330,7 +330,7 @@
             <section class="card" aria-labelledby="sessions-heading">
                 <h2 class="section-title" id="sessions-heading" style="justify-content:space-between;">
                     <span><i class="material-icons" aria-hidden="true">history</i> Recent Session Snapshots</span>
-                    <a href="/patients/{{ patient.id }}/analytics" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 0.75rem;">Full History</a>
+                    <a href="/analytics/patients/{{ patient.id }}" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 0.75rem;">Full History</a>
                 </h2>
                 <div class="session-strip" role="list" aria-label="Recent dialysis sessions">
                     {% for s in sessions %}

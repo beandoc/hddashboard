@@ -13,6 +13,8 @@ from ml_analytics import (
     run_patient_analytics, analyze_bfr_trend, run_cohort_analytics,
     get_at_risk_trends, analyze_pds, analyze_mia_cascade,
     analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
+    train_deterioration_model, get_deterioration_model_status,
+    predict_mortality_risk,
 )
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
@@ -107,6 +109,74 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
         "user": get_user(request)
     })
 
+@router.get("/analytics/mortality-risk", response_class=HTMLResponse)
+async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
+    """Cohort-level mortality risk table: all active patients ranked by 1-year risk."""
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+
+    rows = []
+    for p in patients:
+        records = (
+            db.query(MonthlyRecord)
+            .filter(MonthlyRecord.patient_id == p.id)
+            .order_by(MonthlyRecord.record_month.desc())
+            .limit(6)
+            .all()
+        )
+        df = [
+            {
+                "month": r.record_month,
+                "hb": r.hb, "albumin": r.albumin,
+                "phosphorus": r.phosphorus, "idwg": r.idwg,
+                "urr": r.urr, "serum_ferritin": r.serum_ferritin,
+                "tsat": r.tsat, "ipth": r.ipth, "bp_sys": r.bp_sys,
+                "epo_weekly_units": r.epo_weekly_units,
+                "epo_mircera_dose": r.epo_mircera_dose,
+                "wbc_count": r.wbc_count, "crp": r.crp,
+                "hospitalization_this_month": r.hospitalization_this_month,
+                "weight": r.target_dry_weight or p.dry_weight,
+            }
+            for r in records
+        ]
+        patient_info = {
+            "age":        p.age,
+            "cad_status": p.cad_status,
+            "chf_status": p.chf_status,
+            "dm_status":  p.dm_status,
+            "ef":         p.ejection_fraction if p.ejection_fraction is not None else 60.0,
+        }
+        mort = predict_mortality_risk(df, patient_info) if df else {"available": False}
+        rows.append({
+            "patient":    p,
+            "mort":       mort,
+            "prob_1yr":   mort.get("prob_1yr", 0) if mort.get("available") else None,
+            "risk_level": mort.get("risk_level", "Unknown"),
+            "css_class":  mort.get("class", "secondary"),
+            "confidence": mort.get("confidence", "—"),
+            "latest_hb":  df[0].get("hb") if df else None,
+            "latest_alb": df[0].get("albumin") if df else None,
+            "n_months":   len(df),
+        })
+
+    # Sort: no-data patients last, then descending by 1-yr probability
+    rows.sort(key=lambda r: (r["prob_1yr"] is None, -(r["prob_1yr"] or 0)))
+
+    high_risk   = [r for r in rows if r["risk_level"] in ("High", "Very High")]
+    moderate    = [r for r in rows if r["risk_level"] == "Moderate"]
+    low_risk    = [r for r in rows if r["risk_level"] == "Low"]
+    no_data     = [r for r in rows if not r["mort"].get("available")]
+
+    return templates.TemplateResponse("mortality_risk.html", {
+        "request":   request,
+        "rows":      rows,
+        "high_risk": high_risk,
+        "moderate":  moderate,
+        "low_risk":  low_risk,
+        "no_data":   no_data,
+        "user":      get_user(request),
+    })
+
+
 @router.get("/analytics", response_class=HTMLResponse)
 async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     # Fetch some "at risk" patients for the summary table
@@ -194,3 +264,39 @@ async def api_at_risk_trends(parameter: str, month: Optional[str] = None, db: Se
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return JSONResponse(content=data)
+
+
+@router.post("/admin/train-deterioration-model")
+async def admin_train_deterioration_model(db: Session = Depends(get_db)):
+    """
+    Train (or retrain) the logistic regression deterioration risk model against
+    all current MonthlyRecord data.
+
+    Requires scikit-learn.  Returns training metadata including cross-validated
+    AUC, sample count, and event rate.  The model is persisted to
+    deterioration_model.pkl and loaded automatically on the next patient page load.
+
+    Typical runtime: < 2 seconds for cohorts up to 500 patients.
+    """
+    try:
+        result = train_deterioration_model(db)
+    except Exception as e:
+        logger.exception("Deterioration model training failed")
+        raise HTTPException(status_code=500, detail=str(e))
+    if not result.get("success"):
+        raise HTTPException(status_code=422, detail=result.get("error", "Training failed"))
+    return JSONResponse(content=result)
+
+
+@router.get("/admin/deterioration-model-status")
+async def admin_deterioration_model_status():
+    """
+    Return metadata about the currently deployed deterioration model:
+    training date, sample count, cross-validated AUC, feature list.
+    Returns a 'not trained' sentinel if no model has been trained yet.
+    """
+    try:
+        status = get_deterioration_model_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse(content=status)

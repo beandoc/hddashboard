@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mortality Risk — HD Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <style>
+    :root {
+      --primary: #0ea5e9;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --radius: 12px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+      --red: #dc2626; --red-bg: #fef2f2; --red-border: #fecaca;
+      --orange: #d97706; --orange-bg: #fffbeb; --orange-border: #fde68a;
+      --green: #16a34a; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+      --slate: #475569; --slate-bg: #f1f5f9; --slate-border: #cbd5e1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+    h1,h2,h3 { font-family: 'Outfit', sans-serif; }
+
+    /* ── Nav ── */
+    .app-nav { background: var(--primary); color: white; padding: 0 30px; display: flex;
+               justify-content: space-between; align-items: center; height: 60px;
+               box-shadow: var(--shadow); }
+    .app-nav .brand { font-size: 1.2rem; font-weight: 700; }
+    .nav-links a { color: rgba(255,255,255,0.85); text-decoration: none;
+                   font-size: 0.9rem; margin-left: 20px; font-weight: 500; }
+    .nav-links a:hover { color: white; }
+
+    /* ── Header ── */
+    .page-header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+                   color: white; padding: 40px 30px; }
+    .header-inner { max-width: 1200px; margin: 0 auto; }
+    .header-inner h1 { font-size: 2rem; display: flex; align-items: center; gap: 12px; }
+    .header-inner p  { opacity: 0.75; margin-top: 6px; font-size: 0.95rem; max-width: 600px; }
+    .header-chips { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+    .chip { padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+    .chip-red    { background: rgba(220,38,38,0.2);  color: #fca5a5; }
+    .chip-orange { background: rgba(217,119,6,0.2);  color: #fcd34d; }
+    .chip-green  { background: rgba(22,163,74,0.2);  color: #86efac; }
+    .chip-slate  { background: rgba(100,116,139,0.2); color: #cbd5e1; }
+
+    /* ── Container ── */
+    .container { max-width: 1200px; margin: 30px auto; padding: 0 20px 60px; }
+
+    /* ── Section header ── */
+    .section-head { display: flex; align-items: center; gap: 10px;
+                    margin: 32px 0 14px; }
+    .section-head h2 { font-size: 1.15rem; font-weight: 700; }
+    .section-head .count-badge { background: var(--red); color: white; border-radius: 20px;
+                                  padding: 2px 10px; font-size: 0.78rem; font-weight: 700; }
+    .section-head .count-badge.orange { background: var(--orange); }
+    .section-head .count-badge.green  { background: var(--green); }
+    .section-head .count-badge.slate  { background: var(--slate); }
+
+    /* ── Table ── */
+    .risk-table-wrap { background: var(--card); border-radius: var(--radius);
+                       box-shadow: var(--shadow); border: 1px solid var(--border); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { background: #f8fafc; padding: 12px 16px; font-size: 0.78rem;
+               text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+               font-weight: 600; text-align: left; border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr:last-child { border-bottom: none; }
+    td { padding: 13px 16px; font-size: 0.88rem; vertical-align: middle; }
+
+    .prob-bar-wrap { display: flex; align-items: center; gap: 10px; min-width: 140px; }
+    .prob-bar { flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .prob-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+    .prob-pct { font-size: 1rem; font-weight: 700; min-width: 44px; }
+
+    .risk-pill { display: inline-block; padding: 3px 10px; border-radius: 20px;
+                 font-size: 0.75rem; font-weight: 700; }
+    .pill-danger  { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+    .pill-warning { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+    .pill-success { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+    .pill-secondary { background: var(--slate-bg); color: var(--slate); border: 1px solid var(--slate-border); }
+
+    .conf-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+                margin-right: 5px; }
+    .conf-high     .conf-dot { background: #22c55e; }
+    .conf-moderate .conf-dot { background: #f59e0b; }
+    .conf-low      .conf-dot { background: #f97316; }
+    .conf-insufficient .conf-dot { background: #94a3b8; }
+
+    .btn-analyze { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px;
+                   background: var(--primary); color: white; border-radius: 6px;
+                   font-size: 0.78rem; font-weight: 600; text-decoration: none; }
+    .btn-analyze:hover { background: #0284c7; }
+
+    .lab-val { font-weight: 600; }
+    .lab-low  { color: var(--red); }
+    .lab-ok   { color: var(--green); }
+    .lab-warn { color: var(--orange); }
+    .lab-na   { color: #94a3b8; font-style: italic; }
+
+    /* ── Empty state ── */
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty-state .material-icons { font-size: 3rem; opacity: 0.2; display: block; margin-bottom: 8px; }
+
+    /* ── Info box ── */
+    .model-info { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px;
+                  padding: 16px 20px; margin-bottom: 28px; font-size: 0.85rem;
+                  display: flex; align-items: flex-start; gap: 12px; }
+    .model-info .material-icons { color: #2563eb; margin-top: 1px; }
+    .model-info strong { color: #1e40af; }
+  </style>
+</head>
+<body>
+
+<nav class="app-nav">
+  <div class="brand">HD Dashboard</div>
+  <div class="nav-links">
+    <a href="/">Dashboard</a>
+    <a href="/patients">Patients</a>
+    <a href="/analytics">Analytics</a>
+    <a href="/alerts">Alerts</a>
+    {% if user %}<a href="/logout">Logout ({{ user }})</a>{% endif %}
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="header-inner">
+    <h1><i class="material-icons">psychology</i> Mortality Risk — Cohort View</h1>
+    <p>
+      Calibrated log-odds prediction model (Xu et al. 2023). Features: Age, Albumin,
+      Neutrophil/WBC, Ejection Fraction, IHD, DM. Sorted by descending 1-year risk.
+    </p>
+    <div class="header-chips">
+      <span class="chip chip-red">
+        <i class="material-icons" style="font-size:1rem;vertical-align:middle;">warning</i>
+        High Risk: {{ high_risk | length }}
+      </span>
+      <span class="chip chip-orange">Moderate: {{ moderate | length }}</span>
+      <span class="chip chip-green">Low Risk: {{ low_risk | length }}</span>
+      <span class="chip chip-slate">No Data: {{ no_data | length }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="model-info">
+    <i class="material-icons">info</i>
+    <div>
+      <strong>Model note:</strong> Predictions are calibrated log-odds approximations of the
+      Xu et al. 2023 XGBoost model (published AUC 0.979). Confidence reflects the number of
+      core features available per patient.
+      <strong>Risk threshold ≥ 43.9% = High Risk</strong> (published cut-off).
+      Click <strong>Analyze</strong> to see full per-patient prediction details and clinical cascade.
+    </div>
+  </div>
+
+  {% if high_risk %}
+  <div class="section-head">
+    <i class="material-icons" style="color:var(--red);">dangerous</i>
+    <h2 style="color:var(--red);">High / Very High Risk</h2>
+    <span class="count-badge">{{ high_risk | length }} patients</span>
+  </div>
+  <div class="risk-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>1-Year Risk</th>
+          <th>Risk Level</th>
+          <th>Latest Hb</th>
+          <th>Latest Albumin</th>
+          <th>Age</th>
+          <th>Confidence</th>
+          <th>Data Points</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in high_risk %}
+        {% set mort = row.mort %}
+        <tr>
+          <td>
+            <strong>{{ row.patient.name }}</strong>
+            <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar">
+                <div class="prob-bar-fill"
+                     style="width:{{ (row.prob_1yr * 100) | int }}%;background:{% if row.prob_1yr >= 0.65 %}#dc2626{% elif row.prob_1yr >= 0.439 %}#f97316{% else %}#f59e0b{% endif %};">
+                </div>
+              </div>
+              <span class="prob-pct" style="color:var(--red);">
+                {{ (row.prob_1yr * 100) | round | int }}%
+              </span>
+            </div>
+            {% if mort.risk_ci_lower is defined and mort.risk_ci_upper is defined %}
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">
+              CI: {{ (mort.risk_ci_lower * 100) | int }}%–{{ (mort.risk_ci_upper * 100) | int }}%
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="risk-pill pill-danger">{{ row.risk_level }}</span>
+          </td>
+          <td>
+            {% if row.latest_hb is not none %}
+              <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
+                {{ row.latest_hb }} g/dL
+              </span>
+            {% else %}<span class="lab-na">—</span>{% endif %}
+          </td>
+          <td>
+            {% if row.latest_alb is not none %}
+              <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
+                {{ row.latest_alb }} g/dL
+              </span>
+            {% else %}<span class="lab-na">—</span>{% endif %}
+          </td>
+          <td>{{ row.patient.age or '—' }}</td>
+          <td>
+            <span class="conf-{{ mort.confidence }}">
+              <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
+            </span>
+          </td>
+          <td style="color:var(--muted);">{{ row.n_months }} mo</td>
+          <td>
+            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
+              <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if moderate %}
+  <div class="section-head">
+    <i class="material-icons" style="color:var(--orange);">warning_amber</i>
+    <h2 style="color:var(--orange);">Moderate Risk</h2>
+    <span class="count-badge orange">{{ moderate | length }} patients</span>
+  </div>
+  <div class="risk-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>1-Year Risk</th>
+          <th>Risk Level</th>
+          <th>Latest Hb</th>
+          <th>Latest Albumin</th>
+          <th>Age</th>
+          <th>Confidence</th>
+          <th>Data Points</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in moderate %}
+        {% set mort = row.mort %}
+        <tr>
+          <td>
+            <strong>{{ row.patient.name }}</strong>
+            <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar">
+                <div class="prob-bar-fill"
+                     style="width:{{ (row.prob_1yr * 100) | int }}%;background:#f59e0b;">
+                </div>
+              </div>
+              <span class="prob-pct" style="color:var(--orange);">
+                {{ (row.prob_1yr * 100) | round | int }}%
+              </span>
+            </div>
+            {% if mort.risk_ci_lower is defined and mort.risk_ci_upper is defined %}
+            <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">
+              CI: {{ (mort.risk_ci_lower * 100) | int }}%–{{ (mort.risk_ci_upper * 100) | int }}%
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="risk-pill pill-warning">{{ row.risk_level }}</span>
+          </td>
+          <td>
+            {% if row.latest_hb is not none %}
+              <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
+                {{ row.latest_hb }} g/dL
+              </span>
+            {% else %}<span class="lab-na">—</span>{% endif %}
+          </td>
+          <td>
+            {% if row.latest_alb is not none %}
+              <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
+                {{ row.latest_alb }} g/dL
+              </span>
+            {% else %}<span class="lab-na">—</span>{% endif %}
+          </td>
+          <td>{{ row.patient.age or '—' }}</td>
+          <td>
+            <span class="conf-{{ mort.confidence }}">
+              <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
+            </span>
+          </td>
+          <td style="color:var(--muted);">{{ row.n_months }} mo</td>
+          <td>
+            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
+              <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if low_risk %}
+  <div class="section-head">
+    <i class="material-icons" style="color:var(--green);">check_circle</i>
+    <h2 style="color:var(--green);">Low Risk</h2>
+    <span class="count-badge green">{{ low_risk | length }} patients</span>
+  </div>
+  <div class="risk-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>1-Year Risk</th>
+          <th>Risk Level</th>
+          <th>Latest Hb</th>
+          <th>Latest Albumin</th>
+          <th>Age</th>
+          <th>Confidence</th>
+          <th>Data Points</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in low_risk %}
+        {% set mort = row.mort %}
+        <tr>
+          <td>
+            <strong>{{ row.patient.name }}</strong>
+            <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
+          </td>
+          <td>
+            <div class="prob-bar-wrap">
+              <div class="prob-bar">
+                <div class="prob-bar-fill"
+                     style="width:{{ [row.prob_1yr * 100, 5] | max | int }}%;background:#22c55e;">
+                </div>
+              </div>
+              <span class="prob-pct" style="color:var(--green);">
+                {{ (row.prob_1yr * 100) | round | int }}%
+              </span>
+            </div>
+          </td>
+          <td><span class="risk-pill pill-success">{{ row.risk_level }}</span></td>
+          <td>
+            {% if row.latest_hb is not none %}
+              <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
+                {{ row.latest_hb }} g/dL
+              </span>
+            {% else %}<span class="lab-na">—</span>{% endif %}
+          </td>
+          <td>
+            {% if row.latest_alb is not none %}
+              <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
+                {{ row.latest_alb }} g/dL
+              </span>
+            {% else %}<span class="lab-na">—</span>{% endif %}
+          </td>
+          <td>{{ row.patient.age or '—' }}</td>
+          <td>
+            <span class="conf-{{ mort.confidence }}">
+              <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
+            </span>
+          </td>
+          <td style="color:var(--muted);">{{ row.n_months }} mo</td>
+          <td>
+            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
+              <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if no_data %}
+  <div class="section-head">
+    <i class="material-icons" style="color:var(--muted);">hourglass_empty</i>
+    <h2 style="color:var(--muted);">Insufficient Data</h2>
+    <span class="count-badge slate">{{ no_data | length }} patients</span>
+  </div>
+  <div class="risk-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>HID</th>
+          <th>Months Recorded</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in no_data %}
+        <tr>
+          <td><strong>{{ row.patient.name }}</strong></td>
+          <td style="color:var(--muted);">{{ row.patient.hid_no }}</td>
+          <td style="color:var(--muted);">{{ row.n_months }} month(s) — add labs to enable prediction</td>
+          <td>
+            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
+              <i class="material-icons" style="font-size:0.9rem;">add_circle</i> Add Records
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if not rows %}
+  <div class="empty-state">
+    <i class="material-icons">person_off</i>
+    No active patients found.
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

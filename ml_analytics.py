@@ -32,7 +32,9 @@ import math
 import statistics
 import logging
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+import pickle
+import os
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from database import MonthlyRecord, Patient
@@ -57,6 +59,18 @@ try:
     _STATSMODELS_AVAILABLE = True
 except ImportError:
     _STATSMODELS_AVAILABLE = False
+
+try:
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.impute import SimpleImputer
+    from sklearn.model_selection import cross_val_predict, StratifiedKFold
+    from sklearn.metrics import roc_auc_score
+    _SKLEARN_AVAILABLE = True
+except ImportError:
+    _SKLEARN_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -871,18 +885,367 @@ def compute_target_score(df: List[Dict]) -> Dict:
 
 # ── Deterioration Risk ────────────────────────────────────────────────────────
 
-def compute_deterioration_risk(hb: Dict, alb: Dict, target: Dict) -> Dict:
-    risk_score = 0
+# 10 features used for both training and inference — must stay in sync
+DETERIORATION_FEATURE_NAMES = [
+    "hb_alert",       # Binary: Hb < 10.0 g/dL
+    "hb_value",       # Continuous: Hb g/dL (median-imputed when missing)
+    "alb_alert",      # Binary: Albumin < 3.5 g/dL
+    "alb_value",      # Continuous: Albumin g/dL (median-imputed when missing)
+    "target_score",   # 0–10 KDOQI achievement score
+    "epo_hypo_proxy", # Binary: sub-target Hb despite active ESA prescription
+    "age",            # Integer: patient age in years
+    "cad",            # Binary: coronary artery disease / IHD
+    "chf",            # Binary: congestive heart failure
+    "dm",             # Binary: any diabetes mellitus (type 1 or 2)
+]
+
+_MODEL_PATH      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model.pkl")
+_MODEL_META_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model_meta.json")
+
+
+def _extract_record_features_for_training(record, patient) -> list:
+    """
+    Build a 10-element feature vector from a MonthlyRecord ORM row + Patient row.
+    Called during model training; returns None-safe floats (None → imputed later).
+    """
+    hb      = record.hb
+    albumin = record.albumin
+
+    # Inline KDOQI target score using available fields (mirrors compute_target_score logic)
+    points, available = 0, 0
+    for val, met in [
+        (hb,               hb        is not None and hb        >= 10.0),
+        (albumin,          albumin   is not None and albumin   >= 3.5),
+        (record.phosphorus, record.phosphorus is not None and record.phosphorus <= 5.5),
+        (record.idwg,       record.idwg       is not None and record.idwg       <= 2.5),
+        (record.urr,        record.urr        is not None and record.urr        >= 65.0),
+        (record.single_pool_ktv, record.single_pool_ktv is not None and record.single_pool_ktv >= 1.2),
+    ]:
+        if val is not None:
+            available += 1
+            if met:
+                points += 1
+    target_score = float(round(points / available * 10)) if available > 0 else 5.0
+
+    epo_hypo_proxy = float(
+        hb is not None and hb < 10.0 and
+        (record.epo_weekly_units is not None or bool(record.epo_mircera_dose))
+    )
+
+    return [
+        1.0 if (hb is not None and hb < 10.0) else 0.0,
+        hb,          # kept as None → SimpleImputer fills with column median
+        1.0 if (albumin is not None and albumin < 3.5) else 0.0,
+        albumin,     # kept as None → imputed
+        target_score,
+        epo_hypo_proxy,
+        float(patient.age or 60),
+        1.0 if patient.cad_status else 0.0,
+        1.0 if patient.chf_status else 0.0,
+        1.0 if ("type" in str(patient.dm_status or "").lower()) else 0.0,
+    ]
+
+
+def _extract_analytics_features_for_inference(
+    hb: dict, alb: dict, target: dict,
+    epo: dict = None, patient_info: dict = None,
+) -> list:
+    """
+    Build the same 10-element feature vector from derived analytics dicts.
+    Called during compute_deterioration_risk() for real-time inference.
+    Missing values are replaced with population-level clinical midpoints.
+    """
+    epo          = epo or {}
+    patient_info = patient_info or {}
+    hb_val  = hb.get("current")
+    alb_val = alb.get("current")
+    return [
+        1.0 if hb.get("alert")          else 0.0,
+        hb_val  if hb_val  is not None  else 10.0,
+        1.0 if alb.get("risk")          else 0.0,
+        alb_val if alb_val is not None  else 3.5,
+        float(target.get("score", 5)),
+        1.0 if epo.get("hypo_response") else 0.0,
+        float(patient_info.get("age") or 60),
+        1.0 if patient_info.get("cad_status") else 0.0,
+        1.0 if patient_info.get("chf_status") else 0.0,
+        1.0 if "type" in str(patient_info.get("dm_status") or "").lower() else 0.0,
+    ]
+
+
+_DETERIORATION_MODEL = None
+
+def _load_deterioration_model():
+    global _DETERIORATION_MODEL
+    if _DETERIORATION_MODEL is not None:
+        return _DETERIORATION_MODEL
+    if os.path.exists(_MODEL_PATH):
+        try:
+            with open(_MODEL_PATH, "rb") as f:
+                _DETERIORATION_MODEL = pickle.load(f)
+            return _DETERIORATION_MODEL
+        except Exception as e:
+            logger.warning("Failed to load deterioration model: %s", e)
+            return None
+    return None
+
+
+def train_deterioration_model(db: Session) -> dict:
+    """
+    Train a calibrated logistic regression model to predict hospitalization in
+    the next calendar month.
+
+    Algorithm
+    ---------
+    Features : 10-element vector — see DETERIORATION_FEATURE_NAMES
+    Label    : hospitalization_this_month OR hospitalization_diagnosis in month N+1
+    Pipeline : SimpleImputer(median) → StandardScaler → LogisticRegression(balanced)
+    Calibration : CalibratedClassifierCV(isotonic or sigmoid depending on N)
+    Evaluation  : Stratified k-fold cross-validated AUC
+
+    Saves
+    -----
+    deterioration_model.pkl       — serialised calibrated Pipeline
+    deterioration_model_meta.json — training metadata for the status endpoint
+    """
+    import json
+
+    if not _SKLEARN_AVAILABLE:
+        return {
+            "success": False,
+            "error": "scikit-learn is not installed. Run: pip install scikit-learn",
+        }
+
+    # ── 1. Build paired (features, label) dataset ─────────────────────────────
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    X, y, skipped = [], [], 0
+
+    for patient in patients:
+        records = (
+            db.query(MonthlyRecord)
+            .filter(MonthlyRecord.patient_id == patient.id)
+            .order_by(MonthlyRecord.record_month.asc())
+            .all()
+        )
+        if len(records) < 2:
+            skipped += 1
+            continue
+
+        for i in range(len(records) - 1):
+            curr = records[i]
+            nxt  = records[i + 1]
+
+            # Skip pairs separated by > 2 months (data gap — not a true consecutive pair)
+            try:
+                gap = _month_to_ordinal(nxt.record_month) - _month_to_ordinal(curr.record_month)
+                if gap > 2:
+                    continue
+            except Exception:
+                continue
+
+            feats = _extract_record_features_for_training(curr, patient)
+            label = int(
+                bool(nxt.hospitalization_this_month) or
+                bool(nxt.hospitalization_diagnosis)  or
+                bool(nxt.hospitalization_icd_code)
+            )
+            X.append(feats)
+            y.append(label)
+
+    n_samples  = len(y)
+    n_events   = sum(y)
+    event_rate = round(n_events / n_samples, 4) if n_samples > 0 else 0.0
+
+    if n_samples < 20:
+        return {
+            "success": False, "n_samples": n_samples, "n_events": n_events,
+            "error": (
+                f"Insufficient data: need ≥ 20 paired monthly records, have {n_samples}. "
+                "Continue adding monthly records before training."
+            ),
+        }
+
+    if n_events < 5:
+        return {
+            "success": False, "n_samples": n_samples, "n_events": n_events,
+            "error": (
+                f"Only {n_events} hospitalization event(s) recorded. "
+                "Need ≥ 5 positive cases to fit a reliable model."
+            ),
+        }
+
+    # ── 2. Build pipeline ─────────────────────────────────────────────────────
+    import numpy as _np_train
+    X_arr = _np_train.array(X, dtype=float)
+    y_arr = _np_train.array(y, dtype=int)
+
+    base = Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler",  StandardScaler()),
+        ("lr",      LogisticRegression(
+            class_weight="balanced",
+            C=0.5,
+            solver="lbfgs",
+            max_iter=1000,
+        )),
+    ])
+
+    # ── 3. Cross-validated AUC (on base uncalibrated pipeline) ───────────────
+    n_folds  = min(5, n_events)   # never more folds than positive cases
+    cv       = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+    cv_probs = cross_val_predict(base, X_arr, y_arr, cv=cv, method="predict_proba")
+    cv_auc   = round(float(roc_auc_score(y_arr, cv_probs[:, 1])), 3)
+
+    # AUC below 0.55 — model is barely better than chance; warn but still save
+    auc_warning = cv_auc < 0.55
+
+    # ── 4. Fit final calibrated model on all data ─────────────────────────────
+    # Use isotonic when N ≥ 50 (more flexible), sigmoid when smaller
+    cal_method = "isotonic" if n_samples >= 50 else "sigmoid"
+    cal_model  = CalibratedClassifierCV(base, cv=n_folds, method=cal_method)
+    cal_model.fit(X_arr, y_arr)
+
+    # ── 5. Persist model + metadata ───────────────────────────────────────────
+    with open(_MODEL_PATH, "wb") as f:
+        pickle.dump(cal_model, f)
+
+    # Invalidate in-memory cache so the next inference call reloads from disk
+    global _DETERIORATION_MODEL
+    _DETERIORATION_MODEL = None
+
+    meta = {
+        "trained_at":          datetime.now().isoformat(timespec="seconds"),
+        "n_samples":           n_samples,
+        "n_events":            n_events,
+        "event_rate":          event_rate,
+        "n_folds":             n_folds,
+        "calibration_method":  cal_method,
+        "cv_auc":              cv_auc,
+        "auc_warning":         auc_warning,
+        "feature_names":       DETERIORATION_FEATURE_NAMES,
+        "skipped_patients":    skipped,
+    }
+    with open(_MODEL_META_PATH, "w") as f:
+        json.dump(meta, f, indent=2)
+
+    logger.info(
+        "Deterioration model trained: n_samples=%d n_events=%d cv_auc=%.3f cal=%s",
+        n_samples, n_events, cv_auc, cal_method,
+    )
+    return {"success": True, **meta}
+
+
+def get_deterioration_model_status() -> dict:
+    """
+    Return metadata about the trained deterioration model.
+    Returns a 'not trained' sentinel when no model file exists.
+    """
+    import json
+    if not os.path.exists(_MODEL_PATH):
+        return {
+            "trained": False,
+            "sklearn_available": _SKLEARN_AVAILABLE,
+            "message": "No model trained yet. POST to /admin/train-deterioration-model to train.",
+        }
+    meta: dict = {}
+    if os.path.exists(_MODEL_META_PATH):
+        try:
+            with open(_MODEL_META_PATH) as f:
+                meta = json.load(f)
+        except Exception:
+            pass
+    return {"trained": True, "sklearn_available": _SKLEARN_AVAILABLE, **meta}
+
+def compute_deterioration_risk(
+    hb: Dict, alb: Dict, target: Dict,
+    epo: Dict = None, patient_info: Dict = None,
+) -> Dict:
+    """
+    Estimate the probability of hospitalization in the next calendar month.
+
+    When a trained logistic regression model exists (deterioration_model.pkl),
+    uses calibrated predicted probabilities from a 10-feature vector aligned to
+    DETERIORATION_FEATURE_NAMES.  Falls back to the additive heuristic when no
+    model is present.
+
+    Risk levels (model path):
+      High     ≥ 40%  probability
+      Moderate ≥ 15%
+      Low      < 15%
+
+    Risk levels (heuristic fallback):
+      High     score ≥ 60
+      Moderate score ≥ 30
+      Low      score < 30
+    """
+    # ── Derive human-readable risk factors (shared by both paths) ─────────────
     factors = []
-    if hb.get("alert"):              risk_score += 40; factors.append("Falling Hb")
-    if alb.get("risk"):              risk_score += 30; factors.append("Declining Albumin")
-    if target.get("score", 0) < 6:  risk_score += 30; factors.append("Low Target Score")
+    if hb.get("alert"):                         factors.append("Hb below 10 g/dL")
+    if hb.get("alert_predicted_low"):           factors.append("Hb predicted to fall below 10 g/dL")
+    if alb.get("risk"):                         factors.append("Albumin below 3.5 g/dL")
+    if (epo or {}).get("hypo_response"):        factors.append("ESA hypo-response (high ERI)")
+    if target.get("score", 10) < 6:             factors.append("Low KDOQI target score (<6/10)")
+    if (patient_info or {}).get("cad_status"):  factors.append("Coronary artery disease")
+    if (patient_info or {}).get("chf_status"):  factors.append("Congestive heart failure")
+
+    model = _load_deterioration_model()
+
+    if model is not None:
+        feats = _extract_analytics_features_for_inference(hb, alb, target, epo, patient_info)
+        try:
+            import numpy as _np_inf
+            prob      = float(model.predict_proba(_np_inf.array([feats]))[0][1])
+            risk_pct  = round(prob * 100, 1)
+            risk_level = "High" if prob >= 0.40 else "Moderate" if prob >= 0.15 else "Low"
+
+            # Load metadata for AUC and training provenance
+            import json
+            meta: dict = {}
+            if os.path.exists(_MODEL_META_PATH):
+                try:
+                    with open(_MODEL_META_PATH) as _f:
+                        meta = json.load(_f)
+                except Exception:
+                    pass
+
+            return {
+                "available":       True,
+                "method":          "LogisticRegression (calibrated)",
+                "risk_score":      risk_pct,
+                "score":           risk_pct,
+                "risk_probability": prob,
+                "risk_level":      risk_level,
+                "level":           risk_level,
+                "risk_factors":    factors,
+                "factors":         factors,
+                # Model quality metadata surfaced to the UI
+                "model_cv_auc":    meta.get("cv_auc"),
+                "model_n_samples": meta.get("n_samples"),
+                "model_trained_at": meta.get("trained_at"),
+                "auc_warning":     meta.get("auc_warning", False),
+            }
+        except Exception as e:
+            logger.warning("Deterioration model predict_proba failed: %s — using heuristic", e)
+
+    # ── Heuristic fallback (no trained model or prediction failed) ────────────
+    risk_score = 0
+    if hb.get("alert"):             risk_score += 40
+    if alb.get("risk"):             risk_score += 30
+    if target.get("score", 0) < 6: risk_score += 30
     risk_level = "High" if risk_score >= 60 else "Moderate" if risk_score >= 30 else "Low"
     return {
-        "available": True,
-        "risk_score": risk_score, "score": risk_score,
-        "risk_level": risk_level, "level": risk_level,
-        "risk_factors": factors, "factors": factors,
+        "available":   True,
+        "method":      "Heuristic (no trained model — POST /admin/train-deterioration-model)",
+        "risk_score":  risk_score,
+        "score":       risk_score,
+        "risk_level":  risk_level,
+        "level":       risk_level,
+        "risk_factors": factors,
+        "factors":     factors,
+        "model_cv_auc":    None,
+        "model_n_samples": None,
+        "model_trained_at": None,
+        "auc_warning":     False,
     }
 
 
@@ -911,6 +1274,20 @@ def compute_deterioration_risk(hb: Dict, alb: Dict, target: Dict) -> Dict:
 
 def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-max(-50.0, min(50.0, x))))
+
+def _mortality_confidence_interval(log_odds: float, n_core_features: int) -> tuple:
+    """
+    Approximate 95% CI on the probability using:
+    - Feature uncertainty ≈ 0.3 log-odds units per missing core feature
+    - Calibration uncertainty ≈ ±0.25 log-odds (from approximated weights)
+    """
+    model_uncertainty = 0.25                          # approximation penalty
+    feature_gap = (5 - n_core_features) * 0.30       # each missing feature adds variance
+    total_se = math.sqrt(model_uncertainty**2 + feature_gap**2)
+    
+    p_lower = _sigmoid(log_odds - 1.96 * total_se)
+    p_upper = _sigmoid(log_odds + 1.96 * total_se)
+    return round(p_lower, 3), round(p_upper, 3)
 
 
 def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
@@ -1052,7 +1429,9 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         risk_level = "Low"
         css_class  = "success"
 
-    # ── Confidence based on core-feature coverage ─────────────────────────────
+    # ── Confidence & Interval ──────────────────────────────────────────────────
+    p_lower, p_upper = _mortality_confidence_interval(log_odds, n_core_used)
+
     if n_core_used >= 4:
         confidence = "high"
     elif n_core_used >= 3:
@@ -1091,6 +1470,8 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         "available":        True,
         "prob_1yr":         prob_1yr,
         "prob_4yr":         prob_4yr,
+        "risk_ci_lower":    p_lower,
+        "risk_ci_upper":    p_upper,
         "risk_level":       risk_level,
         "class":            css_class,
         "confidence":       confidence,
@@ -1312,7 +1693,7 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
     alb_risk   = assess_albumin_decline(df)
     iron_stat  = classify_iron_status(df[0])
     target_sc  = compute_target_score(df)
-    det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc)
+    det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
     mort_risk  = predict_mortality_risk(df, patient_info)
 
     return {
@@ -1552,6 +1933,9 @@ def analyze_pds(db: Session, patient_id: int) -> Dict:
                 "temp": sess.dialysate_temperature,
                 "exercise": sess.intradialytic_exercise_mins
             })
+
+    if not correlated_events:
+        return {"available": False, "message": "Symptom logs found but no matching sessions could be correlated."}
 
     # Average DRT
     avg_drt = sum(e["drt_mins"] for e in correlated_events) / len(correlated_events)
@@ -1874,8 +2258,8 @@ def detect_occult_overload(db: Session, patient_id: int):
     # Compare current DW vs first recorded monthly weight
     first_record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.asc()).first()
     dw_drop = 0
-    if first_record and first_record.weight_post_target and patient.dry_weight:
-        dw_drop = first_record.weight_post_target - patient.dry_weight
+    if first_record and first_record.target_dry_weight and patient.dry_weight:
+        dw_drop = first_record.target_dry_weight - patient.dry_weight
 
     # 2. Nutrition Trend (Albumin)
     recent_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
