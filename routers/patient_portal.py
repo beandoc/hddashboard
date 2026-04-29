@@ -24,12 +24,15 @@ async def patient_dashboard(request: Request, db: Session = Depends(get_db)):
 
     latest_monthly = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id).order_by(MonthlyRecord.record_month.desc()).first()
     
-    # Simple trends for patient
-    trends = []
+    # Trends for chart (template expects dict with separate label/value arrays)
+    trends = {"labels": [], "hb": [], "alb": [], "phos": []}
     if latest_monthly:
         monthly_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id).order_by(MonthlyRecord.record_month.desc()).limit(6).all()
         for r in reversed(monthly_records):
-            trends.append({"month": get_month_label(r.record_month), "hb": r.hb, "albumin": r.albumin})
+            trends["labels"].append(get_month_label(r.record_month))
+            trends["hb"].append(r.hb)
+            trends["alb"].append(r.albumin)
+            trends["phos"].append(r.phosphorus)
 
     # Vaccination status
     vax_reminders = []
