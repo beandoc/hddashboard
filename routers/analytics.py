@@ -9,7 +9,11 @@ from database import get_db, Patient, ClinicalEvent, SessionRecord, MonthlyRecor
 from config import templates
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str
-from ml_analytics import run_patient_analytics, analyze_bfr_trend, run_cohort_analytics, get_at_risk_trends, analyze_pds, analyze_mia_cascade, analyze_cardiorenal_cascade, analyze_avf_maturation
+from ml_analytics import (
+    run_patient_analytics, analyze_bfr_trend, run_cohort_analytics,
+    get_at_risk_trends, analyze_pds, analyze_mia_cascade,
+    analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
+)
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
 logger = logging.getLogger(__name__)
@@ -57,6 +61,52 @@ async def census_report(request: Request, month: Optional[str] = None, db: Sessi
         "user": get_user(request)
     })
 
+@router.get("/analytics/vascular-access", response_class=HTMLResponse)
+async def vascular_access_quality(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    from datetime import datetime, timedelta
+    month_str = month or get_current_month_str()
+    
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    total_prevalent = len(patients)
+    
+    # 1. Prevalent AVF Rate (All active patients)
+    prevalent_avf = [p for p in patients if p.access_type and "AVF" in p.access_type.upper()]
+    prevalent_rate = (len(prevalent_avf) / total_prevalent * 100) if total_prevalent else 0
+    
+    # 2. Incident AVF Rate (Started this month)
+    # Note: We check hd_wef_date for initiation
+    incident_patients = [p for p in patients if p.hd_wef_date and p.hd_wef_date.strftime("%Y-%m") == month_str]
+    incident_avf = [p for p in incident_patients if p.access_type and "AVF" in p.access_type.upper()]
+    incident_rate = (len(incident_avf) / len(incident_patients) * 100) if incident_patients else 0
+    
+    # 3. Late Conversion Watchlist (>90 days on HD with non-AVF access)
+    today = datetime.now().date()
+    conversion_watchlist = []
+    for p in patients:
+        if p.access_type and "AVF" not in p.access_type.upper():
+            if p.hd_wef_date:
+                days_on_hd = (today - p.hd_wef_date).days
+                if days_on_hd > 90:
+                    conversion_watchlist.append({
+                        "patient": p,
+                        "days": days_on_hd,
+                        "vintage": p.hd_wef_date.strftime("%b %Y")
+                    })
+
+    return templates.TemplateResponse("access_quality.html", {
+        "request": request,
+        "month_str": month_str,
+        "metrics": {
+            "prevalent_rate": round(prevalent_rate, 1),
+            "incident_rate": round(incident_rate, 1),
+            "watchlist_count": len(conversion_watchlist),
+            "target_prevalent": 90.0,
+            "target_incident": 65.0
+        },
+        "watchlist": conversion_watchlist,
+        "user": get_user(request)
+    })
+
 @router.get("/analytics", response_class=HTMLResponse)
 async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     # Fetch some "at risk" patients for the summary table
@@ -85,6 +135,9 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
     analytics = run_patient_analytics(db, patient_id)
+    occult_overload = detect_occult_overload(db, patient_id)
+    if occult_overload:
+        analytics["occult_alert"] = occult_overload
     pt_events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).all()
     recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(20).all()
     

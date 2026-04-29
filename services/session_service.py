@@ -79,6 +79,12 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         interim_trigger=data.get("interim_trigger"),
         intradialytic_exercise_mins=data.get("intradialytic_exercise_mins"),
         intradialytic_meals_eaten=data.get("intradialytic_meals_eaten", False),
+        pre_hd_dyspnea_likert=data.get("pre_hd_dyspnea_likert"),
+        post_hd_dyspnea_likert=data.get("post_hd_dyspnea_likert"),
+        is_emergency=data.get("is_emergency", False),
+        reason_emergency=data.get("reason_emergency"),
+        idh_episode=data.get("idh_episode", False),
+        muscle_cramps=data.get("muscle_cramps", False),
     )
     db.add(rec)
     db.commit()
@@ -126,6 +132,10 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.interim_trigger = data.get("interim_trigger")
     sess.intradialytic_exercise_mins = data.get("intradialytic_exercise_mins")
     sess.intradialytic_meals_eaten = data.get("intradialytic_meals_eaten", False)
+    sess.pre_hd_dyspnea_likert = data.get("pre_hd_dyspnea_likert")
+    sess.post_hd_dyspnea_likert = data.get("post_hd_dyspnea_likert")
+    sess.is_emergency = data.get("is_emergency", False)
+    sess.reason_emergency = data.get("reason_emergency")
     
     db.commit()
     db.refresh(sess)

@@ -1,45 +1,55 @@
-{% extends "_nav.html" %}
-{% block content %}
-<style>
-    :root {
-        --primary: #0ea5e9;
-        --radius: 16px;
-        --bg-main: #f8fafc;
-        --accent-red: #ef4444;
-        --accent-green: #10b981;
-        --accent-orange: #f59e0b;
-    }
-    body { background: var(--bg-main); font-family: 'Inter', sans-serif; }
-    header { background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%); color: white; padding: 40px 20px; }
-    .header-content { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-    .header-content h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 1.8rem; }
-    
-    .container { max-width: 1000px; margin: 20px auto 60px; padding: 0 20px; }
-    
-    .med-card { background: white; border-radius: var(--radius); padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05); }
-    .med-card h2 { font-family: 'Outfit', sans-serif; margin-top: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
-    
-    .med-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
-    .med-item { display: grid; grid-template-columns: 1fr 100px 100px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; align-items: center; }
-    .med-name { font-weight: 700; color: #1e293b; font-size: 1.1rem; }
-    .med-details { color: #64748b; font-size: 0.9rem; }
-    .med-freq { font-weight: 600; color: var(--primary); text-align: center; background: white; border-radius: 6px; padding: 4px; }
-    
-    .recon-flag { margin-top: 25px; padding: 15px; border-radius: 12px; display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.5; }
-    .flag-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
-    .flag-warn { background: #fffbeb; color: #b45309; border: 1px solid #fef3c7; }
-    .flag-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medication Reconciliation - {{ patient.name }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <style>
+        :root {
+            --primary: #0ea5e9;
+            --radius: 16px;
+            --bg-main: #f8fafc;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+        }
+        body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        header { background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%); color: white; padding: 40px 20px; }
+        .header-content { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .header-content h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 1.8rem; }
+        
+        .container { max-width: 1000px; margin: 20px auto 60px; padding: 0 20px; }
+        
+        .med-card { background: white; border-radius: var(--radius); padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05); }
+        .med-card h2 { font-family: 'Outfit', sans-serif; margin-top: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
+        
+        .med-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+        .med-item { display: grid; grid-template-columns: 1fr 100px 100px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; align-items: center; }
+        .med-name { font-weight: 700; color: #1e293b; font-size: 1.1rem; }
+        .med-details { color: #64748b; font-size: 0.9rem; }
+        .med-freq { font-weight: 600; color: var(--primary); text-align: center; background: white; border-radius: 6px; padding: 4px; }
+        
+        .recon-flag { margin-top: 25px; padding: 15px; border-radius: 12px; display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.5; }
+        .flag-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+        .flag-warn { background: #fffbeb; color: #b45309; border: 1px solid #fef3c7; }
+        .flag-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
 
-    .print-btn { background: white; color: var(--primary); border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    .print-btn:hover { background: #f1f5f9; }
+        .print-btn { background: white; color: var(--primary); border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .print-btn:hover { background: #f1f5f9; }
 
-    @media print {
-        .app-nav, .print-btn, .nav-breadcrumb { display: none !important; }
-        body { background: white; }
-        .container { margin-top: 0; }
-        .med-card { box-shadow: none; border: 1px solid #000; }
-    }
-</style>
+        @media print {
+            .app-nav, .print-btn, .nav-breadcrumb { display: none !important; }
+            body { background: white; }
+            .container { margin-top: 0; }
+            .med-card { box-shadow: none; border: 1px solid #000; }
+        }
+    </style>
+</head>
+<body>
+
+{% include "_nav.html" %}
 
 <header>
     <div class="header-content">
@@ -132,4 +142,6 @@
         <div style="line-height:1.6; color:#475569; white-space:pre-wrap;">{{ patient.clinical_background or 'No background documented.' }}</div>
     </div>
 </div>
-{% endblock %}
+
+</body>
+</html>

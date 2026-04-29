@@ -170,9 +170,24 @@
       <div class="card-title"><i class="material-icons">event</i> Session Details</div>
       <div class="grid">
         <div>
-          <label>Session Date *</label>
+          <label>Session Date</label>
           <input type="date" name="session_date" required
             value="{{ session.session_date.strftime('%Y-%m-%d') if session and session.session_date else '' }}">
+        </div>
+        <div style="display: flex; align-items: flex-end; gap: 10px;">
+          <label class="checkbox-item" style="margin-bottom: 12px; font-weight: 700; color: var(--accent-red);">
+            <input type="checkbox" name="is_emergency" value="true" {{ 'checked' if session and session.is_emergency }}>
+            Emergency / Extra Session
+          </label>
+        </div>
+        <div>
+          <label>Reason (if Emergency)</label>
+          <select name="reason_emergency">
+            <option value="">— Select —</option>
+            {% for r in ["Fluid Overload", "Hyperkalemia", "Severe Dyspnea", "Pulmonary Oedema", "Missed Regular Session"] %}
+            <option value="{{ r }}" {{ 'selected' if session and session.reason_emergency == r }}>{{ r }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
           <label>Duration (hours)</label>
@@ -371,7 +386,32 @@
 
     <!-- ── Intradialytic Events ── -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">warning_amber</i> Intradialytic Events</div>
+      <div class="card-title"><i class="material-icons">warning_amber</i> Intradialytic Events & Symptoms</div>
+      
+      <div style="margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+        <label style="display:block; margin-bottom:10px; font-weight:700; font-size:0.8rem; color:#475569; text-transform:uppercase;">Respiratory Symptom Burden (1=None, 5=Severe)</label>
+        <div class="grid">
+          <div>
+            <label>Pre-HD Dyspnea (1 day prior)</label>
+            <select name="pre_hd_dyspnea_likert">
+              <option value="">— Select —</option>
+              {% for i in range(1, 6) %}
+              <option value="{{ i }}" {{ 'selected' if session and session.pre_hd_dyspnea_likert == i }}>{{ i }} - {{ ["None","Mild","Moderate","Severe","Critical"][i-1] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Post-HD Dyspnea</label>
+            <select name="post_hd_dyspnea_likert">
+              <option value="">— Select —</option>
+              {% for i in range(1, 6) %}
+              <option value="{{ i }}" {{ 'selected' if session and session.post_hd_dyspnea_likert == i }}>{{ i }} - {{ ["None","Mild","Moderate","Severe","Critical"][i-1] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div class="checkbox-group">
         <label class="checkbox-item">
           <input type="checkbox" name="idh_episode" value="true" {{ 'checked' if session and session.idh_episode }}>

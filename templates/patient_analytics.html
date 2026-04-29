@@ -114,6 +114,21 @@
 
 
   <div class="container">
+    {% if analytics.occult_alert %}
+    <div class="insight-card" style="margin-bottom:24px; border-left: 6px solid var(--accent-red); background: #fff1f2;">
+        <div class="card-head">
+            <i class="material-icons" style="color:var(--accent-red)">clinical_notes</i>
+            <h3 style="color:#991b1b;">⚠️ {{ analytics.occult_alert.type }}</h3>
+            <span class="status-pill danger">{{ analytics.occult_alert.severity }}</span>
+        </div>
+        <p style="margin:0; font-weight:700; color:#1e293b;">{{ analytics.occult_alert.reason }}</p>
+        <div style="margin-top:15px; padding:12px; background:white; border-radius:8px; border:1px solid #fecaca;">
+            <strong style="font-size:0.8rem; text-transform:uppercase; color:#dc2626;">Recommended Action:</strong>
+            <p style="margin:5px 0 0; font-size:0.9rem; color:#475569;">{{ analytics.occult_alert.recommendation }}</p>
+        </div>
+    </div>
+    {% endif %}
+
     {% if analytics.status == "no_data" %}
     <div class="insight-card" style="margin-top: 30px; text-align: center; padding: 40px;">
       <i class="material-icons" style="font-size: 3rem; color: var(--text-muted);">info</i>
@@ -714,26 +729,33 @@
   {% endif %}
 
   <!-- ══════════════════ ADDITIONAL CLINICAL CASCADES ══════════════════ -->
-  {% if (cardiorenal_cascade and cardiorenal_cascade.available and cardiorenal_cascade.cascade_detected) or (avf_cascade and avf_cascade.available and avf_cascade.cascade_detected) %}
   <div style="max-width:1200px;margin:0 auto 40px;padding:0 20px;">
     <h2 style="font-family:'Outfit',sans-serif;font-size:1.3rem;color:#1e293b;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
       <i class="material-icons" style="color:#6366f1;">device_hub</i>
       Correlative Clinical Insights
     </h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(400px, 1fr));gap:24px;">
-      
+
       <!-- Cardiorenal Cascade -->
-      {% if cardiorenal_cascade and cardiorenal_cascade.available and cardiorenal_cascade.cascade_detected %}
-      <div style="background:#fff;border-radius:12px;border:1px solid #fecaca;padding:24px;box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+      {% if cardiorenal_cascade and cardiorenal_cascade.available %}
+      {% set cr_border = '#fecaca' if cardiorenal_cascade.cascade_detected else '#e2e8f0' %}
+      {% set cr_shadow = 'rgba(239,68,68,0.1)' if cardiorenal_cascade.cascade_detected else 'rgba(0,0,0,0.06)' %}
+      <div style="background:#fff;border-radius:12px;border:1px solid {{ cr_border }};padding:24px;box-shadow:0 2px 8px {{ cr_shadow }};">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-          <div style="background:#fee2e2;padding:8px;border-radius:8px;">
-            <i class="material-icons" style="color:#ef4444;">water_drop</i>
+          <div style="background:{% if cardiorenal_cascade.cascade_detected %}#fee2e2{% else %}#f1f5f9{% endif %};padding:8px;border-radius:8px;">
+            <i class="material-icons" style="color:{% if cardiorenal_cascade.cascade_detected %}#ef4444{% else %}#64748b{% endif %};">water_drop</i>
           </div>
-          <h3 style="margin:0;font-size:1.1rem;color:#7f1d1d;">Cardiorenal / Fluid Cascade</h3>
+          <h3 style="margin:0;font-size:1.1rem;color:{% if cardiorenal_cascade.cascade_detected %}#7f1d1d{% else %}#1e293b{% endif %};">Cardiorenal / Fluid Cascade</h3>
+          {% if cardiorenal_cascade.cascade_detected %}
+          <span style="margin-left:auto;padding:3px 10px;background:#fee2e2;color:#dc2626;border-radius:20px;font-size:0.72rem;font-weight:700;">HIGH RISK</span>
+          {% else %}
+          <span style="margin-left:auto;padding:3px 10px;background:#dcfce7;color:#166534;border-radius:20px;font-size:0.72rem;font-weight:700;">LOW RISK</span>
+          {% endif %}
         </div>
-        <p style="font-size:0.85rem;color:#ef4444;font-weight:600;margin-top:0;margin-bottom:16px;">
+        <p style="font-size:0.85rem;color:{% if cardiorenal_cascade.cascade_detected %}#ef4444{% else %}#64748b{% endif %};font-weight:{% if cardiorenal_cascade.cascade_detected %}600{% else %}400{% endif %};margin:0 0 16px;">
           {{ cardiorenal_cascade.message }}
         </p>
+        {% if cardiorenal_cascade.events %}
         <div style="display:flex;flex-direction:column;gap:12px;">
           {% for ev in cardiorenal_cascade.events %}
           <div style="display:flex;gap:10px;align-items:flex-start;">
@@ -744,35 +766,66 @@
           </div>
           {% endfor %}
         </div>
+        {% else %}
+        <div style="font-size:0.85rem;color:#94a3b8;text-align:center;padding:12px 0;">No significant cardiorenal risk factors identified in recent records.</div>
+        {% endif %}
+        <div style="margin-top:12px;font-size:0.75rem;color:#94a3b8;">Risk score: {{ cardiorenal_cascade.risk_score }} / 10+ · Based on last 6 months</div>
+      </div>
+      {% else %}
+      <div style="background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="background:#f1f5f9;padding:8px;border-radius:8px;">
+            <i class="material-icons" style="color:#94a3b8;">water_drop</i>
+          </div>
+          <h3 style="margin:0;font-size:1.1rem;color:#94a3b8;">Cardiorenal / Fluid Cascade</h3>
+        </div>
+        <div style="font-size:0.85rem;color:#94a3b8;">Insufficient data — enter monthly records including IDWG and BP.</div>
       </div>
       {% endif %}
 
       <!-- AVF Maturation Cascade -->
-      {% if avf_cascade and avf_cascade.available and avf_cascade.cascade_detected %}
-      <div style="background:#fff;border-radius:12px;border:1px solid #fed7aa;padding:24px;box-shadow:0 2px 8px rgba(249,115,22,0.1);">
+      {% if avf_cascade and avf_cascade.available %}
+      {% set avf_border = '#fed7aa' if avf_cascade.cascade_detected else '#e2e8f0' %}
+      {% set avf_shadow = 'rgba(249,115,22,0.1)' if avf_cascade.cascade_detected else 'rgba(0,0,0,0.06)' %}
+      <div style="background:#fff;border-radius:12px;border:1px solid {{ avf_border }};padding:24px;box-shadow:0 2px 8px {{ avf_shadow }};">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-          <div style="background:#ffedd5;padding:8px;border-radius:8px;">
-            <i class="material-icons" style="color:#f97316;">route</i>
+          <div style="background:{% if avf_cascade.cascade_detected %}#ffedd5{% else %}#f1f5f9{% endif %};padding:8px;border-radius:8px;">
+            <i class="material-icons" style="color:{% if avf_cascade.cascade_detected %}#f97316{% else %}#64748b{% endif %};">route</i>
           </div>
-          <h3 style="margin:0;font-size:1.1rem;color:#9a3412;">AVF Maturation Delay</h3>
+          <h3 style="margin:0;font-size:1.1rem;color:{% if avf_cascade.cascade_detected %}#9a3412{% else %}#1e293b{% endif %};">AVF Maturation</h3>
+          {% if avf_cascade.cascade_detected %}
+          <span style="margin-left:auto;padding:3px 10px;background:#ffedd5;color:#ea580c;border-radius:20px;font-size:0.72rem;font-weight:700;">DELAYED</span>
+          {% else %}
+          <span style="margin-left:auto;padding:3px 10px;background:#dcfce7;color:#166534;border-radius:20px;font-size:0.72rem;font-weight:700;">ON TRACK</span>
+          {% endif %}
         </div>
-        <p style="font-size:0.85rem;color:#ea580c;font-weight:600;margin-top:0;margin-bottom:16px;">
+        <p style="font-size:0.85rem;color:{% if avf_cascade.cascade_detected %}#ea580c{% else %}#64748b{% endif %};font-weight:{% if avf_cascade.cascade_detected %}600{% else %}400{% endif %};margin:0 0 16px;">
           {{ avf_cascade.message }}
         </p>
         <div style="display:flex;flex-direction:column;gap:12px;">
           {% for ev in avf_cascade.events %}
           <div style="display:flex;gap:10px;align-items:flex-start;">
-            <i class="material-icons" style="font-size:1rem;color:#f97316;margin-top:2px;">arrow_right</i>
+            <i class="material-icons" style="font-size:1rem;color:{% if avf_cascade.cascade_detected %}#f97316{% else %}#10b981{% endif %};margin-top:2px;">arrow_right</i>
             <span style="font-size:0.85rem;color:#334155;line-height:1.4;">{{ ev.text }}</span>
           </div>
           {% endfor %}
         </div>
+        <div style="margin-top:12px;font-size:0.75rem;color:#94a3b8;">Time to first cannulation: {{ avf_cascade.delay_days }} days · Risk score: {{ avf_cascade.risk_score }}</div>
+      </div>
+      {% else %}
+      <div style="background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="background:#f1f5f9;padding:8px;border-radius:8px;">
+            <i class="material-icons" style="color:#94a3b8;">route</i>
+          </div>
+          <h3 style="margin:0;font-size:1.1rem;color:#94a3b8;">AVF Maturation</h3>
+        </div>
+        <div style="font-size:0.85rem;color:#94a3b8;">AVF surgery date or first cannulation date not recorded — enter in patient profile to enable this analysis.</div>
       </div>
       {% endif %}
 
     </div>
   </div>
-  {% endif %}
 
 </body>
 </html>

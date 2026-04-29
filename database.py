@@ -150,6 +150,8 @@ class Patient(Base):
     meal_records = relationship("PatientMealRecord", back_populates="patient", cascade="all, delete-orphan")
     symptom_reports = relationship("PatientSymptomReport", back_populates="patient", cascade="all, delete-orphan")
     reminders = relationship("PatientReminder", back_populates="patient", cascade="all, delete-orphan")
+    dry_weight_assessments = relationship("DryWeightAssessment", back_populates="patient", cascade="all, delete-orphan")
+    events = relationship("ClinicalEvent", back_populates="patient", cascade="all, delete-orphan")
 
 class PatientReminder(Base):
     __tablename__ = "patient_reminders"
@@ -321,6 +323,38 @@ class SustainabilityRecord(Base):
     updated_by = Column(String)
 
 
+class DryWeightAssessment(Base):
+    """Specialized assessment for determining true Dry Weight."""
+    __tablename__ = "dry_weight_assessments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    assessment_date = Column(Date, nullable=False)
+    
+    # ── Assessment Tools ──────────────────────────────────────────────────────
+    ivc_diameter_max = Column(Float)         # mm
+    ivc_collapsibility_index = Column(Float) # %
+    bia_fluid_overload_litres = Column(Float) # Litres (+/-)
+    bia_overhydration_percent = Column(Float) # %
+    bia_total_body_water = Column(Float)      # Litres
+    bia_phase_angle = Column(Float)          # degrees
+    nt_probnp = Column(Float)                # pg/mL
+    
+    # ── Clinical Observations ─────────────────────────────────────────────────
+    edema_status = Column(String)            # None / Trace / Pitting
+    bp_lability = Column(String)             # Stable / High Lability / Low Lability
+    
+    # ── Decision ─────────────────────────────────────────────────────────────
+    recommended_dry_weight = Column(Float)   # kg
+    assessment_notes = Column(Text)
+    
+    # Metadata
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    performed_by = Column(String)
+
+    patient = relationship("Patient", back_populates="dry_weight_assessments")
+
+
 class AlertLog(Base):
     __tablename__ = "alert_logs"
 
@@ -417,6 +451,11 @@ class SessionRecord(Base):
     # ── Intradialytic Events (structured booleans for analytics) ─────────────
     idh_episode = Column(Boolean)            # EpisodeOfIntradialyticHypotension (SBP drop >20 or <90)
     idh_hypertension = Column(Boolean)       # EpisodeOfIntradialyticHypertension
+
+    # ── Respiratory Symptoms (Occult Overload surveillance) ──────────────────
+    pre_hd_dyspnea_likert = Column(Integer)  # 1-5 (1=None, 5=Severe) - 1 day prior
+    post_hd_dyspnea_likert = Column(Integer) # 1-5 (1=None, 5=Severe)
+
     muscle_cramps = Column(Boolean)          # MuscleCrampsSymptom
     nausea_vomiting = Column(Boolean)        # NauseaVomitingSymptom
     chest_pain = Column(Boolean)             # ChestPainSymptom
@@ -435,6 +474,10 @@ class SessionRecord(Base):
     dialysis_adherence = Column(String)      # e.g. "Missed 1 session this month"
     doctor_concerns = Column(Text)           # Flagged for reviewing physician
     next_appointment_id = Column(String)
+
+    # ── Emergency / Extra Sessions ──────────────────────────────────────────
+    is_emergency = Column(Boolean, default=False)
+    reason_emergency = Column(String)        # Fluid Overload / Hyperkalemia / Dyspnea / Other
 
     # ── Interim Labs (Optional Session-level Labs) ──────────────────────────
     interim_hb = Column(Float)           # g/dL — Automated promotion to InterimLabRecord
@@ -495,7 +538,7 @@ class ClinicalEvent(Base):
     created_by  = Column(String)
     created_at  = Column(DateTime, default=datetime.utcnow)
 
-    patient = relationship("Patient")
+    patient = relationship("Patient", back_populates="events")
 
 
 class PatientMealRecord(Base):

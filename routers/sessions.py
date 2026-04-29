@@ -61,6 +61,10 @@ async def create_session(
     interim_trigger: Optional[str] = Form(None),
     intradialytic_exercise_mins: Optional[int] = Form(None),
     intradialytic_meals_eaten: bool = Form(False),
+    pre_hd_dyspnea_likert: Optional[int] = Form(None),
+    post_hd_dyspnea_likert: Optional[int] = Form(None),
+    is_emergency: bool = Form(False),
+    reason_emergency: Optional[str] = Form(None),
 ):
     try:
         session_service.create_session_record(db, patient_id, locals())
@@ -114,6 +118,10 @@ async def update_session(
     interim_trigger: Optional[str] = Form(None),
     intradialytic_exercise_mins: Optional[int] = Form(None),
     intradialytic_meals_eaten: bool = Form(False),
+    pre_hd_dyspnea_likert: Optional[int] = Form(None),
+    post_hd_dyspnea_likert: Optional[int] = Form(None),
+    is_emergency: bool = Form(False),
+    reason_emergency: Optional[str] = Form(None),
 ):
     try:
         session_service.update_session_record(db, session_id, locals())

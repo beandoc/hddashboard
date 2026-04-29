@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vascular Access Quality - HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --radius: 16px;
+            --bg-main: #f5f7ff;
+        }
+        body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        header { background: #1e1b4b; color: white; padding: 40px 20px; text-align: center; }
+        header h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 2rem; }
+        
+        .container { max-width: 1000px; margin: -30px auto 60px; padding: 0 20px; }
+        
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 30px; border-radius: var(--radius); box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; position: relative; overflow: hidden; }
+        
+        .stat-val { font-size: 1.8rem; font-weight: 800; font-family: 'Outfit'; z-index: 2; margin-top: 10px; }
+        .stat-lbl { color: #64748b; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+        .target-lbl { font-size: 0.75rem; color: #94a3b8; margin-top: 5px; }
+
+        .card { background: white; border-radius: var(--radius); padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+        .card h3 { font-family: 'Outfit', sans-serif; margin-top: 0; display: flex; align-items: center; gap: 10px; color: #1e1b4b; }
+        
+        .watchlist-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .watchlist-table th { text-align: left; padding: 12px 15px; background: #f8fafc; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
+        .watchlist-table td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+        
+        .badge-urgent { background: #fee2e2; color: #b91c1c; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+        
+        .indicator-bar { height: 8px; background: #f1f5f9; border-radius: 4px; margin-top: 15px; position: relative; overflow: hidden; }
+        .indicator-fill { height: 100%; transition: width 0.5s; }
+
+        .status-ok { color: #10b981; }
+        .status-warning { color: #f59e0b; }
+        .status-danger { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+{% include "_nav.html" %}
+
+<header>
+    <h1>Vascular Access Quality Dashboard</h1>
+    <p style="opacity:0.8; margin-top:5px;">Adherence to Fistula-First clinical recommendations</p>
+</header>
+
+<div class="container">
+    <div class="stats-row">
+        <!-- PREVALENT AVF RATE -->
+        <div class="stat-card">
+            <div class="stat-lbl">Prevalent AVF Rate</div>
+            <div class="stat-val {{ 'status-ok' if metrics.prevalent_rate >= metrics.target_prevalent else 'status-warning' }}">
+                {{ metrics.prevalent_rate }}%
+            </div>
+            <div class="target-lbl">Target: &ge;{{ metrics.target_prevalent }}%</div>
+            <div class="indicator-bar">
+                <div class="indicator-fill" style="width: {{ metrics.prevalent_rate }}%; background: {{ '#10b981' if metrics.prevalent_rate >= metrics.target_prevalent else '#f59e0b' }}"></div>
+            </div>
+        </div>
+
+        <!-- INCIDENT AVF RATE -->
+        <div class="stat-card">
+            <div class="stat-lbl">Incident AVF Rate (New)</div>
+            <div class="stat-val {{ 'status-ok' if metrics.incident_rate >= metrics.target_incident else 'status-danger' }}">
+                {{ metrics.incident_rate }}%
+            </div>
+            <div class="target-lbl">Target: &ge;{{ metrics.target_incident }}%</div>
+            <div class="indicator-bar">
+                <div class="indicator-fill" style="width: {{ metrics.incident_rate }}%; background: {{ '#10b981' if metrics.incident_rate >= metrics.target_incident else '#ef4444' }}"></div>
+            </div>
+        </div>
+
+        <!-- WATCHLIST COUNT -->
+        <div class="stat-card">
+            <div class="stat-lbl">Delayed Conversions</div>
+            <div class="stat-val {{ 'status-danger' if metrics.watchlist_count > 0 else 'status-ok' }}">
+                {{ metrics.watchlist_count }}
+            </div>
+            <div class="target-lbl">Non-AVF access > 90 days</div>
+            <div class="indicator-bar">
+                <div class="indicator-fill" style="width: {{ (metrics.watchlist_count / 10 * 100)|min(100) }}%; background: #ef4444"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DELAYED CONVERSION WATCHLIST -->
+    <div class="card">
+        <h3><i class="material-icons" style="color:#ef4444">history_toggle_off</i> Non-AVF Access > 90 Days Watchlist</h3>
+        <p style="color:#64748b; font-size:0.9rem; margin-top:5px;">Patients identified as "Late Referrals" or needing urgent permanent access construction per the 1st 3 months recommendation.</p>
+        
+        {% if watchlist %}
+        <div style="overflow-x: auto;">
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>Patient Name</th>
+                        <th>HD Initiation</th>
+                        <th>Current Access</th>
+                        <th>Days on HD</th>
+                        <th>Status Flag</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in watchlist %}
+                    <tr>
+                        <td><strong>{{ item.patient.name }}</strong></td>
+                        <td>{{ item.vintage }}</td>
+                        <td><span style="color:#ef4444; font-weight:600;">{{ item.patient.access_type }}</span></td>
+                        <td>{{ item.days }} Days</td>
+                        <td><span class="badge badge-urgent">Needs Permanent Access</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:40px; color:#94a3b8;">
+            <i class="material-icons" style="font-size:3rem; opacity:0.3;">check_circle</i>
+            <p style="margin-top:10px;">All active patients have converted to permanent access within the 90-day window.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="background:#fffbeb; border:1px solid #fef3c7; padding:20px; border-radius:12px; font-size:0.9rem; color:#b45309; line-height:1.6;">
+        <i class="material-icons" style="vertical-align:middle; font-size:1.2rem; margin-right:5px;">info</i>
+        <strong>Clinical Recommendation:</strong> Permanent vascular access (AVF) should be constructed within the first 3 months on HD for patients starting with temporary access. Attempt permanent access in the order: Distal AVF &rarr; Proximal AVF &rarr; Graft &rarr; Tunnelled Catheter.
+    </div>
+</div>
+
+</body>
+</html>

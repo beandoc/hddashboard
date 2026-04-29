@@ -31,10 +31,18 @@ import re
 import math
 import statistics
 import logging
+from datetime import datetime
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from database import MonthlyRecord, Patient
+
+
+def get_month_label(month_str: str) -> str:
+    try:
+        return datetime.strptime(month_str, "%Y-%m").strftime("%B %Y")
+    except (ValueError, TypeError):
+        return month_str
 
 try:
     from scipy.stats import t as t_dist, norm as _norm
@@ -1851,4 +1859,51 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
         "events": events,
         "message": "Delayed AVF Maturation linked to patient demographics." if cascade_detected else "AVF Maturation within expected parameters or uncorrelated."
     }
+
+
+def detect_occult_overload(db: Session, patient_id: int):
+    """
+    Identifies 'Sarcopenia-Masked Occult Volume Overload'.
+    Logic: Stable/Rising weight + Falling Albumin + High IDWG + Respiratory symptoms.
+    """
+    from database import Patient, MonthlyRecord, SessionRecord
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient: return None
+    
+    # 1. Check for significant Dry Weight Drop (Muscle wasting)
+    # Compare current DW vs first recorded monthly weight
+    first_record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.asc()).first()
+    dw_drop = 0
+    if first_record and first_record.weight_post_target and patient.dry_weight:
+        dw_drop = first_record.weight_post_target - patient.dry_weight
+
+    # 2. Nutrition Trend (Albumin)
+    recent_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
+    alb_decline = False
+    if len(recent_records) >= 2:
+        alb_decline = recent_records[0].albumin < recent_records[-1].albumin
+
+    # 3. Respiratory Symptoms (Likert >= 3)
+    recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(10).all()
+    breathless = any([(s.pre_hd_dyspnea_likert and s.pre_hd_dyspnea_likert >= 3) or 
+                      (s.post_hd_dyspnea_likert and s.post_hd_dyspnea_likert >= 3) for s in recent_sessions])
+
+    # 4. Emergency Sessions (Volume related)
+    emergency_sessions = [s for s in recent_sessions if s.is_emergency and s.reason_emergency in ["Fluid Overload", "Pulmonary Oedema", "Severe Dyspnea"]]
+    freq_emergency = len(emergency_sessions) >= 1
+
+    # 5. Composite Alert
+    if (dw_drop > 3 and alb_decline) or (breathless and alb_decline) or (freq_emergency):
+        reason = f"Significant DW drop ({round(dw_drop,1)}kg) with declining Albumin and persistent dyspnea."
+        if freq_emergency:
+            reason = f"Emergency session required due to {emergency_sessions[0].reason_emergency}. " + reason
+            
+        return {
+            "type": "Occult Overload Suspected",
+            "reason": reason,
+            "recommendation": "Perform BIA, IVC Diameter check, and Lung USG. Review dry weight and consider upgrading to 3x/week schedule.",
+            "severity": "High"
+        }
+    
+    return None
 
