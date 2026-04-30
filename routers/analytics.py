@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime, timedelta
 from database import get_db, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
 from config import templates
-from dependencies import get_user
+from dependencies import get_user, _require_analytics_access
 from dashboard_logic import compute_dashboard, get_current_month_str
 from ml_analytics import (
     run_patient_analytics, analyze_bfr_trend, run_cohort_analytics,
@@ -24,6 +24,7 @@ router = APIRouter(tags=["analytics"])
 
 @router.get("/analytics/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
     month_str = month or get_current_month_str()
     
     # 1. Monthly Totals
@@ -65,6 +66,7 @@ async def census_report(request: Request, month: Optional[str] = None, db: Sessi
 
 @router.get("/analytics/vascular-access", response_class=HTMLResponse)
 async def vascular_access_quality(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
     from datetime import datetime, timedelta
     month_str = month or get_current_month_str()
     
@@ -111,7 +113,7 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
 
 @router.get("/analytics/mortality-risk", response_class=HTMLResponse)
 async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
-    """Cohort-level mortality risk table: all active patients ranked by 1-year risk."""
+    _require_analytics_access(request)
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
 
     rows = []
@@ -179,7 +181,7 @@ async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/analytics", response_class=HTMLResponse)
 async def analytics_hub(request: Request, db: Session = Depends(get_db)):
-    # Fetch some "at risk" patients for the summary table
+    _require_analytics_access(request)
     from dashboard_logic import get_current_month_str
     from ml_analytics import run_cohort_analytics
     
@@ -202,6 +204,7 @@ async def api_patients(q: str = "", db: Session = Depends(get_db)):
 
 @router.get("/analytics/patients/{patient_id}", response_class=HTMLResponse)
 async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
     analytics = run_patient_analytics(db, patient_id)

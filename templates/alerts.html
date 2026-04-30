@@ -21,27 +21,13 @@
         body { font-family:'Inter',sans-serif; margin:0; padding:0; background-color:var(--bg-main); color:#1e293b; -webkit-font-smoothing: antialiased; }
         h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
 
-        .app-nav { 
-            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px);
-            display: flex; align-items: center; justify-content: space-between; 
-            padding: 0 32px; height: 60px; position: sticky; top: 0; z-index: 1000; 
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white; padding: 20px 32px;
+            display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
         }
-        .app-nav .brand { color: #fff; font-size: 1.1rem; font-weight: 600; }
-        .app-nav .nav-links { display: flex; gap: 8px; }
-        .app-nav a { 
-            color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.85rem; 
-            padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
-        }
-        .app-nav a:hover, .app-nav a.active { color: #fff; background: rgba(255,255,255,0.1); }
-        .mobile-menu-btn { display: none; }
-
-        header { 
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-            color: white; padding: 40px 24px; text-align: center; 
-        }
-        header h1 { margin: 0; font-size: 2em; letter-spacing: -0.02em; }
-        header p { margin: 12px 0 0; opacity: 0.9; font-size: 0.95em; max-width: 600px; margin-left: auto; margin-right: auto; }
+        header h1 { margin: 0; font-size: 1.35rem; letter-spacing: -0.02em; font-family: 'Outfit', sans-serif; }
+        header p { margin: 4px 0 0; opacity: 0.55; font-size: 0.78rem; }
 
         .container { max-width: 1000px; margin: 30px auto; padding: 0 24px; padding-bottom: 60px; }
         
@@ -93,20 +79,7 @@
             border: 1px solid #fee2e2; border-radius: 6px; padding: 4px 10px; margin-top: 8px; font-weight: 600;
         }
 
-        /* MOBILE DRAWER */
-        .mobile-drawer {
-            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
-            z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px;
-        }
-        .mobile-drawer.open { display: flex; }
-        .mobile-drawer a {
-            color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px;
-            background: rgba(255,255,255,0.05); font-weight: 600;
-        }
-
         @media(max-width: 768px) {
-            .app-nav .nav-links { display: none; }
-            .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
             .action-grid { grid-template-columns: 1fr !important; }
             .patient-card { flex-direction: column; align-items: stretch; gap: 16px; }
             .patient-card a { justify-content: center; }
@@ -118,8 +91,10 @@
 
 
     <header>
-        <h1>Reminders & Alerts</h1>
-        <p>Command center for clinical notifications and automated reporting.</p>
+        <div>
+            <h1>Reminders &amp; Alerts</h1>
+            <p>Clinical notifications and automated reporting · CH(SC) Nephrology</p>
+        </div>
     </header>
 
     <div class="container">

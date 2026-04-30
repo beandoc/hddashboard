@@ -70,7 +70,7 @@ async def create_session(
         session_service.create_session_record(db, patient_id, locals())
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return RedirectResponse(url=f"/patients/{patient_id}/analytics", status_code=303)
+    return RedirectResponse(url=f"/analytics/patients/{patient_id}", status_code=303)
 
 @session_router.get("/{session_id}/edit", response_class=HTMLResponse)
 async def edit_session_form(session_id: int, request: Request, db: Session = Depends(get_db)):
@@ -129,7 +129,7 @@ async def update_session(
         raise HTTPException(status_code=404, detail=str(e))
     
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
-    return RedirectResponse(url=f"/patients/{sess.patient_id}/analytics", status_code=303)
+    return RedirectResponse(url=f"/analytics/patients/{sess.patient_id}", status_code=303)
 
 @session_router.post("/{session_id}/delete")
 async def delete_session(session_id: int, db: Session = Depends(get_db)):
@@ -138,5 +138,5 @@ async def delete_session(session_id: int, db: Session = Depends(get_db)):
         pid = sess.patient_id
         db.delete(sess)
         db.commit()
-        return RedirectResponse(url=f"/patients/{pid}/analytics", status_code=303)
+        return RedirectResponse(url=f"/analytics/patients/{pid}", status_code=303)
     return RedirectResponse(url="/patients", status_code=303)

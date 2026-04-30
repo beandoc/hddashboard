@@ -1982,15 +1982,16 @@ def analyze_pds(db: Session, patient_id: int) -> Dict:
 
 def analyze_mia_cascade(db: Session, patient_id: int) -> dict:
     """
-    Malnutrition–Inflammation–Atherosclerosis (MIA) Early Warning Dashboard
-    Refined logic based on clinical review thresholds (Practical Variables):
-    1. Nutrition (Albumin, nPCR, Weight)
-    2. Inflammation (CRP, Ferritin)
-    3. Atherosclerosis (Pulse Pressure, CaXP)
-    4. Dialysis Factors (UFR, Kt/V, IDWG)
-    5. Events (Hospitalizations)
+    Malnutrition–Inflammation–Atherosclerosis (MIA) Early Warning Dashboard.
+
+    Each domain explicitly tracks data availability so the UI can distinguish:
+      score=0 + data_available=True  → genuinely stable (green)
+      score=0 + data_available=False → no data entered   (gray — unknown)
+
+    Domains: Nutrition, Inflammation, Atherosclerosis, Dialysis, Events
+    Inputs:  albumin, nPCR, CRP, ferritin, TSAT, BP, UFR, Kt/V, IDWG, hospitalization
     """
-    from database import MonthlyRecord, Patient, ClinicalEvent
+    from database import MonthlyRecord, Patient
 
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     records = db.query(MonthlyRecord).filter(
@@ -2000,107 +2001,280 @@ def analyze_mia_cascade(db: Session, patient_id: int) -> dict:
     if not records:
         return {"available": False}
 
-    records = records[-9:] # 9 months view
+    records = records[-9:]
+
+    # Fields expected per domain (for completeness tracking)
+    DOMAIN_FIELDS = {
+        "nutrition":       ["albumin", "nPCR"],
+        "inflammation":    ["CRP", "ferritin", "TSAT"],
+        "atherosclerosis": ["BP systolic", "BP diastolic"],
+        "dialysis":        ["UFR", "Kt/V", "IDWG"],
+        "events":          [],  # always known from boolean flag
+    }
+    total_expected = sum(len(v) for v in DOMAIN_FIELDS.values())
 
     timeline = []
-    
-    # Track previous month values for trend detection (e.g. Albumin fall)
     prev_alb = None
-    
-    for i, rec in enumerate(records):
-        m = rec.record_month
-        domain_scores = {"nutrition": 0, "inflammation": 0, "atherosclerosis": 0, "dialysis": 0, "events": 0}
-        events = []
-        
-        # ── 1. NUTRITION ──────────────────────────────────────────────────────
-        # Albumin: <3.8 (Y), <3.5 (R). Fall >0.2 in 4-8 weeks (Y)
-        if rec.albumin:
-            if rec.albumin < 3.5: domain_scores["nutrition"] = 2
-            elif rec.albumin < 3.8: domain_scores["nutrition"] = 1
-            
-            if prev_alb and (prev_alb - rec.albumin) >= 0.2:
-                domain_scores["nutrition"] = max(domain_scores["nutrition"], 1)
-                events.append({"icon": "🥩", "color": "#f59e0b", "text": f"Rapid Albumin drop ({prev_alb} -> {rec.albumin} g/dL)"})
-            prev_alb = rec.albumin
+    alb_history = []
 
-        # nPCR: <1.2 (Y), <1.0 (R)
-        if getattr(rec, "npcr", None):
-            if rec.npcr < 1.0: domain_scores["nutrition"] = 2
-            elif rec.npcr < 1.2: domain_scores["nutrition"] = max(domain_scores["nutrition"], 1)
+    for rec in records:
+        m = rec.record_month
+        domain_scores       = {}
+        domain_data         = {}   # True = at least one input present
+        domain_missing      = {}   # list of field names not entered
+        domain_values       = {}   # actual values for tooltip display
+        events              = []
+
+        # ── 1. NUTRITION ──────────────────────────────────────────────────────
+        nut_score   = 0
+        nut_present = []
+        nut_missing = []
+        nut_vals    = {}
+
+        if rec.albumin is not None:
+            nut_present.append("albumin")
+            nut_vals["albumin"] = rec.albumin
+            alb_history.append(rec.albumin)
+
+            if rec.albumin < 3.5:
+                nut_score = 2
+            elif rec.albumin < 3.8:
+                nut_score = 1
+
+            # Month-on-month acute drop ≥ 0.2 g/dL
+            if prev_alb is not None and (prev_alb - rec.albumin) >= 0.2:
+                nut_score = max(nut_score, 1)
+                events.append({"icon": "🥩", "color": "#f59e0b",
+                    "text": f"Acute albumin drop: {prev_alb:.1f} → {rec.albumin:.1f} g/dL"})
+
+            # Sustained decline: 3+ consecutive monthly falls
+            real_alb = [a for a in alb_history if a is not None]
+            if len(real_alb) >= 3 and real_alb[-1] < real_alb[-2] < real_alb[-3]:
+                nut_score = max(nut_score, 2)
+                events.append({"icon": "📉", "color": "#ef4444",
+                    "text": f"Sustained albumin decline ≥3 months: {real_alb[-3]:.1f} → {real_alb[-1]:.1f} g/dL"})
+
+            prev_alb = rec.albumin
+        else:
+            nut_missing.append("albumin")
+            alb_history.append(None)
+
+        npcr = getattr(rec, "npcr", None)
+        if npcr is not None:
+            nut_present.append("nPCR")
+            nut_vals["npcr"] = npcr
+            if npcr < 1.0:
+                nut_score = max(nut_score, 2)
+            elif npcr < 1.2:
+                nut_score = max(nut_score, 1)
+        else:
+            nut_missing.append("nPCR")
+
+        domain_scores["nutrition"]  = nut_score
+        domain_data["nutrition"]    = len(nut_present) > 0
+        domain_missing["nutrition"] = nut_missing
+        domain_values["nutrition"]  = nut_vals
 
         # ── 2. INFLAMMATION ───────────────────────────────────────────────────
-        # CRP: >3 (Y), >10 (R), >20 (R+)
-        if rec.crp:
-            if rec.crp >= 10: domain_scores["inflammation"] = 2
-            elif rec.crp >= 3: domain_scores["inflammation"] = 1
-            
-            if rec.crp > 20:
-                events.append({"icon": "🔥", "color": "#ef4444", "text": f"Severe Inflammation (CRP {rec.crp} mg/L)"})
+        inf_score   = 0
+        inf_present = []
+        inf_missing = []
+        inf_vals    = {}
 
-        # Ferritin: >800 (Y) if TSAT low
-        if rec.serum_ferritin and rec.serum_ferritin > 800 and (rec.tsat or 100) < 20:
-            domain_scores["inflammation"] = max(domain_scores["inflammation"], 1)
-            events.append({"icon": "🧪", "color": "#f59e0b", "text": "High Ferritin + Low TSAT (RE Siderosis/Inflammation)"})
+        if rec.crp is not None:
+            inf_present.append("CRP")
+            inf_vals["crp"] = rec.crp
+            if rec.crp >= 10:
+                inf_score = 2
+                events.append({"icon": "🔥", "color": "#ef4444",
+                    "text": f"High CRP {rec.crp:.1f} mg/L (≥10 — active inflammation)"})
+            elif rec.crp >= 3:
+                inf_score = 1
+                events.append({"icon": "🔥", "color": "#f59e0b",
+                    "text": f"Elevated CRP {rec.crp:.1f} mg/L (≥3 — subclinical inflammation)"})
+        else:
+            inf_missing.append("CRP")
 
-        # ── 3. ATHEROSCLEROSIS / CARDIAC ──────────────────────────────────────
-        # Pulse Pressure: >60 (Y), >70 (R)
-        if getattr(rec, "bp_sys", None) and getattr(rec, "bp_dia", None):
-            pp = rec.bp_sys - rec.bp_dia
-            if pp > 70: domain_scores["atherosclerosis"] = 2
-            elif pp > 60: domain_scores["atherosclerosis"] = max(domain_scores["atherosclerosis"], 1)
+        if rec.serum_ferritin is not None:
+            inf_present.append("ferritin")
+            inf_vals["ferritin"] = rec.serum_ferritin
+        else:
+            inf_missing.append("ferritin")
+
+        if rec.tsat is not None:
+            inf_vals["tsat"] = rec.tsat
+            if rec.serum_ferritin is not None and rec.serum_ferritin > 800 and rec.tsat < 20:
+                inf_score = max(inf_score, 1)
+                events.append({"icon": "🧪", "color": "#f59e0b",
+                    "text": f"Ferritin {rec.serum_ferritin:.0f} ng/mL + TSAT {rec.tsat:.1f}% — reticuloendothelial siderosis"})
+        else:
+            inf_missing.append("TSAT")
+
+        domain_scores["inflammation"]  = inf_score
+        domain_data["inflammation"]    = len(inf_present) > 0
+        domain_missing["inflammation"] = inf_missing
+        domain_values["inflammation"]  = inf_vals
+
+        # ── 3. ATHEROSCLEROSIS / VASCULAR ─────────────────────────────────────
+        ath_score   = 0
+        ath_present = []
+        ath_missing = []
+        ath_vals    = {}
+
+        bp_sys = getattr(rec, "bp_sys", None)
+        bp_dia = getattr(rec, "bp_dia", None)
+        if bp_sys is not None:
+            ath_present.append("BP systolic")
+            ath_vals["bp_sys"] = bp_sys
+        else:
+            ath_missing.append("BP systolic")
+        if bp_dia is not None:
+            ath_present.append("BP diastolic")
+            ath_vals["bp_dia"] = bp_dia
+        else:
+            ath_missing.append("BP diastolic")
+
+        if bp_sys is not None and bp_dia is not None:
+            pp = bp_sys - bp_dia
+            ath_vals["pp"] = pp
+            if pp > 70:
+                ath_score = 2
+                events.append({"icon": "🫀", "color": "#ef4444",
+                    "text": f"Severe pulse pressure {pp} mmHg (>70 — advanced arterial stiffness)"})
+            elif pp > 60:
+                ath_score = 1
+                events.append({"icon": "🫀", "color": "#f59e0b",
+                    "text": f"Elevated pulse pressure {pp} mmHg (>60 — early arterial stiffness)"})
+
+        domain_scores["atherosclerosis"]  = ath_score
+        domain_data["atherosclerosis"]    = len(ath_present) > 0
+        domain_missing["atherosclerosis"] = ath_missing
+        domain_values["atherosclerosis"]  = ath_vals
 
         # ── 4. DIALYSIS FACTORS ───────────────────────────────────────────────
-        # UFR: >10 (Y), >13 (R). Kt/V: <1.2 (Y). IDWG: >5% (Y)
-        if getattr(rec, "ufr", None):
-            if rec.ufr > 13: domain_scores["dialysis"] = 2
-            elif rec.ufr > 10: domain_scores["dialysis"] = 1
-            
-        if rec.single_pool_ktv and rec.single_pool_ktv < 1.2:
-            domain_scores["dialysis"] = max(domain_scores["dialysis"], 1)
-            
-        if rec.idwg and p.dry_weight:
-            idwg_pct = (rec.idwg / p.dry_weight) * 100
-            if idwg_pct > 5.0:
-                domain_scores["dialysis"] = max(domain_scores["dialysis"], 1)
-                events.append({"icon": "⚖️", "color": "#f59e0b", "text": f"High fluid gain ({round(idwg_pct,1)}% IDWG)"})
+        dial_score   = 0
+        dial_present = []
+        dial_missing = []
+        dial_vals    = {}
+
+        ufr = getattr(rec, "ufr", None)
+        if ufr is not None:
+            dial_present.append("UFR")
+            dial_vals["ufr"] = ufr
+            if ufr > 13:
+                dial_score = 2
+                events.append({"icon": "⚙️", "color": "#ef4444",
+                    "text": f"Dangerous UFR {ufr:.1f} mL/h/kg (>13 — IDH risk, cardiac stress)"})
+            elif ufr > 10:
+                dial_score = max(dial_score, 1)
+                events.append({"icon": "⚙️", "color": "#f59e0b",
+                    "text": f"Elevated UFR {ufr:.1f} mL/h/kg (>10)"})
+        else:
+            dial_missing.append("UFR")
+
+        ktv = rec.single_pool_ktv
+        if ktv is not None:
+            dial_present.append("Kt/V")
+            dial_vals["ktv"] = ktv
+            if ktv < 1.2:
+                dial_score = max(dial_score, 1)
+                events.append({"icon": "⚙️", "color": "#f59e0b",
+                    "text": f"Inadequate dialysis dose: Kt/V {ktv:.2f} (KDOQI minimum 1.2)"})
+        else:
+            dial_missing.append("Kt/V")
+
+        if rec.idwg is not None:
+            dial_present.append("IDWG")
+            dial_vals["idwg"] = rec.idwg
+            if p.dry_weight:
+                idwg_pct = (rec.idwg / p.dry_weight) * 100
+                dial_vals["idwg_pct"] = round(idwg_pct, 1)
+                if idwg_pct > 5.0:
+                    dial_score = max(dial_score, 1)
+                    events.append({"icon": "⚖️", "color": "#f59e0b",
+                        "text": f"Interdialytic gain {rec.idwg:.1f} kg ({round(idwg_pct,1)}% dry weight)"})
+        else:
+            dial_missing.append("IDWG")
+
+        domain_scores["dialysis"]  = dial_score
+        domain_data["dialysis"]    = len(dial_present) > 0
+        domain_missing["dialysis"] = dial_missing
+        domain_values["dialysis"]  = dial_vals
 
         # ── 5. CLINICAL EVENTS ────────────────────────────────────────────────
-        # Hospitalization (🏥)
+        evt_score = 0
         if rec.hospitalization_this_month:
-            domain_scores["events"] = 2
-            events.append({"icon": "🏥", "color": "#ef4444", "text": "Hospital Admission logged this month"})
-            
-        # Composite Scoring
-        total_risk = sum(domain_scores.values())
-        status_color = "green"
-        if total_risk >= 4 or any(v == 2 for v in domain_scores.values()):
+            evt_score = 2
+            events.append({"icon": "🏥", "color": "#ef4444",
+                "text": "Hospital admission recorded this month"})
+
+        domain_scores["events"]  = evt_score
+        domain_data["events"]    = True   # boolean flag always known
+        domain_missing["events"] = []
+        domain_values["events"]  = {}
+
+        # ── Composite (only count domains that have data) ──────────────────────
+        informed_total   = sum(domain_scores[d] for d in domain_scores if domain_data[d])
+        domains_with_data = sum(1 for d in domain_data if domain_data[d])
+
+        if informed_total >= 4 or any(domain_scores[d] == 2 for d in domain_scores if domain_data[d]):
             status_color = "red"
-        elif total_risk >= 2:
+        elif informed_total >= 2:
             status_color = "yellow"
-            
+        else:
+            status_color = "green"
+
+        missing_count    = sum(len(domain_missing[d]) for d in domain_missing)
+        completeness_pct = round(((total_expected - missing_count) / total_expected) * 100) if total_expected else 100
+
         timeline.append({
-            "month": m,
-            "label": get_month_label(m),
-            "scores": domain_scores, # {domain: 0/1/2}
-            "total": total_risk,
-            "status": status_color,
-            "events": events
+            "month":            m,
+            "label":            get_month_label(m),
+            "scores":           domain_scores,
+            "data_available":   domain_data,
+            "missing_fields":   domain_missing,
+            "values":           domain_values,
+            "total":            informed_total,
+            "status":           status_color,
+            "events":           events,
+            "completeness_pct": completeness_pct,
+            "domains_with_data": domains_with_data,
         })
 
-    # Alert Logic: Cascade Detected if multiple domains are yellow/red
+    # ── Alert logic ───────────────────────────────────────────────────────────
     alert_triggered = False
+    cascade_reason  = ""
+
     if len(timeline) >= 2:
-        last = timeline[-1]
+        last  = timeline[-1]
         prior = timeline[-2]
-        # Rule: Alert if sum >= 3 or persistent decline
-        if last["total"] >= 4 or (last["total"] >= 2 and prior["total"] >= 2):
-            alert_triggered = True
+        # Require at least 2 domains with data before alerting (avoid false alarms from sparse data)
+        if last["domains_with_data"] >= 2:
+            if last["total"] >= 4:
+                alert_triggered = True
+                red_doms = [d for d in last["scores"] if last["scores"][d] == 2 and last["data_available"][d]]
+                cascade_reason = (f"Current month risk score {last['total']}/10 — "
+                                  f"HIGH RISK in: {', '.join(red_doms)}")
+            elif last["total"] >= 2 and prior["total"] >= 2:
+                alert_triggered = True
+                cascade_reason = (f"Persistent multi-domain risk: score {prior['total']} in "
+                                  f"{prior['label']} → {last['total']} in {last['label']}")
+
+    # Domains with zero data across all months
+    domains_never_filled = [
+        d for d in ["nutrition", "inflammation", "atherosclerosis", "dialysis"]
+        if all(not t["data_available"][d] for t in timeline)
+    ]
 
     return {
-        "available": True,
-        "timeline": timeline,
-        "alert_triggered": alert_triggered,
-        "current_status": timeline[-1]["status"] if timeline else "green"
+        "available":           True,
+        "timeline":            timeline,
+        "alert_triggered":     alert_triggered,
+        "cascade_reason":      cascade_reason,
+        "current_status":      timeline[-1]["status"] if timeline else "green",
+        "data_completeness":   timeline[-1]["completeness_pct"] if timeline else 0,
+        "domains_never_filled": domains_never_filled,
+        "months_of_data":      len(timeline),
     }
 
 def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:

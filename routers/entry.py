@@ -106,9 +106,15 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
         try: anti_meds = json.loads(rec.antihypertensive_details)
         except: pass
 
+    hosp_details = []
+    if rec and rec.hospitalization_details:
+        try: hosp_details = json.loads(rec.hospitalization_details)
+        except: pass
+
     return templates.TemplateResponse("entry_form.html", {
         "request": request, "patient": p, "record": rec,
         "anti_meds": anti_meds,
+        "hosp_details": hosp_details,
         "prior_record": prior_rec,
         "prior_anti_meds": prior_anti_meds,
         "month_str": month_str, "month_label": get_month_label(month_str),
@@ -176,10 +182,10 @@ async def save_entry(
     antihypertensive_freq: list[str] = Form([]),
     hrqol_score: Optional[float] = Form(None),
     hospitalization_this_month: bool = Form(False),
-    hospitalization_date: Optional[str] = Form(None),
-    hospitalization_diagnosis: str = Form(""),
-    hospitalization_icd_code: str = Form(""),
-    hospitalization_icd_diagnosis: str = Form(""),
+    hospitalization_date: list[str] = Form([]),
+    hospitalization_diagnosis: list[str] = Form([]),
+    hospitalization_icd_code: list[str] = Form([]),
+    hospitalization_icd_diagnosis: list[str] = Form([]),
     clinical_background: str = Form(""),
     issues: str = Form(""),
 ):

@@ -25,22 +25,13 @@
     body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
     h1,h2,h3 { font-family: 'Outfit', sans-serif; }
 
-    /* ── Nav ── */
-    .app-nav { background: var(--primary); color: white; padding: 0 30px; display: flex;
-               justify-content: space-between; align-items: center; height: 60px;
-               box-shadow: var(--shadow); }
-    .app-nav .brand { font-size: 1.2rem; font-weight: 700; }
-    .nav-links a { color: rgba(255,255,255,0.85); text-decoration: none;
-                   font-size: 0.9rem; margin-left: 20px; font-weight: 500; }
-    .nav-links a:hover { color: white; }
-
     /* ── Header ── */
-    .page-header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
-                   color: white; padding: 40px 30px; }
+    .page-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                   color: white; padding: 20px 32px; }
     .header-inner { max-width: 1200px; margin: 0 auto; }
-    .header-inner h1 { font-size: 2rem; display: flex; align-items: center; gap: 12px; }
-    .header-inner p  { opacity: 0.75; margin-top: 6px; font-size: 0.95rem; max-width: 600px; }
-    .header-chips { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+    .header-inner h1 { font-size: 1.35rem; display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em; }
+    .header-inner p  { opacity: 0.55; margin-top: 4px; font-size: 0.78rem; }
+    .header-chips { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
     .chip { padding: 8px 18px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
     .chip-red    { background: rgba(220,38,38,0.2);  color: #fca5a5; }
     .chip-orange { background: rgba(217,119,6,0.2);  color: #fcd34d; }
@@ -116,16 +107,7 @@
 </head>
 <body>
 
-<nav class="app-nav">
-  <div class="brand">HD Dashboard</div>
-  <div class="nav-links">
-    <a href="/">Dashboard</a>
-    <a href="/patients">Patients</a>
-    <a href="/analytics">Analytics</a>
-    <a href="/alerts">Alerts</a>
-    {% if user %}<a href="/logout">Logout ({{ user }})</a>{% endif %}
-  </div>
-</nav>
+{% include "_nav.html" %}
 
 <div class="page-header">
   <div class="header-inner">

@@ -81,21 +81,7 @@
         }
         .btn-save:hover { background: var(--primary-dark); transform: translateY(-2px); }
 
-        /* MOBILE DRAWER (standardized) */
-        .mobile-drawer {
-            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
-            z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px;
-        }
-        .mobile-drawer.open { display: flex; }
-        .mobile-drawer a {
-            color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px;
-            background: rgba(255,255,255,0.05); font-weight: 600;
-        }
-
         @media(max-width: 640px) {
-            .app-nav .nav-links { display: none; }
-            .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
-            header h1 { font-size: 1.4em; }
             .form-section { padding: 20px; }
             .anti-med-row { flex-direction: column; gap: 12px !important; align-items: stretch !important; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
             .anti-med-row select, .anti-med-row input { flex: none !important; width: 100% !important; }
@@ -491,29 +477,71 @@
             <!-- ── Emergency & Hospitalizations ── -->
             <div class="form-section">
                 <div class="section-title"><i class="material-icons">emergency</i> Emergency & Hospitalizations</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Event Date</label>
-                        <input type="date" name="hospitalization_date" value="{{ record.hospitalization_date if record and record.hospitalization_date else '' }}">
+                
+                <div id="hospWrapper" style="display:flex; flex-direction:column; gap:20px;">
+                    {% set display_hosp = hosp_details if hosp_details else [] %}
+                    {% if not display_hosp and record and record.hospitalization_diagnosis %}
+                        {# Fallback for legacy single-record entries #}
+                        {% set display_hosp = [{"date": record.hospitalization_date, "diagnosis": record.hospitalization_diagnosis, "icd_code": record.hospitalization_icd_code, "icd_diagnosis": record.hospitalization_icd_diagnosis}] %}
+                    {% endif %}
+
+                    {% for item in display_hosp %}
+                    <div class="hosp-row" style="background:#f1f5f9; padding:20px; border-radius:12px; position:relative; border:1px solid #e2e8f0;">
+                        <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:10px; right:10px; background:#fee2e2; color:#ef4444; border:none; padding:6px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1.2rem;">delete</i></button>
+                        <div class="grid">
+                            <div class="form-group">
+                                <label>Event Date</label>
+                                <input type="date" name="hospitalization_date" value="{{ item.date }}">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Clinical Diagnosis</label>
+                                <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD" value="{{ item.diagnosis }}">
+                            </div>
+                            <div class="form-group">
+                                <label>ICD-10 Code</label>
+                                <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1" value="{{ item.icd_code }}">
+                            </div>
+                            <div class="form-group">
+                                <label>ICD-10 Diagnosis</label>
+                                <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease..." value="{{ item.icd_diagnosis }}">
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>Clinical Diagnosis</label>
-                        <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD" value="{{ record.hospitalization_diagnosis if record and record.hospitalization_diagnosis else '' }}">
+                    {% endfor %}
+
+                    {% if not display_hosp %}
+                    <div class="hosp-row" style="background:#f8fafc; padding:20px; border-radius:12px; position:relative; border:1px dashed #cbd5e1;">
+                        <div class="grid">
+                            <div class="form-group">
+                                <label>Event Date</label>
+                                <input type="date" name="hospitalization_date">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Clinical Diagnosis</label>
+                                <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD">
+                            </div>
+                            <div class="form-group">
+                                <label>ICD-10 Code</label>
+                                <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1">
+                            </div>
+                            <div class="form-group">
+                                <label>ICD-10 Diagnosis</label>
+                                <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease...">
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>ICD-10 Code</label>
-                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1" value="{{ record.hospitalization_icd_code if record and record.hospitalization_icd_code else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>ICD-10 Diagnosis</label>
-                        <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease with (acute) exacerbation" value="{{ record.hospitalization_icd_diagnosis if record and record.hospitalization_icd_diagnosis else '' }}">
-                    </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                            <input type="checkbox" name="hospitalization_this_month" value="true" {{ 'checked' if record and record.hospitalization_this_month }} style="width:18px;height:18px;">
-                            <span>Emergency / Hospitalization this month</span>
-                        </label>
-                    </div>
+                    {% endif %}
+                </div>
+
+                <button type="button" onclick="addHospRow()" style="margin-top:16px; background:#0ea5e9; color:white; border:none; padding:12px 20px; border-radius:10px; cursor:pointer; font-size:0.9rem; font-weight:700; display:flex; align-items:center; gap:8px; transition:all 0.2s;">
+                    <i class="material-icons">add_circle</i> Add Another Admission Diagnosis
+                </button>
+
+                <div class="form-group" style="margin-top:24px;">
+                    <label style="display:flex;align-items:center;gap:10px;text-transform:none;cursor:pointer; background:#fff1f2; padding:12px; border-radius:10px; border:1px solid #fecaca;">
+                        <input type="checkbox" name="hospitalization_this_month" value="true" {{ 'checked' if record and record.hospitalization_this_month }} style="width:20px;height:20px;">
+                        <span style="font-weight:700; color:#be123c;">Emergency / Hospitalization this month</span>
+                    </label>
                 </div>
             </div>
 
@@ -545,6 +573,40 @@
     </div>
 
     <script>
+        function addHospRow() {
+            const wrap = document.getElementById('hospWrapper');
+            const row = document.createElement('div');
+            row.className = 'hosp-row';
+            row.style.cssText = "background:#f1f5f9; padding:20px; border-radius:12px; position:relative; border:1px solid #e2e8f0; margin-top:10px;";
+            row.innerHTML = `
+                <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:10px; right:10px; background:#fee2e2; color:#ef4444; border:none; padding:6px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1.2rem;">delete</i></button>
+                <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">Event Date</label>
+                        <input type="date" name="hospitalization_date" style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">Clinical Diagnosis</label>
+                        <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD" style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">ICD-10 Code</label>
+                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1" style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">ICD-10 Diagnosis</label>
+                        <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease..." style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
+                    </div>
+                </div>
+            `;
+            wrap.appendChild(row);
+            
+            // Re-bind validation listeners to new inputs
+            row.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', () => validate(input.name));
+            });
+        }
+
         function addAntiMedRow() {
             const wrap = document.getElementById('antiMedsWrapper');
             const row = document.createElement('div');

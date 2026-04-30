@@ -17,12 +17,11 @@
         .analytics-header {
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             color: white;
-            padding: 60px 20px;
-            text-align: center;
-            margin-bottom: -40px;
+            padding: 20px 32px;
+            display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
         }
-        .analytics-header h1 { font-family: 'Outfit', sans-serif; font-size: 2.5rem; margin: 0; }
-        .analytics-header p { opacity: 0.8; font-size: 1.1rem; margin-top: 10px; }
+        .analytics-header h1 { font-family: 'Outfit', sans-serif; font-size: 1.35rem; margin: 0; letter-spacing: -0.02em; }
+        .analytics-header p { opacity: 0.55; font-size: 0.78rem; margin: 4px 0 0; }
 
         .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
         
@@ -84,11 +83,13 @@
 {% include "_nav.html" %}
 
 <div class="analytics-header">
-    <h1>Clinical Intelligence Hub</h1>
-    <p>Advanced machine learning and predictive analytics for hemodialysis care</p>
+    <div>
+        <h1>Analytics — Clinical Intelligence Hub</h1>
+        <p>Advanced ML and predictive analytics for hemodialysis care · CH(SC) Nephrology</p>
+    </div>
 </div>
 
-<div class="container">
+<div class="container" style="padding-top: 40px;">
     <div class="grid">
         <!-- Kalman Filter Insight -->
         <div class="insight-card">

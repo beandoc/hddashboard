@@ -56,7 +56,8 @@ async def fluid_status_dashboard(patient_id: int, request: Request, db: Session 
         "assessments": assessments,
         "risk_score": risk_score,
         "risk_factors": risk_factors,
-        "user": get_user(request)
+        "user": get_user(request),
+        "today": date.today().isoformat(),
     })
 
 @router.post("/save")

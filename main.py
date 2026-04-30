@@ -7,7 +7,7 @@ from typing import Optional
 import logging
 
 from database import engine, Base, get_db, Patient, SessionLocal, User
-from config import templates, serializer
+from config import templates, serializer, pwd_context
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label
 from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics
@@ -57,6 +57,31 @@ def _run_startup_migrations():
                     pass  # column already exists or unsupported
 
 _run_startup_migrations()
+
+
+def _seed_default_users():
+    db = SessionLocal()
+    try:
+        defaults = [
+            {"username": "admin",  "full_name": "Administrator", "role": "admin"},
+            {"username": "staff",  "full_name": "Staff User",    "role": "staff"},
+            {"username": "doctor", "full_name": "Doctor User",   "role": "doctor"},
+        ]
+        for d in defaults:
+            exists = db.query(User).filter(User.username == d["username"]).first()
+            if not exists:
+                db.add(User(
+                    username=d["username"],
+                    full_name=d["full_name"],
+                    hashed_password=pwd_context.hash("chsc"),
+                    role=d["role"],
+                    is_active=True,
+                ))
+        db.commit()
+    finally:
+        db.close()
+
+_seed_default_users()
 
 app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0")
 

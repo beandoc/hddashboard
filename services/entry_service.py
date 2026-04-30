@@ -33,6 +33,27 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
             meds_list.append({"name": n.strip(), "dose": d.strip(), "freq": f.strip()})
     antihypertensive_details_json = json.dumps(meds_list) if meds_list else ""
 
+    # Handle multiple hospitalizations
+    hosp_list = []
+    h_dates = data.get("hospitalization_date", [])
+    if isinstance(h_dates, str): h_dates = [h_dates] # Handle single string case if any
+    h_diags = data.get("hospitalization_diagnosis", [])
+    if isinstance(h_diags, str): h_diags = [h_diags]
+    h_codes = data.get("hospitalization_icd_code", [])
+    if isinstance(h_codes, str): h_codes = [h_codes]
+    h_icds  = data.get("hospitalization_icd_diagnosis", [])
+    if isinstance(h_icds, str): h_icds = [h_icds]
+    
+    for dt, dg, cd, ic in zip(h_dates, h_diags, h_codes, h_icds):
+        if dg.strip() or cd.strip():
+            hosp_list.append({
+                "date": dt,
+                "diagnosis": dg.strip(),
+                "icd_code": cd.strip(),
+                "icd_diagnosis": ic.strip()
+            })
+    hosp_details_json = json.dumps(hosp_list) if hosp_list else ""
+
     rec = db.query(MonthlyRecord).filter(
         MonthlyRecord.patient_id == patient_id,
         MonthlyRecord.record_month == month_str
@@ -91,10 +112,11 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         antihypertensive_details=antihypertensive_details_json,
         hrqol_score=data.get("hrqol_score"),
         hospitalization_this_month=data.get("hospitalization_this_month", False),
-        hospitalization_date=_d(data.get("hospitalization_date")),
-        hospitalization_diagnosis=data.get("hospitalization_diagnosis", ""),
-        hospitalization_icd_code=data.get("hospitalization_icd_code", ""),
-        hospitalization_icd_diagnosis=data.get("hospitalization_icd_diagnosis", ""),
+        hospitalization_date=_d(hosp_list[0]["date"]) if hosp_list else None,
+        hospitalization_diagnosis=hosp_list[0]["diagnosis"] if hosp_list else "",
+        hospitalization_icd_code=hosp_list[0]["icd_code"] if hosp_list else "",
+        hospitalization_icd_diagnosis=hosp_list[0]["icd_diagnosis"] if hosp_list else "",
+        hospitalization_details=hosp_details_json,
     )
 
     if rec:

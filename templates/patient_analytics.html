@@ -28,15 +28,10 @@
     body { font-family: 'Inter', sans-serif; background: var(--bg-main); color: var(--text-main); margin: 0; }
     h1, h2, h3 { font-family: 'Outfit', sans-serif; }
 
-    .app-nav { background: var(--primary); color: white; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; height: 60px; box-shadow: var(--shadow); }
-    .app-nav .brand { font-size: 1.2rem; font-weight: 700; }
-    .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.9rem; margin-left: 20px; font-weight: 500; }
-    .nav-links a:hover { color: white; }
-
-    .content-header { background: linear-gradient(135deg, var(--primary) 0%, #303f9f 100%); color: white; padding: 40px 30px; }
-    .patient-banner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-    .p-info h1 { margin: 0; font-size: 2rem; }
-    .p-info p { margin: 5px 0 0; opacity: 0.8; }
+    .content-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .patient-banner { width: 100%; max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .p-info h1 { margin: 0; font-size: 1.35rem; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em; }
+    .p-info p { margin: 4px 0 0; opacity: 0.55; font-size: 0.78rem; }
 
     .stats-row { display: flex; gap: 20px; }
     .badge { background: rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 8px; text-align: center; }
@@ -613,109 +608,202 @@
   {% if mia_cascade and mia_cascade.available %}
   <!-- ══════════════════ CLINICAL TRAJECTORY / MIA CASCADE ══════════════════ -->
   <div style="max-width:1200px;margin:0 auto 40px;padding:0 20px;">
-    <h2 style="font-family:'Outfit',sans-serif;font-size:1.3rem;color:#1e293b;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+    <h2 style="font-family:'Outfit',sans-serif;font-size:1.3rem;color:#1e293b;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
       <i class="material-icons" style="color:#6366f1;">timeline</i>
       MIA Syndrome Early Warning Tracker
     </h2>
+    <p style="font-size:0.78rem;color:#94a3b8;margin:0 0 16px;padding-left:32px;">
+      Malnutrition · Inflammation · Atherosclerosis — {{ mia_cascade.months_of_data }} months of data
+    </p>
 
-    <!-- Alert Banner -->
+    <!-- ── Data completeness bar ── -->
+    {% set dc = mia_cascade.data_completeness %}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:16px;">
+      <i class="material-icons" style="color:{% if dc >= 70 %}#10b981{% elif dc >= 40 %}#f59e0b{% else %}#ef4444{% endif %};font-size:20px;">{% if dc >= 70 %}check_circle{% elif dc >= 40 %}warning{% else %}error{% endif %}</i>
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:0.8rem;font-weight:700;color:#1e293b;">Data Completeness (latest month)</span>
+          <span style="font-size:0.8rem;font-weight:800;color:{% if dc >= 70 %}#059669{% elif dc >= 40 %}#d97706{% else %}#dc2626{% endif %};">{{ dc }}%</span>
+        </div>
+        <div style="background:#f1f5f9;border-radius:4px;height:6px;">
+          <div style="background:{% if dc >= 70 %}#10b981{% elif dc >= 40 %}#f59e0b{% else %}#ef4444{% endif %};height:6px;border-radius:4px;width:{{ dc }}%;transition:width 0.4s;"></div>
+        </div>
+        {% if mia_cascade.domains_never_filled %}
+        <div style="margin-top:6px;font-size:0.75rem;color:#ef4444;">
+          <strong>No data ever entered for:</strong>
+          {% for d in mia_cascade.domains_never_filled %}
+            <span style="background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;padding:1px 6px;margin-left:4px;">{{ d }}</span>
+          {% endfor %}
+          — these domains show as unknown, not stable.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Alert Banner ── -->
     {% if mia_cascade.alert_triggered %}
-    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 12px rgba(239,68,68,0.15);">
-      <i class="material-icons" style="color:#ef4444;font-size:28px;">emergency</i>
-      <div>
-        <div style="font-weight:700;font-size:1.05rem;color:#991b1b;font-family:'Outfit';">⚠️ Early Cascade Detected</div>
-        <div style="font-size:0.85rem;color:#7f1d1d;margin-top:2px;">Multiple clinical domains are showing simultaneous deterioration. High risk for adverse events.</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:0 4px 12px rgba(239,68,68,0.12);">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <i class="material-icons" style="color:#ef4444;font-size:26px;flex-shrink:0;margin-top:2px;">emergency</i>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:1rem;color:#991b1b;font-family:'Outfit';">⚠️ Persistent Multi-Domain Deterioration</div>
+          <div style="font-size:0.83rem;color:#7f1d1d;margin-top:4px;">{{ mia_cascade.cascade_reason }}</div>
+          {% if dc < 50 %}
+          <div style="margin-top:8px;font-size:0.78rem;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;">
+            <strong>⚠ Low data completeness ({{ dc }}%).</strong> Some domains are scoring 0 because no values were entered, not because the patient is stable. Enter CRP, nPCR, UFR, Kt/V to improve reliability.
+          </div>
+          {% endif %}
+        </div>
       </div>
     </div>
     {% endif %}
 
-    <div style="display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start;">
+    <div style="display:grid;grid-template-columns:360px 1fr;gap:24px;align-items:start;">
 
-      <!-- Left: Current Domain Status -->
+      <!-- ── Left: Current Domain Status Cards ── -->
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:20px;font-family:'Outfit';">Current Status by Domain</div>
-        
+        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:4px;font-family:'Outfit';">Current Status by Domain</div>
+        <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:18px;">
+          <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;"><span style="width:10px;height:10px;border-radius:2px;background:#10b981;display:inline-block;"></span>Stable</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;"><span style="width:10px;height:10px;border-radius:2px;background:#f59e0b;display:inline-block;"></span>Warning</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;"><span style="width:10px;height:10px;border-radius:2px;background:#ef4444;display:inline-block;"></span>High Risk</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#e2e8f0;display:inline-block;"></span>No Data</span>
+        </div>
+
         {% set last = mia_cascade.timeline[-1] if mia_cascade.timeline else None %}
         {% if last %}
-        <div style="display:flex;flex-direction:column;gap:16px;">
-          {% for dom_key, dom_name, icon in [
-            ('nutrition', 'Nutrition (PEM)', '🥩'),
-            ('inflammation', 'Inflammation', '🔥'),
-            ('atherosclerosis', 'Vascular Stress', '🫀'),
-            ('dialysis', 'Dialysis Factors', '⚙️'),
-            ('events', 'Clinical Events', '🏥')
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          {% for dom_key, dom_name, icon, required_fields in [
+            ('nutrition',       'Nutrition (PEM)',    '🥩', 'albumin, nPCR'),
+            ('inflammation',    'Inflammation',       '🔥', 'CRP, ferritin, TSAT'),
+            ('atherosclerosis', 'Vascular Stress',    '🫀', 'BP sys/dia'),
+            ('dialysis',        'Dialysis Factors',   '⚙️', 'UFR, Kt/V, IDWG'),
+            ('events',          'Clinical Events',    '🏥', '')
           ] %}
-          {% set score = last.scores[dom_key] %}
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;background:{% if score == 2 %}#fee2e2{% elif score == 1 %}#fef3c7{% else %}#dcfce7{% endif %};border:1px solid {% if score == 2 %}#fca5a5{% elif score == 1 %}#fde68a{% else %}#86efac{% endif %};">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:1.1rem;">{{ icon }}</span>
-              <span style="font-weight:600;font-size:0.85rem;color:#1e293b;">{{ dom_name }}</span>
+          {% set score   = last.scores[dom_key] %}
+          {% set has_data = last.data_available[dom_key] %}
+          {% set missing  = last.missing_fields[dom_key] %}
+
+          {% if not has_data %}
+            {# Gray — no data entered for this domain #}
+            <div style="border-radius:8px;background:#f8fafc;border:1px dashed #cbd5e1;padding:10px 14px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:1rem;opacity:0.4;">{{ icon }}</span>
+                  <span style="font-weight:600;font-size:0.83rem;color:#94a3b8;">{{ dom_name }}</span>
+                </div>
+                <span style="font-size:0.7rem;font-weight:800;text-transform:uppercase;color:#94a3b8;background:#e2e8f0;padding:2px 8px;border-radius:10px;">NO DATA</span>
+              </div>
+              <div style="margin-top:6px;font-size:0.72rem;color:#94a3b8;padding-left:26px;">
+                Missing: <em>{{ missing | join(', ') if missing else required_fields }}</em>
+              </div>
             </div>
-            <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:{% if score == 2 %}#991b1b{% elif score == 1 %}#92400e{% else %}#166534{% endif %};">
-              {% if score == 2 %}HIGH RISK{% elif score == 1 %}WARNING{% else %}STABLE{% endif %}
+          {% else %}
+            {# Scored — green / yellow / red #}
+            <div style="border-radius:8px;background:{% if score == 2 %}#fef2f2{% elif score == 1 %}#fffbeb{% else %}#f0fdf4{% endif %};border:1px solid {% if score == 2 %}#fca5a5{% elif score == 1 %}#fde68a{% else %}#86efac{% endif %};padding:10px 14px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:1rem;">{{ icon }}</span>
+                  <span style="font-weight:600;font-size:0.83rem;color:#1e293b;">{{ dom_name }}</span>
+                </div>
+                <span style="font-size:0.7rem;font-weight:800;text-transform:uppercase;padding:2px 8px;border-radius:10px;color:{% if score == 2 %}#991b1b{% elif score == 1 %}#92400e{% else %}#166534{% endif %};background:{% if score == 2 %}#fee2e2{% elif score == 1 %}#fef3c7{% else %}#dcfce7{% endif %};">
+                  {% if score == 2 %}HIGH RISK{% elif score == 1 %}WARNING{% else %}STABLE{% endif %}
+                </span>
+              </div>
+              {% if missing %}
+              <div style="margin-top:5px;font-size:0.71rem;color:#94a3b8;padding-left:26px;">
+                Partial data — missing: <em>{{ missing | join(', ') }}</em>
+              </div>
+              {% endif %}
             </div>
-          </div>
+          {% endif %}
           {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Score summary -->
+        {% if last %}
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:0.75rem;color:#64748b;">Informed risk score</span>
+          <span style="font-size:0.9rem;font-weight:800;color:{% if last.total >= 4 %}#dc2626{% elif last.total >= 2 %}#d97706{% else %}#059669{% endif %};">
+            {{ last.total }} / {{ last.domains_with_data * 2 }} <span style="font-weight:400;font-size:0.7rem;color:#94a3b8;">({{ last.domains_with_data }} domain{{ 's' if last.domains_with_data != 1 }} scored)</span>
+          </span>
         </div>
         {% endif %}
       </div>
 
-      <!-- Right: Month-by-Month Domain Matrix -->
+      <!-- ── Right: Longitudinal Heatmap + Events ── -->
       <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);overflow-x:auto;">
-        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:16px;font-family:'Outfit';">Longitudinal Domain Tracking (Radar)</div>
-        
-        <table style="width:100%;border-collapse:separate;border-spacing:4px;">
+        <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:4px;font-family:'Outfit';">Longitudinal Domain Heatmap</div>
+        <div style="font-size:0.72rem;color:#94a3b8;margin-bottom:16px;">Grey = no data entered · Green = stable (data present) · Yellow = warning · Red = high risk</div>
+
+        <table style="width:100%;border-collapse:separate;border-spacing:3px;min-width:500px;">
           <thead>
             <tr>
-              <th style="text-align:left;font-size:0.8rem;color:#64748b;font-weight:600;padding-bottom:8px;width:120px;">Domain</th>
+              <th style="text-align:left;font-size:0.75rem;color:#64748b;font-weight:600;padding-bottom:8px;min-width:110px;">Domain</th>
               {% for m in mia_cascade.timeline %}
-              <th style="text-align:center;font-size:0.75rem;color:#64748b;font-weight:600;padding-bottom:8px;width:60px;">{{ m.label }}</th>
+              <th style="text-align:center;font-size:0.68rem;color:#64748b;font-weight:600;padding-bottom:8px;min-width:52px;white-space:nowrap;">{{ m.label }}</th>
               {% endfor %}
             </tr>
           </thead>
           <tbody>
             {% for dom_key, dom_name in [
-              ('nutrition', 'Nutrition'),
-              ('inflammation', 'Inflammation'),
-              ('atherosclerosis', 'Atherosclerosis'),
-              ('dialysis', 'Dialysis Factors')
+              ('nutrition',       'Nutrition'),
+              ('inflammation',    'Inflammation'),
+              ('atherosclerosis', 'Vascular Stress'),
+              ('dialysis',        'Dialysis Factors')
             ] %}
             <tr>
-              <td style="font-size:0.8rem;font-weight:600;color:#334155;padding:6px 0;">{{ dom_name }}</td>
+              <td style="font-size:0.78rem;font-weight:600;color:#334155;padding:4px 0;white-space:nowrap;">{{ dom_name }}</td>
               {% for m in mia_cascade.timeline %}
-              {% set s = m.scores[dom_key] %}
-              <td style="background:{% if s == 2 %}#ef4444{% elif s == 1 %}#f59e0b{% else %}#10b981{% endif %};height:24px;border-radius:4px;" title="{{ dom_name }} in {{ m.label }}: {% if s==2 %}High Risk{% elif s==1 %}Warning{% else %}Stable{% endif %}"></td>
+              {% set s    = m.scores[dom_key] %}
+              {% set avail = m.data_available[dom_key] %}
+              {% set miss  = m.missing_fields[dom_key] %}
+              {% if not avail %}
+                <td style="background:#f1f5f9;height:26px;border-radius:4px;border:1px dashed #cbd5e1;"
+                    title="{{ dom_name }} — {{ m.label }}: no data (missing: {{ miss | join(', ') }})"></td>
+              {% else %}
+                <td style="background:{% if s == 2 %}#ef4444{% elif s == 1 %}#f59e0b{% else %}#10b981{% endif %};height:26px;border-radius:4px;"
+                    title="{{ dom_name }} — {{ m.label }}: {% if s==2 %}HIGH RISK{% elif s==1 %}WARNING{% else %}Stable{% endif %}{% if miss %} (partial: {{ miss | join(', ') }} missing){% endif %}"></td>
+              {% endif %}
               {% endfor %}
             </tr>
             {% endfor %}
-            <!-- Events row (Icons) -->
+            <!-- Completeness row -->
             <tr>
-              <td style="font-size:0.8rem;font-weight:600;color:#334155;padding:12px 0 6px 0;border-top:1px dashed #cbd5e1;">Major Events</td>
+              <td style="font-size:0.72rem;color:#94a3b8;font-weight:600;padding:8px 0 4px;border-top:1px dashed #e2e8f0;">Data %</td>
               {% for m in mia_cascade.timeline %}
-              <td style="text-align:center;padding:12px 0 6px 0;border-top:1px dashed #cbd5e1;font-size:1.1rem;" title="{{ m.events|map(attribute='text')|join(' | ') }}">
-                {% if m.scores['events'] > 0 %}🏥{% endif %}
-                {% for ev in m.events %}
-                  {% if ev.icon != '🏥' and ev.icon != '🥩' and ev.icon != '🔥' and ev.icon != '🫀' and ev.icon != '⚖️' %}
-                    {{ ev.icon }}
-                  {% endif %}
-                {% endfor %}
+              {% set cp = m.completeness_pct %}
+              <td style="text-align:center;font-size:0.65rem;font-weight:700;padding:8px 0 4px;border-top:1px dashed #e2e8f0;color:{% if cp >= 70 %}#059669{% elif cp >= 40 %}#d97706{% else %}#dc2626{% endif %};"
+                  title="{{ m.label }}: {{ cp }}% of expected fields entered">{{ cp }}%</td>
+              {% endfor %}
+            </tr>
+            <!-- Events row -->
+            <tr>
+              <td style="font-size:0.78rem;font-weight:600;color:#334155;padding:8px 0 4px;border-top:1px dashed #e2e8f0;">Admissions</td>
+              {% for m in mia_cascade.timeline %}
+              <td style="text-align:center;padding:8px 0 4px;border-top:1px dashed #e2e8f0;font-size:1rem;"
+                  title="{{ m.events | map(attribute='text') | join(' | ') if m.events else 'No events' }}">
+                {% if m.scores['events'] > 0 %}🏥{% else %}<span style="color:#e2e8f0;font-size:0.7rem;">—</span>{% endif %}
               </td>
               {% endfor %}
             </tr>
           </tbody>
         </table>
 
-        <!-- Event Timeline Details -->
-        <div style="margin-top:24px;border-top:1px solid #e2e8f0;padding-top:16px;">
-          <h4 style="font-size:0.85rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Recent Significant Events</h4>
-          <div style="max-height:200px;overflow-y:auto;padding-right:4px;">
+        <!-- Event narrative -->
+        <div style="margin-top:20px;border-top:1px solid #f1f5f9;padding-top:14px;">
+          <div style="font-size:0.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:10px;">Clinical Events Log</div>
+          <div style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">
+            {% set ns = namespace(has_events=false) %}
             {% for month_data in mia_cascade.timeline|reverse %}
               {% if month_data.events %}
-              <div style="display:flex;gap:12px;margin-bottom:12px;align-items:flex-start;">
-                <div style="font-size:0.75rem;font-weight:700;color:#64748b;width:60px;flex-shrink:0;">{{ month_data.label }}</div>
-                <div style="flex:1;">
+              {% set ns.has_events = true %}
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <div style="font-size:0.72rem;font-weight:700;color:#64748b;min-width:56px;padding-top:2px;">{{ month_data.label }}</div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
                   {% for ev in month_data.events %}
-                  <div style="font-size:0.82rem;color:#374151;padding:2px 0;display:flex;gap:6px;align-items:center;">
+                  <div style="font-size:0.79rem;display:flex;align-items:center;gap:6px;">
                     <span>{{ ev.icon }}</span>
                     <span style="color:{{ ev.color }};font-weight:500;">{{ ev.text }}</span>
                   </div>
@@ -724,11 +812,18 @@
               </div>
               {% endif %}
             {% endfor %}
+            {% if not ns.has_events %}
+            <div style="font-size:0.8rem;color:#94a3b8;font-style:italic;">No scored clinical events in the tracked period.</div>
+            {% endif %}
           </div>
         </div>
 
       </div>
+    </div>
 
+    <!-- ── Methodology note ── -->
+    <div style="margin-top:12px;font-size:0.72rem;color:#94a3b8;line-height:1.6;padding:10px 14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+      <strong>Methodology:</strong> Rule-based threshold scoring using KDOQI/KDIGO reference cutoffs. Each domain scored 0–2 (stable / warning / high-risk) only when input data is present. Cascade alert requires ≥2 scored domains with total risk ≥4, or persistent score ≥2 in two consecutive months. This is a <em>clinical decision-support tool</em>, not a validated statistical model — score reliability increases with data completeness.
     </div>
   </div>
   {% endif %}

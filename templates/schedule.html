@@ -9,7 +9,6 @@
     <style>
         body { font-family:'Inter',sans-serif; margin:0; padding:0; background-color:#f8fafc; -webkit-font-smoothing:antialiased; }
         h1,h2,h3 { font-family:'Outfit',sans-serif; }
-        header { background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color:white; padding:28px 24px; text-align:center; }
         .container { max-width:1000px; margin:20px auto; padding:0 20px; }
         
         .slot-card {
@@ -99,10 +98,12 @@
 <body>
     {% include "_nav.html" %}
 
-    <header>
-        <h1 style="margin:0;">Dialysis Slot Scheduling</h1>
-        <p style="margin:5px 0 0; opacity:0.8; font-size:0.9rem;">Patients scheduled for {{ display_date }} ({{ day_of_week }})</p>
-    </header>
+    <div class="page-hero">
+        <div class="page-hero-left">
+            <h1>Dialysis Slot Scheduling</h1>
+            <p>Patients scheduled for {{ display_date }} · {{ day_of_week }}</p>
+        </div>
+    </div>
     
     <div class="container">
         <div class="date-picker-wrap">
