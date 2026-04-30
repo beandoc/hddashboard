@@ -838,38 +838,69 @@
 
       <!-- Cardiorenal Cascade -->
       {% if cardiorenal_cascade and cardiorenal_cascade.available %}
-      {% set cr_border = '#fecaca' if cardiorenal_cascade.cascade_detected else '#e2e8f0' %}
-      {% set cr_shadow = 'rgba(239,68,68,0.1)' if cardiorenal_cascade.cascade_detected else 'rgba(0,0,0,0.06)' %}
-      <div style="background:#fff;border-radius:12px;border:1px solid {{ cr_border }};padding:24px;box-shadow:0 2px 8px {{ cr_shadow }};">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-          <div style="background:{% if cardiorenal_cascade.cascade_detected %}#fee2e2{% else %}#f1f5f9{% endif %};padding:8px;border-radius:8px;">
-            <i class="material-icons" style="color:{% if cardiorenal_cascade.cascade_detected %}#ef4444{% else %}#64748b{% endif %};">water_drop</i>
+      {% set cr = cardiorenal_cascade %}
+      {% set cr_color = '#dc2626' if cr.cascade_detected else ('#d97706' if cr.status_label == 'MODERATE RISK' else ('#94a3b8' if not cr.reliable else '#166534')) %}
+      {% set cr_bg    = '#fef2f2' if cr.cascade_detected else ('#fffbeb' if cr.status_label == 'MODERATE RISK' else ('#f8fafc' if not cr.reliable else '#f0fdf4')) %}
+      {% set cr_border= '#fca5a5' if cr.cascade_detected else ('#fde68a' if cr.status_label == 'MODERATE RISK' else ('#e2e8f0')) %}
+      <div style="background:#fff;border-radius:12px;border:1px solid {{ cr_border }};padding:24px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="background:{{ cr_bg }};padding:8px;border-radius:8px;">
+            <i class="material-icons" style="color:{{ cr_color }};">water_drop</i>
           </div>
-          <h3 style="margin:0;font-size:1.1rem;color:{% if cardiorenal_cascade.cascade_detected %}#7f1d1d{% else %}#1e293b{% endif %};">Cardiorenal / Fluid Cascade</h3>
-          {% if cardiorenal_cascade.cascade_detected %}
-          <span style="margin-left:auto;padding:3px 10px;background:#fee2e2;color:#dc2626;border-radius:20px;font-size:0.72rem;font-weight:700;">HIGH RISK</span>
-          {% else %}
-          <span style="margin-left:auto;padding:3px 10px;background:#dcfce7;color:#166534;border-radius:20px;font-size:0.72rem;font-weight:700;">LOW RISK</span>
-          {% endif %}
+          <div style="flex:1;">
+            <h3 style="margin:0;font-size:1rem;color:#1e293b;">Cardiorenal / Fluid Cascade</h3>
+            <div style="font-size:0.7rem;color:#94a3b8;margin-top:1px;">{{ cr.months_assessed }} months assessed · {{ cr.data_completeness }}% data completeness</div>
+          </div>
+          <span style="padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:800;background:{{ cr_bg }};color:{{ cr_color }};border:1px solid {{ cr_border }};">
+            {{ cr.status_label }}
+          </span>
         </div>
-        <p style="font-size:0.85rem;color:{% if cardiorenal_cascade.cascade_detected %}#ef4444{% else %}#64748b{% endif %};font-weight:{% if cardiorenal_cascade.cascade_detected %}600{% else %}400{% endif %};margin:0 0 16px;">
-          {{ cardiorenal_cascade.message }}
-        </p>
-        {% if cardiorenal_cascade.events %}
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          {% for ev in cardiorenal_cascade.events %}
-          <div style="display:flex;gap:10px;align-items:flex-start;">
-            <i class="material-icons" style="font-size:1rem;color:{% if ev.type == 'cardiac' %}#eab308{% elif ev.type == 'renal' %}#f97316{% elif ev.type == 'fluid' %}#3b82f6{% else %}#ef4444{% endif %};margin-top:2px;">
-              {% if ev.type == 'cardiac' %}favorite{% elif ev.type == 'renal' %}local_drink{% elif ev.type == 'fluid' %}scale{% else %}local_hospital{% endif %}
-            </i>
-            <span style="font-size:0.85rem;color:#334155;line-height:1.4;">{{ ev.text }}</span>
+
+        <!-- Data completeness bar -->
+        <div style="background:#f1f5f9;border-radius:4px;height:4px;margin-bottom:12px;">
+          <div style="background:{% if cr.data_completeness >= 60 %}#10b981{% elif cr.data_completeness >= 35 %}#f59e0b{% else %}#ef4444{% endif %};height:4px;border-radius:4px;width:{{ cr.data_completeness }}%;"></div>
+        </div>
+
+        <p style="font-size:0.82rem;color:#475569;margin:0 0 14px;line-height:1.5;">{{ cr.message }}</p>
+
+        <!-- Clinical findings -->
+        {% if cr.events %}
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+          {% for ev in cr.events %}
+          {% set ev_color = '#dc2626' if ev.type == 'outcome' else ('#d97706' if ev.type == 'fluid' else ('#7c3aed' if ev.type == 'biomarker' else ('#0284c7' if ev.type == 'renal' else '#d97706'))) %}
+          {% set ev_icon  = 'local_hospital' if ev.type == 'outcome' else ('scale' if ev.type == 'fluid' else ('biotech' if ev.type == 'biomarker' else ('local_drink' if ev.type == 'renal' else 'favorite'))) %}
+          <div style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;background:#f8fafc;border-radius:6px;border-left:3px solid {{ ev_color }};">
+            <i class="material-icons" style="font-size:0.95rem;color:{{ ev_color }};margin-top:1px;flex-shrink:0;">{{ ev_icon }}</i>
+            <span style="font-size:0.8rem;color:#334155;line-height:1.4;">{{ ev.text }}</span>
           </div>
           {% endfor %}
         </div>
-        {% else %}
-        <div style="font-size:0.85rem;color:#94a3b8;text-align:center;padding:12px 0;">No significant cardiorenal risk factors identified in recent records.</div>
         {% endif %}
-        <div style="margin-top:12px;font-size:0.75rem;color:#94a3b8;">Risk score: {{ cardiorenal_cascade.risk_score }} / 10+ · Based on last 6 months</div>
+
+        <!-- Inputs used vs missing -->
+        <div style="border-top:1px solid #f1f5f9;padding-top:12px;display:flex;flex-direction:column;gap:6px;">
+          {% if cr.inputs_found %}
+          <div style="font-size:0.72rem;color:#64748b;">
+            <span style="font-weight:700;color:#059669;">✓ Scored inputs:</span>
+            {{ cr.inputs_found | join(' · ') }}
+          </div>
+          {% endif %}
+          {% if cr.inputs_missing %}
+          <div style="font-size:0.72rem;color:#dc2626;">
+            <span style="font-weight:700;">✗ Missing inputs</span>
+            <span style="color:#94a3b8;">(enter to improve reliability):</span>
+            {% for f in cr.inputs_missing %}
+            <span style="background:#fee2e2;border:1px solid #fca5a5;border-radius:3px;padding:1px 5px;margin-left:3px;color:#7f1d1d;">{{ f }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div style="margin-top:8px;font-size:0.7rem;color:#94a3b8;">
+          Risk score: {{ cr.risk_score }}/18 · Cascade requires score ≥5 with ≥3 inputs present
+        </div>
       </div>
       {% else %}
       <div style="background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;padding:24px;">
@@ -877,9 +908,10 @@
           <div style="background:#f1f5f9;padding:8px;border-radius:8px;">
             <i class="material-icons" style="color:#94a3b8;">water_drop</i>
           </div>
-          <h3 style="margin:0;font-size:1.1rem;color:#94a3b8;">Cardiorenal / Fluid Cascade</h3>
+          <h3 style="margin:0;font-size:1rem;color:#94a3b8;">Cardiorenal / Fluid Cascade</h3>
+          <span style="margin-left:auto;padding:3px 10px;background:#f1f5f9;color:#94a3b8;border-radius:20px;font-size:0.7rem;font-weight:700;">NO DATA</span>
         </div>
-        <div style="font-size:0.85rem;color:#94a3b8;">Insufficient data — enter monthly records including IDWG and BP.</div>
+        <div style="font-size:0.82rem;color:#94a3b8;">No monthly records found. Enter IDWG, urine output, and NT-proBNP monthly to enable this analysis.</div>
       </div>
       {% endif %}
 

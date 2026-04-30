@@ -2279,14 +2279,19 @@ def analyze_mia_cascade(db: Session, patient_id: int) -> dict:
 
 def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
     """
-    Cardiorenal / Fluid Overload Cascade:
-    - Decreasing urine output
-    - High interdialytic weight gain (IDWG)
-    - Poor ejection fraction
-    - High diastolic dysfunction
-    - Resulting in hospitalizations with fluid overload
+    Cardiorenal / Fluid Overload Cascade.
+
+    Inputs scored:
+      Cardiac:  EF (echo), diastolic dysfunction grade (echo)
+      Biomarker: NT-proBNP from MonthlyRecord (strongest fluid overload marker)
+      BIA:      fluid overload litres / overhydration % from DryWeightAssessment
+      Fluid:    IDWG (monthly), residual urine output (monthly)
+      Outcomes: fluid-related hospitalisations
+
+    Missing inputs are tracked explicitly — "LOW RISK" is only shown when
+    enough data is present to be confident. Otherwise "UNKNOWN" is returned.
     """
-    from database import Patient, MonthlyRecord
+    from database import Patient, MonthlyRecord, DryWeightAssessment
 
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
@@ -2299,66 +2304,189 @@ def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
     if not records:
         return {"available": False}
 
-    # Analyze last 6 months
     records = records[-6:]
-    
-    events = []
-    risk_score = 0
-    
-    # 1. Cardiac Status
-    ef = p.ejection_fraction
-    dd = p.diastolic_dysfunction or "None"
-    
-    if ef is not None and ef < 40:
-        risk_score += 3
-        events.append({"type": "cardiac", "text": f"Severe LV systolic dysfunction (EF: {ef}%)"})
-    elif ef is not None and ef < 50:
-        risk_score += 2
-        events.append({"type": "cardiac", "text": f"Mild/Moderate LV systolic dysfunction (EF: {ef}%)"})
-        
-    if "Grade III" in dd or "Grade 3" in dd:
-        risk_score += 3
-        events.append({"type": "cardiac", "text": f"Severe Diastolic Dysfunction ({dd}) — high filling pressures"})
-    elif "Grade II" in dd or "Grade 2" in dd:
-        risk_score += 2
-        events.append({"type": "cardiac", "text": f"Moderate Diastolic Dysfunction ({dd})"})
 
-    # 2. Renal / Fluid Overload Status
-    urine_outputs = [r.residual_urine_output for r in records if r.residual_urine_output is not None]
-    idwgs = [r.idwg for r in records if r.idwg is not None]
-    
-    if urine_outputs and len(urine_outputs) >= 2:
-        if urine_outputs[-1] < 200:
+    events       = []
+    risk_score   = 0
+    inputs_found = []   # fields that contributed to score
+    inputs_missing = [] # fields expected but absent
+
+    # ── 1. CARDIAC STATUS (from patient profile) ──────────────────────────────
+    ef = p.ejection_fraction   # Float; default=60.0 — treat 60.0 as unverified if never updated
+    dd = p.diastolic_dysfunction  # String or None
+
+    if ef is not None:
+        inputs_found.append(f"EF {ef:.0f}%")
+        if ef < 40:
+            risk_score += 3
+            events.append({"type": "cardiac",
+                "text": f"Severe LV systolic dysfunction — EF {ef:.0f}% (high filling pressures, fluid retention risk)"})
+        elif ef < 50:
             risk_score += 2
-            events.append({"type": "renal", "text": f"Oliguria/Anuria (Urine Output: {urine_outputs[-1]} mL/day) limits fluid buffering capacity."})
-        elif urine_outputs[0] - urine_outputs[-1] > 200:
+            events.append({"type": "cardiac",
+                "text": f"Mild–moderate LV systolic dysfunction — EF {ef:.0f}%"})
+        # ef ≥ 50 is normal; no score, no event (correct)
+    else:
+        inputs_missing.append("Ejection fraction (echo)")
+
+    if dd and dd.lower() not in ("none", ""):
+        inputs_found.append(f"DD {dd}")
+        if "grade iii" in dd.lower() or "grade 3" in dd.lower():
+            risk_score += 3
+            events.append({"type": "cardiac",
+                "text": f"Severe diastolic dysfunction ({dd}) — markedly raised filling pressures"})
+        elif "grade ii" in dd.lower() or "grade 2" in dd.lower():
+            risk_score += 2
+            events.append({"type": "cardiac",
+                "text": f"Moderate diastolic dysfunction ({dd})"})
+        elif "grade i" in dd.lower() or "grade 1" in dd.lower():
             risk_score += 1
-            events.append({"type": "renal", "text": f"Rapid decline in residual urine output ({urine_outputs[0]} -> {urine_outputs[-1]} mL/day)."})
+            events.append({"type": "cardiac",
+                "text": f"Mild diastolic dysfunction ({dd})"})
+    else:
+        inputs_missing.append("Diastolic dysfunction grade (echo)")
 
-    if idwgs and len(idwgs) >= 2:
-        avg_idwg = sum(idwgs) / len(idwgs)
-        if avg_idwg > 3.0 or idwgs[-1] > 3.5:
+    # ── 2. NT-proBNP — strongest fluid overload biomarker in HD ──────────────
+    nt_vals = [(r.record_month, r.nt_probnp) for r in records if r.nt_probnp is not None]
+    if nt_vals:
+        latest_nt = nt_vals[-1][1]
+        inputs_found.append(f"NT-proBNP {latest_nt:.0f} pg/mL")
+        if latest_nt > 5000:
+            risk_score += 3
+            events.append({"type": "biomarker",
+                "text": f"NT-proBNP severely elevated: {latest_nt:.0f} pg/mL (>5000 — strong fluid overload signal in HD)"})
+        elif latest_nt > 2000:
             risk_score += 2
-            events.append({"type": "fluid", "text": f"High Interdialytic Weight Gain (Recent: {idwgs[-1]} kg) precipitating volume overload."})
+            events.append({"type": "biomarker",
+                "text": f"NT-proBNP markedly elevated: {latest_nt:.0f} pg/mL (>2000 — significant volume excess)"})
+        elif latest_nt > 1000:
+            risk_score += 1
+            events.append({"type": "biomarker",
+                "text": f"NT-proBNP elevated: {latest_nt:.0f} pg/mL (>1000 — monitor closely)"})
+        # Trend: rising NT-proBNP across last 3+ months
+        if len(nt_vals) >= 3:
+            vals = [v for _, v in nt_vals[-3:]]
+            if vals[-1] > vals[-2] > vals[-3]:
+                risk_score += 1
+                events.append({"type": "biomarker",
+                    "text": f"NT-proBNP rising trend: {vals[-3]:.0f} → {vals[-2]:.0f} → {vals[-1]:.0f} pg/mL over 3 months"})
+    else:
+        inputs_missing.append("NT-proBNP (monthly record)")
 
-    # 3. Outcomes (Hospitalizations)
+    # ── 3. BIA FLUID STATUS (from DryWeightAssessment) ───────────────────────
+    latest_bia = (
+        db.query(DryWeightAssessment)
+        .filter(DryWeightAssessment.patient_id == patient_id,
+                DryWeightAssessment.bia_fluid_overload_litres != None)
+        .order_by(DryWeightAssessment.assessment_date.desc())
+        .first()
+    )
+    if latest_bia:
+        fo = latest_bia.bia_fluid_overload_litres
+        oh = latest_bia.bia_overhydration_percent
+        inputs_found.append(f"BIA fluid overload {fo:+.1f} L")
+        if fo > 2.5:
+            risk_score += 2
+            events.append({"type": "fluid",
+                "text": f"BIA: severe fluid overload {fo:.1f} L above target (>{2.5} L threshold)"})
+        elif fo > 1.0:
+            risk_score += 1
+            events.append({"type": "fluid",
+                "text": f"BIA: fluid overload {fo:.1f} L above target — moderate volume excess"})
+        if oh is not None and oh > 15:
+            risk_score += 1
+            events.append({"type": "fluid",
+                "text": f"BIA: overhydration {oh:.1f}% body water — exceeds 15% threshold"})
+    else:
+        inputs_missing.append("BIA fluid overload (dry-weight assessment)")
+
+    # ── 4. INTERDIALYTIC WEIGHT GAIN ──────────────────────────────────────────
+    idwgs = [(r.record_month, r.idwg) for r in records if r.idwg is not None]
+    if idwgs:
+        latest_idwg = idwgs[-1][1]
+        avg_idwg    = sum(v for _, v in idwgs) / len(idwgs)
+        inputs_found.append(f"IDWG {latest_idwg:.1f} kg")
+        if latest_idwg > 3.5 or avg_idwg > 3.0:
+            risk_score += 2
+            events.append({"type": "fluid",
+                "text": f"High interdialytic weight gain: latest {latest_idwg:.1f} kg, avg {avg_idwg:.1f} kg — volume loading risk"})
+        elif latest_idwg > 2.5:
+            risk_score += 1
+            events.append({"type": "fluid",
+                "text": f"Elevated IDWG: {latest_idwg:.1f} kg (target <2.5 kg)"})
+    else:
+        inputs_missing.append("IDWG (monthly record)")
+
+    # ── 5. RESIDUAL URINE OUTPUT ──────────────────────────────────────────────
+    urine_vals = [(r.record_month, r.residual_urine_output) for r in records if r.residual_urine_output is not None]
+    if urine_vals:
+        latest_uo = urine_vals[-1][1]
+        inputs_found.append(f"Urine output {latest_uo:.0f} mL/day")
+        if latest_uo < 200:
+            risk_score += 2
+            events.append({"type": "renal",
+                "text": f"Oliguria/anuria: urine output {latest_uo:.0f} mL/day — minimal fluid buffering capacity"})
+        elif latest_uo < 500:
+            risk_score += 1
+            events.append({"type": "renal",
+                "text": f"Low residual urine output: {latest_uo:.0f} mL/day — limited salt and water excretion"})
+        # Declining trend
+        if len(urine_vals) >= 2:
+            first_uo = urine_vals[0][1]
+            if first_uo - latest_uo > 200:
+                risk_score += 1
+                events.append({"type": "renal",
+                    "text": f"Declining urine output: {first_uo:.0f} → {latest_uo:.0f} mL/day over {len(urine_vals)} months"})
+    else:
+        inputs_missing.append("Residual urine output (monthly record)")
+
+    # ── 6. FLUID-RELATED HOSPITALISATIONS ─────────────────────────────────────
+    fluid_keywords = {"fluid", "j81", "i50", "oedema", "edema", "pulmonary", "overload"}
     recent_hosps = [r for r in records if r.hospitalization_this_month]
-    fluid_hosps = sum(1 for r in recent_hosps if r.hospitalization_icd_code and ("fluid" in r.hospitalization_icd_code.lower() or "j81" in r.hospitalization_icd_code.lower() or "i50" in r.hospitalization_icd_code.lower() or "oedema" in r.hospitalization_icd_code.lower() or "edema" in r.hospitalization_icd_code.lower()))
-    
-    if fluid_hosps > 0:
-        risk_score += 4
-        events.append({"type": "outcome", "text": f"Recent hospitalization(s) heavily linked to fluid overload / pulmonary edema."})
-    elif len(recent_hosps) > 0:
-        events.append({"type": "outcome", "text": f"{len(recent_hosps)} hospitalization(s) in the last {len(records)} months."})
+    fluid_hosps  = [r for r in recent_hosps if r.hospitalization_icd_code and
+                    any(kw in r.hospitalization_icd_code.lower() for kw in fluid_keywords)]
 
-    cascade_detected = risk_score >= 5
-    
+    if fluid_hosps:
+        risk_score += 4
+        events.append({"type": "outcome",
+            "text": f"{len(fluid_hosps)} hospitalization(s) linked to fluid overload / pulmonary oedema in last {len(records)} months"})
+    elif recent_hosps:
+        events.append({"type": "outcome",
+            "text": f"{len(recent_hosps)} hospitalization(s) in last {len(records)} months (ICD codes not fluid-specific)"})
+
+    # ── Data sufficiency ──────────────────────────────────────────────────────
+    total_inputs   = len(inputs_found) + len(inputs_missing)
+    completeness   = round(len(inputs_found) / total_inputs * 100) if total_inputs else 0
+    # "Reliable" = at least 3 of 6 input groups scored
+    reliable       = len(inputs_found) >= 3
+    cascade_detected = risk_score >= 5 and reliable
+
+    if not reliable:
+        status_label = "UNKNOWN"
+        message = (f"Insufficient data to assess risk reliably — "
+                   f"only {len(inputs_found)} of {total_inputs} expected inputs recorded.")
+    elif cascade_detected:
+        status_label = "HIGH RISK"
+        message = "Cardiorenal / fluid overload cascade detected — multiple concurrent risk factors."
+    elif risk_score >= 3:
+        status_label = "MODERATE RISK"
+        message = "Moderate cardiorenal risk — monitor fluid balance closely."
+    else:
+        status_label = "LOW RISK"
+        message = "No active cardiorenal fluid cascade — current data within acceptable range."
+
     return {
-        "available": True,
+        "available":        True,
         "cascade_detected": cascade_detected,
-        "risk_score": risk_score,
-        "events": events,
-        "message": "High Cardiorenal / Fluid Overload Cascade risk detected." if cascade_detected else "No active Cardiorenal fluid cascade detected."
+        "risk_score":       risk_score,
+        "status_label":     status_label,
+        "reliable":         reliable,
+        "data_completeness": completeness,
+        "inputs_found":     inputs_found,
+        "inputs_missing":   inputs_missing,
+        "events":           events,
+        "months_assessed":  len(records),
+        "message":          message,
     }
 
 def analyze_avf_maturation(db, patient_id: int) -> dict:
