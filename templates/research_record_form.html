@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Record {{ test_type }} - Research Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5; --bg-body: #f8fafc; --bg-card: #ffffff;
+            --border: #e2e8f0; --text-dark: #0f172a; --text-muted: #64748b;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-dark); margin: 0; padding-bottom: 60px; }
+        header { background: white; padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .back-link { color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 0.9rem; }
+        .back-link:hover { color: var(--primary); }
+        
+        .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+        .card { background: var(--bg-card); border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        
+        .patient-info { display: flex; align-items: center; gap: 15px; background: #f1f5f9; padding: 15px 20px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid var(--primary); }
+        .patient-info i { font-size: 2rem; color: var(--primary); }
+        
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .full-width { grid-column: 1 / -1; }
+        
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: #334155; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'Inter'; font-size: 0.95rem; box-sizing: border-box; }
+        .form-group input:focus, .form-group select:focus { border-color: var(--primary); outline: none; }
+        
+        .btn-primary { background: var(--primary); color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 20px; }
+        .btn-primary:hover { background: #4338ca; }
+        
+        .dynamic-fields-container { background: #fffcf0; padding: 20px; border-radius: 8px; border: 1px solid #fde68a; margin-top: 10px; margin-bottom: 20px; }
+        .dynamic-fields-container h3 { margin-top: 0; color: #b45309; font-family: 'Outfit'; display: flex; align-items: center; gap: 8px; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+    {% include "_nav.html" %}
+    
+    <header>
+        <div>
+            <a href="/research/projects/{{ project.id }}" class="back-link"><i class="material-icons" style="font-size:1.1rem;">arrow_back</i> Back to {{ project.title }}</a>
+            <h1 style="margin: 10px 0 0 0; font-family: 'Outfit'; color: var(--primary);">Data Entry: {{ test_type }}</h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <div class="patient-info">
+                <i class="material-icons">account_circle</i>
+                <div>
+                    <strong style="font-size: 1.1rem;">{{ patient.name }}</strong>
+                    <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">HID: {{ patient.hid_no }} | Age: {{ patient.age }} | Access: {{ patient.access_type }}</div>
+                </div>
+            </div>
+
+            <form action="/research/projects/{{ project.id }}/record" method="POST">
+                <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                <input type="hidden" name="test_type" value="{{ test_type }}">
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Evaluation Date</label>
+                        <input type="date" name="test_date" id="test_date" required>
+                    </div>
+                </div>
+
+                <div class="dynamic-fields-container" id="dynamicFields">
+                    <h3><i class="material-icons">science</i> Specific Metrics</h3>
+                    <div class="form-grid" id="fieldsArea">
+                        <!-- JS injects fields here based on test_type -->
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>Clinical Notes / Methodological Remarks</label>
+                    <textarea name="notes" rows="3" placeholder="Enter any specific conditions during the test..."></textarea>
+                </div>
+                
+                <button type="submit" class="btn-primary">Save Research Record</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('test_date').valueAsDate = new Date();
+        
+        const testType = "{{ test_type }}";
+        const fieldsArea = document.getElementById('fieldsArea');
+        
+        const fieldSchemas = {
+            "NT_PRO_BNP": [
+                { name: "nt_pro_bnp_value", label: "NT-Pro BNP (pg/mL)", type: "number", step: "1" },
+                { name: "assay_method", label: "Assay Method", type: "text" }
+            ],
+            "HANDGRIP_STRENGTH": [
+                { name: "dominant_hand_kg", label: "Dominant Hand (kg)", type: "number", step: "0.1" },
+                { name: "nondominant_hand_kg", label: "Non-Dominant Hand (kg)", type: "number", step: "0.1" },
+                { name: "dynamometer_model", label: "Dynamometer Model", type: "text" }
+            ],
+            "MOCA": [
+                { name: "total_score", label: "Total Score (out of 30)", type: "number", step: "1", max: "30" },
+                { name: "visuospatial_executive", label: "Visuospatial / Executive (5)", type: "number", max: "5" },
+                { name: "naming", label: "Naming (3)", type: "number", max: "3" },
+                { name: "attention", label: "Attention (6)", type: "number", max: "6" },
+                { name: "language", label: "Language (3)", type: "number", max: "3" },
+                { name: "abstraction", label: "Abstraction (2)", type: "number", max: "2" },
+                { name: "delayed_recall", label: "Delayed Recall (5)", type: "number", max: "5" },
+                { name: "orientation", label: "Orientation (6)", type: "number", max: "6" }
+            ],
+            "SGA": [
+                { name: "sga_score", label: "SGA Score (1-7 or A/B/C)", type: "text" },
+                { name: "weight_change_pct", label: "Weight Change (%)", type: "number", step: "0.1" },
+                { name: "muscle_wasting", label: "Muscle Wasting", type: "select", options: ["None", "Mild", "Moderate", "Severe"] },
+                { name: "subcutaneous_fat_loss", label: "Fat Loss", type: "select", options: ["None", "Mild", "Moderate", "Severe"] }
+            ],
+            "BIA": [
+                { name: "phase_angle", label: "Phase Angle (degrees)", type: "number", step: "0.1" },
+                { name: "tbw_liters", label: "Total Body Water (L)", type: "number", step: "0.1" },
+                { name: "ecw_liters", label: "Extracellular Water (L)", type: "number", step: "0.1" },
+                { name: "lean_tissue_index", label: "Lean Tissue Index (LTI)", type: "number", step: "0.1" }
+            ],
+            "VEXUS": [
+                { name: "ivc_diameter_cm", label: "IVC Diameter (cm)", type: "number", step: "0.1" },
+                { name: "hepatic_vein_doppler", label: "Hepatic Vein Doppler", type: "select", options: ["Normal", "S<D", "S reversal"] },
+                { name: "portal_vein_pulsatility", label: "Portal Vein Pulsatility (%)", type: "number", step: "1" },
+                { name: "renal_vein_doppler", label: "Intrarenal Vein Doppler", type: "select", options: ["Continuous", "Biphasic", "Monophasic"] },
+                { name: "vexus_grade", label: "VExUS Grade", type: "select", options: ["Grade 0", "Grade 1", "Grade 2", "Grade 3"] }
+            ],
+            "DIASTOLIC_ECHO": [
+                { name: "e_velocity", label: "E Velocity (cm/s)", type: "number", step: "1" },
+                { name: "a_velocity", label: "A Velocity (cm/s)", type: "number", step: "1" },
+                { name: "e_a_ratio", label: "E/A Ratio", type: "number", step: "0.1" },
+                { name: "average_e_prime", label: "Average e' (cm/s)", type: "number", step: "0.1" },
+                { name: "e_e_prime_ratio", label: "E/e' Ratio", type: "number", step: "0.1" },
+                { name: "lavi", label: "LA Volume Index (mL/m²)", type: "number", step: "0.1" },
+                { name: "peak_tr_velocity", label: "Peak TR Velocity (m/s)", type: "number", step: "0.1" },
+                { name: "diastolic_grade", label: "Diastolic Grade", type: "select", options: ["Normal", "Grade I (Impaired)", "Grade II (Pseudonormal)", "Grade III (Restrictive)"] }
+            ],
+            "MIA_SCORING": [
+                { name: "serum_albumin", label: "Serum Albumin (g/dL)", type: "number", step: "0.1" },
+                { name: "body_weight", label: "Body Weight (kg)", type: "number", step: "0.1" },
+                { name: "serum_crp", label: "Serum CRP (mg/dL)", type: "number", step: "0.01" },
+                { name: "history_cv_event", label: "History of CV Event (AMI/CVA/CVD)", type: "select", options: ["No", "Yes"] },
+                { name: "history_invasive_proc", label: "History of Invasive Procedure (PCI/CABG/PTA)", type: "select", options: ["No", "Yes"] }
+            ],
+            "FGF23": [
+                { name: "fgf23_value", label: "FGF-23 Level (pg/mL)", type: "number", step: "0.1" },
+                { name: "assay_type", label: "Assay Type", type: "select", options: ["Intact FGF-23 (iFGF)", "C-Terminal FGF-23 (cFGF)"] },
+                { name: "lab_name", label: "Processing Lab", type: "text" }
+            ],
+            "STEPS_ACTIVITY": [
+                { name: "avg_steps_per_day", label: "Average Steps / Day", type: "number", step: "1" },
+                { name: "tracking_duration_days", label: "Tracking Period (Days)", type: "number", step: "1" },
+                { name: "device_method", label: "Tracking Device", type: "select", options: ["Smartphone", "Smartwatch / Fitbit", "Pedometor", "Self-Report Log"] },
+                { name: "sedentary_minutes", label: "Sedentary Time (min/day)", type: "number" }
+            ],
+            "SKIN_FOLD": [
+                { name: "triceps_mm", label: "Triceps Skinfold (mm)", type: "number", step: "0.1" },
+                { name: "biceps_mm", label: "Biceps Skinfold (mm)", type: "number", step: "0.1" },
+                { name: "subscapular_mm", label: "Subscapular Skinfold (mm)", type: "number", step: "0.1" },
+                { name: "suprailiac_mm", label: "Suprailiac Skinfold (mm)", type: "number", step: "0.1" },
+                { name: "mid_arm_circumference_cm", label: "Mid-Arm Circumference (cm)", type: "number", step: "0.1" }
+            ],
+            "LUNG_USG": [
+                { name: "total_b_lines", label: "Total B-Lines (Sum of zones)", type: "number" },
+                { name: "zones_scanned", label: "Number of Zones Scanned", type: "number", options: ["8", "28"] },
+                { name: "pleural_effusion", label: "Pleural Effusion Present", type: "select", options: ["No", "Yes - Right", "Yes - Left", "Yes - Bilateral"] }
+            ],
+            "AUTONOMIC_TEST": [
+                { name: "hrv", label: "Heart Rate Variability (ms)", type: "number" },
+                { name: "valsalva_ratio", label: "Valsalva Ratio", type: "number", step: "0.01" },
+                { name: "orthostatic_drop", label: "Orthostatic SBP Drop (mmHg)", type: "number" }
+            ],
+            "CUSTOM_VARIABLE": [
+                { name: "variable_id", label: "Select Variable", type: "select", options: [
+                    {% for v in all_variables %}
+                    { value: "{{ v.id }}", label: "{{ v.display_name }} ({{ v.unit }})" },
+                    {% endfor %}
+                ]},
+                { name: "value", label: "Value", type: "number", step: "0.01" }
+            ],
+            "OTHER": [
+                { name: "custom_test_name", label: "Test Name", type: "text" },
+                { name: "result_value", label: "Result/Finding", type: "text" }
+            ]
+        };
+
+        function renderFields() {
+                return;
+            }
+
+            let html = '';
+            schema.forEach(field => {
+                const stepAttr = field.step ? `step="${field.step}"` : '';
+                const maxAttr = field.max ? `max="${field.max}"` : '';
+                
+                let inputHtml = '';
+                if (field.type === 'select') {
+                    const options = field.options.map(o => `<option value="${o}">${o}</option>`).join('');
+                    inputHtml = `<select name="${field.name}"><option value="">-- Select --</option>${options}</select>`;
+                } else {
+                    inputHtml = `<input type="${field.type}" name="${field.name}" ${stepAttr} ${maxAttr} placeholder="Enter value...">`;
+                }
+
+                html += `
+                    <div class="form-group">
+                        <label>${field.label}</label>
+                        ${inputHtml}
+                    </div>
+                `;
+            });
+            fieldsArea.innerHTML = html;
+        }
+
+        renderFields();
+    </script>
+</body>
+</html>

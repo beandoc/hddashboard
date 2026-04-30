@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Research Hub - HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #e0e7ff;
+            --secondary: #0ea5e9;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-dark); margin: 0; }
+        header { background: #1e1b4b; color: white; padding: 24px 32px; border-bottom: 4px solid var(--primary); }
+        header h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 2rem; display: flex; align-items: center; gap: 12px; }
+        
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        
+        .top-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .btn-primary { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary:hover { background: #4338ca; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 24px; }
+        .card { background: var(--bg-card); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); border: 1px solid var(--border); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-3px); border-color: var(--primary-light); }
+        .card h3 { font-family: 'Outfit', sans-serif; color: var(--primary); margin: 0 0 10px 0; font-size: 1.4rem; }
+        .card p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 20px; }
+        
+        .card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 16px; margin-top: auto; }
+        .status-badge { background: #dcfce7; color: #16a34a; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .btn-outline { border: 1.5px solid var(--primary); color: var(--primary); padding: 6px 14px; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .btn-outline:hover { background: var(--primary-light); }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: var(--radius); width: 100%; max-width: 500px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: 'Inter'; }
+        .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+        .btn-cancel { padding: 10px 20px; background: #f1f5f9; color: #475569; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    </style>
+</head>
+<body>
+    {% include "_nav.html" %}
+    
+    <header>
+        <h1><i class="material-icons" style="font-size:2.2rem;">science</i> Academic Research Hub</h1>
+        <p style="opacity: 0.8; margin: 8px 0 0 40px; font-size: 0.95rem;">Manage specialized evaluations and experimental data for clinical studies.</p>
+    </header>
+
+    <div class="container">
+        <div class="top-actions">
+            <h2 style="margin:0; font-family:'Outfit';">Active Projects</h2>
+            <button class="btn-primary" onclick="document.getElementById('newProjectModal').style.display='flex'">
+                <i class="material-icons">add</i> New Project
+            </button>
+        </div>
+
+        <div class="grid">
+            {% for project in projects %}
+            <div class="card">
+                <h3>{{ project.title }}</h3>
+                <p>{{ project.description or "No description provided." }}</p>
+                <div class="card-footer">
+                    <span class="status-badge">{{ project.status }}</span>
+                    <a href="/research/projects/{{ project.id }}" class="btn-outline">Open Project</a>
+                </div>
+            </div>
+            {% else %}
+            <div style="grid-column: 1/-1; text-align: center; padding: 60px; background: white; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                <i class="material-icons" style="font-size: 3rem; color: #cbd5e1;">biotech</i>
+                <h3 style="color: #64748b; margin-top: 15px;">No active research projects</h3>
+                <p style="color: #94a3b8;">Create a new project to start tracking specialized academic tests.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="newProjectModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-top:0; color:var(--primary); font-family:'Outfit';">Create Research Project</h2>
+            <form method="POST" action="/research/projects">
+                <div class="form-group">
+                    <label>Project Title</label>
+                    <input type="text" name="title" required placeholder="e.g. Sarcopenia in Incident ESRD">
+                </div>
+                <div class="form-group">
+                    <label>Description & Objectives</label>
+                    <textarea name="description" rows="4" placeholder="Briefly describe the study goals..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-cancel" onclick="document.getElementById('newProjectModal').style.display='none'">Cancel</button>
+                    <button type="submit" class="btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

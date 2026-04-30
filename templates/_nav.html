@@ -314,6 +314,7 @@
     {% endif %}
     {% if _cur_role in ['admin', 'doctor'] %}
       <a href="/analytics">Analytics</a>
+      <a href="/research">Research Hub</a>
     {% endif %}
 
     <!-- Admin-only tools -->
@@ -360,6 +361,7 @@
   {% endif %}
   {% if _cur_role in ['admin', 'doctor'] %}
     <a href="/analytics">Analytics</a>
+    <a href="/research">Research Hub</a>
   {% endif %}
 
   {% if _cur_role == 'admin' %}

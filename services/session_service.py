@@ -85,6 +85,11 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         reason_emergency=data.get("reason_emergency"),
         idh_episode=data.get("idh_episode", False),
         muscle_cramps=data.get("muscle_cramps", False),
+        urea_peripheral_s=data.get("urea_peripheral_s"),
+        urea_arterial_a=data.get("urea_arterial_a"),
+        urea_venous_v=data.get("urea_venous_v"),
+        access_recirculation_percent=data.get("access_recirculation_percent"),
+        access_flow_qa=data.get("access_flow_qa"),
     )
     db.add(rec)
     db.commit()
@@ -136,6 +141,11 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.post_hd_dyspnea_likert = data.get("post_hd_dyspnea_likert")
     sess.is_emergency = data.get("is_emergency", False)
     sess.reason_emergency = data.get("reason_emergency")
+    sess.urea_peripheral_s = data.get("urea_peripheral_s")
+    sess.urea_arterial_a = data.get("urea_arterial_a")
+    sess.urea_venous_v = data.get("urea_venous_v")
+    sess.access_recirculation_percent = data.get("access_recirculation_percent")
+    sess.access_flow_qa = data.get("access_flow_qa")
     
     db.commit()
     db.refresh(sess)

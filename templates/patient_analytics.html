@@ -232,6 +232,35 @@
           <div class="insufficient-box">⚠ {{ alb.message }}</div>
         {% endif %}
       </div>
+
+      <!-- MIA Syndrome Status -->
+      {% set mia = analytics.mia_status %}
+      <div class="insight-card" style="border-top: 3px solid {% if mia.score >= 2 %}#dc2626{% elif mia.score == 1 %}#d97706{% else %}#16a34a{% endif %};">
+        <div class="card-head">
+          <i class="material-icons" style="color:#6366f1;">biotech</i>
+          <h3>MIA Syndrome Status</h3>
+          {% if mia.score is not none %}
+          <span class="status-pill {{ 'danger' if mia.score >= 2 else 'warning' if mia.score == 1 else 'success' }}">
+            Score: {{ mia.score }}/3
+          </span>
+          {% endif %}
+        </div>
+        {% if mia.score is not none %}
+        <div class="card-val" style="color:{% if mia.score >= 2 %}#dc2626{% elif mia.score == 1 %}#d97706{% else %}#16a34a{% endif %};">
+          {{ mia.score }} <small>Components</small>
+        </div>
+        <div class="card-desc">
+          <strong>GNRI:</strong> {{ mia.metrics.gnri or '—' }} ({{ mia.metrics.risk_grade }})<br>
+          <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+            <span class="status-pill {{ 'danger' if mia.components.malnutrition else 'success' }}" style="font-size:0.65rem;">M: {{ 'Low GNRI' if mia.components.malnutrition else 'Normal' }}</span>
+            <span class="status-pill {{ 'danger' if mia.components.inflammation else 'success' }}" style="font-size:0.65rem;">I: {{ 'High CRP' if mia.components.inflammation else 'Normal' }}</span>
+            <span class="status-pill {{ 'danger' if mia.components.atherosclerosis else 'success' }}" style="font-size:0.65rem;">A: {{ 'Positive' if mia.components.atherosclerosis else 'Negative' }}</span>
+          </div>
+        </div>
+        {% else %}
+        <div class="insufficient-box">⚠ Insufficient data for MIA scoring (Requires Albumin, Weight, Height, and CRP).</div>
+        {% endif %}
+      </div>
     </div>
 
     <div class="dashboard-row">

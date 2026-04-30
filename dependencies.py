@@ -42,3 +42,11 @@ def _require_admin(request: Request):
         if "text/html" in request.headers.get("accept", ""):
             raise HTTPException(status_code=403, detail="Admin privileges required. Please log in with an admin account.")
         raise HTTPException(status_code=403, detail="Admin privileges required")
+
+def _require_admin_role(request: Request):
+    """Allow both admins and doctors (who often handle research)."""
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=303, detail="Not authenticated", headers={"Location": "/login"})
+    if _get_role(user) not in ("admin", "doctor"):
+        raise HTTPException(status_code=403, detail="Access denied: Researcher (Admin/Doctor) role required.")

@@ -10,7 +10,7 @@ from database import engine, Base, get_db, Patient, SessionLocal, User
 from config import templates, serializer, pwd_context
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label
-from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics
+from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research
 
 # ─────────────────────────────────────────────────────────────────────────────
 # APP INITIALIZATION
@@ -140,6 +140,7 @@ app.include_router(alerts.router)
 app.include_router(sustainability.router)
 app.include_router(fluid_status.router)
 app.include_router(admin_analytics.router)
+app.include_router(research.router)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CORE ROUTES (Dashboard)

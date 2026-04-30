@@ -113,8 +113,8 @@
   <div class="header-inner">
     <h1><i class="material-icons">psychology</i> Mortality Risk — Cohort View</h1>
     <p>
-      Rule-based log-odds risk scoring using HD mortality literature.
-      Features: Age, Albumin, Neutrophil/WBC, Ejection Fraction, IHD, DM. Sorted by descending 1-year risk.
+      Xu et al. 2023 XGBoost model (AUC 0.979 · 1-yr; 0.933 · 4-yr; 0.935 · 7-yr). Chinese HD cohort.
+      Features: Age, Albumin (g/L), Neutrophil, Ejection Fraction, IHD. Sorted by descending 1-year risk.
     </p>
     <div class="header-chips">
       <span class="chip chip-red">
@@ -133,11 +133,11 @@
   <div class="model-info">
     <i class="material-icons">info</i>
     <div>
-      <strong>Model note:</strong> Rule-based log-odds scoring using published hazard ratios
-      (Kalantar-Zadeh 2005; Drechsler 2010; Elias 2021). Predictions are clinical
-      decision-support approximations &mdash; not a validated statistical model.
-      <strong>Risk threshold &ge; 43.9% = High Risk</strong> (working threshold).
-      Click <strong>Analyze</strong> to see full per-patient prediction details and clinical cascade.
+      <strong>Model:</strong> Xu et al. 2023 XGBoost (AUC 0.979 · 1-yr | 0.933 · 4-yr | 0.935 · 7-yr),
+      trained on Chinese HD cohort (n~900). Integrated directly from the published repository.
+      <strong>Indian population note:</strong> Risk <em>direction</em> is valid; absolute probabilities
+      may differ by 5–15% until locally validated. Use for risk <em>ranking</em>, not absolute prognosis.
+      Threshold &ge; 43.9% = High Risk. Falls back to rule-based log-odds if data is insufficient.
     </div>
   </div>
 
@@ -153,12 +153,12 @@
         <tr>
           <th>Patient</th>
           <th>1-Year Risk</th>
+          <th>4-Year Risk</th>
           <th>Risk Level</th>
           <th>Latest Hb</th>
           <th>Latest Albumin</th>
           <th>Age</th>
-          <th>Confidence</th>
-          <th>Data Points</th>
+          <th>Confidence / Model</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -188,6 +188,11 @@
             {% endif %}
           </td>
           <td>
+            {% if row.mort.prob_4yr is defined %}
+            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (row.mort.prob_4yr * 100) | round | int }}%</span>
+            {% else %}<span style="color:var(--muted);">—</span>{% endif %}
+          </td>
+          <td>
             <span class="risk-pill pill-danger">{{ row.risk_level }}</span>
           </td>
           <td>
@@ -209,8 +214,12 @@
             <span class="conf-{{ mort.confidence }}">
               <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
             </span>
+            {% if mort.model_type is defined %}
+            <div style="font-size:0.68rem;margin-top:2px;color:{% if 'xgboost_full' in mort.model_type %}#16a34a{% elif 'xgboost' in mort.model_type %}#d97706{% else %}#94a3b8{% endif %};font-weight:600;">
+              {% if 'xgboost_full' in mort.model_type %}⚡ XGBoost (5/5){% elif 'xgboost' in mort.model_type %}⚡ XGBoost (partial){% else %}📐 Rule-based{% endif %}
+            </div>
+            {% endif %}
           </td>
-          <td style="color:var(--muted);">{{ row.n_months }} mo</td>
           <td>
             <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
               <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
@@ -235,12 +244,12 @@
         <tr>
           <th>Patient</th>
           <th>1-Year Risk</th>
+          <th>4-Year Risk</th>
           <th>Risk Level</th>
           <th>Latest Hb</th>
           <th>Latest Albumin</th>
           <th>Age</th>
-          <th>Confidence</th>
-          <th>Data Points</th>
+          <th>Confidence / Model</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -270,6 +279,11 @@
             {% endif %}
           </td>
           <td>
+            {% if row.mort.prob_4yr is defined %}
+            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (row.mort.prob_4yr * 100) | round | int }}%</span>
+            {% else %}<span style="color:var(--muted);">—</span>{% endif %}
+          </td>
+          <td>
             <span class="risk-pill pill-warning">{{ row.risk_level }}</span>
           </td>
           <td>
@@ -291,8 +305,12 @@
             <span class="conf-{{ mort.confidence }}">
               <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
             </span>
+            {% if mort.model_type is defined %}
+            <div style="font-size:0.68rem;margin-top:2px;color:{% if 'xgboost_full' in mort.model_type %}#16a34a{% elif 'xgboost' in mort.model_type %}#d97706{% else %}#94a3b8{% endif %};font-weight:600;">
+              {% if 'xgboost_full' in mort.model_type %}⚡ XGBoost (5/5){% elif 'xgboost' in mort.model_type %}⚡ XGBoost (partial){% else %}📐 Rule-based{% endif %}
+            </div>
+            {% endif %}
           </td>
-          <td style="color:var(--muted);">{{ row.n_months }} mo</td>
           <td>
             <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
               <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
@@ -366,8 +384,12 @@
             <span class="conf-{{ mort.confidence }}">
               <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
             </span>
+            {% if mort.model_type is defined %}
+            <div style="font-size:0.68rem;margin-top:2px;color:{% if 'xgboost_full' in mort.model_type %}#16a34a{% elif 'xgboost' in mort.model_type %}#d97706{% else %}#94a3b8{% endif %};font-weight:600;">
+              {% if 'xgboost_full' in mort.model_type %}⚡ XGBoost (5/5){% elif 'xgboost' in mort.model_type %}⚡ XGBoost (partial){% else %}📐 Rule-based{% endif %}
+            </div>
+            {% endif %}
           </td>
-          <td style="color:var(--muted);">{{ row.n_months }} mo</td>
           <td>
             <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
               <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze

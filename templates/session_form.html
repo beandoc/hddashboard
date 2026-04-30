@@ -276,6 +276,49 @@
           <label>Access Complications / Notes</label>
           <textarea name="access_complications" placeholder="e.g. Difficult cannulation, haematoma, reduced thrill...">{{ session.access_complications if session and session.access_complications else '' }}</textarea>
         </div>
+
+        <div class="grid-2">
+           <div>
+             <label>Access Flow (Qa) (mL/min)</label>
+             <input type="number" name="access_flow_qa" step="10" inputmode="numeric" placeholder="e.g. 650"
+               value="{{ session.access_flow_qa if session and session.access_flow_qa else '' }}">
+             <div style="font-size:0.7rem; color:var(--muted); margin-top:4px;">KDOQI: Normal > 600 | < 500 = Failure Risk</div>
+           </div>
+           <div style="padding-top:20px;">
+              <span id="qa-status-pill" style="padding:4px 8px; border-radius:12px; font-size:0.75rem; font-weight:700; display:none;"></span>
+           </div>
+        </div>
+        
+        <!-- Recirculation Testing (Optional) -->
+        <div class="full" style="background:#f8fafc; padding:15px; border:1px dashed var(--border); border-radius:8px; margin-top:10px;">
+          <label style="color:var(--accent); font-weight:700; margin-bottom:10px;">Access Recirculation Test (Two-Needle Urea Method)</label>
+          <div class="grid">
+            <div>
+              <label>Systemic Peripheral (S)</label>
+              <input type="number" name="urea_peripheral_s" id="urea-s" step="0.1" inputmode="decimal" placeholder="mg/dL"
+                value="{{ session.urea_peripheral_s if session and session.urea_peripheral_s else '' }}">
+            </div>
+            <div>
+              <label>Arterial Line (A)</label>
+              <input type="number" name="urea_arterial_a" id="urea-a" step="0.1" inputmode="decimal" placeholder="mg/dL"
+                value="{{ session.urea_arterial_a if session and session.urea_arterial_a else '' }}">
+            </div>
+            <div>
+              <label>Venous Line (V)</label>
+              <input type="number" name="urea_venous_v" id="urea-v" step="0.1" inputmode="decimal" placeholder="mg/dL"
+                value="{{ session.urea_venous_v if session and session.urea_venous_v else '' }}">
+            </div>
+            <div>
+              <label>Recirculation (%)</label>
+              <input type="number" name="access_recirculation_percent" id="recirc-pct" step="0.1" readonly 
+                style="background:#f1f5f9; cursor:not-allowed; font-weight:700;"
+                value="{{ session.access_recirculation_percent if session and session.access_recirculation_percent else '' }}">
+              <div id="recirc-label" style="font-size:0.7rem; font-weight:600; margin-top:4px;"></div>
+            </div>
+          </div>
+          <p style="font-size:0.7rem; color:var(--muted); margin-top:8px;">Formula: R = [(S-A)/(S-V)] &times; 100. Normal: < 5% | Significant: > 10%</p>
+        </div>
+
         <div class="full">
           <label>Vascular Interventions This Session</label>
           <input type="text" name="vascular_interventions"
@@ -489,6 +532,72 @@
   }
   condSelect.addEventListener('change', updateAccessBorder);
   updateAccessBorder();
+
+  // Access Recirculation Live Calculation
+  var sInput = document.getElementById('urea-s');
+  var aInput = document.getElementById('urea-a');
+  var vInput = document.getElementById('urea-v');
+  var rOutput = document.getElementById('recirc-pct');
+  var rLabel = document.getElementById('recirc-label');
+
+  function calculateRecirc() {
+    var s = parseFloat(sInput.value);
+    var a = parseFloat(aInput.value);
+    var v = parseFloat(vInput.value);
+    
+    if (isNaN(s) || isNaN(a) || isNaN(v) || (s-v) === 0) {
+      rOutput.value = '';
+      rLabel.textContent = '';
+      return;
+    }
+    
+    var r = ((s - a) / (s - v)) * 100;
+    r = Math.max(0, Math.round(r * 10) / 10);
+    rOutput.value = r;
+    
+    if (r < 5) {
+      rLabel.textContent = '✓ Normal';
+      rLabel.style.color = 'var(--success)';
+    } else if (r <= 10) {
+      rLabel.textContent = '⚠ Borderline';
+      rLabel.style.color = 'var(--warning)';
+    } else {
+      rLabel.textContent = '✗ Significant';
+      rLabel.style.color = 'var(--danger)';
+    }
+  }
+
+  [sInput, aInput, vInput].forEach(el => el.addEventListener('input', calculateRecirc));
+  if (sInput.value && aInput.value && vInput.value) calculateRecirc();
+
+  // Access Flow (Qa) Interpretations
+  var qaInput = document.querySelector('input[name="access_flow_qa"]');
+  var qaPill  = document.getElementById('qa-status-pill');
+
+  function updateQaStatus() {
+    var val = parseFloat(qaInput.value);
+    if (isNaN(val)) { qaPill.style.display = 'none'; return; }
+    qaPill.style.display = 'inline-block';
+    
+    if (val < 300) {
+      qaPill.textContent = 'Impending Failure';
+      qaPill.style.background = '#fee2e2'; qaPill.style.color = '#b91c1c';
+    } else if (val < 400) {
+      qaPill.textContent = 'Non-Maturation Risk';
+      qaPill.style.background = '#fef3c7'; qaPill.style.color = '#92400e';
+    } else if (val < 500) {
+      qaPill.textContent = 'Poor Maturation';
+      qaPill.style.background = '#ffedd5'; qaPill.style.color = '#c2410c';
+    } else if (val < 600) {
+      qaPill.textContent = 'Sub-optimal (Stenosis Risk)';
+      qaPill.style.background = '#fef9c3'; qaPill.style.color = '#854d0e';
+    } else {
+      qaPill.textContent = 'Normal Maturation';
+      qaPill.style.background = '#dcfce7'; qaPill.style.color = '#15803d';
+    }
+  }
+  qaInput.addEventListener('input', updateQaStatus);
+  updateQaStatus();
 </script>
 </body>
 </html>

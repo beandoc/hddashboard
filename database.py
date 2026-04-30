@@ -445,6 +445,14 @@ class SessionRecord(Base):
     cannulation_technique = Column(String)   # Rope-ladder / Buttonhole / Area — CannulationTechnique
     vascular_interventions = Column(Text)    # Angioplasty / Declot etc. performed this session
     access_complications = Column(Text)      # e.g. "Poor thrill, haematoma"
+    
+    # ── Access Recirculation (Two-Needle Urea Method) ─────────────────────────
+    # Formula: R = (S-A)/(S-V) * 100
+    urea_peripheral_s = Column(Float)        # S: Systemic Peripheral Urea
+    urea_arterial_a = Column(Float)          # A: Predialyzer Arterial Urea
+    urea_venous_v = Column(Float)            # V: Postdialyzer Venous Urea
+    access_recirculation_percent = Column(Float) # Calculated result (%)
+    access_flow_qa = Column(Float)           # Qa: Access Flow (mL/min) - KDOQI thresholds
 
     # ── Session Medications ───────────────────────────────────────────────────
     medications_administered = Column(Text)  # Free text: "EPO 4000u SC, IV Iron 100mg"
@@ -589,6 +597,32 @@ class PatientSymptomReport(Base):
     patient = relationship("Patient", back_populates="symptom_reports")
     session = relationship("SessionRecord")
 
+
+class ResearchProject(Base):
+    __tablename__ = "research_projects"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text)
+    status = Column(String, default="Active")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    records = relationship("ResearchRecord", back_populates="project")
+
+class ResearchRecord(Base):
+    __tablename__ = "research_records"
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("research_projects.id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    
+    test_type = Column(String, nullable=False) 
+    test_date = Column(Date, default=lambda: datetime.utcnow().date())
+    data = Column(Text) # JSON string for flexible specialized test metrics
+    notes = Column(Text)
+    entered_by = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("ResearchProject", back_populates="records")
+    patient = relationship("Patient")
 
 def to_dict(obj):
     """Serialize SQLAlchemy model to dictionary, skipping internal state and relationships."""

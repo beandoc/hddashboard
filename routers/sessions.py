@@ -65,6 +65,11 @@ async def create_session(
     post_hd_dyspnea_likert: Optional[int] = Form(None),
     is_emergency: bool = Form(False),
     reason_emergency: Optional[str] = Form(None),
+    urea_peripheral_s: Optional[float] = Form(None),
+    urea_arterial_a: Optional[float] = Form(None),
+    urea_venous_v: Optional[float] = Form(None),
+    access_recirculation_percent: Optional[float] = Form(None),
+    access_flow_qa: Optional[float] = Form(None),
 ):
     try:
         session_service.create_session_record(db, patient_id, locals())
@@ -122,6 +127,11 @@ async def update_session(
     post_hd_dyspnea_likert: Optional[int] = Form(None),
     is_emergency: bool = Form(False),
     reason_emergency: Optional[str] = Form(None),
+    urea_peripheral_s: Optional[float] = Form(None),
+    urea_arterial_a: Optional[float] = Form(None),
+    urea_venous_v: Optional[float] = Form(None),
+    access_recirculation_percent: Optional[float] = Form(None),
+    access_flow_qa: Optional[float] = Form(None),
 ):
     try:
         session_service.update_session_record(db, session_id, locals())

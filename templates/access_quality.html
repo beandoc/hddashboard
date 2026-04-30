@@ -65,73 +65,175 @@
             </div>
         </div>
 
-        <!-- INCIDENT AVF RATE -->
+        <!-- MATURATION FAILURE COUNT -->
         <div class="stat-card">
-            <div class="stat-lbl">Incident AVF Rate (New)</div>
-            <div class="stat-val {{ 'status-ok' if metrics.incident_rate >= metrics.target_incident else 'status-danger' }}">
-                {{ metrics.incident_rate }}%
+            <div class="stat-lbl">Maturation Failures</div>
+            <div class="stat-val {{ 'status-danger' if metrics.maturation_failure_count > 0 else 'status-ok' }}">
+                {{ metrics.maturation_failure_count }}
             </div>
-            <div class="target-lbl">Target: &ge;{{ metrics.target_incident }}%</div>
+            <div class="target-lbl">Surgery > 6w, No cannulation</div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ metrics.incident_rate }}%; background: {{ '#10b981' if metrics.incident_rate >= metrics.target_incident else '#ef4444' }}"></div>
+                <div class="indicator-fill" style="width: {{ [metrics.maturation_failure_count / 5 * 100, 100] | min }}%; background: #ef4444"></div>
             </div>
         </div>
 
-        <!-- WATCHLIST COUNT -->
+        <!-- FUNCTIONAL ALERT COUNT -->
         <div class="stat-card">
-            <div class="stat-lbl">Delayed Conversions</div>
-            <div class="stat-val {{ 'status-danger' if metrics.watchlist_count > 0 else 'status-ok' }}">
-                {{ metrics.watchlist_count }}
+            <div class="stat-lbl">Functional Alerts</div>
+            <div class="stat-val {{ 'status-danger' if metrics.functional_alert_count > 0 else 'status-ok' }}">
+                {{ metrics.functional_alert_count }}
             </div>
-            <div class="target-lbl">Non-AVF access > 90 days</div>
+            <div class="target-lbl">BFR < 250 or Recirc > 10%</div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ [metrics.watchlist_count / 10 * 100, 100] | min }}%; background: #ef4444"></div>
+                <div class="indicator-fill" style="width: {{ [metrics.functional_alert_count / 5 * 100, 100] | min }}%; background: #f59e0b"></div>
             </div>
         </div>
     </div>
 
-    <!-- DELAYED CONVERSION WATCHLIST -->
+    <!-- 1. AVF MATURATION WATCHLIST (Surgery done, not matured) -->
     <div class="card">
-        <h3><i class="material-icons" style="color:#ef4444">history_toggle_off</i> Non-AVF Access > 90 Days Watchlist</h3>
-        <p style="color:#64748b; font-size:0.9rem; margin-top:5px;">Patients identified as "Late Referrals" or needing urgent permanent access construction per the 1st 3 months recommendation.</p>
+        <h3><i class="material-icons" style="color:#ef4444">timer</i> AVF Maturation Watchlist</h3>
+        <p style="color:#64748b; font-size:0.9rem; margin-top:5px;">Patients with AVF surgery performed > 4-6 weeks ago who are still dependent on temporary catheters/Permacaths.</p>
         
-        {% if watchlist %}
+        {% if maturation_watchlist %}
         <div style="overflow-x: auto;">
             <table class="watchlist-table">
                 <thead>
                     <tr>
                         <th>Patient Name</th>
-                        <th>HD Initiation</th>
+                        <th>Surgery Date</th>
                         <th>Current Access</th>
-                        <th>Days on HD</th>
-                        <th>Status Flag</th>
+                        <th>Clinical Alert</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for item in watchlist %}
+                    {% for item in maturation_watchlist %}
                     <tr>
                         <td><strong>{{ item.patient.name }}</strong></td>
-                        <td>{{ item.vintage }}</td>
-                        <td><span style="color:#ef4444; font-weight:600;">{{ item.patient.access_type }}</span></td>
-                        <td>{{ item.days }} Days</td>
-                        <td><span class="badge badge-urgent">Needs Permanent Access</span></td>
+                        <td>{{ item.patient.access_date }}</td>
+                        <td><span class="badge-urgent">{{ item.patient.access_type }}</span></td>
+                        <td>
+                            <ul style="margin:0; padding-left:15px; color:#b91c1c; font-size:0.85rem;">
+                                {% for alert in item.status.alerts %}
+                                    {% if 'Maturation' in alert %}<li>{{ alert }}</li>{% endif %}
+                                {% endfor %}
+                            </ul>
+                        </td>
+                        <td>
+                            <a href="/analytics/patients/{{ item.patient.id }}" class="btn-analyze" style="font-size:0.8rem; text-decoration:none; color:var(--primary); font-weight:600;">View Cascade</a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% else %}
-        <div style="text-align:center; padding:40px; color:#94a3b8;">
-            <i class="material-icons" style="font-size:3rem; opacity:0.3;">check_circle</i>
-            <p style="margin-top:10px;">All active patients have converted to permanent access within the 90-day window.</p>
+        <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.9rem;">
+            <i class="material-icons" style="font-size:2rem; opacity:0.3;">check_circle</i>
+            <p>No maturation failures detected. All current surgeries are either < 6 weeks old or already matured.</p>
         </div>
         {% endif %}
     </div>
 
-    <div style="background:#fffbeb; border:1px solid #fef3c7; padding:20px; border-radius:12px; font-size:0.9rem; color:#b45309; line-height:1.6;">
-        <i class="material-icons" style="vertical-align:middle; font-size:1.2rem; margin-right:5px;">info</i>
-        <strong>Clinical Recommendation:</strong> Permanent vascular access (AVF) should be constructed within the first 3 months on HD for patients starting with temporary access. Attempt permanent access in the order: Distal AVF &rarr; Proximal AVF &rarr; Graft &rarr; Tunnelled Catheter.
+    <!-- 2. FUNCTIONAL & RECIRCULATION ALERTS (Cannulated but poor performance) -->
+    <div class="card">
+        <h3><i class="material-icons" style="color:#f59e0b">speed</i> Functional & Recirculation Monitoring</h3>
+        <p style="color:#64748b; font-size:0.9rem; margin-top:5px;">Real-time intelligence monitoring BFR < 250 ml/min or Access Recirculation > 10% (Urea two-needle method).</p>
+        
+        {% if functional_watchlist %}
+        <div style="overflow-x: auto;">
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>Patient Name</th>
+                        <th>Access</th>
+                        <th>Issues Detected</th>
+                        <th>Latest Recirc</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in functional_watchlist %}
+                    <tr>
+                        <td><strong>{{ item.patient.name }}</strong></td>
+                        <td>{{ item.patient.access_type }}</td>
+                        <td>
+                            {% for alert in item.status.alerts %}
+                                {% if 'Suboptimal' in alert or 'Recirculation' in alert %}
+                                    <div style="color:#92400e; font-size:0.85rem; margin-bottom:2px;">
+                                        <i class="material-icons" style="font-size:0.9rem; vertical-align:middle;">warning</i> {{ alert }}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if item.status.high_recirculation %}
+                                <span style="color:#ef4444; font-weight:700;">Significant (>10%)</span>
+                            {% else %}
+                                <span style="color:#10b981;">Normal</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.8rem; text-decoration:none; color:var(--primary); font-weight:600;">Analyze Sessions</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.9rem;">
+            <i class="material-icons" style="font-size:2rem; opacity:0.3;">verified</i>
+            <p>All active permanent accesses are maintaining BFR &ge; 250 ml/min with no recirculation detected.</p>
+        </div>
+        {% endif %}
     </div>
+
+    <!-- 3. LATE CONVERSION WATCHLIST -->
+    <div class="card">
+        <h3><i class="material-icons" style="color:#6366f1">history_toggle_off</i> Non-AVF Access > 90 Days (Prevalent Catheter Use)</h3>
+        {% if watchlist %}
+        <div style="overflow-x: auto;">
+            <table class="watchlist-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Days on HD</th>
+                        <th>Current Access</th>
+                        <th>Vintage</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in watchlist %}
+                    <tr>
+                        <td><strong>{{ item.patient.name }}</strong></td>
+                        <td>{{ item.days }} Days</td>
+                        <td><span style="color:#ef4444; font-weight:600;">{{ item.patient.access_type }}</span></td>
+                        <td>{{ item.vintage }}</td>
+                        <td><span class="badge-urgent">Late Referral/Failure</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.9rem;">
+            <p>No prevalent catheters > 90 days detected.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:20px; border-radius:12px; font-size:0.85rem; color:#475569; line-height:1.6;">
+        <strong>Access Recirculation (Two-Needle Urea Method):</strong>
+        Calculated as R = [(S - A) / (S - V)] &times; 100. 
+        <br/>Normal: < 5% | Significant: > 10%. Recirculation indicates inadequate blood flow or reversed needles, leading to dialysis of already cleaned blood and significant reduction in Kt/V.
+    </div>
+</div>
+
+</body>
+</html>
 </div>
 
 </body>

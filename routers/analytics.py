@@ -67,7 +67,8 @@ async def census_report(request: Request, month: Optional[str] = None, db: Sessi
 @router.get("/analytics/vascular-access", response_class=HTMLResponse)
 async def vascular_access_quality(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)
-    from datetime import datetime, timedelta
+    from datetime import datetime
+    from ml_analytics import analyze_avf_maturation
     month_str = month or get_current_month_str()
     
     patients = db.query(Patient).filter(Patient.is_active == True).all()
@@ -78,15 +79,19 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     prevalent_rate = (len(prevalent_avf) / total_prevalent * 100) if total_prevalent else 0
     
     # 2. Incident AVF Rate (Started this month)
-    # Note: We check hd_wef_date for initiation
     incident_patients = [p for p in patients if p.hd_wef_date and p.hd_wef_date.strftime("%Y-%m") == month_str]
     incident_avf = [p for p in incident_patients if p.access_type and "AVF" in p.access_type.upper()]
     incident_rate = (len(incident_avf) / len(incident_patients) * 100) if incident_patients else 0
     
-    # 3. Late Conversion Watchlist (>90 days on HD with non-AVF access)
-    today = datetime.now().date()
+    # 3. Watchlists & Intelligence
+    maturation_watchlist = []
+    functional_watchlist = []
     conversion_watchlist = []
+    
+    today = datetime.now().date()
+    
     for p in patients:
+        # a) Late Conversion Watchlist (>90 days on HD with non-AVF access)
         if p.access_type and "AVF" not in p.access_type.upper():
             if p.hd_wef_date:
                 days_on_hd = (today - p.hd_wef_date).days
@@ -96,6 +101,20 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
                         "days": days_on_hd,
                         "vintage": p.hd_wef_date.strftime("%b %Y")
                     })
+        
+        # b) Intelligence Engine (Maturation & Functional)
+        status = analyze_avf_maturation(db, p.id)
+        if status.get("available"):
+            if status.get("maturation_failure"):
+                maturation_watchlist.append({
+                    "patient": p,
+                    "status": status
+                })
+            if status.get("suboptimal_flow") or status.get("high_recirculation"):
+                functional_watchlist.append({
+                    "patient": p,
+                    "status": status
+                })
 
     return templates.TemplateResponse("access_quality.html", {
         "request": request,
@@ -104,10 +123,14 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
             "prevalent_rate": round(prevalent_rate, 1),
             "incident_rate": round(incident_rate, 1),
             "watchlist_count": len(conversion_watchlist),
+            "maturation_failure_count": len(maturation_watchlist),
+            "functional_alert_count": len(functional_watchlist),
             "target_prevalent": 90.0,
             "target_incident": 65.0
         },
         "watchlist": conversion_watchlist,
+        "maturation_watchlist": maturation_watchlist,
+        "functional_watchlist": functional_watchlist,
         "user": get_user(request)
     })
 
