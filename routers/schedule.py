@@ -19,9 +19,14 @@ async def schedule_index(request: Request, date: Optional[str] = None, db: Sessi
         target_date = datetime.now().date()
     else:
         try:
+            # Try standard YYYY-MM-DD
             target_date = datetime.strptime(date, "%Y-%m-%d").date()
         except ValueError:
-            target_date = datetime.now().date()
+            try:
+                # Try localized DD/MM/YYYY which some browsers/users might send
+                target_date = datetime.strptime(date, "%d/%m/%Y").date()
+            except ValueError:
+                target_date = datetime.now().date()
             
     day_name = target_date.strftime("%A")
     display_date = target_date.strftime("%d %b %Y")
@@ -32,15 +37,22 @@ async def schedule_index(request: Request, date: Optional[str] = None, db: Sessi
     
     for p in patients:
         matched_shift = None
-        if p.hd_day_1 == day_name:
+        # Clean the target day name
+        dn = day_name.strip()
+        
+        # Check all three potential slots
+        if p.hd_day_1 and p.hd_day_1.strip() == dn:
             matched_shift = p.hd_slot_1
-        elif p.hd_day_2 == day_name:
+        elif p.hd_day_2 and p.hd_day_2.strip() == dn:
             matched_shift = p.hd_slot_2
-        elif p.hd_day_3 == day_name:
+        elif p.hd_day_3 and p.hd_day_3.strip() == dn:
             matched_shift = p.hd_slot_3
             
-        if matched_shift in shift_data:
-            shift_data[matched_shift].append(p)
+        if matched_shift:
+            # Normalize shift name to match dict keys (Morning/Afternoon)
+            normalized_shift = matched_shift.strip().capitalize()
+            if normalized_shift in shift_data:
+                shift_data[normalized_shift].append(p)
             
     return templates.TemplateResponse("schedule.html", {
         "request": request,
