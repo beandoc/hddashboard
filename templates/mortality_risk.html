@@ -113,8 +113,8 @@
   <div class="header-inner">
     <h1><i class="material-icons">psychology</i> Mortality Risk — Cohort View</h1>
     <p>
-      Calibrated log-odds prediction model (Xu et al. 2023). Features: Age, Albumin,
-      Neutrophil/WBC, Ejection Fraction, IHD, DM. Sorted by descending 1-year risk.
+      Rule-based log-odds risk scoring using HD mortality literature.
+      Features: Age, Albumin, Neutrophil/WBC, Ejection Fraction, IHD, DM. Sorted by descending 1-year risk.
     </p>
     <div class="header-chips">
       <span class="chip chip-red">
@@ -133,10 +133,10 @@
   <div class="model-info">
     <i class="material-icons">info</i>
     <div>
-      <strong>Model note:</strong> Predictions are calibrated log-odds approximations of the
-      Xu et al. 2023 XGBoost model (published AUC 0.979). Confidence reflects the number of
-      core features available per patient.
-      <strong>Risk threshold ≥ 43.9% = High Risk</strong> (published cut-off).
+      <strong>Model note:</strong> Rule-based log-odds scoring using published hazard ratios
+      (Kalantar-Zadeh 2005; Drechsler 2010; Elias 2021). Predictions are clinical
+      decision-support approximations &mdash; not a validated statistical model.
+      <strong>Risk threshold &ge; 43.9% = High Risk</strong> (working threshold).
       Click <strong>Analyze</strong> to see full per-patient prediction details and clinical cascade.
     </div>
   </div>
@@ -181,9 +181,9 @@
                 {{ (row.prob_1yr * 100) | round | int }}%
               </span>
             </div>
-            {% if mort.risk_ci_lower is defined and mort.risk_ci_upper is defined %}
+            {% if mort.uncertainty_lower is defined and mort.uncertainty_upper is defined %}
             <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">
-              CI: {{ (mort.risk_ci_lower * 100) | int }}%–{{ (mort.risk_ci_upper * 100) | int }}%
+              <span title="Approximate uncertainty range; not a validated 95% CI">Range: {{ (mort.uncertainty_lower * 100) | int }}%&ndash;{{ (mort.uncertainty_upper * 100) | int }}%</span>
             </div>
             {% endif %}
           </td>
@@ -263,9 +263,9 @@
                 {{ (row.prob_1yr * 100) | round | int }}%
               </span>
             </div>
-            {% if mort.risk_ci_lower is defined and mort.risk_ci_upper is defined %}
+            {% if mort.uncertainty_lower is defined and mort.uncertainty_upper is defined %}
             <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">
-              CI: {{ (mort.risk_ci_lower * 100) | int }}%–{{ (mort.risk_ci_upper * 100) | int }}%
+              <span title="Approximate uncertainty range; not a validated 95% CI">Range: {{ (mort.uncertainty_lower * 100) | int }}%&ndash;{{ (mort.uncertainty_upper * 100) | int }}%</span>
             </div>
             {% endif %}
           </td>

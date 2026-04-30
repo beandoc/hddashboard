@@ -1251,14 +1251,12 @@ def compute_deterioration_risk(
 
 # ── Mortality Risk Prediction ─────────────────────────────────────────────────
 #
-# Reference: Xu et al. (2023) XGBoost mortality predictor for hemodialysis patients
-#   https://github.com/Starxueshu/mortality-among-hemodialysis
-#   AUC: 1-year 0.979 | 4-year 0.933 | 7-year 0.935
-#   Risk threshold: P ≥ 0.439 → High Risk
+# Model type: Rule-based log-odds scoring using published hazard ratios from
+# HD mortality literature (Kalantar-Zadeh 2005; Drechsler 2010; Elias 2021).
+# This is NOT an XGBoost model and does NOT reproduce the Xu et al. 2023 AUC.
 #
-# Implementation: calibrated log-odds scoring approximating the XGBoost model.
-# Log-odds weights are derived from published hazard ratios in HD mortality
-# literature (Kalantar-Zadeh 2005; Drechsler 2010; Elias 2021).
+# Risk threshold P ≥ 0.439 is used as a working threshold (not a validated
+# published cut-off for this implementation).
 #
 # Feature mapping from available schema:
 #   Age             → patient_info["age"]      (None if DOB not recorded)
@@ -1275,24 +1273,35 @@ def compute_deterioration_risk(
 def _sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-max(-50.0, min(50.0, x))))
 
-def _mortality_confidence_interval(log_odds: float, n_core_features: int) -> tuple:
+def _mortality_uncertainty_band(log_odds: float, n_core_features: int) -> dict:
     """
-    Approximate 95% CI on the probability using:
-    - Feature uncertainty ≈ 0.3 log-odds units per missing core feature
-    - Calibration uncertainty ≈ ±0.25 log-odds (from approximated weights)
+    Approximate uncertainty band on the probability based on feature completeness.
+    NOTE: These are NOT statistically validated confidence intervals. The standard
+    error values (0.25 model uncertainty, 0.30 per missing feature) are heuristic
+    estimates used only to communicate relative uncertainty to clinical users.
     """
-    model_uncertainty = 0.25                          # approximation penalty
-    feature_gap = (5 - n_core_features) * 0.30       # each missing feature adds variance
+    model_uncertainty = 0.25                          # heuristic approximation penalty
+    feature_gap = (5 - n_core_features) * 0.30       # each missing feature adds uncertainty
     total_se = math.sqrt(model_uncertainty**2 + feature_gap**2)
     
-    p_lower = _sigmoid(log_odds - 1.96 * total_se)
-    p_upper = _sigmoid(log_odds + 1.96 * total_se)
-    return round(p_lower, 3), round(p_upper, 3)
+    p_lower = round(_sigmoid(log_odds - 1.96 * total_se), 3)
+    p_upper = round(_sigmoid(log_odds + 1.96 * total_se), 3)
+    return {
+        "uncertainty_lower": p_lower,
+        "uncertainty_upper": p_upper,
+        "ci_valid": False,
+        "uncertainty_note": "Approximate range based on feature completeness; not a statistically validated confidence interval."
+    }
 
 
 def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     """
     Estimate 1-year and long-term mortality probability for a hemodialysis patient.
+
+    Model: Rule-based log-odds scoring using published hazard ratios from HD
+    mortality literature (Kalantar-Zadeh 2005; Drechsler 2010; Elias 2021).
+    This is a clinical decision-support approximation, NOT a validated statistical
+    model. Do not cite as equivalent to any published AUC.
 
     Parameters
     ----------
@@ -1308,7 +1317,8 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     Returns
     -------
     Dict with risk_probability, risk_level, risk_factors, missing_features,
-    confidence, and a human-readable message.
+    confidence, and a human-readable message. Returns available=False if fewer
+    than 2 core features are present.
     """
     if patient_info is None:
         patient_info = {}
@@ -1318,7 +1328,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     log_odds    = -1.4   # baseline ≈ 20% 1-year mortality for avg HD patient
     used        = []
     missing     = []
-    n_core_used = 0      # count of the 5 core XGBoost features available
+    n_core_used = 0      # count of the 5 core features available
 
     # ── 1. Age ────────────────────────────────────────────────────────────────
     age = patient_info.get("age")
@@ -1366,12 +1376,16 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
             missing.append("Neutrophil / WBC count")
 
     # ── 4. Ejection Fraction (%) ──────────────────────────────────────────────
+    # NOTE: EF default=60.0 in Patient model means an unmeasured EF would
+    # previously trigger a protective contribution (-0.20), systematically
+    # underestimating risk. Fix: ef >= 60 contributes 0 (no penalty, no protection).
     ef = patient_info.get("ef")
     if ef is not None:
-        if   ef < 30:  log_odds += 1.40
-        elif ef < 40:  log_odds += 0.90
-        elif ef < 50:  log_odds += 0.50
-        elif ef >= 60: log_odds -= 0.20  # slightly protective
+        if   ef < 30:            log_odds += 1.40
+        elif ef < 40:            log_odds += 0.90
+        elif ef < 50:            log_odds += 0.50
+        elif ef < 60:            log_odds += 0.20  # mild subclinical concern
+        # ef >= 60 → 0 contribution (no penalty, no protection; avoids default-value bias)
         used.append(f"EF {ef}%")
         n_core_used += 1
     else:
@@ -1409,13 +1423,28 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         log_odds += 0.20
         used.append(f"Hyperphosphataemia {phos:.1f} mg/dL")
 
+    # ── Insufficient data guard ───────────────────────────────────────────────
+    # Require at least 2 core features before returning a probability.
+    # With 0 or 1 features the estimate is unsupported and must not appear
+    # in ranked risk tables.
+    if n_core_used < 2:
+        return {
+            "available": False,
+            "reason": (
+                "Insufficient core features (need ≥2 of: Age, Albumin, "
+                "WBC/Neutrophil, EF, CAD status)"
+            ),
+        }
+
     # ── Probability & risk level ──────────────────────────────────────────────
     prob_1yr = round(_sigmoid(log_odds), 3)
 
-    # 4-year risk: compound survival over ~3.5 annual cycles
+    # 4-year risk: constant-hazard (exponential survival) extrapolation.
+    # Exponent 3.5 ≈ 42 months. True 4-year risk is likely higher in HD patients
+    # because mortality hazard rises with dialysis vintage.
     prob_4yr = round(min(0.97, 1 - (1 - prob_1yr) ** 3.5), 3)
 
-    # 0.439 = published high-risk threshold from Xu et al.
+    # Working threshold ≥ 43.9% = High Risk (adapted from HD literature)
     if prob_1yr >= 0.65:
         risk_level = "Very High"
         css_class  = "danger"
@@ -1429,17 +1458,15 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         risk_level = "Low"
         css_class  = "success"
 
-    # ── Confidence & Interval ──────────────────────────────────────────────────
-    p_lower, p_upper = _mortality_confidence_interval(log_odds, n_core_used)
+    # ── Uncertainty band (not a validated CI) ────────────────────────────────
+    ub = _mortality_uncertainty_band(log_odds, n_core_used)
 
     if n_core_used >= 4:
         confidence = "high"
     elif n_core_used >= 3:
         confidence = "moderate"
-    elif n_core_used >= 2:
-        confidence = "low"
     else:
-        confidence = "insufficient"
+        confidence = "low"
 
     # ── Human-readable message ────────────────────────────────────────────────
     if risk_level == "Very High":
@@ -1467,21 +1494,24 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         message += f" (Note: {len(missing)} feature(s) unavailable — {confidence} confidence.)"
 
     return {
-        "available":        True,
-        "prob_1yr":         prob_1yr,
-        "prob_4yr":         prob_4yr,
-        "risk_ci_lower":    p_lower,
-        "risk_ci_upper":    p_upper,
-        "risk_level":       risk_level,
-        "class":            css_class,
-        "confidence":       confidence,
-        "n_core_used":      n_core_used,
-        "features_used":    used,
-        "features_missing": missing,
-        "message":          message,
-        # Threshold from the reference XGBoost paper
+        "available":          True,
+        "prob_1yr":           prob_1yr,
+        "prob_4yr":           prob_4yr,
+        "prob_4yr_note":      "Constant-hazard extrapolation (exponential survival model). True 4-year risk is likely higher.",
+        "uncertainty_lower": ub["uncertainty_lower"],
+        "uncertainty_upper": ub["uncertainty_upper"],
+        "ci_valid":           False,
+        "uncertainty_note":   ub["uncertainty_note"],
+        "model_type":         "rule_based_log_odds",
+        "risk_level":         risk_level,
+        "class":              css_class,
+        "confidence":         confidence,
+        "n_core_used":        n_core_used,
+        "features_used":      used,
+        "features_missing":   missing,
+        "message":            message,
         "high_risk_threshold": 0.439,
-        "above_threshold":  prob_1yr >= 0.439,
+        "above_threshold":    prob_1yr >= 0.439,
     }
 
 
