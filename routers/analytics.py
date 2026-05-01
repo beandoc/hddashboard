@@ -272,28 +272,31 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
 @router.get("/api/dashboard")
 async def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db)):
     from dashboard_logic import get_current_month_str
+    from fastapi.encoders import jsonable_encoder
     month_str = month or get_current_month_str()
     try:
         data = compute_dashboard(db, month_str)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content=data)
+    return JSONResponse(content=jsonable_encoder(data))
 
 @router.get("/api/cohort-trends")
 async def api_cohort_trends(db: Session = Depends(get_db)):
+    from fastapi.encoders import jsonable_encoder
     try:
         data = run_cohort_analytics(db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content=data)
+    return JSONResponse(content=jsonable_encoder(data))
 
 @router.get("/api/at-risk-trends")
 async def api_at_risk_trends(parameter: str, month: Optional[str] = None, db: Session = Depends(get_db)):
+    from fastapi.encoders import jsonable_encoder
     try:
         data = get_at_risk_trends(db, parameter, month)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content=data)
+    return JSONResponse(content=jsonable_encoder(data))
 
 
 @router.post("/admin/train-deterioration-model")
