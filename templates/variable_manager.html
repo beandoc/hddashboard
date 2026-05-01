@@ -208,8 +208,7 @@ textarea { resize:vertical; min-height:70px; }
           </div>
           <div style="display:flex;gap:10px;align-items:center">
             <div class="search-row" style="margin:0">
-              <input type="text" class="search-input" placeholder="Search patient…"
-                     oninput="filterRetroTable(this.value)"/>
+              <input type="text" id="patientSearch" class="search-input" placeholder="Search by name or HID..." onkeyup="filterPatients()" oninput="filterRetroTable(this.value)"/>
             </div>
             <button class="btn btn-success" onclick="saveAllValues()">💾 Save All</button>
           </div>
@@ -414,7 +413,7 @@ textarea { resize:vertical; min-height:70px; }
 
 <script>
 // ── DATA FROM SERVER ──
-const ALL_PATIENTS = {{ patients | tojson }};
+const ALL_PATIENTS = {{ patient_list_data | tojson }};
 const ALL_VARS     = {{ variables_json | tojson }};
 
 // ── TABS ──
@@ -497,7 +496,7 @@ async function saveVariable() {
     return;
   }
 
-  const url = editId ? `/api/variables/${editId}` : '/api/variables';
+  const url = editId ? `/variables/${editId}` : '/variables';
   const method = editId ? 'PUT' : 'POST';
 
   try {
@@ -519,7 +518,7 @@ async function saveVariable() {
 }
 
 async function toggleVariable(varId, activate) {
-  const res = await fetch(`/api/variables/${varId}/toggle`, { method:'POST' });
+  const res = await fetch(`/variables/${varId}/toggle`, { method:'POST' });
   if (res.ok) {
     showToast(activate === 'true' ? 'Variable activated' : 'Variable deactivated');
     setTimeout(() => location.reload(), 800);
@@ -545,7 +544,7 @@ async function loadRetroTable() {
   const months = generateMonthRange(fromM, toM);
 
   // Load existing values from server
-  const res = await fetch(`/api/variables/${varId}/values?from=${fromM}&to=${toM}`);
+  const res = await fetch(`/variables/${varId}/values?from=${fromM}&to=${toM}`);
   const existing = res.ok ? await res.json() : {};
   currentVarData = existing;
 
@@ -575,7 +574,7 @@ async function loadRetroTable() {
     return `<tr data-name="${p.name.toLowerCase()}">
       <td>
         <div class="patient-name-cell">${p.name}</div>
-        <div class="hid-cell">${p.hid}</div>
+        <div class="hid-cell">${p.hid || '—'}</div>
       </td>
       ${cells}
       <td>
@@ -610,7 +609,7 @@ async function autoSaveCell(input, varId) {
   if (value === '') return;  // Don't save empty on blur
 
   try {
-    const res = await fetch('/api/variables/value', {
+    const res = await fetch('/variables/value', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -643,7 +642,7 @@ async function saveAllValues() {
   inputs.forEach(input => {
     if (input.value.trim() === '') return;
     promises.push(
-      fetch('/api/variables/value', {
+      fetch('/variables/value', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -699,7 +698,7 @@ async function loadVariableChart() {
   const varName = opt.dataset.name;
   const varUnit = opt.dataset.unit;
 
-  const res = await fetch(`/api/variables/${varId}/summary`);
+  const res = await fetch(`/variables/${varId}/summary`);
   if (!res.ok) return;
   const data = await res.json();
 
@@ -714,12 +713,14 @@ async function loadVariableChart() {
   function isAlert(v) {
     if (v === null || v === undefined || isNaN(v)) return false;
     if (!vdef) return false;
-    return (vdef.threshold_high && v > vdef.threshold_high) || (vdef.threshold_low && v < vdef.threshold_low);
+    const hasLow = vdef.threshold_low !== null && vdef.threshold_low !== undefined;
+    const hasHigh = vdef.threshold_high !== null && vdef.threshold_high !== undefined;
+    return (hasHigh && v > vdef.threshold_high) || (hasLow && v < vdef.threshold_low);
   }
 
   function getStatusHtml(v) {
-    if (v === null || v === undefined) return '—';
-    if (isAlert(v)) return '<span style="color:var(--red)">⚠ Alert</span>';
+    if (v === null || v === undefined || v === '') return '—';
+    if (isAlert(v)) return '<span style="color:var(--red);font-weight:600">⚠ Alert</span>';
     return '<span style="color:var(--green)">✓ OK</span>';
   }
 
@@ -881,7 +882,7 @@ async function loadVariableChart() {
       chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Please select a second variable to correlate.</div>';
       return;
     }
-    const res2 = await fetch(`/api/variables/${var2Id}/summary`);
+    const res2 = await fetch(`/variables/${var2Id}/summary`);
     const data2 = await res2.json();
     const var2Name = ALL_VARS.find(x => x.id === parseInt(var2Id)).display_name;
 

@@ -75,7 +75,7 @@ def import_data():
         
         # Mapping columns
         # 0:Name, 1:Relation, 2:Sex, 3:HID, 4:Contact, 5:Diagnosis, 6:HD wef, 7:Viral, 8:Access, 9:Access Date, 10:Dry Weight
-        # 11:IDWG, 12:Hb, 13:Ferritin, 14:TSAT, 15:Iron, 16:EPO, 17:Ca, 18:ALP, 19:Phos, 20:Albumin, 21:AST, 22:ALT
+        # 11:IDWG, 12:Hb, 13:Ferritin, 14:TSAT, 15:Age, 16:EPO, 17:Ca, 18:ALP, 19:Phos, 20:Albumin, 21:AST, 22:ALT
         # 23:VitD, 24:iPTH, 25:Cal, 26:Prot, 27:Issues, 28:WA, 29:Mail, 30:Email, 31:Slot1, 32:Slot2, 33:Slot3
         
         name = cols[0]
@@ -100,6 +100,7 @@ def import_data():
             email=cols[30] if len(cols) > 30 else "",
             whatsapp_notify=True, # Assuming True based on context
             is_active=True,
+            age=int(cols[15]) if len(cols) > 15 and cols[15].strip().isdigit() else None,
             created_by="admin"
         )
         db.add(p)
@@ -111,7 +112,7 @@ def import_data():
             patient_id=p.id, record_month=month_str, entered_by="admin",
             idwg=parse_float(cols[11]), hb=parse_float(cols[12]),
             serum_ferritin=parse_float(cols[13]), tsat=parse_float(cols[14]),
-            serum_iron=parse_float(cols[15]), epo_mircera_dose=cols[16],
+            serum_iron=None, epo_mircera_dose=cols[16],
             calcium=parse_float(cols[17]), alkaline_phosphate=parse_float(cols[18]),
             phosphorus=parse_float(cols[19]), albumin=parse_float(cols[20]),
             ast=parse_float(cols[21]), alt=parse_float(cols[22]),

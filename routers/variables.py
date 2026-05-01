@@ -33,10 +33,31 @@ def _monthly_field_values(db: Session, field: str, patient_ids: list[int], from_
 async def variable_manager(request: Request, db: Session = Depends(get_db)):
     variables = get_all_variables(db, active_only=False)
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    vars_json = [{"id": v.id, "name": v.name, "display_name": v.display_name, "unit": v.unit} for v in variables]
+    vars_json = []
+    for v in variables:
+        vars_json.append({
+            "id": v.id,
+            "name": v.name,
+            "display_name": v.display_name,
+            "unit": v.unit,
+            "category": v.category,
+            "data_type": v.data_type,
+            "decimal_places": v.decimal_places,
+            "threshold_low": v.threshold_low,
+            "threshold_high": v.threshold_high,
+            "target_low": v.target_low,
+            "target_high": v.target_high,
+            "description": v.description,
+            "show_in_dashboard": v.show_in_dashboard,
+            "show_in_timeline": v.show_in_timeline,
+            "alert_direction": v.alert_direction,
+            "is_active": v.is_active,
+        })
+    
     return templates.TemplateResponse("variable_manager.html", {
         "request": request, "variables": variables, "variables_json": vars_json,
-        "patients": [{"id": p.id, "name": p.name} for p in patients],
+        "patient_list_data": [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients],
+        "patients": patients,  # Keep original list for Jinja2 loops
         "default_from": "2023-01", "default_to": get_current_month_str(),
         "user": get_user(request),
     })
@@ -150,11 +171,14 @@ async def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
     trend = []
     for m in sorted(month_buckets):
         vals = sorted(month_buckets[m])
+        median = _pct(vals, 50)
+        p25 = _pct(vals, 25)
+        p75 = _pct(vals, 75)
         trend.append({
             "month": m,
-            "median": round(_pct(vals, 50), 2),
-            "p25":    round(_pct(vals, 25), 2),
-            "p75":    round(_pct(vals, 75), 2),
+            "median": round(median, 2) if median is not None else None,
+            "p25":    round(p25, 2)    if p25 is not None else None,
+            "p75":    round(p75, 2)    if p75 is not None else None,
         })
 
     return {
