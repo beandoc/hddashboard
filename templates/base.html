@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HD Dashboard{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    screens: {
+                        'xs': '480px',
+                        'sm': '640px',
+                        'md': '768px',
+                        'lg': '1024px',
+                        'xl': '1280px',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --min-touch: 44px;
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #f8fafc; overflow-x: hidden; }
+        
+        /* Global Button Touch Target Standard */
+        button, .btn, a.btn-action, .hero-badge {
+            min-height: var(--min-touch);
+            min-width: var(--min-touch);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Ensure form inputs have decent touch height */
+        input, select, textarea {
+            min-height: 40px;
+        }
+
+        {% block extra_styles %}{% endblock %}
+    </style>
+</head>
+<body>
+{% include "_nav.html" %}
+<main>
+{% block content %}{% endblock %}
+</main>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

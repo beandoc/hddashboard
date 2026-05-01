@@ -2726,55 +2726,62 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
     3. Analyzes Access Recirculation (Two-needle Urea method).
     """
     from database import Patient, SessionRecord
-    from datetime import date, timedelta
-    
+    from datetime import date
+
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         return {"available": False}
-        
+
+    access_type_clean = (p.access_type or "").strip().lower()
+    is_catheter = any(k in access_type_clean for k in ("cath", "tcc", "permacath", "p/cath"))
+    is_avf_or_graft = any(k in access_type_clean for k in ("avf", "graft")) or (not is_catheter and access_type_clean)
+
     events = []
     alerts = []
     risk_score = 0
     today = date.today()
     delay_days = None
+    has_access_data = bool(p.access_date or p.date_first_cannulation)
 
-    # ── 1. Maturation Monitoring ──────────────────────────────────────────────
-    if p.access_date and not p.date_first_cannulation:
-        # Surgery done, but never cannulated
-        days_since_surgery = (today - p.access_date).days
-        delay_days = days_since_surgery
-        if days_since_surgery > 0:
-            events.append({"text": f"AVF surgery performed {days_since_surgery} days ago; not yet cannulated."})
+    # ── 1. Maturation Monitoring (AVF/Graft only) ─────────────────────────────
+    if is_avf_or_graft:
+        if p.access_date and not p.date_first_cannulation:
+            days_since_surgery = (today - p.access_date).days
+            delay_days = days_since_surgery
+            if days_since_surgery > 0:
+                events.append({"text": f"Access created {days_since_surgery} days ago; first cannulation date not recorded."})
+                if days_since_surgery > 42:
+                    alerts.append(f"AVF Maturation Failure Risk: {days_since_surgery} days since surgery — first cannulation not recorded (KDOQI threshold: 6 weeks).")
+                    risk_score += 3
+                elif days_since_surgery > 28:
+                    events.append({"text": "Approaching maturation threshold (4 weeks). Schedule Doppler if thrill is weak."})
 
-            if days_since_surgery > 42:
-                # Any AVF uncannulated > 6 weeks is a maturation failure (KDOQI)
-                alerts.append(f"AVF Maturation Failure: {days_since_surgery} days since surgery — never cannulated (KDOQI threshold: 6 weeks).")
-                risk_score += 3
-            elif days_since_surgery > 28:
-                events.append({"text": "Approaching maturation threshold (4 weeks). Schedule Doppler if thrill is weak."})
+        elif p.access_date and p.date_first_cannulation:
+            delay_days = (p.date_first_cannulation - p.access_date).days
+            if delay_days >= 0:
+                events.append({"text": f"AVF matured and first cannulated in {delay_days} days from surgery."})
+                if delay_days > 45:
+                    risk_score += 2
+                    events.append({"text": "Delayed AVF maturation (> 6 weeks) recorded in history."})
 
-    elif p.access_date and p.date_first_cannulation:
-        delay_days = (p.date_first_cannulation - p.access_date).days
-        if delay_days > 0:
-            events.append({"text": f"AVF matured in {delay_days} days."})
-            if delay_days > 45:
-                risk_score += 2
-                events.append({"text": "Delayed AVF Maturation (> 6 weeks recorded in history)."})
+        elif not p.access_date and p.date_first_cannulation:
+            events.append({"text": f"First cannulation recorded on {p.date_first_cannulation}; surgery date not entered."})
+
+    elif is_catheter:
+        events.append({"text": f"Patient on catheter access ({p.access_type.strip()}). AVF maturation monitoring not applicable."})
 
     # ── 2. Functional Monitoring (Recent Sessions) ────────────────────────────
     recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
-    
+
     low_bfr_count = 0
     high_recirc_count = 0
     qa_alerts = []
-    
+
     for s in recent_sessions:
-        # a) Pump BFR monitoring
         bfr = s.actual_blood_flow_rate or s.blood_flow_rate
         if bfr and bfr < 250:
             low_bfr_count += 1
-            
-        # b) Access Flow (Qa) monitoring - KDOQI Tiered Thresholds
+
         qa = s.access_flow_qa
         if qa:
             if qa < 300:
@@ -2785,12 +2792,10 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
                 qa_alerts.append(f"Poor Maturation/Failure (Qa {qa} < 500).")
             elif qa < 600:
                 qa_alerts.append(f"Sub-optimal performance (Qa {qa} < 600): High risk for stenosis/thrombosis (KDOQI).")
-            
-        # c) Access Recirculation > 10%
+
         if s.access_recirculation_percent and s.access_recirculation_percent > 10:
             high_recirc_count += 1
         elif s.urea_peripheral_s and s.urea_arterial_a and s.urea_venous_v:
-            # Calculate if components are present but % is missing
             try:
                 s_val, a_val, v_val = s.urea_peripheral_s, s.urea_arterial_a, s.urea_venous_v
                 if abs(s_val - v_val) > 0.1:
@@ -2801,13 +2806,12 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
     if low_bfr_count >= 2:
         alerts.append(f"Suboptimal Pump Flow: BFR < 250 ml/min in {low_bfr_count}/5 recent sessions.")
         risk_score += 2
-        
+
     if qa_alerts:
-        # Add the most severe unique Qa alert
         unique_qa = list(dict.fromkeys(qa_alerts))
-        alerts.extend(unique_qa[:2]) # Max 2 Qa alerts
+        alerts.extend(unique_qa[:2])
         risk_score += 3
-        
+
     if high_recirc_count >= 1:
         alerts.append("Significant Access Recirculation (>10%) detected.")
         risk_score += 3
@@ -2816,17 +2820,20 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
     if p.age and p.age >= 65:
         risk_score += 1
         events.append({"text": f"Age {p.age} yrs correlates with impaired vascular remodeling."})
-        
-    if p.dm_status and "diabetes" in p.dm_status.lower():
+
+    # dm_status stores "Type 1", "Type 2", "Secondary", or "None"/null
+    if p.dm_status and p.dm_status.strip().lower() not in ("none", ""):
         risk_score += 2
-        events.append({"text": "DM history increases risk of intimal hyperplasia."})
-        
+        events.append({"text": f"DM ({p.dm_status}) increases risk of intimal hyperplasia."})
+
     if p.handgrip_strength and p.handgrip_strength < 20:
         risk_score += 2
         events.append({"text": f"Sarcopenia (Handgrip {p.handgrip_strength} kg) linked to fistula failure."})
 
     maturation_failure = any("Maturation Failure" in a for a in alerts)
     cascade_detected = risk_score >= 3 or maturation_failure
+
+    default_message = "Vascular access functioning within parameters." if has_access_data else "Access dates not recorded — enter surgery and first cannulation dates in the patient profile."
 
     return {
         "available": True,
@@ -2837,8 +2844,10 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
         "alerts": alerts,
         "risk_score": risk_score,
         "delay_days": delay_days,
+        "has_access_data": has_access_data,
+        "is_catheter": is_catheter,
         "events": events,
-        "message": alerts[0] if alerts else "Vascular access functioning within parameters.",
+        "message": alerts[0] if alerts else default_message,
     }
 
 

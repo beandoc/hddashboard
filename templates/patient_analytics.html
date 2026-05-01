@@ -38,43 +38,40 @@
     .badge-val { font-size: 1.3rem; font-weight: 700; }
     .badge-lbl { font-size: 0.75rem; text-transform: uppercase; opacity: 0.8; letter-spacing: 0.05em; margin-top: 4px; }
 
-    .container { max-width: 1200px; margin: -30px auto 40px; padding: 0 20px; }
+    .container { max-width: 1200px; margin: -20px auto 40px; padding: 0 16px; }
     
-    .dashboard-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 30px; }
+    .dashboard-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 24px; }
+    @media (max-width: 1024px) {
+      .dashboard-row { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .dashboard-row { grid-template-columns: 1fr; }
+    }
     
     .insight-card { background: var(--white); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); border: 1px solid var(--border); transition: transform 0.2s; }
+    @media (max-width: 480px) { .insight-card { padding: 16px; } }
     .insight-card:hover { transform: translateY(-3px); }
     .card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
     .card-head i { color: var(--accent); }
-    .card-head h3 { margin: 0; font-size: 1rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; flex-grow: 1; }
+    .card-head h3 { margin: 0; font-size: 0.9rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; flex-grow: 1; }
     
-    .card-val { font-size: 1.8rem; font-weight: 700; margin-bottom: 5px; font-family: 'Outfit'; }
+    .card-val { font-size: 1.6rem; font-weight: 700; margin-bottom: 5px; font-family: 'Outfit'; }
     .card-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.4; }
     
-    .status-pill { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .status-pill { display: inline-block; padding: 6px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
     .status-pill.danger { background: #ffebee; color: var(--accent-red); }
     .status-pill.warning { background: #fff8e1; color: #f57c00; }
     .status-pill.success { background: #e8f5e9; color: var(--accent-green); }
 
-    .score-circle { width: 80px; height: 80px; border-radius: 50%; border: 6px solid #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; margin: 0 auto 15px; position: relative; }
-    .score-circle.green { border-color: var(--accent-green); color: var(--accent-green); }
-    .score-circle.amber { border-color: #fbc02d; color: #fbc02d; }
-    .score-circle.red { border-color: var(--accent-red); color: var(--accent-red); }
-
-    .risk-factors { list-style: none; padding: 0; margin: 15px 0 0; border-top: 1px solid var(--border); padding-top: 10px; }
-    .risk-factors li { font-size: 0.85rem; color: var(--accent-red); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
-
-    /* Confidence badges */
-    .confidence-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 6px; }
-    .confidence-badge.high         { background: #e8f5e9; color: #2e7d32; }
-    .confidence-badge.moderate     { background: #fff3e0; color: #f57c00; }
-    .confidence-badge.low          { background: #fce4ec; color: #c2185b; }
-    .confidence-badge.insufficient { background: #f5f5f5; color: #9e9e9e; }
-
-    /* Prediction / warning boxes */
-    .prediction-box { background: #f0f7ff; border: 1px solid #bbdefb; border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 0.88rem; }
-    .prediction-box .ci-line { color: var(--text-muted); font-size: 0.78rem; margin-top: 4px; }
-    .insufficient-box { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 0.85rem; color: #e65100; }
+    /* Standardization */
+    .btn-action, a.badge, .act-btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+    
+    @media (max-width: 640px) {
+      .content-header { padding: 30px 20px; }
+      .p-info h1 { font-size: 1.25rem; }
+      .stats-row { width: 100%; justify-content: space-between; }
+      .badge { flex: 1; padding: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -957,23 +954,28 @@
 
       <!-- AVF Maturation Cascade -->
       {% if avf_cascade and avf_cascade.available %}
-      {% set avf_border = '#fed7aa' if avf_cascade.cascade_detected else '#e2e8f0' %}
+      {% set avf_border = '#fed7aa' if avf_cascade.cascade_detected else ('#e2e8f0' if avf_cascade.has_access_data else '#fef9c3') %}
       {% set avf_shadow = 'rgba(249,115,22,0.1)' if avf_cascade.cascade_detected else 'rgba(0,0,0,0.06)' %}
       <div style="background:#fff;border-radius:12px;border:1px solid {{ avf_border }};padding:24px;box-shadow:0 2px 8px {{ avf_shadow }};">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-          <div style="background:{% if avf_cascade.cascade_detected %}#ffedd5{% else %}#f1f5f9{% endif %};padding:8px;border-radius:8px;">
-            <i class="material-icons" style="color:{% if avf_cascade.cascade_detected %}#f97316{% else %}#64748b{% endif %};">route</i>
+          <div style="background:{% if avf_cascade.cascade_detected %}#ffedd5{% elif avf_cascade.has_access_data %}#f1f5f9{% else %}#fefce8{% endif %};padding:8px;border-radius:8px;">
+            <i class="material-icons" style="color:{% if avf_cascade.cascade_detected %}#f97316{% elif avf_cascade.has_access_data %}#64748b{% else %}#ca8a04{% endif %};">route</i>
           </div>
-          <h3 style="margin:0;font-size:1.1rem;color:{% if avf_cascade.cascade_detected %}#9a3412{% else %}#1e293b{% endif %};">AVF Maturation</h3>
+          <h3 style="margin:0;font-size:1.1rem;color:{% if avf_cascade.cascade_detected %}#9a3412{% else %}#1e293b{% endif %};">
+            {% if avf_cascade.is_catheter %}Catheter Access Monitor{% else %}AVF Maturation{% endif %}
+          </h3>
           {% if avf_cascade.cascade_detected %}
-          <span style="margin-left:auto;padding:3px 10px;background:#ffedd5;color:#ea580c;border-radius:20px;font-size:0.72rem;font-weight:700;">DELAYED</span>
+          <span style="margin-left:auto;padding:3px 10px;background:#ffedd5;color:#ea580c;border-radius:20px;font-size:0.72rem;font-weight:700;">ALERT</span>
+          {% elif not avf_cascade.has_access_data %}
+          <span style="margin-left:auto;padding:3px 10px;background:#fef9c3;color:#854d0e;border-radius:20px;font-size:0.72rem;font-weight:700;">NO DATA</span>
           {% else %}
           <span style="margin-left:auto;padding:3px 10px;background:#dcfce7;color:#166534;border-radius:20px;font-size:0.72rem;font-weight:700;">ON TRACK</span>
           {% endif %}
         </div>
-        <p style="font-size:0.85rem;color:{% if avf_cascade.cascade_detected %}#ea580c{% else %}#64748b{% endif %};font-weight:{% if avf_cascade.cascade_detected %}600{% else %}400{% endif %};margin:0 0 16px;">
+        <p style="font-size:0.85rem;color:{% if avf_cascade.cascade_detected %}#ea580c{% elif avf_cascade.has_access_data %}#64748b{% else %}#92400e{% endif %};font-weight:{% if avf_cascade.cascade_detected %}600{% else %}400{% endif %};margin:0 0 16px;">
           {{ avf_cascade.message }}
         </p>
+        {% if avf_cascade.events %}
         <div style="display:flex;flex-direction:column;gap:12px;">
           {% for ev in avf_cascade.events %}
           <div style="display:flex;gap:10px;align-items:flex-start;">
@@ -982,7 +984,11 @@
           </div>
           {% endfor %}
         </div>
-        <div style="margin-top:12px;font-size:0.75rem;color:#94a3b8;">Time to first cannulation: {{ avf_cascade.delay_days }} days · Risk score: {{ avf_cascade.risk_score }}</div>
+        {% endif %}
+        <div style="margin-top:12px;font-size:0.75rem;color:#94a3b8;">
+          Time to first cannulation: {{ avf_cascade.delay_days ~ " days" if avf_cascade.delay_days is not none else "—" }}
+          · Risk score: {{ avf_cascade.risk_score }}
+        </div>
       </div>
       {% else %}
       <div style="background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;padding:24px;">
