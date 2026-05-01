@@ -298,23 +298,24 @@ def compute_dashboard(db: Session, month: str = None):
                 row["is_interim"] = True
                 row["interim_details"]["ipth"] = p_interim["ipth"]
         
+        # 1. Non-AVF Access — always evaluated from patient baseline, not gated on monthly record
+        name = p.name
+        raw_access = ((r.access_type if r else None) or p.access_type or "").strip()
+        _a_upper = raw_access.upper()
+        if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC", "DLJC", "FEMORAL")):
+            access = "Permacath"
+        else:
+            access = raw_access
+        if access and "AVF" not in access.upper():
+            metrics['non_avf']['count'] += 1
+            metrics['non_avf']['names'].append(name)
+            if access not in metrics['non_avf']['types']:
+                metrics['non_avf']['types'][access] = {"count": 0, "names": []}
+            metrics['non_avf']['types'][access]["count"] += 1
+            metrics['non_avf']['types'][access]["names"].append(name)
+            row["alerts"].append("Non-AVF")
+
         if r:
-            name = p.name
-            # 1. Non-AVF Access - Fallback to baseline if monthly record is missing it
-            raw_access = (r.access_type or p.access_type or "").strip()
-            _a_upper = raw_access.upper()
-            if any(kw in _a_upper for kw in ("PERMACATH", "P/CATH", "P-CATH", "PCATH", "TCC", "DLJC", "FEMORAL")):
-                access = "Permacath"
-            else:
-                access = raw_access
-            if access and "AVF" not in access.upper():
-                metrics['non_avf']['count'] += 1
-                metrics['non_avf']['names'].append(name)
-                if access not in metrics['non_avf']['types']:
-                    metrics['non_avf']['types'][access] = {"count": 0, "names": []}
-                metrics['non_avf']['types'][access]["count"] += 1
-                metrics['non_avf']['types'][access]["names"].append(name)
-                row["alerts"].append("Non-AVF")
                 
             prev_r = prev_record_map.get(p.id)
 

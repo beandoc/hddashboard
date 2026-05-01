@@ -34,7 +34,7 @@
                             <option value="{{ p.id }}" 
                                     data-name="{{ p.name }}" 
                                     data-sex="{{ p.sex }}" 
-                                    data-age="{{ p.age }}" 
+                                    data-age="{{ p.age if p.age is not none else '' }}"
                                     data-weight="{{ p.dry_weight or 70 }}"
                                     data-gcr="{{ p.baseline_gcr or 999 }}"
                                     data-vdcr="{{ p.baseline_vdcr or 35 }}">
@@ -147,12 +147,19 @@ async function runSimulation() {
             const parts = rowText.split(',').map(p => p.trim());
             if (parts.length < 15) continue;
 
+            const age = parseFloat(parts[2]);
+            const g_creat = parseFloat(parts[4]);
+            if (isNaN(age) && g_creat === 999) {
+                results.push({ input: { pt_name: parts[0] }, output: { error: "Age is required when GCreat=999 (used for Ix generation estimate). Enter the patient's age in their profile." } });
+                continue;
+            }
+
             const payload = {
                 pt_name: parts[0],
                 sex: parts[1],
-                age: parseFloat(parts[2]),
+                age: isNaN(age) ? null : age,
                 weight: parseFloat(parts[3]),
-                g_creat: parseFloat(parts[4]),
+                g_creat: g_creat,
                 lab_day: parseInt(parts[5]),
                 schedule: parts[6],
                 pre_creat: parseFloat(parts[7]),
@@ -171,7 +178,11 @@ async function runSimulation() {
                 body: JSON.stringify(payload)
             });
             const data = await response.json();
-            results.push({ input: payload, output: data });
+            if (!response.ok) {
+                results.push({ input: payload, output: { error: data.detail || 'Calculation failed' } });
+            } else {
+                results.push({ input: payload, output: data });
+            }
         }
 
         renderResults(results);
@@ -189,7 +200,20 @@ function renderResults(results) {
 
     document.getElementById('resultCount').innerText = `${results.length} ROWS`;
 
-    resultsList.innerHTML = results.map((r, idx) => `
+    resultsList.innerHTML = results.map((r, idx) => {
+        if (r.output.error) {
+            return `
+        <div class="p-6 border-b border-slate-50">
+            <div class="flex items-start gap-3">
+                <span class="material-icons text-red-500">error_outline</span>
+                <div>
+                    <h3 class="font-bold text-slate-900">${r.input.pt_name || 'Unknown'}</h3>
+                    <p class="text-sm text-red-600 mt-1">${r.output.error}</p>
+                </div>
+            </div>
+        </div>`;
+        }
+        return `
         <div class="p-6 border-b border-slate-50 hover:bg-slate-50 transition-colors">
             <div class="flex justify-between items-start mb-4">
                 <div>
@@ -225,7 +249,7 @@ function renderResults(results) {
                 ` : ''}
             </div>
         </div>
-    `).join('');
+    `; }).join('');
 
     resultsPlaceholder.classList.add('hidden');
     resultsCard.classList.remove('hidden');

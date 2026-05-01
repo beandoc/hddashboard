@@ -28,6 +28,8 @@ def estimate_krcrw(
     
     # 1. Creatinine Generation Rate (G_Cr) - Race Neutral Ix Equation
     if g_creat_input == 999:
+        if age is None or (isinstance(age, float) and math.isnan(age)):
+            raise ValueError("Patient age is required when GCreat=999. Enter the patient's age in their profile to use the Ix generation estimate.")
         # Base GCr = 879.89 + 12.51 * weight(kg) - 6.19 * age - (379.42 if female) + 17.0
         g_mg_day = 879.89 + (12.51 * weight) - (6.19 * age) + 17.0
         if sex.lower().startswith('f'):
