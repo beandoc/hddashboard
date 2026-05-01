@@ -8,10 +8,11 @@ import logging
 from database import get_db, Patient, MonthlyRecord, PatientReminder
 from config import templates
 from dependencies import get_user
-from dashboard_logic import get_current_month_str, get_month_label, get_patients_needing_alerts
+from dashboard_logic import get_current_month_str, get_month_label, get_patients_needing_alerts, get_effective_month
 from alerts import (
     build_individual_whatsapp_link, build_schedule_message, send_whatsapp,
-    send_bulk_whatsapp_alerts, send_ward_email, send_reminders_digest_email
+    send_bulk_whatsapp_alerts, send_ward_email, send_reminders_digest_email,
+    compute_upcoming_sessions,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 @router.get("", response_class=HTMLResponse)
 async def alert_center(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
-    month_str = month or get_current_month_str()
+    month_str, data_note = get_effective_month(db, month)
     month_label = get_month_label(month_str)
     
     # 1. Get clinical alerts
@@ -48,20 +49,13 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
             MonthlyRecord.patient_id == p.id,
             MonthlyRecord.record_month == month_str
         ).first()
-        def _slot_label(day, shift):
-            parts = [p for p in [day or "", shift or ""] if p]
-            return " – ".join(parts) if parts else ""
-        slots = [
-            _slot_label(p.hd_day_1, p.hd_slot_1),
-            _slot_label(p.hd_day_2, p.hd_slot_2),
-            _slot_label(p.hd_day_3, p.hd_slot_3),
-        ]
+        sessions = compute_upcoming_sessions(p)
         remarks = (rec_obj.issues or "") if (rec_obj and rec_obj.issues) else ""
-        msg = build_schedule_message(p.name, slots, remarks)
+        msg = build_schedule_message(p.name, sessions, remarks)
         _, link = send_whatsapp(p.contact_no, msg)
         schedule_links.append({
             "name": p.name, "hid": p.hid_no, "contact": p.contact_no,
-            "slots": [s for s in slots if s],
+            "sessions": sessions,
             "remarks": remarks, "link": link,
         })
 
@@ -72,10 +66,11 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
 
     return templates.TemplateResponse("alerts.html", {
         "request": request, "alert_links": alert_links,
-        "schedule_links": schedule_links, 
+        "schedule_links": schedule_links,
         "clinical_reminders": clinical_reminders,
         "month_str": month_str,
         "month_label": month_label,
+        "data_note": data_note,
         "now_date": date.today(),
         "user": get_user(request),
     })

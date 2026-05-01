@@ -292,9 +292,19 @@
   <!-- Log Event toggle -->
   <div class="log-toggle-bar">
     <h2>Timeline</h2>
-    <button class="btn btn-primary" onclick="toggleLog()" id="logBtn">
-      <i class="material-icons" style="vertical-align:middle;font-size:1rem;">add</i> Log Event
-    </button>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary" onclick="toggleLog()" id="logBtn" style="background:#475569;">
+        <i class="material-icons" style="vertical-align:middle;font-size:1rem;">add</i> Log Event
+      </button>
+      <button class="btn btn-primary" onclick="openAdmitModalOnTimeline()" style="background:#7c3aed;">
+        <i class="material-icons" style="vertical-align:middle;font-size:1rem;">local_hospital</i> Log Admission
+      </button>
+      <button class="btn btn-primary" onclick="openDischargeModalOnTimeline()" 
+              style="background:#0369a1; {{ 'opacity:0.5; cursor:not-allowed;' if not admitted_patients else '' }}"
+              {{ 'disabled' if not admitted_patients else '' }}>
+        <i class="material-icons" style="vertical-align:middle;font-size:1rem;">logout</i> Log Discharge
+      </button>
+    </div>
   </div>
 
   <!-- Log Event panel -->
@@ -383,7 +393,7 @@
           </div>
           <div class="event-patient">
             <i class="material-icons" style="font-size:0.85rem;vertical-align:middle;">person</i>
-            <a href="/patients/{{ ev.patient_id }}/edit">{{ ev.patient.name }}</a>
+            <a href="/patients/{{ ev.patient_id }}/profile">{{ ev.patient.name }}</a>
             <span style="color:#cbd5e1;margin:0 4px;">·</span>
             {{ ev.patient.hid_no }}
             {% if ev.patient.diagnosis %}<span style="color:#cbd5e1;margin:0 4px;">·</span>{{ ev.patient.diagnosis }}{% endif %}
@@ -410,6 +420,137 @@
 
 </div>
 
+<!-- ══════════════════════════════════════════════════════
+     HOSPITAL ADMISSION MODAL
+     ══════════════════════════════════════════════════════ -->
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);
+        display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+        background: white; width: 100%; max-width: 500px; border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+        padding: 24px; animation: modalFadeIn 0.3s ease-out;
+    }
+    @keyframes modalFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h3 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+    .modal-close { background: none; border: none; cursor: pointer; color: #64748b; padding: 4px; border-radius: 6px; }
+    .modal-close:hover { background: #f1f5f9; }
+    .form-field { margin-bottom: 16px; }
+    .form-field label { display: block; font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+    .form-field input, .form-field select, .form-field textarea {
+        width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; font-family: 'Inter', sans-serif; background: #f8fafc;
+    }
+    .form-field input:focus { border-color: #0ea5e9; outline: none; background: white; }
+</style>
+
+<div id="admitModal" class="modal-overlay" onclick="if(event.target===this)closeAdmitModal()">
+    <div class="modal-box" style="border-top: 4px solid #7c3aed;">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
+            <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons">close</i></button>
+        </div>
+        <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
+            <div class="form-field">
+                <label>Patient *</label>
+                <select name="patient_id" id="admit_patient_id" required>
+                    <option value="">— Select Patient —</option>
+                    {% for p in patients %}
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.hid_no }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="hidden" name="event_type" value="Hospitalization">
+            <input type="hidden" name="severity" value="High">
+            <input type="hidden" name="notes" id="admit_description">
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div class="form-field">
+                    <label>Admission Date</label>
+                    <input type="date" name="event_date" id="admit_date" required>
+                </div>
+                <div class="form-field">
+                    <label>Hospital Name</label>
+                    <input type="text" name="hospital_name" id="admit_hospital" value="CHSC" required>
+                </div>
+            </div>
+
+            <div id="admitDiagnosesWrapper">
+                <div class="diagnosis-block" style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px; position:relative;">
+                    <div class="form-field" style="margin-bottom:10px;">
+                        <label>Clinical Diagnosis</label>
+                        <input type="text" name="hosp_diagnosis" placeholder="e.g. Fluid Overload" required class="admit-diag">
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="form-field">
+                            <label>ICD-10 Code</label>
+                            <input type="text" name="hosp_icd_code" placeholder="e.g. J44.1" class="admit-code">
+                        </div>
+                        <div class="form-field">
+                            <label>ICD-10 Diagnosis</label>
+                            <input type="text" name="hosp_icd_diag" placeholder="e.g. Heart Failure" class="admit-icd-diag">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" onclick="addAdmitDiagnosisRow()" style="background:none; border:none; color:#0ea5e9; font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; margin-bottom:20px;">
+                <i class="material-icons" style="font-size:1.1rem;">add_circle</i> Add Another Admission Diagnosis
+            </button>
+
+            <button type="submit" class="btn btn-primary" style="background:#7c3aed; width:100%; border-radius:10px; padding:14px;">Record Admission</button>
+        </form>
+    </div>
+</div>
+
+<div id="dischargeModal" class="modal-overlay" onclick="if(event.target===this)closeDischargeModal()">
+    <div class="modal-box" style="border-top: 4px solid #0369a1;">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
+            <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons">close</i></button>
+        </div>
+        <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
+            <div class="form-field">
+                <label>Patient *</label>
+                <select name="patient_id" id="discharge_patient_id" required>
+                    <option value="">— Select Admitted Patient —</option>
+                    {% for p in admitted_patients %}
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.hid_no }})</option>
+                    {% endfor %}
+                </select>
+                {% if not admitted_patients %}
+                <p style="color:#dc2626; font-size:0.75rem; margin-top:4px;">No patients are currently marked as admitted.</p>
+                {% endif %}
+            </div>
+            <input type="hidden" name="event_type" value="Discharge">
+            <input type="hidden" name="severity" value="Medium">
+            <input type="hidden" name="notes" id="discharge_description">
+
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div class="form-field">
+                    <label>Discharge Date</label>
+                    <input type="date" name="event_date" id="discharge_date" required>
+                </div>
+                <div class="form-field">
+                    <label>Discharge Hospital</label>
+                    <input type="text" name="hospital_name" id="discharge_hospital" value="CHSC" required>
+                </div>
+            </div>
+
+            <div class="form-field" style="margin-bottom:20px;">
+                <label>Discharge Diagnosis</label>
+                <input type="text" name="discharge_diagnosis" id="discharge_diagnosis" placeholder="e.g. Improved, stable for HD" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="background:#0369a1; width:100%; border-radius:10px; padding:14px;">Record Discharge</button>
+        </form>
+    </div>
+</div>
+
 <script>
   var today = new Date().toISOString().split('T')[0];
   document.querySelector('input[name="event_date"]') && (document.querySelector('input[name="event_date"]').value = today);
@@ -430,8 +571,69 @@
   function toggleLog() {
     var p = document.getElementById('logPanel');
     p.classList.toggle('open');
-    document.getElementById('logBtn').textContent = p.classList.contains('open') ? '✕ Cancel' : '+ Log Event';
+    document.getElementById('logBtn').innerHTML = p.classList.contains('open') ? '✕ Cancel' : '<i class="material-icons" style="vertical-align:middle;font-size:1rem;">add</i> Log Event';
   }
+
+  function openAdmitModalOnTimeline() {
+    document.getElementById('admit_date').value = today;
+    document.getElementById('admitModal').classList.add('open');
+  }
+  function closeAdmitModal() {
+    document.getElementById('admitModal').classList.remove('open');
+  }
+  function openDischargeModalOnTimeline() {
+    document.getElementById('discharge_date').value = today;
+    document.getElementById('dischargeModal').classList.add('open');
+  }
+  function closeDischargeModal() {
+    document.getElementById('dischargeModal').classList.remove('open');
+  }
+
+  function addAdmitDiagnosisRow() {
+        const wrap = document.getElementById('admitDiagnosesWrapper');
+        const row = document.createElement('div');
+        row.className = 'diagnosis-block';
+        row.style.cssText = "background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px; position:relative;";
+        row.innerHTML = `
+            <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:8px; right:8px; background:none; border:none; color:#94a3b8; cursor:pointer;"><i class="material-icons" style="font-size:1.1rem;">close</i></button>
+            <div class="form-field" style="margin-bottom:10px;">
+                <label>Clinical Diagnosis</label>
+                <input type="text" name="hosp_diagnosis" placeholder="e.g. Sepsis" required class="admit-diag">
+            </div>
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="form-field">
+                    <label>ICD-10 Code</label>
+                    <input type="text" name="hosp_icd_code" placeholder="e.g. A41.9" class="admit-code">
+                </div>
+                <div class="form-field">
+                    <label>ICD-10 Diagnosis</label>
+                    <input type="text" name="hosp_icd_diag" placeholder="e.g. Septicemia" class="admit-icd-diag">
+                </div>
+            </div>
+        `;
+        wrap.appendChild(row);
+    }
+
+    function prepareAdmitDescription(form) {
+        const hospital = document.getElementById('admit_hospital').value;
+        const diags = Array.from(form.querySelectorAll('.admit-diag')).map(i => i.value);
+        const codes = Array.from(form.querySelectorAll('.admit-code')).map(i => i.value);
+        const icds  = Array.from(form.querySelectorAll('.admit-icd-diag')).map(i => i.value);
+        
+        let desc = `Hospital: ${hospital}`;
+        diags.forEach((d, idx) => {
+            desc += `\n— ${d}`;
+            if (codes[idx]) desc += ` (ICD: ${codes[idx]})`;
+            if (icds[idx])  desc += `: ${icds[idx]}`;
+        });
+        document.getElementById('admit_description').value = desc;
+    }
+
+    function prepareDischargeDescription(form) {
+        const hospital = document.getElementById('discharge_hospital').value;
+        const diag = document.getElementById('discharge_diagnosis').value;
+        document.getElementById('discharge_description').value = `Hospital: ${hospital}\nDischarge Diagnosis: ${diag}`;
+    }
 </script>
 
 </body>

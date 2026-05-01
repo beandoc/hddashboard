@@ -208,6 +208,13 @@
     </div>
 </header>
 
+{% if data.data_note == "new_month_no_data" %}
+<div style="background:#fffbeb;border-bottom:2px solid #f59e0b;padding:12px 24px;display:flex;align-items:center;gap:10px;font-size:0.88rem;color:#92400e;">
+    <span class="material-icons" style="font-size:1.1rem;color:#d97706;">info</span>
+    <span>No records entered for <strong>{{ current_month_label }}</strong> yet — showing <strong>{{ data.month_label }}</strong> data. <a href="/entry" style="color:#b45309;font-weight:700;text-decoration:underline;">Enter this month's data</a></span>
+</div>
+{% endif %}
+
 {% set ns = namespace(missing=0, alert_count=0, stable=0) %}
 {% for row in data.patient_rows %}
     {% if not row.has_record or row.has_missing_data %}{% set ns.missing = ns.missing + 1 %}
@@ -300,7 +307,7 @@
             <thead>
                 <tr>
                     <th data-label="Patient">Patient</th>
-                    <th>Last Session</th>
+                    <th>Last HD Session</th>
                     <th>Lab Status</th>
                     <th>Clinical Alerts</th>
                     <th data-label="Actions">Actions</th>
@@ -324,11 +331,11 @@
                         </span>
                     </td>
 
-                    <!-- Last Session -->
-                    <td data-label="Last Session">
+                    <!-- Last HD session -->
+                    <td data-label="Last HD session">
                         {% if row.last_session_date %}
                             <span style="font-size:0.82rem; font-weight:600; color:#0f172a;">
-                                {{ row.last_session_date.strftime('%d %b') }}
+                                {{ row.last_session_date.strftime('%-d %b') }}
                             </span>
                         {% else %}
                             <span style="color:#94a3b8; font-size:0.82rem;">No sessions</span>
@@ -376,9 +383,9 @@
                     <td data-label="Actions" class="actions-cell">
                         <!-- Context-aware primary action -->
                         {% if not row.has_record or row.has_missing_data %}
-                            <a href="/entry/{{ row.id }}?month={{ month_str }}" class="act-btn-primary act-enter-labs" title="Enter monthly labs">
-                                <i class="material-icons" style="font-size:0.9rem;">edit_note</i> Enter Labs
-                            </a>
+                            <button onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn-primary act-enter-labs" title="Enter interim lab results">
+                                <i class="material-icons" style="font-size:0.9rem;">science</i> Enter Labs
+                            </button>
                         {% elif row.alerts %}
                             <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-review" title="Review alerts">
                                 <i class="material-icons" style="font-size:0.9rem;">visibility</i> Review
@@ -401,14 +408,13 @@
                                 <a href="/events?patient_id={{ p.id }}" class="more-item">
                                     <i class="material-icons">timeline</i> Timeline
                                 </a>
-                                <a href="#" onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}'); return false;" class="more-item">
-                                    <i class="material-icons">science</i> Interim Lab
-                                </a>
                                 <div class="more-divider"></div>
                                 <button onclick="openAdmitModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
                                     <i class="material-icons" style="color:#7c3aed;">local_hospital</i> Hospital Admit
                                 </button>
-                                <button onclick="openDischargeModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
+                                <button onclick="openDischargeModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" 
+                                        class="more-item" {{ 'disabled' if not row.is_admitted else '' }}
+                                        style="{{ 'opacity:0.5; cursor:not-allowed;' if not row.is_admitted else '' }}">
                                     <i class="material-icons" style="color:#0369a1;">logout</i> Discharge
                                 </button>
                                 <div class="more-divider"></div>
@@ -557,35 +563,47 @@
             <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
             <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
-        <form action="/events/new" method="POST" onsubmit="prepareAdmitDescription(this)">
+        <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
             <input type="hidden" name="patient_id" id="admit_patient_id">
             <input type="hidden" name="event_type" value="Hospitalization">
             <input type="hidden" name="severity" value="High">
-            <input type="hidden" name="description" id="admit_description">
+            <input type="hidden" name="notes" id="admit_description">
 
-            <div class="form-field">
-                <label>Admission Date</label>
-                <input type="date" name="event_date" id="admit_date" required>
-            </div>
-            <div class="form-field">
-                <label>Hospital Name</label>
-                <input type="text" id="admit_hospital" value="CHSC" required>
-            </div>
-            <div class="form-field">
-                <label>Admission Diagnosis</label>
-                <input type="text" id="admit_diagnosis" placeholder="e.g. Fluid Overload" required>
-            </div>
-            <div class="form-row">
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
                 <div class="form-field">
-                    <label>ICD-10 Code</label>
-                    <input type="text" id="admit_icd_code" placeholder="e.g. J44.1">
+                    <label>Admission Date</label>
+                    <input type="date" name="event_date" id="admit_date" required>
                 </div>
                 <div class="form-field">
-                    <label>ICD-10 Diagnosis</label>
-                    <input type="text" id="admit_icd_diag" placeholder="e.g. Heart Failure">
+                    <label>Hospital Name</label>
+                    <input type="text" name="hospital_name" id="admit_hospital" value="CHSC" required>
                 </div>
             </div>
-            <button type="submit" class="btn-primary" style="background:#7c3aed;">Record Admission</button>
+
+            <div id="admitDiagnosesWrapper">
+                <div class="diagnosis-block" style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px; position:relative;">
+                    <div class="form-field" style="margin-bottom:10px;">
+                        <label>Clinical Diagnosis</label>
+                        <input type="text" name="hosp_diagnosis" placeholder="e.g. Fluid Overload" required class="admit-diag">
+                    </div>
+                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="form-field">
+                            <label>ICD-10 Code</label>
+                            <input type="text" name="hosp_icd_code" placeholder="e.g. J44.1" class="admit-code">
+                        </div>
+                        <div class="form-field">
+                            <label>ICD-10 Diagnosis</label>
+                            <input type="text" name="hosp_icd_diag" placeholder="e.g. Heart Failure" class="admit-icd-diag">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" onclick="addAdmitDiagnosisRow()" style="background:none; border:none; color:var(--primary); font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; margin-bottom:20px;">
+                <i class="material-icons" style="font-size:1.1rem;">add_circle</i> Add Another Admission Diagnosis
+            </button>
+
+            <button type="submit" class="btn-primary" style="background:#7c3aed; width:100%;">Record Admission</button>
         </form>
     </div>
 </div>
@@ -600,29 +618,29 @@
             <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
             <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
-        <form action="/events/new" method="POST" onsubmit="prepareDischargeDescription(this)">
+        <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
             <input type="hidden" name="patient_id" id="discharge_patient_id">
             <input type="hidden" name="event_type" value="Discharge">
             <input type="hidden" name="severity" value="Medium">
-            <input type="hidden" name="description" id="discharge_description">
+            <input type="hidden" name="notes" id="discharge_description">
 
-            <div class="form-field">
-                <label>Discharge Date</label>
-                <input type="date" name="event_date" id="discharge_date" required>
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div class="form-field">
+                    <label>Discharge Date</label>
+                    <input type="date" name="event_date" id="discharge_date" required>
+                </div>
+                <div class="form-field">
+                    <label>Discharge Hospital</label>
+                    <input type="text" name="hospital_name" id="discharge_hospital" value="CHSC" required>
+                </div>
             </div>
-            <div class="form-field">
-                <label>Discharge Type</label>
-                <select id="discharge_type" required>
-                    <option value="Home">Home</option>
-                    <option value="Transfer">Transfer to other facility</option>
-                    <option value="Deceased">Deceased</option>
-                </select>
+
+            <div class="form-field" style="margin-bottom:20px;">
+                <label>Discharge Diagnosis</label>
+                <input type="text" name="discharge_diagnosis" id="discharge_diagnosis" placeholder="e.g. Improved, stable for HD" required>
             </div>
-            <div class="form-field">
-                <label>Notes (optional)</label>
-                <textarea id="discharge_notes" rows="3" placeholder="Additional notes..." style="resize:vertical;"></textarea>
-            </div>
-            <button type="submit" class="btn-primary" style="background:#0369a1;">Record Discharge</button>
+
+            <button type="submit" class="btn-primary" style="background:#0369a1; width:100%;">Record Discharge</button>
         </form>
     </div>
 </div>
@@ -677,7 +695,7 @@
     }
     function openInterimModal(pid, name) {
         document.getElementById('interimModalTitle').textContent = 'Lab Entry: ' + name;
-        document.getElementById('interimForm').action = '/patients/' + pid + '/interim-labs/new';
+        document.getElementById('interimForm').action = '/events/patients/' + pid + '/interim-labs/new';
         document.getElementById('modal_date').value = new Date().toISOString().slice(0, 10);
         document.getElementById('interimModal').classList.add('open');
     }
@@ -726,12 +744,44 @@
     function closeAdmitModal() {
         document.getElementById('admitModal').classList.remove('open');
     }
+    function addAdmitDiagnosisRow() {
+        const wrap = document.getElementById('admitDiagnosesWrapper');
+        const row = document.createElement('div');
+        row.className = 'diagnosis-block';
+        row.style.cssText = "background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px; position:relative;";
+        row.innerHTML = `
+            <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:8px; right:8px; background:none; border:none; color:#94a3b8; cursor:pointer;"><i class="material-icons" style="font-size:1.1rem;">close</i></button>
+            <div class="form-field" style="margin-bottom:10px;">
+                <label>Clinical Diagnosis</label>
+                <input type="text" name="hosp_diagnosis" placeholder="e.g. Sepsis" required class="admit-diag">
+            </div>
+            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="form-field">
+                    <label>ICD-10 Code</label>
+                    <input type="text" name="hosp_icd_code" placeholder="e.g. A41.9" class="admit-code">
+                </div>
+                <div class="form-field">
+                    <label>ICD-10 Diagnosis</label>
+                    <input type="text" name="hosp_icd_diag" placeholder="e.g. Septicemia" class="admit-icd-diag">
+                </div>
+            </div>
+        `;
+        wrap.appendChild(row);
+    }
+
     function prepareAdmitDescription(form) {
         const hospital = document.getElementById('admit_hospital').value;
-        const diag = document.getElementById('admit_diagnosis').value;
-        const code = document.getElementById('admit_icd_code').value;
-        const icdDiag = document.getElementById('admit_icd_diag').value;
-        document.getElementById('admit_description').value = `Hospital: ${hospital}\nDiagnosis: ${diag}\nICD Code: ${code}\nICD Diagnosis: ${icdDiag}`;
+        const diags = Array.from(form.querySelectorAll('.admit-diag')).map(i => i.value);
+        const codes = Array.from(form.querySelectorAll('.admit-code')).map(i => i.value);
+        const icds  = Array.from(form.querySelectorAll('.admit-icd-diag')).map(i => i.value);
+        
+        let desc = `Hospital: ${hospital}`;
+        diags.forEach((d, idx) => {
+            desc += `\n— ${d}`;
+            if (codes[idx]) desc += ` (ICD: ${codes[idx]})`;
+            if (icds[idx])  desc += `: ${icds[idx]}`;
+        });
+        document.getElementById('admit_description').value = desc;
     }
 
     function openDischargeModal(pid, name) {
@@ -743,19 +793,9 @@
         document.getElementById('dischargeModal').classList.remove('open');
     }
     function prepareDischargeDescription(form) {
-        const type = document.getElementById('discharge_type').value;
-        const notes = document.getElementById('discharge_notes').value;
-        document.getElementById('discharge_description').value = `Type: ${type}\nNotes: ${notes}`;
-    }
-
-    // ── WHATSAPP REMIND ───────────────────────────────────────────────────
-    function sendSchedule(pid, event) {
-        event.stopPropagation();
-        document.querySelectorAll('.more-dropdown.open').forEach(d => d.classList.remove('open'));
-        fetch('/api/send-schedule/' + pid, { method: 'POST' })
-            .then(r => r.json())
-            .then(d => showToast(d.message))
-            .catch(() => showToast('Connection error', true));
+        const hospital = document.getElementById('discharge_hospital').value;
+        const diag = document.getElementById('discharge_diagnosis').value;
+        document.getElementById('discharge_description').value = `Hospital: ${hospital}\nDischarge Diagnosis: ${diag}`;
     }
 
     // ── TOAST ─────────────────────────────────────────────────────────────

@@ -598,6 +598,13 @@
 
 <main>
 
+  {% if data.data_note == "new_month_no_data" %}
+  <div style="background:#fffbeb;border-bottom:2px solid #f59e0b;padding:12px 24px;display:flex;align-items:center;gap:10px;font-size:0.88rem;color:#92400e;">
+    <span class="material-icons" style="font-size:1.1rem;color:#d97706;">info</span>
+    <span>No records entered for <strong>{{ current_month_label }}</strong> yet — showing <strong>{{ data.month_label }}</strong> data. <a href="/entry" style="color:#b45309;font-weight:700;text-decoration:underline;">Enter this month's data</a></span>
+  </div>
+  {% endif %}
+
   <!-- METRIC CARDS -->
   <div class="dashboard-grid">
 

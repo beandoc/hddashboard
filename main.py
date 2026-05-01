@@ -9,7 +9,7 @@ import logging
 from database import engine, Base, get_db, Patient, SessionLocal, User
 from config import templates, serializer, pwd_context
 from dependencies import get_user
-from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label
+from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
 from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -97,24 +97,27 @@ async def auth_middleware(request: Request, call_next):
             data = serializer.loads(token)
             user_type, username = data.split(":", 1)
             
-            db = SessionLocal()
             try:
-                if user_type == "staff":
-                    user = db.query(User).filter(User.username == username, User.is_active == True).first()
-                    if user:
-                        request.state.user = user
-                elif user_type == "patient":
-                    p = db.query(Patient).filter(Patient.login_username == username, Patient.is_active == True).first()
-                    if p:
-                        # Convert to dict for consistency if needed, or keep as object
-                        request.state.user = {
-                            "username": p.login_username,
-                            "full_name": p.name,
-                            "role": "patient",
-                            "id": p.id
-                        }
-            finally:
-                db.close()
+                db = SessionLocal()
+                try:
+                    if user_type == "staff":
+                        user = db.query(User).filter(User.username == username, User.is_active == True).first()
+                        if user:
+                            request.state.user = user
+                    elif user_type == "patient":
+                        p = db.query(Patient).filter(Patient.login_username == username, Patient.is_active == True).first()
+                        if p:
+                            request.state.user = {
+                                "username": p.login_username,
+                                "full_name": p.name,
+                                "role": "patient",
+                                "id": p.id
+                            }
+                finally:
+                    db.close()
+            except Exception as db_err:
+                logging.error(f"Auth middleware DB error: {db_err}")
+                pass
         except Exception:
             pass
             
@@ -152,9 +155,10 @@ async def dashboard_head():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
-    month_str = month or get_current_month_str()
+    month_str, data_note = get_effective_month(db, month)
     try:
         data = compute_dashboard(db, month_str)
+        data["data_note"] = data_note
     except Exception as e:
         logging.error(f"Dashboard error: {e}")
         data = {
@@ -186,17 +190,20 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
                 "trend_albumin": [],
                 "trend_phosphorus": []
             },
-            "patient_rows": [], 
+            "patient_rows": [],
             "month_label": get_month_label(month_str),
-            "prev_month_label": "N/A", 
-            "total_active": 0
+            "prev_month_label": "N/A",
+            "total_active": 0,
+            "data_note": data_note,
         }
-    
+
+    _current_month = get_current_month_str()
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "data": data,
         "month_str": month_str,
-        "current_month": get_current_month_str(),
+        "current_month": _current_month,
+        "current_month_label": get_month_label(_current_month),
         "user": get_user(request),
     })
 

@@ -8,7 +8,7 @@ import re
 from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord
 from config import templates, _csrf_signer
 from dependencies import get_user
-from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label
+from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
 from services import patient_service
 
 logger = logging.getLogger(__name__)
@@ -17,23 +17,26 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("", response_class=HTMLResponse)
 async def patient_list(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
-    month_str = month or get_current_month_str()
+    month_str, data_note = get_effective_month(db, month)
     try:
         data = compute_dashboard(db, month_str)
+        data["data_note"] = data_note
     except Exception as e:
         logger.error(f"Dashboard computation failed for {month_str}: {e}", exc_info=True)
-        data = {"patient_rows": [], "metrics": {}}
-        
+        data = {"patient_rows": [], "metrics": {}, "data_note": data_note}
+
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     patients_by_id = {p.id: p for p in patients}
-    
+
+    _current_month = get_current_month_str()
     return templates.TemplateResponse("patients.html", {
         "request": request,
         "patients": patients,
         "patients_by_id": patients_by_id,
         "data": data,
         "month_str": month_str,
-        "current_month": get_current_month_str(),
+        "current_month": _current_month,
+        "current_month_label": get_month_label(_current_month),
         "user": get_user(request),
     })
 
@@ -377,3 +380,12 @@ async def update_patient(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
+
+@router.post("/{patient_id}/deactivate")
+async def deactivate_patient(patient_id: int, db: Session = Depends(get_db)):
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    p.is_active = False
+    db.commit()
+    return RedirectResponse(url="/patients", status_code=303)

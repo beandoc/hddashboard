@@ -5,7 +5,8 @@ from typing import Optional
 from datetime import date, datetime, timedelta
 import logging
 
-from database import get_db, Patient, ClinicalEvent, InterimLabRecord
+import json
+from database import get_db, Patient, ClinicalEvent, InterimLabRecord, MonthlyRecord
 from config import templates, _csrf_signer
 from itsdangerous import BadData
 from dependencies import get_user
@@ -47,10 +48,21 @@ async def events_timeline(
 
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
 
+    # Determine currently admitted patients (last event is Hospitalization and not yet Discharged)
+    admitted_patients = []
+    for p in patients:
+        last_event = db.query(ClinicalEvent).filter(
+            ClinicalEvent.patient_id == p.id,
+            ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"])
+        ).order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc()).first()
+        if last_event and last_event.event_type == "Hospitalization":
+            admitted_patients.append(p)
+
     return templates.TemplateResponse("events.html", {
         "request":     request,
         "events":      events,
         "patients":    patients,
+        "admitted_patients": admitted_patients,
         "event_types":       EVENT_TYPES,
         "event_type_groups": EVENT_TYPE_GROUPS,
         "sev_counts":  sev_counts,
@@ -72,17 +84,70 @@ async def create_event(
     event_date: str = Form(...),
     event_type: str = Form(...),
     severity: str = Form("Medium"),
-    description: str = Form(""),
+    notes: str = Form(""),
+    hosp_diagnosis: list[str] = Form([]),
+    hosp_icd_code: list[str] = Form([]),
+    hosp_icd_diag: list[str] = Form([]),
     db: Session = Depends(get_db),
 ):
+    # 1. Save Clinical Event
+    user = get_user(request)
+    created_by = "Unknown"
+    if user:
+        if isinstance(user, dict):
+            created_by = user.get("username", "Unknown")
+        else:
+            created_by = getattr(user, "username", "Unknown")
+
     ev = ClinicalEvent(
         patient_id=patient_id,
         event_date=date.fromisoformat(event_date),
         event_type=event_type,
         severity=severity,
-        description=description,
+        notes=notes,
+        created_by=created_by
     )
     db.add(ev)
+    
+    # 2. Sync to MonthlyRecord if Hospitalization
+    if event_type == "Hospitalization" and (hosp_diagnosis or hosp_icd_code):
+        month_str = event_date[:7]
+        rec = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.record_month == month_str
+        ).first()
+        
+        if not rec:
+            rec = MonthlyRecord(patient_id=patient_id, record_month=month_str)
+            db.add(rec)
+        
+        rec.hospitalization_this_month = True
+        
+        # Load existing details or start fresh
+        try:
+            current_details = json.loads(rec.hospitalization_details) if rec.hospitalization_details else []
+        except:
+            current_details = []
+            
+        # Add new entries
+        for d, c, i in zip(hosp_diagnosis, hosp_icd_code, hosp_icd_diag):
+            if d.strip() or c.strip():
+                current_details.append({
+                    "date": event_date,
+                    "diagnosis": d.strip(),
+                    "icd_code": c.strip(),
+                    "icd_diagnosis": i.strip()
+                })
+        
+        rec.hospitalization_details = json.dumps(current_details)
+        
+        # Update flat fields with first entry if empty
+        if not rec.hospitalization_date:
+            rec.hospitalization_date = date.fromisoformat(event_date)
+            rec.hospitalization_diagnosis = hosp_diagnosis[0] if hosp_diagnosis else ""
+            rec.hospitalization_icd_code = hosp_icd_code[0] if hosp_icd_code else ""
+            rec.hospitalization_icd_diagnosis = hosp_icd_diag[0] if hosp_icd_diag else ""
+
     db.commit()
     return RedirectResponse(url=request.headers.get("referer", "/events"), status_code=303)
 

@@ -77,6 +77,28 @@ def get_month_label(month_str: str) -> str:
     dt = datetime.strptime(month_str, "%Y-%m")
     return dt.strftime("%B %Y")
 
+def get_effective_month(db: Session, requested_month: str = None) -> tuple:
+    """
+    Returns (month_str, data_note).
+    When no month is explicitly requested and the current month has no records yet
+    (e.g. day 1 of a new month), falls back to the previous month so the UI
+    doesn't appear broken, and sets data_note to signal the banner.
+    """
+    if requested_month:
+        return requested_month, None
+
+    current = get_current_month_str()
+    record_count = db.query(func.count(MonthlyRecord.patient_id)).filter(
+        MonthlyRecord.record_month == current
+    ).scalar() or 0
+
+    if record_count == 0:
+        y, m = int(current[:4]), int(current[5:7])
+        prev = f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
+        return prev, "new_month_no_data"
+
+    return current, None
+
 def compute_dashboard(db: Session, month: str = None):
     """
     Compute aggregate metrics and per-patient rows for the clinical dashboard.
@@ -211,6 +233,13 @@ def compute_dashboard(db: Session, month: str = None):
         _missing_fields = [k for k, v in _CORE_FIELDS.items() if v is None]
         _has_missing_data = bool(_missing_fields)  # True if any core field is blank
 
+        # Admission status (last event is Hospitalization and not yet Discharged)
+        last_hosp_event = db.query(ClinicalEvent).filter(
+            ClinicalEvent.patient_id == p.id,
+            ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"])
+        ).order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc()).first()
+        is_admitted = (last_hosp_event.event_type == "Hospitalization") if last_hosp_event else False
+
         row = {
             "id": p.id,
             "last_session_date": session_map.get(p.id),
@@ -218,6 +247,7 @@ def compute_dashboard(db: Session, month: str = None):
             "hid": p.hid_no,
             "has_record": r is not None,
             "has_missing_data": _has_missing_data,
+            "is_admitted": is_admitted,
             "missing_fields": _missing_fields,
             "access": r.access_type if r else p.access_type,
             "idwg": r.idwg if r else None,

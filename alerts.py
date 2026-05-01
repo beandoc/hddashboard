@@ -8,7 +8,7 @@ import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from urllib.parse import quote
 from dotenv import load_dotenv
 
@@ -28,6 +28,41 @@ CLINIC_PHONE  = os.getenv("CLINIC_PHONE", "9665183839")   # WhatsApp Business nu
 TWILIO_SID     = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH    = os.getenv("TWILIO_AUTH_TOKEN", "")
 TWILIO_WA_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "")
+
+
+# ── HD SCHEDULE HELPERS ─────────────────────────────────────────────────────
+
+_DAY_MAP = {
+    "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
+    "Friday": 4, "Saturday": 5, "Sunday": 6,
+}
+
+def compute_upcoming_sessions(patient, from_date=None):
+    """
+    Return list of (session_date, day_name, shift) for the patient's next
+    scheduled sessions, all on or after from_date (default: today).
+    Based on patient.hd_day_1/2/3 (day-of-week names) and hd_slot_1/2/3.
+    Days that don't parse as a weekday name are skipped.
+    """
+    if from_date is None:
+        from_date = date.today()
+
+    sessions = []
+    for day_attr, slot_attr in [
+        ("hd_day_1", "hd_slot_1"),
+        ("hd_day_2", "hd_slot_2"),
+        ("hd_day_3", "hd_slot_3"),
+    ]:
+        day_name = (getattr(patient, day_attr, None) or "").strip()
+        shift    = (getattr(patient, slot_attr, None) or "").strip()
+        if day_name not in _DAY_MAP:
+            continue
+        days_ahead = (_DAY_MAP[day_name] - from_date.weekday()) % 7
+        sess_date  = from_date + timedelta(days=days_ahead)
+        sessions.append((sess_date, day_name, shift))
+
+    sessions.sort(key=lambda x: x[0])
+    return sessions
 
 
 # ── WHATSAPP LINK GENERATOR ─────────────────────────────────────────────────
@@ -83,14 +118,20 @@ def generate_whatsapp_link(contact_no: str, message: str) -> str:
     return f"https://wa.me/{number}?text={encoded_message}"
 
 
-def build_schedule_message(patient_name: str, slots: list,
+def build_schedule_message(patient_name: str, sessions: list,
                             remarks: str = None) -> str:
     """
     Build the HD schedule WhatsApp message for one patient.
-    slots = [slot_1, slot_2, slot_3]  (any may be None)
+    sessions = list of (session_date, day_name, shift) tuples from
+               compute_upcoming_sessions(); only future dates are included.
     """
-    filled = [s.strip() for s in slots if s and s.strip()]
-    schedule_text = "\n".join(f"  • {s}" for s in filled) if filled else "  • (Schedule to be confirmed)"
+    if sessions:
+        lines = []
+        for sess_date, day_name, shift in sessions:
+            lines.append(f"  • {day_name} {sess_date.strftime('%d %b %Y')}")
+        schedule_text = "\n".join(lines)
+    else:
+        schedule_text = "  • (Schedule to be confirmed)"
 
     remarks_section = ""
     if remarks and remarks.strip():
@@ -157,16 +198,14 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
             elif _eri >= 1.5:
                 alerts.append(f"ESA Hypo-response [HypoR2] (Hb {record.hb} g/dL)")
 
-    def _slot_label(day, shift):
-        parts = [p for p in [day or "", shift or ""] if p]
-        return " – ".join(parts)
-    slots = [
-        _slot_label(getattr(patient, "hd_day_1", ""), patient.hd_slot_1),
-        _slot_label(getattr(patient, "hd_day_2", ""), patient.hd_slot_2),
-        _slot_label(getattr(patient, "hd_day_3", ""), patient.hd_slot_3),
-    ]
-    filled_slots = [s for s in slots if s]
-    schedule_text = "\n".join(f"  • {s}" for s in filled_slots) if filled_slots else "  • (To be confirmed)"
+    upcoming = compute_upcoming_sessions(patient)
+    if upcoming:
+        lines = []
+        for sess_date, day_name, shift in upcoming:
+            lines.append(f"  • {day_name} {sess_date.strftime('%d %b %Y')}")
+        schedule_text = "\n".join(lines)
+    else:
+        schedule_text = "  • (To be confirmed)"
 
     remarks = (getattr(record, "issues", None) or "").strip() if record else ""
 

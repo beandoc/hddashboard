@@ -10,7 +10,7 @@ from dependencies import get_user, _require_admin_role
 
 router = APIRouter(prefix="/research", tags=["research"])
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse)
 async def research_hub(request: Request, db: Session = Depends(get_db)):
     _require_admin_role(request) # Only admins/doctors
     projects = db.query(ResearchProject).order_by(ResearchProject.created_at.desc()).all()

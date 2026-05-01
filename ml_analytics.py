@@ -82,30 +82,34 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict[str, Any]:
         athero = True
     
     # 2. Inflammation Component (CRP > 0.3 mg/dL)
-    # Check recent lab records for CRP (Monthly or Interim)
-    recent_crp = db.query(MonthlyRecord).filter(
+    # Check recent lab records for CRP (Monthly column or Interim EAV)
+    recent_rec = db.query(MonthlyRecord).filter(
         MonthlyRecord.patient_id == patient_id,
-        MonthlyRecord.parameter == 'crp'
+        MonthlyRecord.crp.isnot(None)
     ).order_by(MonthlyRecord.record_month.desc()).first()
     
-    if not recent_crp:
+    crp_val = recent_rec.crp if recent_rec else None
+    
+    if crp_val is None:
         from database import InterimLabRecord
-        recent_crp = db.query(InterimLabRecord).filter(
+        recent_crp_interim = db.query(InterimLabRecord).filter(
             InterimLabRecord.patient_id == patient_id,
             InterimLabRecord.parameter == 'crp'
         ).order_by(InterimLabRecord.lab_date.desc()).first()
+        crp_val = recent_crp_interim.value if recent_crp_interim else None
 
     inflam = False
-    crp_val = recent_crp.value if recent_crp else None
     if crp_val is not None and crp_val > 0.3:
         inflam = True
 
     # 3. Malnutrition Component (GNRI < 92)
     # GNRI = 14.89 * Albumin + 41.7 * (Weight / IDW)
-    recent_alb = db.query(MonthlyRecord).filter(
+    recent_rec_alb = db.query(MonthlyRecord).filter(
         MonthlyRecord.patient_id == patient_id,
-        MonthlyRecord.parameter == 'albumin'
+        MonthlyRecord.albumin.isnot(None)
     ).order_by(MonthlyRecord.record_month.desc()).first()
+    
+    alb_val = recent_rec_alb.albumin if recent_rec_alb else None
     
     # Get latest weight from SessionRecord if not in Monthly
     from database import SessionRecord
@@ -114,7 +118,6 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict[str, Any]:
     ).order_by(SessionRecord.session_date.desc()).first()
     
     weight_val = recent_session.weight_pre if recent_session else None
-    alb_val = recent_alb.value if recent_alb else None
     height = patient.height
     sex = patient.sex
 
