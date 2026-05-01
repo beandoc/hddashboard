@@ -101,7 +101,7 @@
                     <select name="patient_id" required>
                         <option value="">-- Select Patient --</option>
                         {% for p in patients %}
-                        <option value="{{ p.id }}">{{ p.name }} (HID: {{ p.hid_no }})</option>
+                        <option value="{{ p.id }}" data-age="{{ p.age }}">{{ p.name }} (HID: {{ p.hid_no }})</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -123,6 +123,10 @@
                         <option value="STEPS_ACTIVITY">Physical Activity (Steps)</option>
                         <option value="SKIN_FOLD">Skin Fold Thickness</option>
                         <option value="MOCA">MOCA Scoring</option>
+                        <option value="EDMONTON_FRAIL_SCALE" id="efsOption">Edmonton Frail Scale (Age 65+)</option>
+                        <option value="PSQI">Pittsburgh Sleep Quality Index (PSQI)</option>
+                        <option value="CIMT">Carotid Intima Medial Thickness (CIMT)</option>
+                        <option value="AVF_PAIN">AVF Cannulation Pain (VAS/NRS)</option>
                         <option value="CUSTOM_VARIABLE">Custom Variable Entry</option>
                         <option value="AUTONOMIC_TEST">Autonomic Testing</option>
                         <option value="OTHER">Other Custom Test</option>
@@ -135,5 +139,25 @@
             </form>
         </div>
     </div>
+
+    <script>
+        const patientSelect = document.querySelector('select[name="patient_id"]');
+        const testTypeSelect = document.querySelector('select[name="test_type"]');
+        const efsOption = document.getElementById('efsOption');
+
+        patientSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const age = parseInt(selectedOption.getAttribute('data-age') || '0');
+            
+            if (age < 65) {
+                efsOption.style.display = 'none';
+                if (testTypeSelect.value === 'EDMONTON_FRAIL_SCALE') {
+                    testTypeSelect.value = '';
+                }
+            } else {
+                efsOption.style.display = 'block';
+            }
+        });
+    </script>
 </body>
 </html>

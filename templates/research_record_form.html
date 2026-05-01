@@ -165,13 +165,126 @@
             ],
             "LUNG_USG": [
                 { name: "total_b_lines", label: "Total B-Lines (Sum of zones)", type: "number" },
-                { name: "zones_scanned", label: "Number of Zones Scanned", type: "number", options: ["8", "28"] },
+                { name: "zones_scanned", label: "Number of Zones Scanned", type: "select", options: ["8", "28"] },
                 { name: "pleural_effusion", label: "Pleural Effusion Present", type: "select", options: ["No", "Yes - Right", "Yes - Left", "Yes - Bilateral"] }
             ],
             "AUTONOMIC_TEST": [
                 { name: "hrv", label: "Heart Rate Variability (ms)", type: "number" },
                 { name: "valsalva_ratio", label: "Valsalva Ratio", type: "number", step: "0.01" },
                 { name: "orthostatic_drop", label: "Orthostatic SBP Drop (mmHg)", type: "number" }
+            ],
+            "EDMONTON_FRAIL_SCALE": [
+                { name: "efs_cognition", label: "Cognition (Clock Test)", type: "select", options: [
+                    { value: "0", label: "No errors (0)" },
+                    { value: "1", label: "Minor spacing errors (1)" },
+                    { value: "2", label: "Other errors (2)" }
+                ]},
+                { name: "efs_hospitalization", label: "General Health (Hospital admissions in past year)", type: "select", options: [
+                    { value: "0", label: "0 (0)" },
+                    { value: "1", label: "1-2 (1)" },
+                    { value: "2", label: "≥2 (2)" }
+                ]},
+                { name: "efs_self_health", label: "General Health (Self-rated health)", type: "select", options: [
+                    { value: "0", label: "Excellent / Very good / Good (0)" },
+                    { value: "1", label: "Fair (1)" },
+                    { value: "2", label: "Poor (2)" }
+                ]},
+                { name: "efs_independence", label: "Functional Independence (Help with 8 activities)", type: "select", options: [
+                    { value: "0", label: "0–1 activities (0)" },
+                    { value: "1", label: "2–4 activities (1)" },
+                    { value: "2", label: "5–8 activities (2)" }
+                ]},
+                { name: "efs_social_support", label: "Social Support (Help available when needed)", type: "select", options: [
+                    { value: "0", label: "Always (0)" },
+                    { value: "1", label: "Sometimes (1)" },
+                    { value: "2", label: "Never (2)" }
+                ]},
+                { name: "efs_med_polypharmacy", label: "Medication Use (≥5 prescription drugs)", type: "select", options: [
+                    { value: "0", label: "No (0)" },
+                    { value: "1", label: "Yes (1)" }
+                ]},
+                { name: "efs_med_compliance", label: "Medication Use (Forget to take meds)", type: "select", options: [
+                    { value: "0", label: "No (0)" },
+                    { value: "1", label: "Yes (1)" }
+                ]},
+                { name: "efs_nutrition", label: "Nutrition (Recent weight loss / loose clothes)", type: "select", options: [
+                    { value: "0", label: "No (0)" },
+                    { value: "1", label: "Yes (1)" }
+                ]},
+                { name: "efs_mood", label: "Mood (Often feel sad or depressed)", type: "select", options: [
+                    { value: "0", label: "No (0)" },
+                    { value: "1", label: "Yes (1)" }
+                ]},
+                { name: "efs_continence", label: "Continence (Losing control of urine)", type: "select", options: [
+                    { value: "0", label: "No (0)" },
+                    { value: "1", label: "Yes (1)" }
+                ]},
+                { name: "efs_functional_perf", label: "Functional Performance (Timed Get Up & Go)", type: "select", options: [
+                    { value: "0", label: "0–10 s (0)" },
+                    { value: "1", label: "11–20 s (1)" },
+                    { value: "2", label: ">20 s / Unwilling / Assisted (2)" }
+                ]},
+                { name: "efs_total_score", label: "Total EFS Score", type: "number", min: "0", max: "17", readonly: true },
+                { name: "efs_category", label: "Frailty Category", type: "text", readonly: true }
+            ],
+            "PSQI": [
+                { name: "psqi_comp1", label: "Component 1: Subjective Sleep Quality (0-3)", type: "select", options: [
+                    { value: "0", label: "Very good (0)" },
+                    { value: "1", label: "Fairly good (1)" },
+                    { value: "2", label: "Fairly bad (2)" },
+                    { value: "3", label: "Very bad (3)" }
+                ]},
+                { name: "psqi_comp2", label: "Component 2: Sleep Latency (0-3)", type: "select", options: [
+                    { value: "0", label: "0 (0)" },
+                    { value: "1", label: "1-2 (1)" },
+                    { value: "2", label: "3-4 (2)" },
+                    { value: "3", label: "5-6 (3)" }
+                ]},
+                { name: "psqi_comp3", label: "Component 3: Sleep Duration (0-3)", type: "select", options: [
+                    { value: "0", label: "> 7 hours (0)" },
+                    { value: "1", label: "6-7 hours (1)" },
+                    { value: "2", label: "5-6 hours (2)" },
+                    { value: "3", label: "< 5 hours (3)" }
+                ]},
+                { name: "psqi_comp4", label: "Component 4: Sleep Efficiency (0-3)", type: "select", options: [
+                    { value: "0", label: "> 85% (0)" },
+                    { value: "1", label: "75-84% (1)" },
+                    { value: "2", label: "65-74% (2)" },
+                    { value: "3", label: "< 65% (3)" }
+                ]},
+                { name: "psqi_comp5", label: "Component 5: Sleep Disturbances (0-3)", type: "select", options: [
+                    { value: "0", label: "0 (0)" },
+                    { value: "1", label: "1-9 (1)" },
+                    { value: "2", label: "10-18 (2)" },
+                    { value: "3", label: "19-27 (3)" }
+                ]},
+                { name: "psqi_comp6", label: "Component 6: Use of Sleep Medication (0-3)", type: "select", options: [
+                    { value: "0", label: "Not during the past month (0)" },
+                    { value: "1", label: "Less than once a week (1)" },
+                    { value: "2", label: "Once or twice a week (2)" },
+                    { value: "3", label: "Three or more times a week (3)" }
+                ]},
+                { name: "psqi_comp7", label: "Component 7: Daytime Dysfunction (0-3)", type: "select", options: [
+                    { value: "0", label: "0 (0)" },
+                    { value: "1", label: "1-2 (1)" },
+                    { value: "2", label: "3-4 (2)" },
+                    { value: "3", label: "5-6 (3)" }
+                ]},
+                { name: "psqi_global_score", label: "Global PSQI Score", type: "number", min: "0", max: "21", readonly: true },
+                { name: "psqi_interpretation", label: "Interpretation", type: "text", readonly: true }
+            ],
+            "CIMT": [
+                { name: "cimt_right_mm", label: "Right Carotid IMT (mm)", type: "number", step: "0.01" },
+                { name: "cimt_left_mm", label: "Left Carotid IMT (mm)", type: "number", step: "0.01" },
+                { name: "cimt_average_mm", label: "Mean CIMT (mm)", type: "number", step: "0.01", readonly: true },
+                { name: "carotid_plaque_present", label: "Carotid Plaque Present", type: "select", options: ["None", "Right Side", "Left Side", "Bilateral"] }
+            ],
+            "AVF_PAIN": [
+                { name: "pain_score", label: "Pain Score (VAS/NRS: 0-10)", type: "number", min: "0", max: "10" },
+                { name: "pain_severity", label: "Pain Severity", type: "text", readonly: true },
+                { name: "needle_gauge", label: "Needle Gauge", type: "select", options: ["15G", "16G", "17G"] },
+                { name: "cannulation_technique", label: "Cannulation Technique", type: "select", options: ["Rope Ladder", "Buttonhole", "Area Cannulation"] },
+                { name: "topical_anesthetic", label: "Topical Anesthetic Used", type: "select", options: ["No", "Yes (EMLA/Lignocaine)"] }
             ],
             "CUSTOM_VARIABLE": [
                 { name: "variable_id", label: "Select Variable", type: "select", options: [
@@ -188,20 +301,26 @@
         };
 
         function renderFields() {
-                return;
-            }
+            const schema = fieldSchemas[testType];
+            if (!schema) return;
 
             let html = '';
             schema.forEach(field => {
                 const stepAttr = field.step ? `step="${field.step}"` : '';
                 const maxAttr = field.max ? `max="${field.max}"` : '';
+                const minAttr = field.min ? `min="${field.min}"` : '';
+                const readonlyAttr = field.readonly ? 'readonly style="background:#f1f5f9; cursor:not-allowed;"' : '';
                 
                 let inputHtml = '';
                 if (field.type === 'select') {
-                    const options = field.options.map(o => `<option value="${o}">${o}</option>`).join('');
-                    inputHtml = `<select name="${field.name}"><option value="">-- Select --</option>${options}</select>`;
+                    const options = field.options.map(o => {
+                        const val = (typeof o === 'object') ? o.value : o;
+                        const lab = (typeof o === 'object') ? o.label : o;
+                        return `<option value="${val}">${lab}</option>`;
+                    }).join('');
+                    inputHtml = `<select name="${field.name}" ${readonlyAttr}><option value="">-- Select --</option>${options}</select>`;
                 } else {
-                    inputHtml = `<input type="${field.type}" name="${field.name}" ${stepAttr} ${maxAttr} placeholder="Enter value...">`;
+                    inputHtml = `<input type="${field.type}" name="${field.name}" ${stepAttr} ${maxAttr} ${minAttr} ${readonlyAttr} placeholder="Enter value...">`;
                 }
 
                 html += `
@@ -212,6 +331,97 @@
                 `;
             });
             fieldsArea.innerHTML = html;
+
+            // Auto-calculate EFS total score and category
+            if (testType === 'EDMONTON_FRAIL_SCALE') {
+                const inputs = fieldsArea.querySelectorAll('select[name^="efs_"], input[name^="efs_"]:not([name="efs_total_score"]):not([name="efs_category"])');
+                const totalInput = fieldsArea.querySelector('input[name="efs_total_score"]');
+                const categoryInput = fieldsArea.querySelector('input[name="efs_category"]');
+                
+                const updateScore = () => {
+                    let total = 0;
+                    inputs.forEach(i => {
+                        total += parseInt(i.value || 0);
+                    });
+                    totalInput.value = total;
+                    
+                    let category = "";
+                    if (total <= 5) category = "Not Frail";
+                    else if (total <= 7) category = "Vulnerable";
+                    else if (total <= 9) category = "Mild Frailty";
+                    else if (total <= 11) category = "Moderate Frailty";
+                    else category = "Severe Frailty";
+                    categoryInput.value = category;
+                };
+
+                inputs.forEach(input => {
+                    input.addEventListener('change', updateScore);
+                    input.addEventListener('input', updateScore);
+                });
+            }
+
+            // Auto-calculate PSQI total score and interpretation
+            if (testType === 'PSQI') {
+                const inputs = fieldsArea.querySelectorAll('select[name^="psqi_comp"]');
+                const totalInput = fieldsArea.querySelector('input[name="psqi_global_score"]');
+                const interpretationInput = fieldsArea.querySelector('input[name="psqi_interpretation"]');
+                
+                const updatePSQI = () => {
+                    let total = 0;
+                    inputs.forEach(i => {
+                        total += parseInt(i.value || 0);
+                    });
+                    totalInput.value = total;
+                    interpretationInput.value = (total > 5) ? "Poor Sleep Quality" : "Good Sleep Quality";
+                };
+
+                inputs.forEach(input => {
+                    input.addEventListener('change', updatePSQI);
+                });
+            }
+
+            // Auto-calculate Mean CIMT
+            if (testType === 'CIMT') {
+                const rightInput = fieldsArea.querySelector('input[name="cimt_right_mm"]');
+                const leftInput = fieldsArea.querySelector('input[name="cimt_left_mm"]');
+                const averageInput = fieldsArea.querySelector('input[name="cimt_average_mm"]');
+                
+                const updateCIMT = () => {
+                    const r = parseFloat(rightInput.value) || 0;
+                    const l = parseFloat(leftInput.value) || 0;
+                    if (r > 0 && l > 0) {
+                        averageInput.value = ((r + l) / 2).toFixed(2);
+                    } else if (r > 0 || l > 0) {
+                        averageInput.value = (r || l).toFixed(2);
+                    } else {
+                        averageInput.value = "";
+                    }
+                };
+
+                [rightInput, leftInput].forEach(input => {
+                    input.addEventListener('input', updateCIMT);
+                });
+            }
+
+            // Auto-interpret AVF Pain
+            if (testType === 'AVF_PAIN') {
+                const painInput = fieldsArea.querySelector('input[name="pain_score"]');
+                const severityInput = fieldsArea.querySelector('input[name="pain_severity"]');
+                
+                const updatePain = () => {
+                    const score = parseInt(painInput.value);
+                    if (isNaN(score)) {
+                        severityInput.value = "";
+                        return;
+                    }
+                    if (score === 0) severityInput.value = "No Pain";
+                    else if (score <= 3) severityInput.value = "Mild Pain";
+                    else if (score <= 6) severityInput.value = "Moderate Pain";
+                    else severityInput.value = "Severe Pain";
+                };
+
+                painInput.addEventListener('input', updatePain);
+            }
         }
 
         renderFields();

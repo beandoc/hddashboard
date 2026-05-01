@@ -61,7 +61,7 @@ try:
         "access_type": "AVF",
         "dry_weight": 70.0
     }
-    response = client.post("/patients/register", data=patient_data, follow_redirects=True)
+    response = client.post("/patients/new", data=patient_data, follow_redirects=True)
     assert response.status_code == 200
     print("✅ Patient registration successful.")
 
@@ -69,8 +69,7 @@ try:
     p = db.query(Patient).filter(Patient.hid_no == "SMOKE001").first()
     month_str = datetime.now().strftime("%Y-%m")
     record_data = {
-        "patient_id": p.id,
-        "month": month_str,
+        "month_str": month_str,
         "hb": 9.5,
         "albumin": 2.0,
         "calcium": 7.5,
@@ -78,7 +77,7 @@ try:
         "tsat": 20.0,
         "idwg": 3.0
     }
-    response = client.post("/entry/save", data=record_data, follow_redirects=True)
+    response = client.post(f"/entry/{p.id}", data=record_data, follow_redirects=True)
     assert response.status_code == 200
     print("✅ Clinical data entry successful.")
 
