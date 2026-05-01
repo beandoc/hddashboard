@@ -99,6 +99,18 @@
                 { name: "nondominant_hand_kg", label: "Non-Dominant Hand (kg)", type: "number", step: "0.1" },
                 { name: "dynamometer_model", label: "Dynamometer Model", type: "text" }
             ],
+            "KDQOL_36": [
+                { name: "sf12_physical", label: "SF-12 Physical Component", type: "number", step: "0.1" },
+                { name: "sf12_mental", label: "SF-12 Mental Component", type: "number", step: "0.1" },
+                { name: "burden_kidney_disease", label: "Burden of Kidney Disease", type: "number", step: "0.1" },
+                { name: "symptoms_problems", label: "Symptoms and Problems", type: "number", step: "0.1" },
+                { name: "effects_kidney_disease", label: "Effects of Kidney Disease", type: "number", step: "0.1" }
+            ],
+            "FALL_RISK": [
+                { name: "history_of_falls", label: "History of Falls (Past Year)", type: "select", options: ["No", "Yes"] },
+                { name: "tug_test_seconds", label: "Timed Up and Go (Seconds)", type: "number", step: "0.1" },
+                { name: "berg_balance_score", label: "Berg Balance Scale", type: "number" }
+            ],
             "MOCA": [
                 { name: "total_score", label: "Total Score (out of 30)", type: "number", step: "1", max: "30" },
                 { name: "visuospatial_executive", label: "Visuospatial / Executive (5)", type: "number", max: "5" },
@@ -346,16 +358,34 @@
                 { name: "sf36_pcs", label: "SF-36 Physical Component Summary (PCS)", type: "number", step: "0.1" }
             ],
             "CUSTOM_VARIABLE": [
-                { name: "variable_id", label: "Select Variable", type: "select", options: [
-                    {% for v in all_variables %}
-                    { value: "{{ v.id }}", label: "{{ v.display_name }} ({{ v.unit }})" },
-                    {% endfor %}
-                ]},
-                { name: "value", label: "Value", type: "number", step: "0.01" }
+                {
+                    name: "variable_id",
+                    label: "Select Variable",
+                    type: "select",
+                    options: [
+                        {% for v in all_variables %}
+                        { value: {{ v.id|tojson }}, label: {{ (v.display_name ~ ' (' ~ v.unit ~ ')')|tojson }} }{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ]
+                },
+                {
+                    name: "value",
+                    label: "Value",
+                    type: "number",
+                    step: "0.01"
+                }
             ],
             "OTHER": [
-                { name: "custom_test_name", label: "Test Name", type: "text" },
-                { name: "result_value", label: "Result/Finding", type: "text" }
+                {
+                    name: "custom_test_name",
+                    label: "Test Name",
+                    type: "text"
+                },
+                {
+                    name: "result_value",
+                    label: "Result/Finding",
+                    type: "text"
+                }
             ]
         };
 

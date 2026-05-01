@@ -123,10 +123,22 @@
         .act-profile:hover { background: #bae6fd; }
         .act-lab { background: #fef9c3; color: #92400e; }
         .act-lab:hover { background: #fde68a; }
-        .act-data { background: #f0fdf4; color: #15803d; }
-        .act-data:hover { background: #bbf7d0; }
-        .act-more { background: #f1f5f9; color: #475569; }
-        .act-more:hover { background: #e2e8f0; }
+        .act-view { background: #f0f9ff; color: #0369a1; }
+        .act-view:hover { background: #bae6fd; }
+
+        .act-btn-primary {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 12px; border-radius: 8px; font-size: 0.78rem;
+            font-weight: 700; text-decoration: none; transition: all 0.15s;
+            font-family: 'Inter', sans-serif; cursor: pointer; border: none;
+            white-space: nowrap;
+        }
+        .act-enter-labs { background: #fef9c3; color: #92400e; }
+        .act-enter-labs:hover { background: #fde68a; }
+        .act-review { background: #fee2e2; color: #dc2626; }
+        .act-review:hover { background: #fecaca; }
+        .act-view { background: #f0f9ff; color: #0369a1; }
+        .act-view:hover { background: #bae6fd; }
 
         /* overflow dropdown */
         .more-wrap { position: relative; display: inline-block; vertical-align: middle; }
@@ -211,21 +223,21 @@
             <div class="stat-icon"><i class="material-icons">people</i></div>
             <div class="stat-body"><div class="val">{{ total }}</div><div class="lbl">Active Patients</div></div>
         </div>
-        <div class="stat-card stat-record">
-            <div class="stat-icon"><i class="material-icons">assignment_turned_in</i></div>
-            <div class="stat-body"><div class="val">{{ total - ns.missing }}</div><div class="lbl">Records This Month</div></div>
+        <div class="stat-card stat-alerts">
+            <div class="stat-icon"><i class="material-icons">notifications_active</i></div>
+            <div class="stat-body"><div class="val">{{ ns.alert_count }}</div><div class="lbl">Needs Attention</div></div>
         </div>
         <div class="stat-card stat-missing">
             <div class="stat-icon"><i class="material-icons">assignment_late</i></div>
             <div class="stat-body"><div class="val">{{ ns.missing }}</div><div class="lbl">Missing Data</div></div>
         </div>
-        <div class="stat-card stat-alerts">
-            <div class="stat-icon"><i class="material-icons">notifications_active</i></div>
-            <div class="stat-body"><div class="val">{{ ns.alert_count }}</div><div class="lbl">Active Alerts</div></div>
-        </div>
         <div class="stat-card stat-stable">
             <div class="stat-icon"><i class="material-icons">check_circle</i></div>
-            <div class="stat-body"><div class="val">{{ ns.stable }}</div><div class="lbl">Stable Patients</div></div>
+            <div class="stat-body"><div class="val">{{ ns.stable }}</div><div class="lbl">Stable</div></div>
+        </div>
+        <div class="stat-card stat-record">
+            <div class="stat-icon"><i class="material-icons">assignment_turned_in</i></div>
+            <div class="stat-body"><div class="val">{{ total - ns.missing }}</div><div class="lbl">Records Complete</div></div>
         </div>
     </div>
 </div>
@@ -288,25 +300,9 @@
             <thead>
                 <tr>
                     <th data-label="Patient">Patient</th>
-                    <th class="sortable" data-col="1" title="Haemoglobin — Target: 10–12 g/dL">
-                        <div class="sort-wrap">Hb <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
-                    </th>
-                    <th class="sortable" data-col="2" title="Transferrin Saturation — Target: ≥30%">
-                        <div class="sort-wrap">TSAT% <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
-                    </th>
-                    <th class="sortable" data-col="3" title="Corrected Calcium — Target: 8.4–10.2 mg/dL">
-                        <div class="sort-wrap">Ca(corr) <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
-                    </th>
-                    <th class="sortable" data-col="4" title="Serum Phosphorus — Target: 3.5–5.5 mg/dL">
-                        <div class="sort-wrap">Phos <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
-                    </th>
-                    <th class="sortable" data-col="5" title="Serum Albumin — Target: ≥3.5 g/dL">
-                        <div class="sort-wrap">Albumin <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
-                    </th>
-                    <th class="sortable" data-col="6" title="Intact Parathyroid Hormone — Target: 150–300 pg/mL">
-                        <div class="sort-wrap">iPTH <span class="sort-icons"><span class="asc">▲</span><span class="desc">▼</span></span></div>
-                    </th>
-                    <th data-label="Status">Status / Alerts</th>
+                    <th>Last Session</th>
+                    <th>Lab Status</th>
+                    <th>Clinical Alerts</th>
                     <th data-label="Actions">Actions</th>
                 </tr>
             </thead>
@@ -315,7 +311,9 @@
                 {% set p = patients_by_id[row.id] %}
                 {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
                 {% set row_status = 'missing' if (not row.has_record or row.has_missing_data) else ('alert' if row.alerts else 'stable') %}
-                <tr class="{{ 'row-missing' if (not row.has_record or row.has_missing_data) else '' }}" data-status="{{ row_status }}">
+                <tr data-status="{{ row_status }}"
+                    data-urgency="{{ '0' if (not row.has_record or row.has_missing_data) else ('1' if row.alerts else '2') }}"
+                    class="{{ 'row-missing' if (not row.has_record or row.has_missing_data) else '' }}">
 
                     <!-- Patient: name + HID + sex badge -->
                     <td data-label="Patient">
@@ -326,98 +324,74 @@
                         </span>
                     </td>
 
-                    <!-- Hb -->
-                    {% set is_hb_interim = row.is_interim and row.interim_details.get('hb') %}
-                    <td data-label="Hb" data-sort-val="{{ row.hb or '' }}"
-                        class="{{ 'val-bad' if row.hb and row.hb<10 else ('val-warn' if row.hb and row.hb<11.5 else ('val-ok' if row.hb else 'val-none')) }}{{ ' val-interim' if is_hb_interim }}">
-                        {{ "%.1f"|format(row.hb) if row.hb else "—" }}
-                        {% if is_hb_interim %}
-                            <span class="interim-marker">INT</span>
-                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.hb.date }}<br>Trigger: {{ row.interim_details.hb.trigger }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- TSAT% -->
-                    <td data-label="TSAT%" data-sort-val="{{ row.tsat or '' }}"
-                        class="{{ 'val-bad' if row.tsat and row.tsat<30 else ('val-ok' if row.tsat else 'val-none') }}">
-                        {{ "%.0f"|format(row.tsat) if row.tsat else "—" }}
-                    </td>
-
-                    <!-- Ca(corr) -->
-                    {% set is_ca_interim = row.is_interim and (row.interim_details.get('calcium') or row.interim_details.get('albumin')) %}
-                    <td data-label="Ca(corr)" data-sort-val="{{ row.corrected_ca or '' }}"
-                        class="{{ 'val-bad' if row.corrected_ca and row.corrected_ca<8.0 else ('val-ok' if row.corrected_ca else 'val-none') }}{{ ' val-interim' if is_ca_interim }}">
-                        {{ "%.2f"|format(row.corrected_ca) if row.corrected_ca else "—" }}
-                        {% if is_ca_interim %}
-                            <span class="interim-marker">INT</span>
-                            <div class="interim-tooltip"><strong>Corrected Ca</strong><br>
-                            {% if row.interim_details.get('calcium') %}Ca: {{ row.interim_details.calcium.date }}<br>{% endif %}
-                            {% if row.interim_details.get('albumin') %}Alb: {{ row.interim_details.albumin.date }}<br>{% endif %}
-                            Trigger: {{ (row.interim_details.get('calcium') or row.interim_details.get('albumin')).trigger }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- Phosphorus -->
-                    {% set is_phos_interim = row.is_interim and row.interim_details.get('phosphorus') %}
-                    <td data-label="Phos" data-sort-val="{{ row.phosphorus or '' }}"
-                        class="{{ 'val-bad' if row.phosphorus and row.phosphorus>5.5 else ('val-ok' if row.phosphorus else 'val-none') }}{{ ' val-interim' if is_phos_interim }}">
-                        {{ "%.1f"|format(row.phosphorus) if row.phosphorus else "—" }}
-                        {% if is_phos_interim %}
-                            <span class="interim-marker">INT</span>
-                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.phosphorus.date }}<br>Trigger: {{ row.interim_details.phosphorus.trigger }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- Albumin -->
-                    {% set is_alb_interim = row.is_interim and row.interim_details.get('albumin') %}
-                    <td data-label="Albumin" data-sort-val="{{ row.albumin or '' }}"
-                        class="{{ 'val-bad' if row.albumin and row.albumin<2.5 else ('val-warn' if row.albumin and row.albumin<3.5 else ('val-ok' if row.albumin else 'val-none')) }}{{ ' val-interim' if is_alb_interim }}">
-                        {{ "%.1f"|format(row.albumin) if row.albumin else "—" }}
-                        {% if is_alb_interim %}
-                            <span class="interim-marker">INT</span>
-                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.albumin.date }}<br>Trigger: {{ row.interim_details.albumin.trigger }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- iPTH -->
-                    {% set is_ipth_interim = row.is_interim and row.interim_details.get('ipth') %}
-                    <td data-label="iPTH" data-sort-val="{{ row.ipth or '' }}"
-                        class="{{ 'val-bad' if row.ipth and row.ipth>300 else ('val-ok' if row.ipth else 'val-none') }}{{ ' val-interim' if is_ipth_interim }}">
-                        {{ "%.0f"|format(row.ipth) if row.ipth else "—" }}
-                        {% if is_ipth_interim %}
-                            <span class="interim-marker">INT</span>
-                            <div class="interim-tooltip"><strong>Interim Recheck</strong><br>Date: {{ row.interim_details.ipth.date }}<br>Trigger: {{ row.interim_details.ipth.trigger }}</div>
-                        {% endif %}
-                    </td>
-
-                    <!-- Status / Alerts -->
-                    <td data-label="Status">
-                        {% if not row.has_record %}
-                            <span class="missing-pill"><i class="material-icons" style="font-size:0.85rem;">warning_amber</i> No data</span>
-                        {% elif row.has_missing_data %}
-                            {% for f in row.missing_fields %}<span class="missing-pill" title="{{ f }} not entered this month" style="margin:1px;"><i class="material-icons" style="font-size:0.8rem;">remove_circle_outline</i> {{ f }}</span>{% endfor %}
-                            {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
-                        {% elif row.alerts %}
-                            {% for a in row.alerts %}<span class="alert-tag">{{ a }}</span>{% endfor %}
+                    <!-- Last Session -->
+                    <td data-label="Last Session">
+                        {% if row.last_session_date %}
+                            <span style="font-size:0.82rem; font-weight:600; color:#0f172a;">
+                                {{ row.last_session_date.strftime('%d %b') }}
+                            </span>
                         {% else %}
-                            <span class="stable-tag"><i class="material-icons" style="font-size:0.9rem; color:#22c55e;">check_circle</i> Stable</span>
+                            <span style="color:#94a3b8; font-size:0.82rem;">No sessions</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Lab Status -->
+                    <td data-label="Lab Status">
+                        {% if not row.has_record %}
+                            <span class="missing-pill">
+                                <i class="material-icons" style="font-size:0.85rem;">warning_amber</i> No data
+                            </span>
+                        {% elif row.has_missing_data %}
+                            <span class="missing-pill">
+                                <i class="material-icons" style="font-size:0.8rem;">remove_circle_outline</i>
+                                {{ row.missing_fields|length }} field{{ 's' if row.missing_fields|length > 1 }} missing
+                            </span>
+                        {% else %}
+                            <span class="stable-tag">
+                                <i class="material-icons" style="font-size:0.9rem; color:#22c55e;">check_circle</i> Complete
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Clinical Alerts -->
+                    <td data-label="Clinical Alerts">
+                        {% if row.alerts %}
+                            {% for a in row.alerts %}
+                                {% if a in ['HypoR1', 'Low Albumin', 'Low Corrected Calcium'] %}
+                                    <span class="alert-tag" style="background:#fee2e2; color:#dc2626;">
+                                        <i class="material-icons" style="font-size:0.7rem; vertical-align:middle;">error</i> {{ a }}
+                                    </span>
+                                {% else %}
+                                    <span class="alert-tag" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">
+                                        {{ a }}
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <span style="color:#94a3b8; font-size:0.8rem;">—</span>
                         {% endif %}
                     </td>
 
                     <!-- Actions: 3 icon buttons + overflow menu -->
                     <td data-label="Actions" class="actions-cell">
-                        <a href="/patients/{{ row.id }}/profile" class="act-btn act-profile" title="Patient profile">
-                            <i class="material-icons">person</i>
-                        </a>
-                        <a href="#" onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}'); return false;"
-                           class="act-btn act-lab" title="Add interim lab">
-                            <i class="material-icons">add_circle_outline</i>
-                        </a>
-                        <a href="/entry/{{ row.id }}?month={{ month_str }}" class="act-btn act-data" title="Monthly data entry">
-                            <i class="material-icons">edit_note</i>
-                        </a>
+                        <!-- Context-aware primary action -->
+                        {% if not row.has_record or row.has_missing_data %}
+                            <a href="/entry/{{ row.id }}?month={{ month_str }}" class="act-btn-primary act-enter-labs" title="Enter monthly labs">
+                                <i class="material-icons" style="font-size:0.9rem;">edit_note</i> Enter Labs
+                            </a>
+                        {% elif row.alerts %}
+                            <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-review" title="Review alerts">
+                                <i class="material-icons" style="font-size:0.9rem;">visibility</i> Review
+                            </a>
+                        {% else %}
+                            <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-view" title="View record">
+                                <i class="material-icons" style="font-size:0.9rem;">person</i> View
+                            </a>
+                        {% endif %}
+
+                        <!-- Overflow menu -->
                         <div class="more-wrap">
-                            <button class="act-btn act-more" onclick="toggleMore('more-{{ row.id }}', event)" title="More options">
+                            <button class="act-btn act-more" onclick="toggleMore('more-{{ row.id }}', event)">
                                 <i class="material-icons">more_vert</i>
                             </button>
                             <div class="more-dropdown" id="more-{{ row.id }}">
@@ -427,18 +401,19 @@
                                 <a href="/events?patient_id={{ p.id }}" class="more-item">
                                     <i class="material-icons">timeline</i> Timeline
                                 </a>
-                                <a href="/patients/{{ p.id }}/edit" class="more-item">
-                                    <i class="material-icons">edit</i> Edit Demographics
+                                <a href="#" onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}'); return false;" class="more-item">
+                                    <i class="material-icons">science</i> Interim Lab
                                 </a>
-                                <button onclick="sendSchedule({{ row.id }}, event)" class="more-item">
-                                    <i class="material-icons" style="color:#25d366;">phone_android</i> WhatsApp Remind
+                                <div class="more-divider"></div>
+                                <button onclick="openAdmitModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
+                                    <i class="material-icons" style="color:#7c3aed;">local_hospital</i> Hospital Admit
                                 </button>
-                                <button onclick="openReminderModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
-                                    <i class="material-icons" style="color:var(--accent-orange);">event_note</i> Clinical Reminder
+                                <button onclick="openDischargeModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
+                                    <i class="material-icons" style="color:#0369a1;">logout</i> Discharge
                                 </button>
                                 <div class="more-divider"></div>
                                 <button onclick="openDeactivateModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
-                                    <i class="material-icons">person_off</i> Deactivate Patient
+                                    <i class="material-icons">person_off</i> Deactivate
                                 </button>
                             </div>
                         </div>
@@ -573,6 +548,86 @@
 </div>
 
 
+<!-- ══════════════════════════════════════════════════════
+     HOSPITAL ADMIT MODAL
+     ══════════════════════════════════════════════════════ -->
+<div id="admitModal" class="modal-overlay" onclick="if(event.target===this)closeAdmitModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
+            <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+        </div>
+        <form action="/events/new" method="POST" onsubmit="prepareAdmitDescription(this)">
+            <input type="hidden" name="patient_id" id="admit_patient_id">
+            <input type="hidden" name="event_type" value="Hospitalization">
+            <input type="hidden" name="severity" value="High">
+            <input type="hidden" name="description" id="admit_description">
+
+            <div class="form-field">
+                <label>Admission Date</label>
+                <input type="date" name="event_date" id="admit_date" required>
+            </div>
+            <div class="form-field">
+                <label>Hospital Name</label>
+                <input type="text" id="admit_hospital" value="CHSC" required>
+            </div>
+            <div class="form-field">
+                <label>Admission Diagnosis</label>
+                <input type="text" id="admit_diagnosis" placeholder="e.g. Fluid Overload" required>
+            </div>
+            <div class="form-row">
+                <div class="form-field">
+                    <label>ICD-10 Code</label>
+                    <input type="text" id="admit_icd_code" placeholder="e.g. J44.1">
+                </div>
+                <div class="form-field">
+                    <label>ICD-10 Diagnosis</label>
+                    <input type="text" id="admit_icd_diag" placeholder="e.g. Heart Failure">
+                </div>
+            </div>
+            <button type="submit" class="btn-primary" style="background:#7c3aed;">Record Admission</button>
+        </form>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     DISCHARGE MODAL
+     ══════════════════════════════════════════════════════ -->
+<div id="dischargeModal" class="modal-overlay" onclick="if(event.target===this)closeDischargeModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
+            <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+        </div>
+        <form action="/events/new" method="POST" onsubmit="prepareDischargeDescription(this)">
+            <input type="hidden" name="patient_id" id="discharge_patient_id">
+            <input type="hidden" name="event_type" value="Discharge">
+            <input type="hidden" name="severity" value="Medium">
+            <input type="hidden" name="description" id="discharge_description">
+
+            <div class="form-field">
+                <label>Discharge Date</label>
+                <input type="date" name="event_date" id="discharge_date" required>
+            </div>
+            <div class="form-field">
+                <label>Discharge Type</label>
+                <select id="discharge_type" required>
+                    <option value="Home">Home</option>
+                    <option value="Transfer">Transfer to other facility</option>
+                    <option value="Deceased">Deceased</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Notes (optional)</label>
+                <textarea id="discharge_notes" rows="3" placeholder="Additional notes..." style="resize:vertical;"></textarea>
+            </div>
+            <button type="submit" class="btn-primary" style="background:#0369a1;">Record Discharge</button>
+        </form>
+    </div>
+</div>
+
+
 <script>
     // ── FILTER (search name/HID + status) ──────────────────────────────────
     function applyFilters() {
@@ -590,42 +645,13 @@
         });
     }
 
-    // ── SORT ───────────────────────────────────────────────────────────────
-    let sortState = { col: null, dir: 'asc' };
-    document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => {
-            const col = parseInt(th.dataset.col);
-            if (sortState.col === col) {
-                sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortState.col = col;
-                sortState.dir = 'asc';
-            }
-            document.querySelectorAll('th.sortable').forEach(h => {
-                h.classList.remove('sort-asc', 'sort-desc');
-            });
-            th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
-            sortTable(col, sortState.dir);
-        });
-    });
-
-    function sortTable(colIdx, dir) {
+    // Sort rows by urgency on page load (0=missing, 1=alert, 2=stable)
+    (function() {
         const tbody = document.querySelector('#patientTable tbody');
-        const rows  = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => {
-            const aCell = a.querySelectorAll('td')[colIdx];
-            const bCell = b.querySelectorAll('td')[colIdx];
-            const aVal  = parseFloat((aCell ? aCell.dataset.sortVal : '') || 'NaN');
-            const bVal  = parseFloat((bCell ? bCell.dataset.sortVal : '') || 'NaN');
-            const aNum  = isNaN(aVal);
-            const bNum  = isNaN(bVal);
-            if (aNum && bNum) return 0;
-            if (aNum) return 1;   // blanks always last
-            if (bNum) return -1;
-            return dir === 'asc' ? aVal - bVal : bVal - aVal;
-        });
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => parseInt(a.dataset.urgency) - parseInt(b.dataset.urgency));
         rows.forEach(r => tbody.appendChild(r));
-    }
+    })();
 
     // ── OVERFLOW DROPDOWN ─────────────────────────────────────────────────
     function toggleMore(id, event) {
@@ -689,6 +715,37 @@
     }
     function closeReminderModal() {
         document.getElementById('reminderModal').classList.remove('open');
+    }
+
+    // ── ADMIT / DISCHARGE MODALS ──────────────────────────────────────────
+    function openAdmitModal(pid, name) {
+        document.getElementById('admit_patient_id').value = pid;
+        document.getElementById('admit_date').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('admitModal').classList.add('open');
+    }
+    function closeAdmitModal() {
+        document.getElementById('admitModal').classList.remove('open');
+    }
+    function prepareAdmitDescription(form) {
+        const hospital = document.getElementById('admit_hospital').value;
+        const diag = document.getElementById('admit_diagnosis').value;
+        const code = document.getElementById('admit_icd_code').value;
+        const icdDiag = document.getElementById('admit_icd_diag').value;
+        document.getElementById('admit_description').value = `Hospital: ${hospital}\nDiagnosis: ${diag}\nICD Code: ${code}\nICD Diagnosis: ${icdDiag}`;
+    }
+
+    function openDischargeModal(pid, name) {
+        document.getElementById('discharge_patient_id').value = pid;
+        document.getElementById('discharge_date').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('dischargeModal').classList.add('open');
+    }
+    function closeDischargeModal() {
+        document.getElementById('dischargeModal').classList.remove('open');
+    }
+    function prepareDischargeDescription(form) {
+        const type = document.getElementById('discharge_type').value;
+        const notes = document.getElementById('discharge_notes').value;
+        document.getElementById('discharge_description').value = `Type: ${type}\nNotes: ${notes}`;
     }
 
     // ── WHATSAPP REMIND ───────────────────────────────────────────────────

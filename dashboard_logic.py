@@ -6,7 +6,7 @@ Locked - Do not modify without clinical validation.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import Patient, MonthlyRecord, InterimLabRecord
+from database import Patient, MonthlyRecord, InterimLabRecord, SessionRecord
 from datetime import datetime, timedelta
 import logging
 from ml_analytics import normalize_epo_dose
@@ -183,6 +183,17 @@ def compute_dashboard(db: Session, month: str = None):
     _hypo_r3_cutoff = _percentile(_all_doses, 90)  # top 10% = > 90th percentile
     metrics['epo_hypo_r3']['cutoff'] = round(_hypo_r3_cutoff, 0) if _hypo_r3_cutoff else None
 
+    # Fetch latest session date per patient for current month
+    session_map = {}
+    session_rows = (
+        db.query(SessionRecord.patient_id, func.max(SessionRecord.session_date))
+        .filter(SessionRecord.patient_id.in_([p.id for p in active_patients]))
+        .group_by(SessionRecord.patient_id)
+        .all()
+    )
+    for pid, sdate in session_rows:
+        session_map[pid] = sdate
+
     patient_rows = []
 
     for p in active_patients:
@@ -202,6 +213,7 @@ def compute_dashboard(db: Session, month: str = None):
 
         row = {
             "id": p.id,
+            "last_session_date": session_map.get(p.id),
             "name": p.name,
             "hid": p.hid_no,
             "has_record": r is not None,
