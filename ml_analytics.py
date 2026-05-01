@@ -601,9 +601,9 @@ def _kalman_trend(
         P_p = F @ P @ F.T + Q
 
         # Update (innovation)
-        S   = float(H @ P_p @ H.T) + r_obs
+        S   = float(np.squeeze(H @ P_p @ H.T)) + r_obs
         K   = (P_p @ H.T) / S
-        x   = x_p + K.flatten() * (y - float(H @ x_p))
+        x   = x_p + K.flatten() * (y - float(np.squeeze(H @ x_p)))
         P   = (np.eye(2) - np.outer(K.flatten(), H)) @ P_p
 
     # One-step-ahead prediction
