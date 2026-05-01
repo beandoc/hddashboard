@@ -103,6 +103,37 @@
                   display: flex; align-items: flex-start; gap: 12px; }
     .model-info .material-icons { color: #2563eb; margin-top: 1px; }
     .model-info strong { color: #1e40af; }
+
+    @media(max-width: 640px) {
+      .page-header { padding: 16px 20px; }
+      .header-inner h1 { font-size: 1.1rem; }
+      .header-chips { gap: 6px; }
+      .chip { padding: 6px 12px; font-size: 0.75rem; }
+      .model-info { flex-direction: column; padding: 12px; }
+      
+      /* Table to cards */
+      table, thead, tbody, th, td, tr { display: block; }
+      thead tr { position: absolute; top: -9999px; left: -9999px; }
+      tbody tr { 
+        background: #fff; border: 1px solid var(--border); border-radius: var(--radius); 
+        margin-bottom: 16px; padding: 12px; box-shadow: var(--shadow);
+      }
+      td { 
+        border: none; position: relative; padding-left: 45%; text-align: right; 
+        display: flex; justify-content: space-between; align-items: center; min-height: 36px;
+      }
+      td:before { 
+        content: attr(data-label); font-weight: 700; color: var(--muted); 
+        font-size: 0.75em; text-transform: uppercase;
+      }
+      td.patient-name-cell { 
+        padding-left: 0; text-align: left; display: block; border-bottom: 2px solid var(--bg);
+        margin-bottom: 10px; padding-bottom: 10px; font-weight: 700; font-size: 1rem;
+      }
+      td.patient-name-cell:before { display: none; }
+      .prob-bar-wrap { width: 100%; justify-content: flex-end; }
+      .btn-analyze { width: 100%; justify-content: center; margin-top: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -166,11 +197,11 @@
         {% for row in high_risk %}
         {% set mort = row.mort %}
         <tr>
-          <td>
+          <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
           </td>
-          <td>
+          <td data-label="1-Year Risk">
             <div class="prob-bar-wrap">
               <div class="prob-bar">
                 <div class="prob-bar-fill"
@@ -187,23 +218,23 @@
             </div>
             {% endif %}
           </td>
-          <td>
-            {% if row.mort.prob_4yr is defined %}
+          </td>
+          <td data-label="4-Year Risk">
             <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (row.mort.prob_4yr * 100) | round | int }}%</span>
             {% else %}<span style="color:var(--muted);">—</span>{% endif %}
           </td>
           <td>
             <span class="risk-pill pill-danger">{{ row.risk_level }}</span>
           </td>
-          <td>
-            {% if row.latest_hb is not none %}
+          </td>
+          <td data-label="Latest Hb">
               <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
                 {{ row.latest_hb }} g/dL
               </span>
             {% else %}<span class="lab-na">—</span>{% endif %}
           </td>
-          <td>
-            {% if row.latest_alb is not none %}
+          </td>
+          <td data-label="Latest Albumin">
               <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
                 {{ row.latest_alb }} g/dL
               </span>
@@ -257,11 +288,11 @@
         {% for row in moderate %}
         {% set mort = row.mort %}
         <tr>
-          <td>
+          <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
           </td>
-          <td>
+          <td data-label="1-Year Risk">
             <div class="prob-bar-wrap">
               <div class="prob-bar">
                 <div class="prob-bar-fill"
@@ -278,23 +309,23 @@
             </div>
             {% endif %}
           </td>
-          <td>
-            {% if row.mort.prob_4yr is defined %}
+          </td>
+          <td data-label="4-Year Risk">
             <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (row.mort.prob_4yr * 100) | round | int }}%</span>
             {% else %}<span style="color:var(--muted);">—</span>{% endif %}
           </td>
           <td>
             <span class="risk-pill pill-warning">{{ row.risk_level }}</span>
           </td>
-          <td>
-            {% if row.latest_hb is not none %}
+          </td>
+          <td data-label="Latest Hb">
               <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
                 {{ row.latest_hb }} g/dL
               </span>
             {% else %}<span class="lab-na">—</span>{% endif %}
           </td>
-          <td>
-            {% if row.latest_alb is not none %}
+          </td>
+          <td data-label="Latest Albumin">
               <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
                 {{ row.latest_alb }} g/dL
               </span>
@@ -348,11 +379,11 @@
         {% for row in low_risk %}
         {% set mort = row.mort %}
         <tr>
-          <td>
+          <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
           </td>
-          <td>
+          <td data-label="1-Year Risk">
             <div class="prob-bar-wrap">
               <div class="prob-bar">
                 <div class="prob-bar-fill"
@@ -365,15 +396,15 @@
             </div>
           </td>
           <td><span class="risk-pill pill-success">{{ row.risk_level }}</span></td>
-          <td>
-            {% if row.latest_hb is not none %}
+          </td>
+          <td data-label="Latest Hb">
               <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
                 {{ row.latest_hb }} g/dL
               </span>
             {% else %}<span class="lab-na">—</span>{% endif %}
           </td>
-          <td>
-            {% if row.latest_alb is not none %}
+          </td>
+          <td data-label="Latest Albumin">
               <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
                 {{ row.latest_alb }} g/dL
               </span>

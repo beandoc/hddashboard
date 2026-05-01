@@ -109,9 +109,43 @@ textarea { resize:vertical; min-height:70px; }
 /* STATUS INDICATOR */
 .save-status { font-size:0.75em; color:var(--green); margin-left:8px; display:none; }
 
-@media(max-width:768px) {
+@media(max-width:1024px) {
   .form-grid { grid-template-columns:1fr 1fr; }
   .form-grid.four { grid-template-columns:1fr 1fr; }
+}
+
+@media(max-width:640px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 15px; }
+  .page-header .btn { width: 100%; justify-content: center; }
+  .tabs { flex-wrap: wrap; }
+  .tab-btn { flex: 1; padding: 10px 12px; font-size: 0.8em; }
+  .form-grid, .form-grid.two, .form-grid.four { grid-template-columns: 1fr; }
+  .span-2, .span-3 { grid-column: span 1; }
+  
+  /* Table to Cards */
+  .retro-table, .retro-table thead, .retro-table tbody, .retro-table th, .retro-table td, .retro-table tr { 
+    display: block; 
+  }
+  .retro-table thead tr { 
+    position: absolute; top: -9999px; left: -9999px; 
+  }
+  .retro-table tbody tr { 
+    border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; padding: 12px; background: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+  }
+  .retro-table td { 
+    border: none; position: relative; padding-left: 50%; text-align: right; min-height: 40px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .retro-table td:before { 
+    content: attr(data-label); font-weight: 700; color: #64748b; font-size: 0.75em; text-transform: uppercase;
+  }
+  .retro-table td.patient-name-cell { 
+    padding-left: 0; text-align: left; display: block; border-bottom: 1px solid var(--border); 
+    margin-bottom: 10px; padding-bottom: 10px; font-size: 1.1em;
+  }
+  .retro-table td.patient-name-cell:before { display: none; }
+  .month-input { width: 100%; text-align: right; border: none; padding: 0; background: transparent; }
 }
 </style>
 </head>
@@ -560,7 +594,7 @@ async function loadRetroTable() {
     const cells = months.map(m => {
       const val = existing[p.id]?.[m] ?? '';
       const hasVal = val !== '' && val !== null && val !== undefined;
-      return `<td>
+      return `<td data-label="${m}">
         <input type="number" step="any"
           class="month-input ${hasVal ? 'has-value' : ''}"
           data-patient="${p.id}" data-month="${m}"
@@ -572,12 +606,12 @@ async function loadRetroTable() {
     }).join('');
 
     return `<tr data-name="${p.name.toLowerCase()}">
-      <td>
+      <td class="patient-name-cell">
         <div class="patient-name-cell">${p.name}</div>
         <div class="hid-cell">${p.hid || '—'}</div>
       </td>
       ${cells}
-      <td>
+      <td data-label="Actions">
         <button class="btn btn-sm btn-ghost" onclick="clearRow(this, ${p.id})">Clear</button>
       </td>
     </tr>`;
