@@ -121,15 +121,47 @@ async def api_get_variable_values(var_id: int, request: Request, db: Session = D
 
 @router.post("/value")
 async def api_upsert_value(payload: dict, db: Session = Depends(get_db)):
+    patient_id = int(payload["patient_id"])
+    var_id     = int(payload["variable_id"])
+    val_num    = payload.get("value_num")
+    month_str  = payload["record_month"]
+
     upsert_variable_value(
         db,
-        patient_id=int(payload["patient_id"]),
-        month_str=payload["record_month"],
-        variable_id=int(payload["variable_id"]),
-        value_num=payload.get("value_num"),
+        patient_id=patient_id,
+        month_str=month_str,
+        variable_id=var_id,
+        value_num=val_num,
         value_text=payload.get("value_text"),
         entered_by=payload.get("entered_by", ""),
     )
+
+    # Trigger Automated Alert if critical
+    vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+    if vdef and val_num is not None:
+        is_critical = False
+        alert_msg = ""
+        if vdef.threshold_low is not None and val_num < vdef.threshold_low:
+            is_critical = True
+            alert_msg = f"Low {vdef.display_name} ({val_num} {vdef.unit or ''})"
+        elif vdef.threshold_high is not None and val_num > vdef.threshold_high:
+            is_critical = True
+            alert_msg = f"High {vdef.display_name} ({val_num} {vdef.unit or ''})"
+        
+        if is_critical:
+            from alerts import send_entry_alert_email
+            from dashboard_logic import get_month_label
+            p = db.query(Patient).filter(Patient.id == patient_id).first()
+            if p:
+                send_entry_alert_email(
+                    patient_name=p.name,
+                    hid=p.hid_no,
+                    month_label=get_month_label(month_str),
+                    alerts=[alert_msg],
+                    labs={vdef.name: val_num},
+                    entered_by=payload.get("entered_by", "Variable Manager")
+                )
+
     return {"ok": True}
 
 @router.get("/{var_id}/summary")

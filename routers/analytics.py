@@ -17,12 +17,14 @@ from ml_analytics import (
     predict_mortality_risk,
 )
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
+from krcrw_model import estimate_krcrw
+from phosphate_model import estimate_phosphate_kinetics, calculate_pbe
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-@router.get("/analytics/census", response_class=HTMLResponse)
+@router.get("/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)
     month_str = month or get_current_month_str()
@@ -64,7 +66,7 @@ async def census_report(request: Request, month: Optional[str] = None, db: Sessi
         "user": get_user(request)
     })
 
-@router.get("/analytics/vascular-access", response_class=HTMLResponse)
+@router.get("/vascular-access", response_class=HTMLResponse)
 async def vascular_access_quality(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)
     from datetime import datetime
@@ -134,7 +136,7 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
         "user": get_user(request)
     })
 
-@router.get("/analytics/mortality-risk", response_class=HTMLResponse)
+@router.get("/mortality-risk", response_class=HTMLResponse)
 async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
@@ -202,7 +204,7 @@ async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
     })
 
 
-@router.get("/analytics", response_class=HTMLResponse)
+@router.get("", response_class=HTMLResponse)
 async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)
     from dashboard_logic import get_current_month_str
@@ -220,12 +222,12 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
         "user": get_user(request)
     })
 
-@router.get("/analytics/patients", tags=["api"])
+@router.get("/patients", tags=["api"])
 async def api_patients(q: str = "", db: Session = Depends(get_db)):
     patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(20).all()
     return [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
 
-@router.get("/analytics/patients/{patient_id}", response_class=HTMLResponse)
+@router.get("/patients/{patient_id}", response_class=HTMLResponse)
 async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
@@ -333,3 +335,90 @@ async def admin_deterioration_model_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return JSONResponse(content=status)
+
+@router.get("/krcrw", response_class=HTMLResponse)
+async def krcrw_calculator(request: Request, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    from database import Patient
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    return templates.TemplateResponse("krcrw_calculator.html", {
+        "request": request,
+        "patients": patients,
+        "user": get_user(request)
+    })
+
+@router.post("/api/krcrw")
+async def api_krcrw(payload: dict):
+    try:
+        from krcrw_model import estimate_krcrw
+        res = estimate_krcrw(
+            sex=payload["sex"],
+            age=payload["age"],
+            weight=payload["weight"],
+            g_creat_input=payload["g_creat"],
+            lab_day=payload["lab_day"],
+            schedule=payload["schedule"],
+            pre_creat_measured=payload["pre_creat"],
+            ivp2=payload["ivp2"],
+            qb=payload["qb"],
+            qd=payload["qd"],
+            td=payload["td"],
+            weekly_fluid_l=payload["weekly_fluid"],
+            k_code=payload["k_code"],
+            koa=payload["koa"],
+            is_black=payload.get("is_black", False)
+        )
+        return res
+    except Exception as e:
+        logger.exception("KRCRw calculation failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/krcrw/set-baseline")
+async def api_krcrw_set_baseline(request: Request, payload: dict, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    patient_id = payload["patient_id"]
+    from database import Patient
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p: raise HTTPException(status_code=404)
+    
+    p.baseline_gcr = payload["g_creat"]
+    p.baseline_vdcr = payload["vdcr"] # This is the IVP2 value used
+    db.commit()
+    return {"ok": True}
+
+@router.get("/phosphate-modeling", response_class=HTMLResponse)
+async def phosphate_calculator(request: Request, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    from database import Patient
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    return templates.TemplateResponse("phosphate_calculator.html", {
+        "request": request,
+        "patients": patients,
+        "user": get_user(request)
+    })
+
+@router.post("/api/phosphate/calculate")
+async def api_phosphate_calculate(payload: dict):
+    try:
+        res = estimate_phosphate_kinetics(
+            sex=payload["sex"],
+            weight=payload["weight"],
+            v_urea=payload["v_urea"],
+            koa_urea=payload["koa_urea"],
+            qb=payload["qb"],
+            qd=payload["qd"],
+            td=payload["td"],
+            schedule=payload["schedule"],
+            p_pre_measured=payload["p_pre"],
+            p_intake_mg_day=payload["p_intake"],
+            p_binder_pbe=payload["p_binder"],
+            krp_ml_min=payload["krp"],
+            solve_for=payload.get("solve_for", "p_pre"),
+            koa_p_ratio=payload.get("koa_ratio", 0.5),
+            hdf_pre=payload.get("hdf_pre", 0.0),
+            hdf_post=payload.get("hdf_post", 0.0)
+        )
+        return res
+    except Exception as e:
+        logger.exception("Phosphate calculation failed")
+        raise HTTPException(status_code=500, detail=str(e))

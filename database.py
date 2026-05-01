@@ -143,6 +143,11 @@ class Patient(Base):
 
     # ── Demographics extras ───────────────────────────────────────────────────
     blood_group = Column(String)                # A+, B-, O+, AB+, etc.
+    
+    # ── KRCRw Baseline (Research v1.40) ──────────────────────────────────────
+    baseline_gcr = Column(Float)             # mg/day — Established creatinine generation
+    baseline_vdcr = Column(Float)            # L — Established distribution volume (urea V)
+    is_black = Column(Boolean, default=False)# Ethnicity (used in Ix equation if not race-neutral)
 
     # ── Outcomes & Status ─────────────────────────────────────────────────────
     current_survival_status = Column(String)     # Active / Deceased / Transferred / Transplanted / Withdrawn
@@ -232,6 +237,8 @@ class MonthlyRecord(Base):
     pre_dialysis_urea = Column(Float)        # mg/dL — PreDialysisUrea
     post_dialysis_urea = Column(Float)       # mg/dL — PostDialysisUrea
     serum_creatinine = Column(Float)         # mg/dL — SerumCreatinine
+    krcrw = Column(Float)                    # mL/min — Residual Kidney Water Clearance
+    krcr = Column(Float)                     # mL/min — Corrected Residual Kidney Clearance
 
     # ── Anemia & ESA ─────────────────────────────────────────────────────────
     hb = Column(Float)                       # g/dL — Hemoglobin
@@ -439,6 +446,7 @@ class SessionRecord(Base):
     blood_flow_rate = Column(Float)          # mL/min — PrescribedBloodFlowRate
     actual_blood_flow_rate = Column(Float)   # mL/min — ActualBloodFlowRate
     dialysate_flow = Column(Float)           # mL/min — PrescribedDialysateFlowRate
+    dialysate_flow_direction = Column(String)  # Countercurrent / Concurrent — DialysateFlowDirection
     dialyzer_type = Column(String)           # e.g. FX80 — DialyzerModel
     dialyzer_surface_area = Column(Float)    # m²
     dialyzer_membrane_flux = Column(String)  # High / Low — DialyzerMembraneFlux

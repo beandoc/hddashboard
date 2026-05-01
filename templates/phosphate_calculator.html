@@ -1,0 +1,532 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header Section -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <span class="material-icons-outlined text-amber-600 text-4xl">inventory_2</span>
+                Phosphate Kinetic Modeling
+            </h1>
+            <p class="text-slate-500 mt-1">Daugirdas Two-Pool Model — Variable Intercompartmental Clearance ($K_c$)</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="clearForm()" class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                Reset
+            </button>
+            <button onclick="solvePhosphate()" class="px-6 py-2 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 shadow-lg shadow-amber-200 transition-all transform hover:-translate-y-0.5">
+                Calculate Mass Balance
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Main Form -->
+        <div class="lg:col-span-8 space-y-6">
+            <!-- 0. BATCH PROCESSING AREA -->
+            <div class="bg-indigo-50 border-2 border-indigo-100 rounded-2xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+                        <span class="material-icons text-indigo-500">Inventory</span>
+                        Batch Modeling (CSV)
+                    </h2>
+                    <div class="flex gap-2">
+                        <button onclick="toggleBatch()" class="text-[10px] font-bold text-indigo-600 bg-white px-3 py-1 rounded border border-indigo-200 hover:bg-indigo-100">
+                            Toggle Input Area
+                        </button>
+                    </div>
+                </div>
+                <div id="batchArea" class="hidden space-y-4">
+                    <p class="text-[10px] text-indigo-400 font-medium">Format: PTID,AGE,SEX,LABDAY,SCHED,KRU,KRPHOS,HCT,VUREA,GEN,QB,QD,TD,FLUID,WEIGHT,KOA_U,KOA_RATIO,NAME,EBD,DIP,PREPHOS,HDFPRE,HDFPOST</p>
+                    <textarea id="batchInput" rows="5" class="w-full p-3 bg-white border border-indigo-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="e.g. John,45,m,1,135,1.0,0.8,40,35,0,300,500,240,3,70,900,0.5,F60,3.0,1000,5.5,0,0"></textarea>
+                    <button onclick="processPhosphateBatch()" class="w-full py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md transition-all">
+                        Process Batch Clinical Records
+                    </button>
+                </div>
+            </div>
+
+            <!-- 1. Patient & Dialyzer Settings -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-6">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="material-icons text-blue-500">person</span>
+                            Patient Metrics
+                        </h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Patient</label>
+                                <select id="ptSelect" onchange="autoFillPt()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                                    <option value="">Manual</option>
+                                    {% for p in patients %}
+                                        <option value="{{ p.id }}" data-sex="{{ p.sex }}" data-weight="{{ p.dry_weight or 70 }}">
+                                            {{ p.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Sex</label>
+                                <select id="sex" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                                    <option value="m">Male</option>
+                                    <option value="f">Female</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Weight (kg)</label>
+                                <input type="number" id="weight" value="70" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Schedule</label>
+                                <select id="schedule" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                                    <option value="135">Mon/Wed/Fri (1-3-5)</option>
+                                    <option value="246">Tue/Thu/Sat (2-4-6)</option>
+                                    <option value="1234567">Daily (7×/wk)</option>
+                                    <option value="12345">5×/week</option>
+                                    <option value="1357">Alt days (4×/wk)</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">V-Urea (L)</label>
+                                <input type="number" id="vurea" value="35" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">KR-Phos (mL/min)</label>
+                                <input type="number" id="krp" value="1.0" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="material-icons text-indigo-500">settings_input_component</span>
+                            Dialyzer & Efficiency
+                        </h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">KoA Urea</label>
+                                <input type="number" id="koa" value="900" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">KoA P/U Ratio</label>
+                                <select id="koa_ratio" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                                    <option value="0.4">Low (0.4)</option>
+                                    <option value="0.5" selected>Medium (0.5)</option>
+                                    <option value="0.6">High (0.6)</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">HDF Pre (L)</label>
+                                <input type="number" id="hdf_pre" value="0" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">HDF Post (L)</label>
+                                <input type="number" id="hdf_post" value="0" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. The 3 Factors Solver -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-slate-800">Solver Configuration</h2>
+                    <span class="text-xs text-slate-400">Select one factor to solve for as an unknown</span>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <!-- Factor 1: Intake -->
+                        <div class="p-4 rounded-xl border-2 transition-all cursor-pointer factor-card" id="card_intake" onclick="setSolveFor('p_intake')">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="material-icons text-emerald-500">restaurant</span>
+                                <input type="radio" name="solve_choice" value="p_intake" class="w-4 h-4 text-emerald-600">
+                            </div>
+                            <h3 class="font-bold text-slate-800">Phosphate Intake</h3>
+                            <p class="text-[10px] text-slate-400 uppercase font-bold mb-3">Target Unknown</p>
+                            <div class="relative">
+                                <input type="number" id="val_intake" value="1000" class="w-full p-2 bg-slate-50 border rounded text-lg font-black text-emerald-700">
+                                <span class="absolute right-2 top-2.5 text-[10px] font-bold text-slate-400">mg/day</span>
+                            </div>
+                        </div>
+
+                        <!-- Factor 2: Pre-P -->
+                        <div class="p-4 rounded-xl border-2 transition-all cursor-pointer factor-card border-amber-500 bg-amber-50" id="card_pre" onclick="setSolveFor('p_pre')">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="material-icons text-amber-500">science</span>
+                                <input type="radio" name="solve_choice" value="p_pre" checked class="w-4 h-4 text-amber-600">
+                            </div>
+                            <h3 class="font-bold text-slate-800">Pre-Dialysis P</h3>
+                            <p class="text-[10px] text-slate-400 uppercase font-bold mb-3">Target Unknown</p>
+                            <div class="relative">
+                                <input type="number" id="val_pre" value="5.5" class="w-full p-2 bg-slate-50 border rounded text-lg font-black text-amber-700">
+                                <span class="absolute right-2 top-2.5 text-[10px] font-bold text-slate-400">mg/dL</span>
+                            </div>
+                        </div>
+
+                        <!-- Factor 3: Binder -->
+                        <div class="p-4 rounded-xl border-2 transition-all cursor-pointer factor-card" id="card_binder" onclick="setSolveFor('p_binder')">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="material-icons text-blue-500">medication</span>
+                                <input type="radio" name="solve_choice" value="p_binder" class="w-4 h-4 text-blue-600">
+                            </div>
+                            <h3 class="font-bold text-slate-800">Binder PBE Dose</h3>
+                            <p class="text-[10px] text-slate-400 uppercase font-bold mb-3">Target Unknown</p>
+                            <div class="relative">
+                                <input type="number" id="val_binder" value="3.0" class="w-full p-2 bg-slate-50 border rounded text-lg font-black text-blue-700">
+                                <span class="absolute right-2 top-2.5 text-[10px] font-bold text-slate-400">PBE units</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. PBE Calculator Tool -->
+            <div class="bg-slate-900 rounded-2xl p-6 text-white shadow-xl">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <span class="material-icons text-amber-400">calculate</span>
+                        PBE Equivalent Calculator
+                    </h2>
+                    <button onclick="addBinderRow()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors">
+                        + Add Binder
+                    </button>
+                </div>
+                
+                <div id="binderRows" class="space-y-3 mb-6">
+                    <div class="grid grid-cols-12 gap-3 binder-row">
+                        <div class="col-span-7">
+                            <select class="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-sm binder-type" onchange="calcTotalPBE()">
+                                <option value="calcium_acetate">Calcium Acetate (667mg)</option>
+                                <option value="sevelamer">Sevelamer (800mg)</option>
+                                <option value="lanthanum">Lanthanum Carbonate (500mg)</option>
+                                <option value="calcium_carbonate">Calcium Carbonate (500mg)</option>
+                                <option value="sucroferric">Velphoro (500mg)</option>
+                                <option value="ferric_citrate">Ferric Citrate (250mg)</option>
+                            </select>
+                        </div>
+                        <div class="col-span-4">
+                            <input type="number" placeholder="Total mg/day" class="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-sm binder-mg" oninput="calcTotalPBE()">
+                        </div>
+                        <div class="col-span-1 flex items-center justify-center">
+                            <button class="text-slate-500 hover:text-red-400" onclick="this.parentElement.parentElement.remove(); calcTotalPBE();">
+                                <span class="material-icons text-sm">close</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
+                    <div class="flex gap-8">
+                        <div>
+                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Total PBE Dose</p>
+                            <p class="text-3xl font-black text-amber-400" id="totalPBE">0.00</p>
+                        </div>
+                        <div>
+                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Calcium Load</p>
+                            <div class="flex items-center gap-2">
+                                <p class="text-3xl font-black text-slate-200" id="totalCa">0</p>
+                                <span class="text-[10px] font-bold text-slate-500">mg/day</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        <div id="caAlert" class="hidden px-3 py-1 bg-red-900/50 border border-red-500 rounded text-[10px] text-red-200 font-bold animate-pulse">
+                            CALCIUM LOAD > 1500mg
+                        </div>
+                        <button onclick="syncPBE()" class="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-colors">
+                            Apply to Solver
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                    <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Research Reference: Starting PBED</h4>
+                    <div class="flex gap-4">
+                        <div class="flex-1 p-2 bg-slate-900 rounded border border-slate-700">
+                            <span class="text-[10px] text-slate-500 block">MEN</span>
+                            <span class="text-sm font-bold text-slate-300">~ 5.0 g/day</span>
+                        </div>
+                        <div class="flex-1 p-2 bg-slate-900 rounded border border-slate-700">
+                            <span class="text-[10px] text-slate-500 block">WOMEN</span>
+                            <span class="text-sm font-bold text-slate-300">~ 4.0 g/day</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Results & Dialyzer -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                <h3 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-widest">Dialyzer Specs</h3>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">QB (mL/min)</label>
+                            <input type="number" id="qb" value="300" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">QD (mL/min)</label>
+                            <input type="number" id="qd" value="500" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Session Time (min)</label>
+                        <input type="number" id="td" value="240" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div id="resultsCard" class="bg-indigo-900 rounded-2xl shadow-xl p-8 text-white hidden">
+                <div class="text-center">
+                    <p class="text-indigo-300 text-xs font-bold uppercase tracking-widest mb-2" id="res_title">Calculated Intake</p>
+                    <p class="text-6xl font-black mb-4" id="res_value">0.0</p>
+                    <p class="text-indigo-200 text-sm" id="res_unit">mg/day</p>
+                </div>
+                <div class="mt-8 pt-8 border-t border-indigo-800 space-y-4">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-indigo-300">Net Absorbed Gen</span>
+                        <span class="font-bold" id="res_gen">0.0 mg</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-indigo-300">Model Pre-P Match</span>
+                        <span class="font-bold" id="res_pre">0.0 mg/dL</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-indigo-300">Vdist (Phosphate)</span>
+                        <span class="font-bold" id="res_v">0.0 L</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="resultsPlaceholder" class="bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
+                <span class="material-icons text-slate-300 text-4xl mb-4">show_chart</span>
+                <p class="text-slate-400 text-sm font-medium">Configure unknown and run calculation</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.factor-card {
+    border-color: #f1f5f9;
+}
+.factor-card.active {
+    border-color: #0ea5e9;
+    background-color: #f0f9ff;
+}
+</style>
+
+<script>
+let activeSolveFor = 'p_pre';
+
+function setSolveFor(mode) {
+    activeSolveFor = mode;
+    document.querySelectorAll('.factor-card').forEach(c => {
+        c.classList.remove('border-amber-500', 'bg-amber-50', 'border-emerald-500', 'bg-emerald-50', 'border-blue-500', 'bg-blue-50');
+    });
+    
+    const card = document.getElementById(`card_${mode.split('_')[1]}`);
+    const color = mode === 'p_pre' ? 'amber' : (mode === 'p_intake' ? 'emerald' : 'blue');
+    card.classList.add(`border-${color}-500`, `${color}-50`);
+    
+    card.querySelector('input[type="radio"]').checked = true;
+    
+    // Grey out the input that will be solved
+    document.querySelectorAll('input[id^="val_"]').forEach(i => i.disabled = false);
+    document.getElementById(`val_${mode.split('_')[1]}`).disabled = true;
+}
+
+function autoFillPt() {
+    const sel = document.getElementById('ptSelect');
+    const opt = sel.options[sel.selectedIndex];
+    if (opt.value) {
+        const w = parseFloat(opt.dataset.weight);
+        document.getElementById('weight').value = w;
+        document.getElementById('vurea').value = (w * 0.5).toFixed(1);
+        const sexVal = (opt.dataset.sex || '').toLowerCase().startsWith('f') ? 'f' : 'm';
+        document.getElementById('sex').value = sexVal;
+    }
+}
+
+function addBinderRow() {
+    const container = document.getElementById('binderRows');
+    const row = document.createElement('div');
+    row.className = 'grid grid-cols-12 gap-3 binder-row';
+    row.innerHTML = `
+        <div class="col-span-7">
+            <select class="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-sm binder-type" onchange="calcTotalPBE()">
+                <option value="calcium_acetate">Calcium Acetate (667mg)</option>
+                <option value="sevelamer">Sevelamer (800mg)</option>
+                <option value="lanthanum">Lanthanum Carbonate (500mg)</option>
+                <option value="calcium_carbonate">Calcium Carbonate (500mg)</option>
+                <option value="sucroferric">Velphoro (500mg)</option>
+                <option value="ferric_citrate">Ferric Citrate (250mg)</option>
+            </select>
+        </div>
+        <div class="col-span-4">
+            <input type="number" placeholder="Total mg/day" class="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-sm binder-mg" oninput="calcTotalPBE()">
+        </div>
+        <div class="col-span-1 flex items-center justify-center">
+            <button class="text-slate-500 hover:text-red-400" onclick="this.parentElement.parentElement.remove(); calcTotalPBE();">
+                <span class="material-icons text-sm">close</span>
+            </button>
+        </div>
+    `;
+    container.appendChild(row);
+}
+
+function calcTotalPBE() {
+    const pbeCoeffs = {
+        calcium_acetate: 1.0,
+        sevelamer: 0.75,
+        lanthanum: 1.25,
+        calcium_carbonate: 1.0,
+        sucroferric: 2.5,
+        ferric_citrate: 2.5
+    };
+    const caCoeffs = {
+        calcium_acetate: 0.25,
+        calcium_carbonate: 0.40
+    };
+
+    let totalPBE = 0;
+    let totalCa = 0;
+
+    document.querySelectorAll('.binder-row').forEach(row => {
+        const type = row.querySelector('.binder-type').value;
+        const mg = parseFloat(row.querySelector('.binder-mg').value) || 0;
+        
+        totalPBE += (mg / 1000.0) * (pbeCoeffs[type] || 0);
+        totalCa += mg * (caCoeffs[type] || 0);
+    });
+
+    document.getElementById('totalPBE').innerText = totalPBE.toFixed(2);
+    document.getElementById('totalCa').innerText = Math.round(totalCa);
+    
+    const alertEl = document.getElementById('caAlert');
+    if (totalCa > 1500) {
+        alertEl.classList.remove('hidden');
+    } else {
+        alertEl.classList.add('hidden');
+    }
+}
+
+function syncPBE() {
+    const total = document.getElementById('totalPBE').innerText;
+    document.getElementById('val_binder').value = total;
+}
+
+function toggleBatch() {
+    const area = document.getElementById('batchArea');
+    area.classList.toggle('hidden');
+}
+
+async function solvePhosphate() {
+    const payload = {
+        sex: document.getElementById('sex').value,
+        weight: parseFloat(document.getElementById('weight').value),
+        v_urea: parseFloat(document.getElementById('vurea').value),
+        koa_urea: parseFloat(document.getElementById('koa').value),
+        koa_ratio: parseFloat(document.getElementById('koa_ratio').value),
+        hdf_pre: parseFloat(document.getElementById('hdf_pre').value),
+        hdf_post: parseFloat(document.getElementById('hdf_post').value),
+        qb: parseFloat(document.getElementById('qb').value),
+        qd: parseFloat(document.getElementById('qd').value),
+        td: parseFloat(document.getElementById('td').value),
+        schedule: document.getElementById('schedule').value,
+        p_pre: parseFloat(document.getElementById('val_pre').value),
+        p_intake: parseFloat(document.getElementById('val_intake').value),
+        p_binder: parseFloat(document.getElementById('val_binder').value),
+        krp: parseFloat(document.getElementById('krp').value),
+        solve_for: activeSolveFor
+    };
+
+    const placeholder = document.getElementById('resultsPlaceholder');
+    placeholder.innerHTML = `<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto"></div><p class="mt-4 text-amber-600 font-bold">Solving Mass Balance...</p>`;
+
+    try {
+        const response = await fetch('/analytics/api/phosphate/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        
+        document.getElementById('res_value').innerText = data.result_value;
+        document.getElementById('res_gen').innerText = data.net_gen_mg_day + " mg";
+        document.getElementById('res_pre').innerText = data.modeled_p_pre + " mg/dL";
+        document.getElementById('res_v').innerText = data.total_v_dist + " L";
+        
+        const labels = { p_intake: 'Calculated Intake', p_pre: 'Calculated Pre-P', p_binder: 'Required Binder' };
+        const units = { p_intake: 'mg/day', p_pre: 'mg/dL', p_binder: 'PBE units' };
+        document.getElementById('res_title').innerText = labels[activeSolveFor];
+        document.getElementById('res_unit').innerText = units[activeSolveFor];
+
+        placeholder.classList.add('hidden');
+        document.getElementById('resultsCard').classList.remove('hidden');
+    } catch (err) {
+        placeholder.innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+    }
+}
+
+async function processPhosphateBatch() {
+    const input = document.getElementById('batchInput').value.trim();
+    if (!input) return alert("Please enter batch data");
+    
+    const lines = input.split('\n');
+    const results = [];
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerText = "Processing Cohort...";
+
+    for (const line of lines) {
+        const p = line.split(',');
+        if (p.length < 20) continue;
+        
+        const payload = {
+            sex: p[2].trim(),
+            weight: parseFloat(p[14]),
+            v_urea: parseFloat(p[8]),
+            koa_urea: parseFloat(p[15]),
+            koa_ratio: parseFloat(p[16]),
+            qb: parseFloat(p[10]),
+            qd: parseFloat(p[11]),
+            td: parseFloat(p[12]),
+            schedule: p[4].trim(),
+            p_pre: parseFloat(p[20]),
+            p_intake: parseFloat(p[19]),
+            p_binder: parseFloat(p[18]),
+            krp: parseFloat(p[6]),
+            solve_for: "p_pre", // Default for batch
+            hdf_pre: parseFloat(p[21] || 0),
+            hdf_post: parseFloat(p[22] || 0)
+        };
+
+        try {
+            const res = await fetch('/analytics/api/phosphate/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            results.push(`${p[0]}: ${data.result_value} ${data.solve_for}`);
+        } catch(e) {
+            results.push(`${p[0]}: Error`);
+        }
+    }
+
+    btn.disabled = false;
+    btn.innerText = "Process Batch Clinical Records";
+    alert("Batch Processing Complete:\n\n" + results.join('\n'));
+}
+
+function clearForm() {
+    location.reload();
+}
+
+// Init
+setSolveFor('p_pre');
+</script>
+{% endblock %}

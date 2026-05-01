@@ -225,6 +225,37 @@
                 {% endif %}
             </section>
 
+            <!-- 5b. KRCRw TRENDING (Longitudinal Residual Clearance) -->
+            {% if krcr_trend_data %}
+            <section class="card" aria-labelledby="krcr-heading" style="border: 1px solid #e0f2fe; background: linear-gradient(to bottom right, #ffffff, #f0f9ff);">
+                <h2 class="section-title" id="krcr-heading" style="color: #0369a1;">
+                    <i class="material-icons" style="color: #0ea5e9;" aria-hidden="true">biotech</i> 
+                    Residual Kidney Function Tracking (KRCRw)
+                </h2>
+                <div style="height: 250px; width: 100%;">
+                    <canvas id="krcrTrendChart" aria-label="Residual kidney function trend" role="img"></canvas>
+                </div>
+                <div style="margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap;">
+                    <div style="background: white; border: 1px solid #bae6fd; padding: 10px; border-radius: 12px; flex: 1; min-width: 140px;">
+                        <p style="font-size: 0.6rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Baseline GCr</p>
+                        <p style="font-size: 1.1rem; font-weight: 800; color: #0369a1;">{{ patient.baseline_gcr|round(1) }} <small style="font-size: 0.6rem; opacity: 0.7;">mg/day</small></p>
+                    </div>
+                    <div style="background: white; border: 1px solid #bae6fd; padding: 10px; border-radius: 12px; flex: 1; min-width: 140px;">
+                        <p style="font-size: 0.6rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Baseline VdCr</p>
+                        <p style="font-size: 1.1rem; font-weight: 800; color: #0369a1;">{{ patient.baseline_vdcr|round(1) }} <small style="font-size: 0.6rem; opacity: 0.7;">Liters</small></p>
+                    </div>
+                    <div style="background: #0ea5e9; padding: 10px; border-radius: 12px; flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center;">
+                        <a href="/analytics/krcrw" style="color: white; font-weight: 800; font-size: 0.75rem; text-decoration: none; display: flex; align-items: center; gap: 5px;">
+                            <span class="material-icons" style="font-size: 1rem;">refresh</span> Re-model Baseline
+                        </a>
+                    </div>
+                </div>
+                <p style="font-size: 0.65rem; color: #64748b; margin-top: 12px; font-style: italic;">
+                    * KRCRw is estimated from monthly serum creatinine using established patient-specific kinetics.
+                </p>
+            </section>
+            {% endif %}
+
             <!-- 6. MEDICATION LIST -->
             <section class="card" aria-labelledby="meds-heading">
                 <h2 class="section-title" id="meds-heading">
@@ -529,6 +560,41 @@
                 },
                 scales: {
                     y: { min: 8, max: 14, ticks: { stepSize: 1 } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    })();
+    {% endif %}
+
+    // ── KRCRw Trend Chart ────────────────────────────────────────────────────
+    {% if krcr_trend_data %}
+    (function () {
+        const ctx = document.getElementById('krcrTrendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ krcr_trend_labels | tojson }},
+                datasets: [{
+                    label: 'Residual Kidney Clearance (mL/min)',
+                    data: {{ krcr_trend_data | tojson }},
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    borderWidth: 4,
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#059669'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [2, 2] } },
                     x: { grid: { display: false } }
                 }
             }

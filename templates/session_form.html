@@ -208,6 +208,14 @@
             value="{{ session.dialysate_flow if session and session.dialysate_flow else '' }}">
         </div>
         <div>
+          <label>Dialysate Flow Direction</label>
+          <select name="dialysate_flow_direction">
+            <option value="">— Select —</option>
+            <option value="Countercurrent" {{ 'selected' if session and session.dialysate_flow_direction == 'Countercurrent' }}>Countercurrent (standard)</option>
+            <option value="Concurrent" {{ 'selected' if session and session.dialysate_flow_direction == 'Concurrent' }}>Concurrent (co-current)</option>
+          </select>
+        </div>
+        <div>
           <label>Dialyzer Type</label>
           <input type="text" name="dialyzer_type" placeholder="e.g. FX80, Revaclear 400"
             value="{{ session.dialyzer_type if session and session.dialyzer_type else '' }}">

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-5xl">
+    <!-- Header Section -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <span class="material-icons-outlined text-blue-600 text-4xl">biotech</span>
+                Residual Kidney Function (KRCRw)
+            </h1>
+            <p class="text-slate-500 mt-1">John T. Daugirdas, MD Model v1.40 — Creatinine Kinetic Simulation</p>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="clearForm()" class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                Reset
+            </button>
+            <button onclick="runSimulation()" class="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all transform hover:-translate-y-0.5">
+                Run Model
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Input Panel -->
+        <div class="lg:col-span-7 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="px-6 py-4 border-bottom bg-slate-50/50 flex items-center justify-between">
+                    <h2 class="font-bold text-slate-800">1. Select Patient (Optional)</h2>
+                </div>
+                <div class="p-6 border-b border-slate-100">
+                    <select id="patientSelect" onchange="autoFillFromPatient()" class="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                        <option value="">-- Non-database Patient (Anonymous) --</option>
+                        {% for p in patients %}
+                            <option value="{{ p.id }}" 
+                                    data-name="{{ p.name }}" 
+                                    data-sex="{{ p.sex }}" 
+                                    data-age="{{ p.age }}" 
+                                    data-weight="{{ p.dry_weight or 70 }}"
+                                    data-gcr="{{ p.baseline_gcr or 999 }}"
+                                    data-vdcr="{{ p.baseline_vdcr or 35 }}">
+                                {{ p.name }} (HID: {{ p.hid_no }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="px-6 py-4 border-bottom bg-slate-50/50 flex items-center justify-between">
+                    <h2 class="font-bold text-slate-800">2. Batch Input (CSV)</h2>
+                    <span class="text-xs font-mono text-slate-400">PTNAME,SEX,AGE,WEIGHT,GCREAT...</span>
+                </div>
+                <div class="p-6">
+                    <textarea id="bulkInput" rows="8" class="w-full font-mono text-sm p-4 bg-slate-900 text-emerald-400 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        placeholder="Fred,m,75,70,1175,1,135,13.97,30.76,331,676,206,3.5,koaurea,1100">Fred,m,75,70,1175,1,135,13.97,30.76,331,676,206,3.5,koaurea,1100</textarea>
+                    
+                    <div class="mt-4 grid grid-cols-2 gap-4">
+                        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                            <h3 class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">Gcreat Hint</h3>
+                            <p class="text-xs text-blue-600 leading-relaxed">Enter <code class="bg-blue-200 px-1 rounded">999</code> to estimate generation from age, sex, and weight using the Ix equation.</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Schedule Hint</h3>
+                            <p class="text-xs text-slate-600 leading-relaxed">Use <code class="bg-slate-200 px-1 rounded">135</code> for MWF or <code class="bg-slate-200 px-1 rounded">246</code> for TTS schedules.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 bg-amber-50 rounded-2xl border border-amber-100">
+                <div class="flex gap-4">
+                    <span class="material-icons text-amber-600">gavel</span>
+                    <div>
+                        <h4 class="font-bold text-amber-900 text-sm">Disclaimer</h4>
+                        <p class="text-xs text-amber-800 mt-1 leading-relaxed opacity-80">
+                            This model is for research purposes only. To convert KRCRw to standard plasma clearance (KRCR), multiply by **1.075**.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="lg:col-span-5 space-y-6">
+            <div id="resultsCard" class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden hidden">
+                <div class="px-6 py-4 bg-blue-600 flex items-center justify-between">
+                    <h2 class="font-bold text-white flex items-center gap-2">
+                        <span class="material-icons text-sm">analytics</span>
+                        Analysis Results
+                    </h2>
+                    <span id="resultCount" class="bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold"></span>
+                </div>
+                <div id="resultsList" class="max-h-[600px] overflow-y-auto">
+                    <!-- Results will be injected here -->
+                </div>
+            </div>
+
+            <!-- Placeholder -->
+            <div id="resultsPlaceholder" class="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
+                <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="material-icons text-slate-300 text-3xl">play_circle</span>
+                </div>
+                <h3 class="font-bold text-slate-400">Ready to Calculate</h3>
+                <p class="text-slate-400 text-xs mt-1">Enter data and click 'Run Model'</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function autoFillFromPatient() {
+    const sel = document.getElementById('patientSelect');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt.value) return;
+
+    const name = opt.dataset.name;
+    const sex = opt.dataset.sex === 'Female' ? 'f' : 'm';
+    const age = opt.dataset.age;
+    const weight = opt.dataset.weight;
+    const gcr = opt.dataset.gcr;
+    const vd = opt.dataset.vdcr;
+
+    // Build a sample line: PTNAME,SEX,AGE,WEIGHT,GCREAT,LABDAY,SCHEDULE,PRECREAT,IVP2,QB,QD,TD,WEEKLYFLUIDL,KCODE,KOA_OR_KDIN
+    // We leave some placeholders for clinical data
+    const line = `${name},${sex},${age},${weight},${gcr},1,135,8.0,${vd},300,500,240,3.0,koaurea,900`;
+    document.getElementById('bulkInput').value = line;
+}
+
+async function runSimulation() {
+    const inputText = document.getElementById('bulkInput').value.trim();
+    if (!inputText) return;
+
+    const rows = inputText.split('\n');
+    const resultsPlaceholder = document.getElementById('resultsPlaceholder');
+    const resultsCard = document.getElementById('resultsCard');
+    const resultsList = document.getElementById('resultsList');
+
+    resultsPlaceholder.innerHTML = `
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <p class="mt-4 text-slate-500 font-medium">Running Steady-State Integration...</p>
+    `;
+    resultsPlaceholder.classList.remove('hidden');
+    resultsCard.classList.add('hidden');
+
+    const results = [];
+    
+    try {
+        for (const rowText of rows) {
+            const parts = rowText.split(',').map(p => p.trim());
+            if (parts.length < 15) continue;
+
+            const payload = {
+                pt_name: parts[0],
+                sex: parts[1],
+                age: parseFloat(parts[2]),
+                weight: parseFloat(parts[3]),
+                g_creat: parseFloat(parts[4]),
+                lab_day: parseInt(parts[5]),
+                schedule: parts[6],
+                pre_creat: parseFloat(parts[7]),
+                ivp2: parseFloat(parts[8]),
+                qb: parseFloat(parts[9]),
+                qd: parseFloat(parts[10]),
+                td: parseFloat(parts[11]),
+                weekly_fluid: parseFloat(parts[12]),
+                k_code: parts[13],
+                koa: parseFloat(parts[14])
+            };
+
+            const response = await fetch('/analytics/api/krcrw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            results.push({ input: payload, output: data });
+        }
+
+        renderResults(results);
+    } catch (err) {
+        console.error(err);
+        resultsPlaceholder.innerHTML = `<p class="text-red-500">Error: ${err.message}</p>`;
+    }
+}
+
+function renderResults(results) {
+    const resultsList = document.getElementById('resultsList');
+    const resultsCard = document.getElementById('resultsCard');
+    const resultsPlaceholder = document.getElementById('resultsPlaceholder');
+    const patientId = document.getElementById('patientSelect').value;
+
+    document.getElementById('resultCount').innerText = `${results.length} ROWS`;
+
+    resultsList.innerHTML = results.map((r, idx) => `
+        <div class="p-6 border-b border-slate-50 hover:bg-slate-50 transition-colors">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="font-bold text-slate-900">${r.input.pt_name}</h3>
+                    <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Lab Day ${r.input.lab_day} · Schedule ${r.input.schedule}</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-2xl font-black text-blue-600">${r.output.krcrw}</span>
+                    <p class="text-[10px] font-bold text-blue-400">mL/min (KRCRw)</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                    <p class="text-[10px] font-bold text-emerald-800 opacity-60 uppercase">KRCR (Corrected)</p>
+                    <p class="text-lg font-bold text-emerald-700">${r.output.krcr}</p>
+                </div>
+                <div class="bg-indigo-50 rounded-xl p-3 border border-indigo-100">
+                    <p class="text-[10px] font-bold text-indigo-800 opacity-60 uppercase">Model Pre-Creat</p>
+                    <p class="text-lg font-bold text-indigo-700">${r.output.pre_creat_modeled}</p>
+                </div>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between">
+                <div class="text-[10px] text-slate-400">
+                    <p>Gcreat: ${r.output.g_creat_mg_day} mg/day</p>
+                    <p>VdCr: ${r.input.ivp2} L</p>
+                </div>
+                ${patientId ? `
+                    <button onclick="setBaseline(${idx}, ${r.output.g_creat_mg_day}, ${r.input.ivp2})" class="px-3 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-md hover:bg-slate-800 transition-all flex items-center gap-1">
+                        <span class="material-icons text-xs">save</span> Set as Baseline
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+
+    resultsPlaceholder.classList.add('hidden');
+    resultsCard.classList.remove('hidden');
+}
+
+async function setBaseline(idx, g_creat, vdcr) {
+    const patientId = document.getElementById('patientSelect').value;
+    if (!patientId) return;
+
+    try {
+        const res = await fetch('/analytics/api/krcrw/set-baseline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ patient_id: patientId, g_creat: g_creat, vdcr: vdcr })
+        });
+        const data = await res.json();
+        if (data.ok) {
+            alert('Baseline established for patient. You can now track KRCRw monthly.');
+        }
+    } catch (err) {
+        alert('Failed to save baseline: ' + err.message);
+    }
+}
+
+function clearForm() {
+    document.getElementById('bulkInput').value = '';
+    document.getElementById('resultsPlaceholder').classList.remove('hidden');
+    document.getElementById('resultsCard').classList.add('hidden');
+}
+</script>
+{% endblock %}

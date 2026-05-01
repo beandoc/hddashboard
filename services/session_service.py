@@ -53,6 +53,7 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         blood_flow_rate=data.get("blood_flow_rate"),
         actual_blood_flow_rate=data.get("actual_blood_flow_rate"),
         dialysate_flow=data.get("dialysate_flow"),
+        dialysate_flow_direction=data.get("dialysate_flow_direction"),
         duration_hours=data.get("duration_hours"),
         duration_minutes=data.get("duration_minutes"),
         weight_pre=data.get("weight_pre"),
@@ -109,6 +110,7 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.blood_flow_rate = data.get("blood_flow_rate")
     sess.actual_blood_flow_rate = data.get("actual_blood_flow_rate")
     sess.dialysate_flow = data.get("dialysate_flow")
+    sess.dialysate_flow_direction = data.get("dialysate_flow_direction")
     sess.duration_hours = data.get("duration_hours")
     sess.duration_minutes = data.get("duration_minutes")
     sess.weight_pre = data.get("weight_pre")

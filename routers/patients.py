@@ -186,6 +186,24 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         except: pass
         meals_by_day[d_str]["entries"].append(m)
 
+    # KRCRw Trend Logic
+    krcr_trend_labels = []
+    krcr_trend_data = []
+    if p.baseline_gcr and p.baseline_vdcr:
+        from krcrw_model import track_patient_krcrw_over_time
+        krcr_history = track_patient_krcrw_over_time(
+            sex=p.sex or "m",
+            age=p.age or 50,
+            weight=p.dry_weight or 60.0,
+            baseline_gcr=p.baseline_gcr,
+            baseline_vdcr=p.baseline_vdcr,
+            hd_frequency=p.hd_frequency or 2,
+            records=p.records
+        )
+        for h in sorted(krcr_history, key=lambda x: x["month"]):
+            krcr_trend_labels.append(get_month_label(h["month"]))
+            krcr_trend_data.append(h["krcr"])
+
     try:
         w = float(p.dry_weight) if p.dry_weight else 60.0
     except:
@@ -212,6 +230,8 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "hb_trend_labels": hb_trend_labels,
         "hb_trend_data": hb_trend_data,
         "esa_trend_data": esa_trend_data,
+        "krcr_trend_labels": krcr_trend_labels,
+        "krcr_trend_data": krcr_trend_data,
         "csrf_token": csrf_token,
         "success_msg": msg,
         "user": get_user(request),
