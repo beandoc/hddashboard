@@ -6,7 +6,7 @@ Locked - Do not modify without clinical validation.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import Patient, MonthlyRecord, InterimLabRecord, SessionRecord
+from database import Patient, MonthlyRecord, InterimLabRecord, SessionRecord, ClinicalEvent
 from datetime import datetime, timedelta
 import logging
 from ml_analytics import normalize_epo_dose

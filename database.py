@@ -4,15 +4,33 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
-# Support both SQLite (local dev) and PostgreSQL (Render production)
+# Support both SQLite (local dev) and PostgreSQL (Render/Neon production)
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./hd_dashboard.db")
 
-# Render gives postgres:// but SQLAlchemy needs postgresql://
+# Render/Neon give postgres:// but SQLAlchemy needs postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-_connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+_is_sqlite = DATABASE_URL.startswith("sqlite")
+
+if _is_sqlite:
+    _connect_args = {"check_same_thread": False}
+    engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+else:
+    # Neon requires SSL; connect_timeout lets the free-tier compute wake up
+    _connect_args = {
+        "sslmode": "require",
+        "connect_timeout": 30,
+    }
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args=_connect_args,
+        pool_pre_ping=True,      # re-validate connections on checkout
+        pool_recycle=300,        # recycle before Neon's 5-min idle timeout
+        pool_size=5,
+        max_overflow=10,
+    )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

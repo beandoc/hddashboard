@@ -154,7 +154,9 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict[str, Any]:
     if alb_val is not None and alb_val < 3.5:
         malnut_sensitivity = True
 
-    score = int(athero) + int(inflam) + int(malnut)
+    score = None
+    if malnut is not None or inflam is not None or athero is not None:
+        score = int(athero or 0) + int(inflam or 0) + int(malnut or 0)
     
     return {
         "score": score,
@@ -164,7 +166,7 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict[str, Any]:
             "atherosclerosis": athero
         },
         "metrics": {
-            "gnri": round(gnri, 2) if gnri else None,
+            "gnri": round(gnri, 2) if gnri is not None else None,
             "risk_grade": risk_grade,
             "crp": crp_val,
             "albumin": alb_val,
@@ -1667,6 +1669,15 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
             ),
         }
 
+    # Age is the dominant XGBoost feature — imputing it can swing the result
+    # by 90+ percentage points (age 40 → 1%, age 62 → 97% with same albumin).
+    # Block the prediction if age is missing to avoid a clinically misleading output.
+    if age is None:
+        return {
+            "available": False,
+            "reason": "Patient age not entered. Age is the most influential feature in this model — imputing it can swing the result by 90+ percentage points. Enter the patient's age in the profile to enable mortality prediction.",
+        }
+
     # ── Attempt XGBoost prediction ───────────────────────────────────────────
     models = _load_xgb_models()
     model_type = "unknown"
@@ -2270,8 +2281,9 @@ def analyze_pds(db: Session, patient_id: int) -> Dict:
             
         if sess:
             ufr = None
-            if sess.weight_pre and sess.weight_post and sess.duration_hours:
-                ufr = round(((sess.weight_pre - sess.weight_post) * 1000) / (sess.duration_hours + (sess.duration_minutes or 0)/60), 1)
+            duration = (sess.duration_hours or 0) + (sess.duration_minutes or 0) / 60
+            if sess.weight_pre and sess.weight_post and duration > 0:
+                ufr = round(((sess.weight_pre - sess.weight_post) * 1000) / duration, 1)
 
             correlated_events.append({
                 "date": str(rep.reported_at.date()),
@@ -2379,7 +2391,7 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
         alb = rec.albumin
         
         # Get weight from Monthly if available, else fallback
-        weight = getattr(rec, "weight", None)
+        weight = rec.target_dry_weight
         if weight is None:
             # Check for a session near this month
             sess = db.query(SessionRecord).filter(
@@ -2459,6 +2471,8 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
 
         # Completeness per month
         m_total = sum(1 for d in data_available.values() if d)
+        scored_domains = [k for k in ("nutrition", "inflammation", "atherosclerosis", "dialysis") if data_available.get(k)]
+        entry_total = sum(scores.get(k, 0) for k in scored_domains)
         timeline.append({
             "label": m,
             "scores": scores,
@@ -2466,19 +2480,30 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
             "missing_fields": missing_fields,
             "values": values,
             "events": events,
-            "completeness_pct": round((m_total / 5) * 100)
+            "completeness_pct": round((m_total / 5) * 100),
+            "total": entry_total,
+            "domains_with_data": len(scored_domains),
         })
 
     # Summary Stats
     total_data_points = sum(1 for t in timeline for d in t["data_available"].values() if d)
     completeness = (total_data_points / (len(timeline) * 5)) * 100 if timeline else 0
 
+    alert = any(t["total"] >= 4 for t in timeline[-2:]) if timeline else False
+    if alert:
+        worst = max(timeline[-2:], key=lambda t: t["total"])
+        high_domains = [k for k in ("nutrition", "inflammation", "atherosclerosis", "dialysis") if worst["scores"].get(k, 0) >= 2]
+        cascade_reason = f"Persistent multi-domain risk: {', '.join(high_domains)} scoring high in recent months."
+    else:
+        cascade_reason = ""
+
     return {
         "available": True,
         "timeline": timeline,
         "data_completeness": round(completeness, 1),
         "months_of_data": len(timeline),
-        "alert_triggered": any(t["scores"]["nutrition"] + t["scores"]["inflammation"] + t["scores"]["atherosclerosis"] >= 4 for t in timeline[-2:])
+        "alert_triggered": alert,
+        "cascade_reason": cascade_reason,
     }
 
 def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
@@ -2711,18 +2736,19 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
     alerts = []
     risk_score = 0
     today = date.today()
-    
+    delay_days = None
+
     # ── 1. Maturation Monitoring ──────────────────────────────────────────────
-    is_catheter = p.access_type and ("CATHETER" in p.access_type.upper() or "PERMACATH" in p.access_type.upper())
-    
     if p.access_date and not p.date_first_cannulation:
-        # Surgery done, but not yet operational
+        # Surgery done, but never cannulated
         days_since_surgery = (today - p.access_date).days
+        delay_days = days_since_surgery
         if days_since_surgery > 0:
             events.append({"text": f"AVF surgery performed {days_since_surgery} days ago; not yet cannulated."})
-            
-            if days_since_surgery > 42 and is_catheter:
-                alerts.append("Maturation Failure Pending: > 6 weeks since surgery, still catheter-dependent.")
+
+            if days_since_surgery > 42:
+                # Any AVF uncannulated > 6 weeks is a maturation failure (KDOQI)
+                alerts.append(f"AVF Maturation Failure: {days_since_surgery} days since surgery — never cannulated (KDOQI threshold: 6 weeks).")
                 risk_score += 3
             elif days_since_surgery > 28:
                 events.append({"text": "Approaching maturation threshold (4 weeks). Schedule Doppler if thrill is weak."})
@@ -2799,15 +2825,20 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
         risk_score += 2
         events.append({"text": f"Sarcopenia (Handgrip {p.handgrip_strength} kg) linked to fistula failure."})
 
+    maturation_failure = any("Maturation Failure" in a for a in alerts)
+    cascade_detected = risk_score >= 3 or maturation_failure
+
     return {
         "available": True,
-        "maturation_failure": any("Maturation Failure" in a for a in alerts),
+        "cascade_detected": cascade_detected,
+        "maturation_failure": maturation_failure,
         "suboptimal_flow": low_bfr_count >= 2,
         "high_recirculation": high_recirc_count >= 1,
         "alerts": alerts,
         "risk_score": risk_score,
+        "delay_days": delay_days,
         "events": events,
-        "message": alerts[0] if alerts else "Vascular access functioning within parameters."
+        "message": alerts[0] if alerts else "Vascular access functioning within parameters.",
     }
 
 
@@ -2830,7 +2861,10 @@ def detect_occult_overload(db: Session, patient_id: int):
         dw_drop = first_record.target_dry_weight - patient.dry_weight
 
     # 2. Nutrition Trend (Albumin)
-    recent_records = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
+    recent_records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.albumin.isnot(None)
+    ).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
     alb_decline = False
     if len(recent_records) >= 2:
         alb_decline = recent_records[0].albumin < recent_records[-1].albumin

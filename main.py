@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
 import logging
+import time
 
 from database import engine, Base, get_db, Patient, SessionLocal, User
 from config import templates, serializer, pwd_context
@@ -16,8 +17,18 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # APP INITIALIZATION
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Create DB tables
-Base.metadata.create_all(bind=engine)
+def _init_db_with_retry(max_attempts: int = 5, delay: int = 5):
+    for attempt in range(1, max_attempts + 1):
+        try:
+            Base.metadata.create_all(bind=engine)
+            return
+        except Exception as exc:
+            logging.warning("DB init attempt %d/%d failed: %s", attempt, max_attempts, exc)
+            if attempt == max_attempts:
+                raise
+            time.sleep(delay)
+
+_init_db_with_retry()
 
 # Auto-migrate: sync DB schema with SQLAlchemy models on every startup
 def _run_startup_migrations():

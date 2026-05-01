@@ -88,15 +88,26 @@
         <p>HID: {{ patient.hid_no }} • {{ patient.sex }}{% if patient.blood_group %} • {{ patient.blood_group }}{% endif %} • {{ patient.diagnosis }}</p>
       </div>
       <div class="stats-row">
-        {% set dr = analytics.deterioration_risk %}
-        <div class="badge">
-          <div class="badge-val">{{ dr.level or 'Low' }}</div>
-          <div class="badge-lbl">Risk Level</div>
-        </div>
-        <div class="badge">
-          <div class="badge-val">{{ analytics.target_score.score }}/10</div>
-          <div class="badge-lbl">Target Score</div>
-        </div>
+        {% if analytics.status != "no_data" %}
+          {% set dr = analytics.deterioration_risk %}
+          <div class="badge">
+            <div class="badge-val">{{ dr.level or 'Low' }}</div>
+            <div class="badge-lbl">Risk Level</div>
+          </div>
+          <div class="badge">
+            <div class="badge-val">{{ analytics.target_score.score }}/10</div>
+            <div class="badge-lbl">Target Score</div>
+          </div>
+        {% else %}
+          <div class="badge">
+            <div class="badge-val">—</div>
+            <div class="badge-lbl">Risk Level</div>
+          </div>
+          <div class="badge">
+            <div class="badge-val">—</div>
+            <div class="badge-lbl">Target Score</div>
+          </div>
+        {% endif %}
       </div>
     </div>
   </header>
@@ -235,7 +246,7 @@
 
       <!-- MIA Syndrome Status -->
       {% set mia = analytics.mia_status %}
-      <div class="insight-card" style="border-top: 3px solid {% if mia.score >= 2 %}#dc2626{% elif mia.score == 1 %}#d97706{% else %}#16a34a{% endif %};">
+      <div class="insight-card" style="border-top: 3px solid {% if mia.score is not none and mia.score >= 2 %}#dc2626{% elif mia.score == 1 %}#d97706{% else %}#16a34a{% endif %};">
         <div class="card-head">
           <i class="material-icons" style="color:#6366f1;">biotech</i>
           <h3>MIA Syndrome Status</h3>

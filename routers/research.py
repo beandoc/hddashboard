@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import date as date_type, datetime
 import json
 
 from database import get_db, Patient, ResearchProject, ResearchRecord
@@ -101,14 +102,19 @@ async def save_record(
         if key not in standard_fields and value != "":
             test_data[key] = value
             
+    try:
+        parsed_date = datetime.strptime(test_date, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        parsed_date = date_type.today()
+
     record = ResearchRecord(
         project_id=project_id,
         patient_id=patient_id,
         test_type=test_type,
-        test_date=test_date,
+        test_date=parsed_date,
         data=json.dumps(test_data),
         notes=notes,
-        entered_by=user.get("username") if user else "Admin"
+        entered_by=(user.get("username") if isinstance(user, dict) else user.username) if user else "Admin"
     )
     
     db.add(record)
