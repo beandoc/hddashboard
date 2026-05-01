@@ -286,6 +286,65 @@
                 { name: "cannulation_technique", label: "Cannulation Technique", type: "select", options: ["Rope Ladder", "Buttonhole", "Area Cannulation"] },
                 { name: "topical_anesthetic", label: "Topical Anesthetic Used", type: "select", options: ["No", "Yes (EMLA/Lignocaine)"] }
             ],
+            "VASCULAR_STIFFNESS": [
+                { name: "pwv_ms", label: "Pulse Wave Velocity (m/s)", type: "number", step: "0.1" },
+                { name: "pwv_interpretation", label: "PWV Interpretation", type: "text", readonly: true },
+                { name: "aix_pct", label: "Augmentation Index (%)", type: "number", step: "0.1" },
+                { name: "aix_hr75", label: "AIx standardized to HR75 (%)", type: "number", step: "0.1" },
+                { name: "central_sys_bp", label: "Central Systolic BP (mmHg)", type: "number" },
+                { name: "central_dia_bp", label: "Central Diastolic BP (mmHg)", type: "number" },
+                { name: "cavi_index", label: "Cardio-Ankle Vascular Index (CAVI)", type: "number", step: "0.1" },
+                { name: "cavi_interpretation", label: "CAVI Interpretation", type: "text", readonly: true }
+            ],
+            "HDF_CONVECTION": [
+                { name: "convection_vol_session", label: "Convection Volume per Session (Liters)", type: "number", step: "0.1" },
+                { name: "sessions_per_week", label: "HDF Sessions per Week", type: "number", step: "1", min: "1", max: "7" },
+                { name: "weekly_convection_vol", label: "Total Weekly Convection Volume (L/week)", type: "number", step: "0.1", readonly: true },
+                { name: "hdf_efficacy", label: "Convection Efficacy", type: "text", readonly: true }
+            ],
+            "IDH_FREQUENCY": [
+                { name: "idh_definition", label: "IDH Definition Used", type: "select", options: [
+                    "Fall in SBP ≥ 20 mmHg + Symptoms (KDOQI)",
+                    "Absolute SBP < 90 mmHg",
+                    "Need for Intervention (NS Bolus/Trendelenburg)",
+                    "Early Termination of Session"
+                ]},
+                { name: "total_sessions", label: "Total Sessions Evaluated", type: "number", min: "1" },
+                { name: "idh_episodes", label: "Number of Sessions with IDH Episodes", type: "number", min: "0" },
+                { name: "idh_rate_pct", label: "IDH Frequency (%)", type: "number", step: "0.1", readonly: true }
+            ],
+            "PSYCHIATRIC_SCALES": [
+                { name: "phq9_score", label: "PHQ-9 Depression Score (0-27)", type: "number", min: "0", max: "27" },
+                { name: "phq9_severity", label: "Depression Severity", type: "text", readonly: true },
+                { name: "gad7_score", label: "GAD-7 Anxiety Score (0-21)", type: "number", min: "0", max: "21" },
+                { name: "gad7_severity", label: "Anxiety Severity", type: "text", readonly: true },
+                { name: "alt_scale_name", label: "Alternative Scale Name (e.g., BDI-II, GHQ-12)", type: "text" },
+                { name: "alt_scale_score", label: "Alternative Scale Score", type: "number" }
+            ],
+            "FRIED_FRAILTY": [
+                { name: "fried_weight_loss", label: "Unintentional Weight Loss (≥4.5kg in past year)", type: "select", options: [{value: "0", label: "No (0)"}, {value: "1", label: "Yes (1)"}] },
+                { name: "fried_exhaustion", label: "Self-reported Exhaustion", type: "select", options: [{value: "0", label: "No (0)"}, {value: "1", label: "Yes (1)"}] },
+                { name: "fried_activity", label: "Low Physical Activity", type: "select", options: [{value: "0", label: "No (0)"}, {value: "1", label: "Yes (1)"}] },
+                { name: "fried_walk_speed", label: "Slowed Walking Speed", type: "select", options: [{value: "0", label: "No (0)"}, {value: "1", label: "Yes (1)"}] },
+                { name: "fried_weakness", label: "Objective Weakness (Handgrip Strength)", type: "select", options: [{value: "0", label: "No (0)"}, {value: "1", label: "Yes (1)"}] },
+                { name: "fried_total_score", label: "Total Fried Score (0-5)", type: "number", readonly: true },
+                { name: "fried_category", label: "Frailty Category", type: "text", readonly: true }
+            ],
+            "GNRI": [
+                { name: "gnri_albumin", label: "Serum Albumin (g/dL)", type: "number", step: "0.1" },
+                { name: "gnri_weight", label: "Current Body Weight (kg)", type: "number", step: "0.1" },
+                { name: "gnri_ideal_weight", label: "Ideal Body Weight (kg)", type: "number", step: "0.1" },
+                { name: "gnri_score", label: "Calculated GNRI Score", type: "number", step: "0.1", readonly: true },
+                { name: "gnri_risk", label: "Nutritional Risk Level", type: "text", readonly: true }
+            ],
+            "GERIATRIC_EXTENDED": [
+                { name: "charlson_index", label: "Charlson Comorbidity Index", type: "number" },
+                { name: "gijon_scale", label: "Gijón Scale (Social Risk)", type: "number" },
+                { name: "delta_test", label: "Delta Test (Nursing Dependency)", type: "number" },
+                { name: "lawton_brody", label: "Lawton & Brody Scale (IADL)", type: "number" },
+                { name: "downton_scale", label: "Downton Scale (Fall Risk)", type: "number" },
+                { name: "sf36_pcs", label: "SF-36 Physical Component Summary (PCS)", type: "number", step: "0.1" }
+            ],
             "CUSTOM_VARIABLE": [
                 { name: "variable_id", label: "Select Variable", type: "select", options: [
                     {% for v in all_variables %}
@@ -421,6 +480,163 @@
                 };
 
                 painInput.addEventListener('input', updatePain);
+            }
+
+            // Auto-interpret Vascular Stiffness
+            if (testType === 'VASCULAR_STIFFNESS') {
+                const pwvInput = fieldsArea.querySelector('input[name="pwv_ms"]');
+                const pwvInterp = fieldsArea.querySelector('input[name="pwv_interpretation"]');
+                const caviInput = fieldsArea.querySelector('input[name="cavi_index"]');
+                const caviInterp = fieldsArea.querySelector('input[name="cavi_interpretation"]');
+                
+                const updateStiffness = () => {
+                    const pwv = parseFloat(pwvInput.value);
+                    if (!isNaN(pwv)) {
+                        pwvInterp.value = (pwv > 11.5) ? "Pathological Stiffness" : "Within Range / Mild Stiffness";
+                    } else {
+                        pwvInterp.value = "";
+                    }
+
+                    const cavi = parseFloat(caviInput.value);
+                    if (!isNaN(cavi)) {
+                        caviInterp.value = (cavi >= 10.0) ? "High Risk (Arterial Stiffness)" : "Normal / Low Risk";
+                    } else {
+                        caviInterp.value = "";
+                    }
+                };
+
+                pwvInput.addEventListener('input', updateStiffness);
+                caviInput.addEventListener('input', updateStiffness);
+            }
+
+            // Auto-calculate HDF Convection
+            if (testType === 'HDF_CONVECTION') {
+                const volInput = fieldsArea.querySelector('input[name="convection_vol_session"]');
+                const freqInput = fieldsArea.querySelector('input[name="sessions_per_week"]');
+                const weeklyInput = fieldsArea.querySelector('input[name="weekly_convection_vol"]');
+                const efficacyInput = fieldsArea.querySelector('input[name="hdf_efficacy"]');
+                
+                const updateHDF = () => {
+                    const vol = parseFloat(volInput.value) || 0;
+                    const freq = parseFloat(freqInput.value) || 0;
+                    const weekly = vol * freq;
+                    
+                    if (weekly > 0) {
+                        weeklyInput.value = weekly.toFixed(1);
+                        if (weekly > 64.8) {
+                            efficacyInput.value = "High Efficiency (>64.8 L/week)";
+                        } else if (weekly < 54.6) {
+                            efficacyInput.value = "Low Efficacy (<54.6 L/week)";
+                        } else {
+                            efficacyInput.value = "Intermediate Efficacy";
+                        }
+                    } else {
+                        weeklyInput.value = "";
+                        efficacyInput.value = "";
+                    }
+                };
+
+                volInput.addEventListener('input', updateHDF);
+                freqInput.addEventListener('input', updateHDF);
+            }
+
+            // Auto-calculate IDH Frequency
+            if (testType === 'IDH_FREQUENCY') {
+                const totalInput = fieldsArea.querySelector('input[name="total_sessions"]');
+                const episodesInput = fieldsArea.querySelector('input[name="idh_episodes"]');
+                const rateInput = fieldsArea.querySelector('input[name="idh_rate_pct"]');
+                
+                const updateIDH = () => {
+                    const total = parseFloat(totalInput.value) || 0;
+                    const episodes = parseFloat(episodesInput.value) || 0;
+                    if (total > 0) {
+                        rateInput.value = ((episodes / total) * 100).toFixed(1);
+                    } else {
+                        rateInput.value = "";
+                    }
+                };
+
+                totalInput.addEventListener('input', updateIDH);
+                episodesInput.addEventListener('input', updateIDH);
+            }
+
+            // Auto-interpret Psychiatric Scales
+            if (testType === 'PSYCHIATRIC_SCALES') {
+                const phqInput = fieldsArea.querySelector('input[name="phq9_score"]');
+                const phqInterp = fieldsArea.querySelector('input[name="phq9_severity"]');
+                const gadInput = fieldsArea.querySelector('input[name="gad7_score"]');
+                const gadInterp = fieldsArea.querySelector('input[name="gad7_severity"]');
+                
+                const updatePsych = () => {
+                    const phq = parseInt(phqInput.value);
+                    if (!isNaN(phq)) {
+                        if (phq <= 4) phqInterp.value = "Minimal Depression";
+                        else if (phq <= 9) phqInterp.value = "Mild Depression";
+                        else if (phq <= 14) phqInterp.value = "Moderate Depression";
+                        else if (phq <= 19) phqInterp.value = "Moderately Severe";
+                        else phqInterp.value = "Severe Depression";
+                    } else { phqInterp.value = ""; }
+
+                    const gad = parseInt(gadInput.value);
+                    if (!isNaN(gad)) {
+                        if (gad <= 4) gadInterp.value = "Minimal Anxiety";
+                        else if (gad <= 9) gadInterp.value = "Mild Anxiety";
+                        else if (gad <= 14) gadInterp.value = "Moderate Anxiety";
+                        else gadInterp.value = "Severe Anxiety";
+                    } else { gadInterp.value = ""; }
+                };
+
+                phqInput.addEventListener('input', updatePsych);
+                gadInput.addEventListener('input', updatePsych);
+            }
+
+            // Auto-calculate Fried Frailty
+            if (testType === 'FRIED_FRAILTY') {
+                const inputs = fieldsArea.querySelectorAll('select[name^="fried_"]');
+                const totalInput = fieldsArea.querySelector('input[name="fried_total_score"]');
+                const categoryInput = fieldsArea.querySelector('input[name="fried_category"]');
+                
+                const updateFried = () => {
+                    let total = 0;
+                    inputs.forEach(i => total += parseInt(i.value || 0));
+                    totalInput.value = total;
+                    if (total === 0) categoryInput.value = "Non-Frail";
+                    else if (total <= 2) categoryInput.value = "Pre-Frail";
+                    else categoryInput.value = "Severely Frail";
+                };
+
+                inputs.forEach(i => i.addEventListener('change', updateFried));
+            }
+
+            // Auto-calculate GNRI
+            if (testType === 'GNRI') {
+                const albInput = fieldsArea.querySelector('input[name="gnri_albumin"]');
+                const wInput = fieldsArea.querySelector('input[name="gnri_weight"]');
+                const iwInput = fieldsArea.querySelector('input[name="gnri_ideal_weight"]');
+                const scoreInput = fieldsArea.querySelector('input[name="gnri_score"]');
+                const riskInput = fieldsArea.querySelector('input[name="gnri_risk"]');
+                
+                const updateGNRI = () => {
+                    const alb = parseFloat(albInput.value) || 0;
+                    const w = parseFloat(wInput.value) || 0;
+                    const iw = parseFloat(iwInput.value) || 1; // avoid div by zero
+                    
+                    if (alb > 0 && w > 0) {
+                        const ratio = Math.min(w / iw, 1.0); // Ratio is capped at 1.0 per standard GNRI
+                        const score = (14.89 * alb) + (41.7 * ratio);
+                        scoreInput.value = score.toFixed(1);
+                        
+                        if (score > 98) riskInput.value = "No Risk";
+                        else if (score >= 92) riskInput.value = "Mild Risk";
+                        else if (score >= 82) riskInput.value = "Moderate Risk";
+                        else riskInput.value = "Major Risk";
+                    } else {
+                        scoreInput.value = "";
+                        riskInput.value = "";
+                    }
+                };
+
+                [albInput, wInput, iwInput].forEach(i => i.addEventListener('input', updateGNRI));
             }
         }
 
