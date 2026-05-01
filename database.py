@@ -296,6 +296,10 @@ class MonthlyRecord(Base):
     hospitalization_icd_diagnosis = Column(Text) # Official ICD-10 diagnosis description
     hospitalization_details = Column(Text)     # JSON array of {date, diagnosis, icd_code, icd_diagnosis}
 
+    # ── Blood Transfusion ─────────────────────────────────────────────────────
+    blood_transfusion_units = Column(Integer)   # PRBC units transfused this month (1 unit ≈ +1 g/dL Hb)
+    transfusion_date = Column(String)           # YYYY-MM-DD of most recent transfusion this month
+
     # ── Clinical Notes ────────────────────────────────────────────────────────
     issues = Column(Text)
 

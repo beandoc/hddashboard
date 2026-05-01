@@ -624,6 +624,15 @@ def _kalman_trend(
     }
 
 
+def _hb_endo(hb: float, transfusion_units: int) -> float:
+    """
+    Estimate endogenous Hb by subtracting expected transfusion contribution.
+    Assumption: 1 PRBC unit raises Hb by ~1 g/dL.
+    Floored at 5.0 g/dL to avoid physiologically impossible values.
+    """
+    return max(hb - float(transfusion_units), 5.0)
+
+
 def _hb_kalman(xs: list, ys: list) -> dict:
     """Kalman filter with Hb-specific KDOQI priors."""
     return _kalman_trend(
@@ -658,6 +667,13 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
     readiness = compute_ml_readiness(df, "hb")
     current = next((r["hb"] for r in df if r.get("hb") is not None), None)
 
+    # Identify months where a blood transfusion was given
+    transfusion_months = [
+        r["month"] for r in df
+        if r.get("transfusion_units") and r.get("month")
+    ]
+    has_transfusion = bool(transfusion_months)
+
     base = {
         "current": current,
         "confidence": readiness["confidence"],
@@ -665,6 +681,8 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         "completeness": readiness["completeness"],
         "recommendation": readiness["recommendation"],
         "alert": current is not None and current < 10.0,
+        "transfusion_months": transfusion_months,
+        "has_transfusion_confounding": has_transfusion,
     }
 
     if not readiness["ready"]:
@@ -680,8 +698,14 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
             "message": readiness["recommendation"],
         }
 
+    # Use endogenous (transfusion-corrected) Hb for trajectory fitting.
+    # For months with transfusions: hb_endo = hb - (units × 1 g/dL).
+    # This prevents transfusion spikes from biasing the Kalman filter and OLS slope.
     pairs = [
-        (_month_to_ordinal(r["month"]), r["hb"])
+        (
+            _month_to_ordinal(r["month"]),
+            _hb_endo(r["hb"], r.get("transfusion_units") or 0),
+        )
         for r in df
         if r.get("hb") is not None and r.get("month")
     ]
@@ -694,6 +718,18 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
 
     predicted = kal.get("next_predicted") or ols.get("next_predicted")
     alert_predicted = predicted is not None and predicted < 10.0
+
+    transfusion_note = (
+        f" (trajectory based on endogenous Hb — transfusions in {', '.join(transfusion_months)} excluded)"
+        if has_transfusion else ""
+    )
+
+    if alert_predicted:
+        message = f"Predicted to drop below 10 g/dL — review urgently.{transfusion_note}"
+    elif has_transfusion:
+        message = f"Hb trajectory acceptable.{transfusion_note}"
+    else:
+        message = "Hb trajectory acceptable."
 
     return {
         **base,
@@ -713,7 +749,7 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         "durbin_watson":   ols.get("durbin_watson"),
         "n_points":        kal.get("n_points") or ols.get("n_points"),
         "alert_predicted_low": alert_predicted,
-        "message": "Predicted to drop below 10 g/dL — review urgently." if alert_predicted else "Hb trajectory acceptable.",
+        "message": message,
     }
 
 
@@ -742,10 +778,15 @@ def _resolve_weekly_iu_iv(record: dict) -> Optional[float]:
 def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001
     """
     Assess ESA (Epoetin / Darbepoetin / Mircera) response quality.
-    
+
     Standards:
     - ERI (ESA Resistance Index) = (IV Units/kg/wk) / Hb (g/dL)
-    - Hyporesponsive if ERI >= 2.0 OR IV dose >= 450 IU/kg/wk
+    - Hyporesponsive if ERI >= 10.0 OR IV dose >= 450 IU/kg/wk
+
+    Transfusion correction: when a month has blood_transfusion_units recorded,
+    the observed Hb is reduced by (units × 1 g/dL) before computing ERI.
+    Using the inflated post-transfusion Hb would make EPO appear more effective
+    than it actually is, masking true hyporesponsiveness.
     """
     if not df:
         return {"hypo_response": False, "status": "No Data", "class": "warning",
@@ -771,9 +812,16 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
         }
 
     latest = complete_pairs[0]
-    hb   = latest.get("hb") or 0.1
+    hb_raw = latest.get("hb") or 0.1
+    transfusion_units = latest.get("transfusion_units") or 0
+    transfusion_confounded = transfusion_units > 0
+
+    # Use endogenous Hb for ERI; transfusion-boosted Hb would inflate the denominator
+    # and give a falsely low ERI (appearing more responsive than the patient truly is).
+    hb = _hb_endo(hb_raw, transfusion_units) if transfusion_confounded else hb_raw
+
     dose_iv = _resolve_weekly_iu_iv(latest) or 0
-    weight = latest.get("weight") or 60.0 # Default weight if missing
+    weight = latest.get("weight") or 60.0
 
     # ── ESA Resistance Index (ERI) Calculation ────────────────────────────────
     dose_per_kg = dose_iv / weight
@@ -815,22 +863,27 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     dose_display = f"{int(dose_iv):,} IV-IU/wk equiv" if dose_iv else "unknown dose"
     eri_display = f"ERI: {eri:.2f}"
 
+    transfusion_note = (
+        f" [Hb corrected: {hb_raw} → {hb:.1f} g/dL after {transfusion_units} PRBC unit(s)]"
+        if transfusion_confounded else ""
+    )
+
     if severity == "severe":
         message = (
-            f"Severe hypo-response ({eri_display}): Hb {hb} g/dL on {dose_per_kg:.1f} IU/kg/wk. "
-            f"Urgent: check iron, inflammation (CRP), or marrow suppression."
+            f"Severe hypo-response ({eri_display}): Hb {hb:.1f} g/dL on {dose_per_kg:.1f} IU/kg/wk. "
+            f"Urgent: check iron, inflammation (CRP), or marrow suppression.{transfusion_note}"
         )
     elif severity == "significant":
         message = (
-            f"Hypo-response ({eri_display}): Hb {hb} g/dL on high-dose {drug_label} "
-            f"({dose_per_kg:.1f} IU/kg/wk). Review iron stores and ESA resistance workup."
+            f"Hypo-response ({eri_display}): Hb {hb:.1f} g/dL on high-dose {drug_label} "
+            f"({dose_per_kg:.1f} IU/kg/wk). Review iron stores and ESA resistance workup.{transfusion_note}"
         )
     elif response_class == "suboptimal":
-        message = f"Suboptimal (ERI {eri:.2f}): Hb {hb} g/dL — consider dose uptitration or iron."
+        message = f"Suboptimal (ERI {eri:.2f}): Hb {hb:.1f} g/dL — consider dose uptitration or iron.{transfusion_note}"
     elif response_class == "adequate":
-        message = f"Adequate (ERI {eri:.2f}): Hb {hb} g/dL on {drug_label} ({dose_display})."
+        message = f"Adequate (ERI {eri:.2f}): Hb {hb:.1f} g/dL on {drug_label} ({dose_display}).{transfusion_note}"
     else:
-        message = f"Excellent (ERI {eri:.2f}): Hb {hb} g/dL on {drug_label} ({dose_display})."
+        message = f"Excellent (ERI {eri:.2f}): Hb {hb:.1f} g/dL on {drug_label} ({dose_display}).{transfusion_note}"
 
     css_class = (
         "danger"  if is_hypo else
@@ -857,6 +910,9 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
         "n_points": len(complete_pairs),
         "drug_type": drug_type,
         "weekly_iu_iv": dose_iv,
+        "transfusion_confounded": transfusion_confounded,
+        "hb_raw": round(hb_raw, 1),
+        "hb_corrected": round(hb, 1),
         "message": message,
     }
 
@@ -1954,6 +2010,8 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
             "wbc_count":                  r.wbc_count,
             "crp":                        r.crp,
             "hospitalization_this_month": r.hospitalization_this_month,
+            "transfusion_units":          getattr(r, "blood_transfusion_units", None) or 0,
+            "transfusion_date":           getattr(r, "transfusion_date", None),
         }
         for r in records
     ]
