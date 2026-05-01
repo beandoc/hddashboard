@@ -230,30 +230,34 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
     _require_analytics_access(request)
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
-    analytics = run_patient_analytics(db, patient_id)
-    occult_overload = detect_occult_overload(db, patient_id)
-    if occult_overload:
-        analytics["occult_alert"] = occult_overload
-    pt_events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).all()
-    recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(20).all()
-    
-    session_dicts = [
-        {
-            "session_date": str(s.session_date),
-            "blood_flow_rate": s.blood_flow_rate,
-            "actual_blood_flow_rate": s.actual_blood_flow_rate,
-            "access_condition": s.access_condition,
-            "arterial_line_pressure": s.arterial_line_pressure,
-            "venous_line_pressure": s.venous_line_pressure,
-        }
-        for s in recent_sessions
-    ]
-    bfr_analytics = analyze_bfr_trend(session_dicts)
-    pds_analytics = analyze_pds(db, patient_id)
-    mia_cascade = analyze_mia_cascade(db, patient_id)
-    cardiorenal_cascade = analyze_cardiorenal_cascade(db, patient_id)
-    avf_cascade = analyze_avf_maturation(db, patient_id)
-    
+    try:
+        analytics = run_patient_analytics(db, patient_id)
+        occult_overload = detect_occult_overload(db, patient_id)
+        if occult_overload:
+            analytics["occult_alert"] = occult_overload
+        pt_events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).all()
+        recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(20).all()
+
+        session_dicts = [
+            {
+                "session_date": str(s.session_date),
+                "blood_flow_rate": s.blood_flow_rate,
+                "actual_blood_flow_rate": s.actual_blood_flow_rate,
+                "access_condition": s.access_condition,
+                "arterial_line_pressure": s.arterial_line_pressure,
+                "venous_line_pressure": s.venous_line_pressure,
+            }
+            for s in recent_sessions
+        ]
+        bfr_analytics = analyze_bfr_trend(session_dicts)
+        pds_analytics = analyze_pds(db, patient_id)
+        mia_cascade = analyze_mia_cascade(db, patient_id)
+        cardiorenal_cascade = analyze_cardiorenal_cascade(db, patient_id)
+        avf_cascade = analyze_avf_maturation(db, patient_id)
+    except Exception as exc:
+        logging.exception("patient_analytics_page error for patient_id=%s", patient_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+
     return templates.TemplateResponse("patient_analytics.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,

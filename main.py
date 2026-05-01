@@ -36,13 +36,14 @@ def _run_startup_migrations():
     from sqlalchemy import inspect as sa_inspect
     from sqlalchemy import Integer, String, Float, Boolean, Date, DateTime, Text
 
+    is_pg = not engine.url.drivername.startswith("sqlite")
     type_map = {
         Integer: "INTEGER",
         String: "VARCHAR",
         Float: "FLOAT",
         Boolean: "BOOLEAN",
         Date: "DATE",
-        DateTime: "DATETIME",
+        DateTime: "TIMESTAMP" if is_pg else "DATETIME",
         Text: "TEXT",
     }
 
