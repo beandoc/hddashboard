@@ -1,12 +1,15 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 import json
+import logging
 from typing import Optional
 
 from database import Patient, MonthlyRecord
 from alerts import send_entry_alert_email
 from dashboard_logic import get_month_label
 from validators import validate_lab_values
+
+logger = logging.getLogger(__name__)
 
 def _d(s: Optional[str]) -> Optional[datetime.date]:
     return datetime.strptime(s, "%Y-%m-%d").date() if s else None

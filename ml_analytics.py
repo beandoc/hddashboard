@@ -1503,7 +1503,7 @@ def _mortality_uncertainty_band(prob: float, n_core_features: int, model_type: s
     For the fallback rule-based model, uncertainty is larger.
     NOT a statistically validated confidence interval.
     """
-    if model_type == "xgboost":
+    if model_type in ("xgboost_full", "xgboost_imputed"):
         # Tighter band: model uncertainty ~0.05, feature gap ~0.08 each
         base_se = 0.05
         feature_gap = (5 - n_core_features) * 0.08
