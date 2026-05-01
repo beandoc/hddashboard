@@ -23,7 +23,7 @@ async def events_timeline(
     date_to:   Optional[str] = None,
     event_type: Optional[str] = None,
     severity:   Optional[str] = None,
-    patient_id: Optional[int] = None,
+    patient_id: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     today = date.today()
@@ -36,7 +36,12 @@ async def events_timeline(
     )
     if event_type: q = q.filter(ClinicalEvent.event_type == event_type)
     if severity: q = q.filter(ClinicalEvent.severity == severity)
-    if patient_id: q = q.filter(ClinicalEvent.patient_id == patient_id)
+    if patient_id and patient_id.strip():
+        try:
+            pid_int = int(patient_id)
+            q = q.filter(ClinicalEvent.patient_id == pid_int)
+        except ValueError:
+            pass
 
     events = q.order_by(ClinicalEvent.event_date.desc()).all()
 
