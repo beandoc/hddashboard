@@ -75,6 +75,31 @@
     .pill-success { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
     .pill-secondary { background: var(--slate-bg); color: var(--slate); border: 1px solid var(--slate-border); }
 
+    /* Davies Score styles */
+    .davies-cell { min-width: 120px; }
+    .davies-score-num {
+      font-size: 1.1rem; font-weight: 800; line-height: 1;
+    }
+    .davies-score-num.davies-high   { color: var(--red); }
+    .davies-score-num.davies-medium { color: var(--orange); }
+    .davies-score-num.davies-low    { color: var(--green); }
+    .davies-group {
+      font-size: 0.72rem; font-weight: 600; margin-top: 3px;
+    }
+    .davies-high   .davies-group { color: var(--red); }
+    .davies-medium .davies-group { color: var(--orange); }
+    .davies-low    .davies-group { color: var(--green); }
+    .davies-1yr {
+      font-size: 0.68rem; color: var(--muted); margin-top: 1px;
+    }
+    .diverge-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #fefce8; border: 1px solid #fde047; color: #713f12;
+      border-radius: 6px; padding: 2px 7px; font-size: 0.65rem; font-weight: 700;
+      margin-top: 4px;
+    }
+    .davies-na { font-size: 0.78rem; color: #94a3b8; font-style: italic; }
+
     .conf-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
                 margin-right: 5px; }
     .conf-high     .conf-dot { background: #22c55e; }
@@ -115,23 +140,23 @@
       .header-chips { gap: 6px; }
       .chip { padding: 6px 12px; font-size: 0.75rem; }
       .model-info { flex-direction: column; padding: 12px; }
-      
+
       /* Table to cards */
       table, thead, tbody, th, td, tr { display: block; }
       thead tr { position: absolute; top: -9999px; left: -9999px; }
-      tbody tr { 
-        background: #fff; border: 1px solid var(--border); border-radius: var(--radius); 
+      tbody tr {
+        background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
         margin-bottom: 16px; padding: 12px; box-shadow: var(--shadow);
       }
-      td { 
-        border: none; position: relative; padding-left: 45%; text-align: right; 
+      td {
+        border: none; position: relative; padding-left: 45%; text-align: right;
         display: flex; justify-content: space-between; align-items: center; min-height: 36px;
       }
-      td:before { 
-        content: attr(data-label); font-weight: 700; color: var(--muted); 
+      td:before {
+        content: attr(data-label); font-weight: 700; color: var(--muted);
         font-size: 0.75em; text-transform: uppercase;
       }
-      td.patient-name-cell { 
+      td.patient-name-cell {
         padding-left: 0; text-align: left; display: block; border-bottom: 2px solid var(--bg);
         margin-bottom: 10px; padding-bottom: 10px; font-weight: 700; font-size: 1rem;
       }
@@ -157,8 +182,8 @@
   <div class="header-inner">
     <h1><i class="material-icons">psychology</i> Mortality Risk — Cohort View</h1>
     <p>
-      Xu et al. 2023 XGBoost model (AUC 0.979 · 1-yr; 0.933 · 4-yr; 0.935 · 7-yr). Chinese HD cohort.
-      Features: Age, Albumin (g/L), Neutrophil, Ejection Fraction, IHD. Sorted by descending 1-year risk.
+      Xu et al. 2023 XGBoost (AUC 0.979 · 1-yr) + Davies Comorbidity Score (UK Renal Registry validated).
+      Sorted by descending 1-year Xu risk. Divergence flag shown when models disagree.
     </p>
     <div class="header-chips">
       <span class="chip chip-red">
@@ -177,13 +202,39 @@
   <div class="model-info">
     <i class="material-icons">info</i>
     <div>
-      <strong>Model:</strong> Xu et al. 2023 XGBoost (AUC 0.979 · 1-yr | 0.933 · 4-yr | 0.935 · 7-yr),
-      trained on Chinese HD cohort (n~900). Integrated directly from the published repository.
-      <strong>Indian population note:</strong> Risk <em>direction</em> is valid; absolute probabilities
-      may differ by 5–15% until locally validated. Use for risk <em>ranking</em>, not absolute prognosis.
-      Threshold &ge; 43.9% = High Risk. Falls back to rule-based log-odds if data is insufficient.
+      <strong>Xu XGBoost:</strong> Xu et al. 2023 (AUC 0.979 · 1-yr | 0.933 · 4-yr | 0.935 · 7-yr), Chinese HD cohort (n~900).
+      Features: Age, Albumin (g/L), Neutrophil, Ejection Fraction, IHD. Risk direction valid; absolute values ±5–15% until locally validated.
+      Threshold &ge; 43.9% = High.&ensp;
+      <strong>Davies Score:</strong> Wright &amp; Jones 1999, UK Renal Registry validated. Rule-based comorbidity index —
+      population-agnostic, no calibration needed. Groups: Low (0–1 · ~5% 1-yr), Medium (2–3 · ~18%), High (4+ · ~47%).
+      A <span style="background:#fefce8;border:1px solid #fde047;color:#713f12;padding:1px 5px;border-radius:4px;font-size:0.8rem;font-weight:700;">
+      ⚡ Diverge</span> badge appears when the two models disagree on risk tier.
     </div>
   </div>
+
+  {# ── Macro: Davies cell ── #}
+  {% macro davies_cell(row) %}
+  {% set d = row.davies %}
+  {% if d and d.available %}
+    <div class="davies-cell davies-{{ d.css_class }}">
+      <span class="davies-score-num davies-{{ d.css_class }}">{{ d.score }}</span>
+      <div class="davies-group">{{ d.risk_group }}</div>
+      <div class="davies-1yr">~{{ (d.approx_1yr * 100) | int }}% 1-yr</div>
+      {# Divergence: Xu High vs Davies Low, or Xu Low vs Davies High #}
+      {% set xu_high = row.risk_level in ('High', 'Very High') %}
+      {% set xu_low  = row.risk_level == 'Low' %}
+      {% set dav_high = d.risk_group == 'High' %}
+      {% set dav_low  = d.risk_group == 'Low' %}
+      {% if (xu_high and dav_low) or (xu_low and dav_high) %}
+      <div class="diverge-badge">
+        <i class="material-icons" style="font-size:0.75rem;">electric_bolt</i> Diverge
+      </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <span class="davies-na">—</span>
+  {% endif %}
+  {% endmacro %}
 
   {% if high_risk %}
   <div class="section-head">
@@ -199,6 +250,7 @@
           <th>1-Year Risk</th>
           <th>4-Year Risk</th>
           <th>Risk Level</th>
+          <th>Davies Score</th>
           <th>Latest Hb</th>
           <th>Latest Albumin</th>
           <th>Age</th>
@@ -239,6 +291,7 @@
           <td>
             <span class="risk-pill pill-danger">{{ row.risk_level }}</span>
           </td>
+          <td data-label="Davies Score">{{ davies_cell(row) }}</td>
           <td data-label="Latest Hb">
             {% if row.latest_hb is not none %}
               <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
@@ -290,6 +343,7 @@
           <th>1-Year Risk</th>
           <th>4-Year Risk</th>
           <th>Risk Level</th>
+          <th>Davies Score</th>
           <th>Latest Hb</th>
           <th>Latest Albumin</th>
           <th>Age</th>
@@ -330,6 +384,7 @@
           <td>
             <span class="risk-pill pill-warning">{{ row.risk_level }}</span>
           </td>
+          <td data-label="Davies Score">{{ davies_cell(row) }}</td>
           <td data-label="Latest Hb">
             {% if row.latest_hb is not none %}
               <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
@@ -380,6 +435,7 @@
           <th>Patient</th>
           <th>1-Year Risk</th>
           <th>Risk Level</th>
+          <th>Davies Score</th>
           <th>Latest Hb</th>
           <th>Latest Albumin</th>
           <th>Age</th>
@@ -409,6 +465,7 @@
             </div>
           </td>
           <td><span class="risk-pill pill-success">{{ row.risk_level }}</span></td>
+          <td data-label="Davies Score">{{ davies_cell(row) }}</td>
           <td data-label="Latest Hb">
             {% if row.latest_hb is not none %}
               <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
@@ -458,6 +515,7 @@
         <tr>
           <th>Patient</th>
           <th>HID</th>
+          <th>Davies Score</th>
           <th>Months Recorded</th>
           <th>Action</th>
         </tr>
@@ -467,7 +525,8 @@
         <tr id="patient-{{ row.patient.id }}">
           <td><strong>{{ row.patient.name }}</strong></td>
           <td style="color:var(--muted);">{{ row.patient.hid_no }}</td>
-          <td style="color:var(--muted);">{{ row.n_months }} month(s) — add labs to enable prediction</td>
+          <td>{{ davies_cell(row) }}</td>
+          <td style="color:var(--muted);">{{ row.n_months }} month(s) — add labs to enable Xu prediction</td>
           <td>
             <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
               <i class="material-icons" style="font-size:0.9rem;">add_circle</i> Add Records

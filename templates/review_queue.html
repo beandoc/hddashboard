@@ -65,6 +65,36 @@
     .flag-albumin   { background: #e0f2fe; color: #0369a1; }
     .flag-fluid     { background: #f1f5f9; color: #475569; }
     .flag-idwg      { background: #fae8ff; color: #86198f; }
+    .flag-bay       { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; font-style: italic; }
+    .flag-composite { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+    /* Bayesian signal mini-panel */
+    .bay-panel {
+      margin-top: 10px; padding: 10px 14px;
+      background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px;
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    }
+    .bay-panel-title {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #7c3aed; width: 100%;
+    }
+    .bay-stat {
+      display: flex; flex-direction: column; align-items: center; min-width: 72px;
+    }
+    .bay-stat .val {
+      font-size: 1rem; font-weight: 800; color: #1e293b; line-height: 1;
+    }
+    .bay-stat .val.warn  { color: #d97706; }
+    .bay-stat .val.danger{ color: #dc2626; }
+    .bay-stat .lbl {
+      font-size: 0.62rem; color: #64748b; margin-top: 2px; text-align: center;
+    }
+    .bay-divider { width: 1px; height: 32px; background: #e9d5ff; }
+    .bay-adj-badge {
+      font-size: 0.65rem; padding: 2px 7px; border-radius: 10px;
+      background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
+      font-weight: 600;
+    }
 
     .priority-circle {
       width: 28px; height: 28px; border-radius: 50%;
@@ -117,13 +147,14 @@
         <tr>
           <th style="width: 40px; text-align: center;">#</th>
           <th>Patient</th>
-          <th>Clinical Flags</th>
+          <th>Clinical Flags &amp; Bayesian Persistence</th>
           <th>Last Review</th>
           <th style="text-align: right;">Action</th>
         </tr>
       </thead>
       <tbody>
         {% for item in review_list %}
+        {% set bay = item.bay_profile if item.bay_profile and item.bay_profile.available else None %}
         <tr>
           <td>
             <div class="priority-circle {% if item.priority >= 4 %}priority-high{% endif %}">
@@ -139,9 +170,13 @@
           <td>
             <div class="flag-pills">
               {% for flag in item.flags %}
-                <span class="flag-pill 
+                <span class="flag-pill
                   {% if 'Mortality' in flag %}flag-mortality
-                  {% elif 'Hb' in flag %}flag-hb
+                  {% elif 'Hb Drop' in flag %}flag-hb
+                  {% elif 'P(Hb' in flag %}flag-bay
+                  {% elif 'P(Alb' in flag %}flag-bay
+                  {% elif 'P(Phos' in flag %}flag-bay
+                  {% elif 'Composite' in flag %}flag-composite
                   {% elif 'Occult' in flag %}flag-occult
                   {% elif 'Albumin' in flag %}flag-albumin
                   {% elif 'Fluid' in flag %}flag-fluid
@@ -151,6 +186,64 @@
                 </span>
               {% endfor %}
             </div>
+
+            {# Bayesian mini-panel — shown when profile is available #}
+            {% if bay %}
+            {% set hb_b   = bay.hb %}
+            {% set alb_b  = bay.albumin %}
+            {% set phos_b = bay.phosphorus %}
+            <div class="bay-panel">
+              <div class="bay-panel-title">
+                <i class="material-icons" style="font-size:0.8rem; vertical-align:middle;">auto_graph</i>
+                Bayesian Persistence · P(alert next month) / P(×3 months)
+              </div>
+
+              <div class="bay-stat">
+                <span class="val {% if hb_b.prob_alert_next >= 0.6 %}danger{% elif hb_b.prob_alert_next >= 0.4 %}warn{% endif %}">
+                  {{ (hb_b.prob_alert_next * 100) | round | int }}%
+                </span>
+                <span class="lbl">Hb &lt;10<br>next mo.</span>
+              </div>
+              <div class="bay-divider"></div>
+              <div class="bay-stat">
+                <span class="val {% if hb_b.prob_persistent_3 >= 0.3 %}danger{% elif hb_b.prob_persistent_3 >= 0.15 %}warn{% endif %}">
+                  {{ (hb_b.prob_persistent_3 * 100) | round | int }}%
+                </span>
+                <span class="lbl">Hb ×3<br>persist</span>
+              </div>
+
+              <div class="bay-divider"></div>
+
+              <div class="bay-stat">
+                <span class="val {% if alb_b.prob_alert_next >= 0.5 %}danger{% elif alb_b.prob_alert_next >= 0.3 %}warn{% endif %}">
+                  {{ (alb_b.prob_alert_next * 100) | round | int }}%
+                </span>
+                <span class="lbl">Alb &lt;3.5<br>next mo.</span>
+              </div>
+              <div class="bay-divider"></div>
+              <div class="bay-stat">
+                <span class="val {% if phos_b.prob_alert_next >= 0.55 %}danger{% elif phos_b.prob_alert_next >= 0.35 %}warn{% endif %}">
+                  {{ (phos_b.prob_alert_next * 100) | round | int }}%
+                </span>
+                <span class="lbl">Phos &gt;5.5<br>next mo.</span>
+              </div>
+
+              {% if hb_b.intervention_adjusted %}
+              <div class="bay-divider"></div>
+              <span class="bay-adj-badge">
+                <i class="material-icons" style="font-size:0.75rem; vertical-align:middle;">vaccines</i>
+                IV Iron adjusted
+              </span>
+              {% endif %}
+
+              {# 95% CI for Hb — gives nephrologist a sense of uncertainty #}
+              <div style="width:100%; font-size:0.65rem; color:#94a3b8; margin-top:2px;">
+                Hb 95% CI: {{ (hb_b.ci_95[0]*100)|round|int }}%–{{ (hb_b.ci_95[1]*100)|round|int }}%
+                &nbsp;·&nbsp; based on {{ hb_b.n_observed }} observed months
+                &nbsp;·&nbsp; composite score: <strong>{{ (bay.summary.composite_alert_score * 100)|round|int }}%</strong>
+              </div>
+            </div>
+            {% endif %}
           </td>
           <td>
             <div class="last-review">

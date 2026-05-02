@@ -1842,6 +1842,122 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
 
 
 
+# ── Davies Score ──────────────────────────────────────────────────────────────
+#
+# Validated UK Renal Association comorbidity scoring system for HD patients.
+# Wright & Jones 1999; widely used in UK Renal Registry annual reports.
+# Population-agnostic — rule-based, no training data, directly applicable to
+# Indian cohorts without recalibration.
+#
+# Criteria:
+#   Age > 75                          +2
+#   Neoplasia (any active malignancy) +3  (solid_tumor Localized=+3; Metastatic=+3; leukemia=+3; lymphoma=+3)
+#   IHD / CAD                         +2
+#   Peripheral Vascular Disease        +1
+#   Diabetes + end-organ damage        +2
+#   Albumin < 25 g/L (< 2.5 g/dL)    +2
+#
+# Risk groups (from Wright & Jones original validation):
+#   0–1: Low    (~5% 1-year mortality in HD)
+#   2–3: Medium (~18% 1-year mortality)
+#   4+:  High   (~47% 1-year mortality)
+
+def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict:
+    """
+    Compute the Davies comorbidity score for a hemodialysis patient.
+
+    Parameters
+    ----------
+    patient_info : dict with keys — age, cad_status, dm_end_organ_damage,
+                   history_of_pvd, solid_tumor (str: None/Localized/Metastatic),
+                   leukemia (bool), lymphoma (bool)
+    latest_record : dict with 'albumin' (g/dL) from the most recent monthly record.
+
+    Returns
+    -------
+    dict with score, risk_group, approx_1yr_mortality, css_class,
+    components (list of triggered criteria), n_missing, available.
+    """
+    score = 0
+    components = []
+    n_missing = 0
+
+    age = patient_info.get("age")
+    if age is None:
+        n_missing += 1
+    elif age > 75:
+        score += 2
+        components.append("Age > 75 (+2)")
+
+    cad = patient_info.get("cad_status")
+    if cad is None:
+        n_missing += 1
+    elif cad:
+        score += 2
+        components.append("IHD/CAD (+2)")
+
+    pvd = patient_info.get("history_of_pvd")
+    if pvd is None:
+        n_missing += 1
+    elif pvd:
+        score += 1
+        components.append("PVD (+1)")
+
+    dm_eo = patient_info.get("dm_end_organ_damage")
+    if dm_eo is None:
+        n_missing += 1
+    elif dm_eo:
+        score += 2
+        components.append("DM + end-organ damage (+2)")
+
+    neoplasia = False
+    solid = patient_info.get("solid_tumor")
+    leuk  = patient_info.get("leukemia")
+    lymph = patient_info.get("lymphoma")
+    if solid and solid.lower() not in ("none", "no", ""):
+        neoplasia = True
+    if leuk:
+        neoplasia = True
+    if lymph:
+        neoplasia = True
+    if neoplasia:
+        score += 3
+        components.append("Active neoplasia (+3)")
+
+    albumin_gdl = None
+    if latest_record:
+        albumin_gdl = latest_record.get("albumin")
+    if albumin_gdl is None:
+        n_missing += 1
+    elif albumin_gdl < 2.5:
+        score += 2
+        components.append("Albumin < 2.5 g/dL (+2)")
+
+    if score <= 1:
+        risk_group = "Low"
+        approx_1yr = 0.05
+        css_class = "success"
+    elif score <= 3:
+        risk_group = "Medium"
+        approx_1yr = 0.18
+        css_class = "warning"
+    else:
+        risk_group = "High"
+        approx_1yr = 0.47
+        css_class = "danger"
+
+    return {
+        "available":          True,
+        "score":              score,
+        "risk_group":         risk_group,
+        "approx_1yr":         approx_1yr,
+        "css_class":          css_class,
+        "components":         components,
+        "n_missing":          n_missing,
+        "note":               "Davies comorbidity score (Wright & Jones 1999). Mortality estimates from UK Renal Registry validation.",
+    }
+
+
 # ── Blood Flow Rate / Vascular Access Trend ──────────────────────────────────
 #
 # BFR is the single most sensitive per-session indicator of vascular access
@@ -2026,6 +2142,9 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
             "hospitalization_this_month": r.hospitalization_this_month,
             "transfusion_units":          getattr(r, "blood_transfusion_units", None) or 0,
             "transfusion_date":           getattr(r, "transfusion_date", None),
+            # Bayesian intervention fields
+            "iv_iron_dose":               r.iv_iron_dose,
+            "phosphate_binder_type":      r.phosphate_binder_type,
         }
         for r in records
     ]
@@ -2039,13 +2158,20 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
     patient_obj = records[0].patient if records else None
     patient_info: Dict = {}
     if patient_obj:
-        patient_info["cad_status"] = getattr(patient_obj, "cad_status", None)
-        patient_info["dm_status"]  = getattr(patient_obj, "dm_status",  None)
-        patient_info["chf_status"] = getattr(patient_obj, "chf_status", None)
-        patient_info["age"] = getattr(patient_obj, "age", None)
+        patient_info["cad_status"]        = getattr(patient_obj, "cad_status",        None)
+        patient_info["dm_status"]         = getattr(patient_obj, "dm_status",         None)
+        patient_info["chf_status"]        = getattr(patient_obj, "chf_status",        None)
+        patient_info["age"]               = getattr(patient_obj, "age",               None)
+        patient_info["history_of_pvd"]    = getattr(patient_obj, "history_of_pvd",    None)
+        patient_info["dm_end_organ_damage"] = getattr(patient_obj, "dm_end_organ_damage", None)
+        patient_info["solid_tumor"]       = getattr(patient_obj, "solid_tumor",       None)
+        patient_info["leukemia"]          = getattr(patient_obj, "leukemia",          None)
+        patient_info["lymphoma"]          = getattr(patient_obj, "lymphoma",          None)
         # Default EF to 60% (normal) when not recorded, per clinical convention
         ef_raw = getattr(patient_obj, "ejection_fraction", None)
         patient_info["ef"] = ef_raw if ef_raw is not None else 60.0
+
+    from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
 
     hb_traj    = predict_hb_trajectory(df)
     epo_resp   = detect_epo_hyporesponse(df, hb_traj)
@@ -2055,6 +2181,9 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
     det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
     mort_risk  = predict_mortality_risk(df, patient_info)
     mia_status = compute_mia_score(db, patient_id)
+    bay_profile = compute_bayesian_alert_profile(df, patient_info)
+    mort_risk   = augment_mortality_risk(mort_risk, bay_profile)
+    davies      = compute_davies_score(patient_info, df[0] if df else None)
 
     return {
         "status": "ok",
@@ -2066,6 +2195,8 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
         "deterioration_risk": det_risk,
         "mortality_risk": mort_risk,
         "mia_status": mia_status,
+        "bay_profile": bay_profile,
+        "davies": davies,
         "history_count": len(df),
         "n_months": len(df),
     }
@@ -2930,27 +3061,41 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
                 "wbc_count": r.wbc_count, "crp": r.crp,
                 "hospitalization_this_month": r.hospitalization_this_month,
                 "weight": r.target_dry_weight or p.dry_weight,
+                # Bayesian intervention fields
+                "iv_iron_dose":          r.iv_iron_dose,
+                "phosphate_binder_type": r.phosphate_binder_type,
             }
             for r in records
         ]
         patient_info = {
-            "age":        p.age,
-            "cad_status": p.cad_status,
-            "chf_status": p.chf_status,
-            "dm_status":  p.dm_status,
-            "ef":         p.ejection_fraction if p.ejection_fraction is not None else 60.0,
+            "age":                 p.age,
+            "cad_status":         p.cad_status,
+            "chf_status":         p.chf_status,
+            "dm_status":          p.dm_status,
+            "ef":                 p.ejection_fraction if p.ejection_fraction is not None else 60.0,
+            "history_of_pvd":     getattr(p, "history_of_pvd",     None),
+            "dm_end_organ_damage": getattr(p, "dm_end_organ_damage", None),
+            "solid_tumor":        getattr(p, "solid_tumor",        None),
+            "leukemia":           getattr(p, "leukemia",           None),
+            "lymphoma":           getattr(p, "lymphoma",           None),
         }
+        from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
         mort = predict_mortality_risk(df, patient_info) if df else {"available": False}
+        bay_profile = compute_bayesian_alert_profile(df, patient_info) if df else {"available": False}
+        mort = augment_mortality_risk(mort, bay_profile)
+        davies = compute_davies_score(patient_info, df[0] if df else None)
         rows.append({
-            "patient":    p,
-            "mort":       mort,
-            "prob_1yr":   mort.get("prob_1yr") if mort.get("available") else None,
-            "risk_level": mort.get("risk_level", "Unknown"),
-            "css_class":  mort.get("class", "secondary"),
-            "confidence": mort.get("confidence", "—"),
-            "latest_hb":  df[0].get("hb") if df else None,
-            "latest_alb": df[0].get("albumin") if df else None,
-            "n_months":   len(df),
+            "patient":     p,
+            "mort":        mort,
+            "prob_1yr":    mort.get("prob_1yr") if mort.get("available") else None,
+            "risk_level":  mort.get("risk_level", "Unknown"),
+            "css_class":   mort.get("class", "secondary"),
+            "confidence":  mort.get("confidence", "—"),
+            "latest_hb":   df[0].get("hb") if df else None,
+            "latest_alb":  df[0].get("albumin") if df else None,
+            "n_months":    len(df),
+            "bay_profile": bay_profile,
+            "davies":      davies,
         })
     return rows
 

@@ -188,7 +188,7 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
 
     # 1. Fetch data from dashboard compute (handles Hb drop, Albumin < 2.5, Phos, IDWG)
     dash_data = compute_dashboard(db)
-    # 2. Fetch mortality risks
+    # 2. Fetch mortality risks + Bayesian profiles (both computed in get_all_patients_mortality_risk)
     mort_data = get_all_patients_mortality_risk(db)
     mort_map = {r['patient'].id: r for r in mort_data}
 
@@ -199,32 +199,33 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     for p in active_patients:
         p_flags = []
         priority = 0
-        
-        # A. High Mortality Risk (P >= 0.40)
         m = mort_map.get(p.id)
+        bay = (m or {}).get("bay_profile", {})
+        bay_summary = bay.get("summary", {}) if bay.get("available") else {}
+
+        # A. High Mortality Risk (P >= 0.40)
         if m and m.get('prob_1yr') and m['prob_1yr'] >= 0.40:
             p_flags.append("High Mortality Risk")
             priority += 3
 
         # B. Hb Drop (Current < 9 and dropped from previous)
-        # Find in dash_data['metrics']['trend_hb']
         hb_trend = next((item for item in dash_data['metrics']['trend_hb'] if item['id'] == p.id), None)
         if hb_trend:
             p_flags.append("Hb Drop (<9)")
             priority += 2
 
-        # C. Low Albumin (mapped from trend_albumin)
+        # C. Low Albumin
         alb_trend = next((item for item in dash_data['metrics']['trend_albumin'] if item['id'] == p.id), None)
         if alb_trend:
             p_flags.append("Low Albumin")
             priority += 2
 
-        # D. High IDWG (mapped from dash_data['metrics']['idwg_high'])
+        # D. High IDWG
         if p.name in dash_data['metrics']['idwg_high']['names']:
             p_flags.append("High IDWG (>2.5kg)")
             priority += 1
 
-        # E. Occult Overload (Calculated on the fly)
+        # E. Occult Overload
         occult = detect_occult_overload(db, p.id)
         if occult:
             p_flags.append("Occult Fluid Overload")
@@ -235,10 +236,41 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
             ClinicalEvent.patient_id == p.id,
             ClinicalEvent.event_type == "Fluid Status Assessment"
         ).order_by(ClinicalEvent.event_date.desc()).first()
-        
         if not last_fs or (datetime.now().date() - last_fs.event_date).days > 90:
             p_flags.append("Fluid Assessment Pending")
             priority += 1
+
+        # G. Bayesian persistence flags — only added when Bayesian data is available
+        #    and the flag is not already captured by the point-in-time checks above.
+        if bay.get("available"):
+            hb_bay  = bay.get("hb", {})
+            alb_bay = bay.get("albumin", {})
+            phos_bay = bay.get("phosphorus", {})
+
+            # High Hb persistence: prob of being low for 3+ months >= 40%
+            # Only add if Hb Drop flag not already present (avoid double-flag)
+            if hb_bay.get("prob_persistent_3", 0) >= 0.40 and "Hb Drop (<9)" not in p_flags:
+                pct = round(hb_bay["prob_persistent_3"] * 100)
+                p_flags.append(f"P(Hb Low×3) {pct}%")
+                priority += 2
+
+            # High Albumin persistence: prob >= 35%
+            if alb_bay.get("prob_persistent_3", 0) >= 0.35 and "Low Albumin" not in p_flags:
+                pct = round(alb_bay["prob_persistent_3"] * 100)
+                p_flags.append(f"P(Alb Low×3) {pct}%")
+                priority += 2
+
+            # High Phosphorus persistence: prob >= 45%
+            if phos_bay.get("prob_persistent_3", 0) >= 0.45:
+                pct = round(phos_bay["prob_persistent_3"] * 100)
+                p_flags.append(f"P(Phos High×3) {pct}%")
+                priority += 1
+
+            # Elevated composite alert score — catch multi-parameter borderline patients
+            # who pass each individual threshold but are flagged together
+            if bay_summary.get("composite_alert_score", 0) >= 0.55 and not p_flags:
+                p_flags.append("Composite Risk Elevated")
+                priority += 2
 
         if p_flags:
             # Get last reviewed date (from ClinicalEvent "Clinical Review")
@@ -252,11 +284,21 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
                 "flags": p_flags,
                 "priority": priority,
                 "mort_prob": m['prob_1yr'] if m else 0,
-                "last_review": last_review.event_date if last_review else None
+                "last_review": last_review.event_date if last_review else None,
+                "bay_profile": bay,
+                "bay_signal": (m.get("mort", {}) or {}).get("bay_signal") if m else None,
             }
 
-    # Sort by priority desc, then mortality risk desc
-    review_list = sorted(flagged.values(), key=lambda x: (-x['priority'], -(x['mort_prob'] or 0), x['patient'].name))
+    # Sort by priority desc, then Bayesian composite desc, then mortality risk desc
+    review_list = sorted(
+        flagged.values(),
+        key=lambda x: (
+            -x['priority'],
+            -(x.get('bay_profile', {}).get('summary', {}).get('composite_alert_score') or 0),
+            -(x['mort_prob'] or 0),
+            x['patient'].name,
+        )
+    )
 
     return templates.TemplateResponse("review_queue.html", {
         "request": request,
