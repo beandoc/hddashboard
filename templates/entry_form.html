@@ -218,12 +218,33 @@
                         <input type="number" step="1" name="tsat" inputmode="numeric" value="{{ record.tsat if record else '' }}">
                     </div>
                     <div class="form-group">
-                        <label>EPO Units/Week</label>
-                        <input type="number" step="1" min="0" name="epo_weekly_units" inputmode="numeric" placeholder="e.g. 4000" value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}">
+                        <label>ESA Type</label>
+                        <select name="esa_type" id="esa_type" onchange="toggleESACalculator()">
+                            <option value="">-- Select --</option>
+                            {% set esa_cur = record.esa_type if record else (prior_record.esa_type if prior_record else '') %}
+                            {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","Desidustat","None"] %}
+                            <option value="{{ t }}" {{ 'selected' if esa_cur == t }}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" id="mcg_input_group" style="display:none;">
+                        <label id="mcg_label">Dose (mcg)</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="number" id="esa_mcg" placeholder="e.g. 40" oninput="calculateWeeklyUnits()">
+                            <select id="esa_frequency" onchange="calculateWeeklyUnits()" style="flex:1.5;">
+                                <option value="1">Weekly</option>
+                                <option value="0.5">Every 2 Weeks</option>
+                                <option value="0.25">Monthly</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" id="epo_units_group">
+                        <label>EPO Units/Week (Total)</label>
+                        <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric" placeholder="e.g. 4000" value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}" style="background: #f1f5f9;">
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>EPO Brand/Dose Description</label>
-                        <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}">
+                        <label>ESA Brand & Prescribed Schedule (Description)</label>
+                        <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="e.g. Mircera 75mcg once a month" value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}">
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>Oxemia (Desidustat) Dose</label>
@@ -335,14 +356,8 @@
                 <div class="section-title"><i class="material-icons">bloodtype</i> Iron Panel, ESA & Haematology</div>
                 <div class="grid">
                     <div class="form-group">
-                        <label>ESA Type</label>
-                        <select name="esa_type">
-                            <option value="">-- Select --</option>
-                            {% set esa_cur = record.esa_type if record else (prior_record.esa_type if prior_record else '') %}
-                            {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","Desidustat","None"] %}
-                            <option value="{{ t }}" {{ 'selected' if esa_cur == t }}>{{ t }}</option>
-                            {% endfor %}
-                        </select>
+                        <label>Hematocrit (%) <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional)</span></label>
+                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="">
                     </div>
                     <div class="form-group">
                         <label>Serum Iron (µg/dL)</label>
@@ -646,8 +661,66 @@
             wrap.appendChild(row);
         }
 
-        const epoUnitsInput = document.querySelector('input[name="epo_weekly_units"]');
+        const epoUnitsInput = document.getElementById('epo_weekly_units');
+        const esaTypeSelect = document.getElementById('esa_type');
+        const mcgInputGroup = document.getElementById('mcg_input_group');
+        const esaMcgInput = document.getElementById('esa_mcg');
+        const esaFreqSelect = document.getElementById('esa_frequency');
         const conversionHint = document.getElementById('conversionHint');
+
+        function toggleESACalculator() {
+            if (!esaTypeSelect || !mcgInputGroup || !epoUnitsInput) return;
+            const type = esaTypeSelect.value;
+            
+            if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
+                mcgInputGroup.style.display = 'block';
+                epoUnitsInput.readOnly = true;
+                epoUnitsInput.style.background = '#f1f5f9';
+                epoUnitsInput.placeholder = 'Calculated from mcg...';
+                calculateWeeklyUnits();
+            } else if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
+                mcgInputGroup.style.display = 'none';
+                epoUnitsInput.readOnly = false;
+                epoUnitsInput.style.background = '#ffffff';
+                epoUnitsInput.placeholder = 'e.g. 4000';
+            } else {
+                mcgInputGroup.style.display = 'none';
+                epoUnitsInput.readOnly = true;
+                epoUnitsInput.style.background = '#f1f5f9';
+                epoUnitsInput.value = (type === 'None') ? '0' : epoUnitsInput.value;
+            }
+        }
+
+        function calculateWeeklyUnits() {
+            if (!esaTypeSelect || !esaMcgInput || !esaFreqSelect || !epoUnitsInput) return;
+            const type = esaTypeSelect.value;
+            const mcg = parseFloat(esaMcgInput.value);
+            const freq = parseFloat(esaFreqSelect.value);
+            const descInput = document.getElementById('epo_mircera_dose');
+            
+            if (isNaN(mcg)) return;
+
+            let weeklyUnits = 0;
+            let freqText = "";
+            if (freq === 1) freqText = "Weekly";
+            else if (freq === 0.5) freqText = "Every 2 Weeks";
+            else if (freq === 0.25) freqText = "Monthly";
+
+            if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
+                // Conversion: 1 mcg approx 200 IU Epoetin
+                weeklyUnits = Math.round(mcg * freq * 200);
+                epoUnitsInput.value = weeklyUnits;
+                
+                // Auto-sync description if not already manually edited to something else complex
+                if (descInput) {
+                    descInput.value = `${type} ${mcg}mcg ${freqText}`;
+                }
+
+                // Trigger validation and conversion hint
+                validate('epo_weekly_units');
+                updateConversionHint();
+            }
+        }
 
         function updateConversionHint() {
             if (!epoUnitsInput || !conversionHint) return;
@@ -658,16 +731,15 @@
             }
             
             let suggested = '';
-            let darbeEquiv = '';
             if (uiVal < 8000) {
-                suggested = '100 mg thrice a week'; darbeEquiv = '< 40 mcg/week';
+                suggested = '100 mg thrice a week';
             } else if (uiVal <= 16000) {
-                suggested = '125 mg thrice a week'; darbeEquiv = '40 to 80 mcg/week';
+                suggested = '125 mg thrice a week';
             } else {
-                suggested = '150 mg thrice a week'; darbeEquiv = '> 80 mcg/week';
+                suggested = '150 mg thrice a week';
             }
             
-            conversionHint.innerHTML = `<strong>Suggested Oxemia (Desidustat) Conversion:</strong> ${suggested} <br><em style="opacity:0.8">(Based on ${uiVal} IU/week Epoetin or ${darbeEquiv} Darbepoetin)</em>`;
+            conversionHint.innerHTML = `<strong>Suggested Oxemia (Desidustat) Conversion:</strong> ${suggested} <br><em style="opacity:0.8">(Based on ${uiVal} IU/week Epoetin equivalent)</em>`;
             conversionHint.style.display = 'block';
             conversionHint.style.color = '#0284c7';
             conversionHint.style.background = '#f0f9ff';
@@ -676,9 +748,14 @@
             conversionHint.style.borderLeft = '4px solid #0ea5e9';
         }
 
+        if(esaTypeSelect) {
+            esaTypeSelect.addEventListener('change', toggleESACalculator);
+            toggleESACalculator();
+        }
+        
         if(epoUnitsInput) {
             epoUnitsInput.addEventListener('input', updateConversionHint);
-            updateConversionHint(); // Initial check
+            updateConversionHint(); 
         }
 
         const thresholds = {

@@ -139,6 +139,8 @@
         .act-review:hover { background: #fecaca; }
         .act-view { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
         .act-view:hover { background: #bae6fd; }
+        .act-analytics { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .act-analytics:hover { background: #dbeafe; }
 
         /* overflow dropdown */
         .more-wrap { position: relative; display: inline-block; vertical-align: middle; }
@@ -388,20 +390,27 @@
 
                     <!-- Actions: 3 icon buttons + overflow menu -->
                     <td data-label="Actions" class="actions-cell">
-                        <!-- Context-aware primary action -->
-                        {% if not row.has_record or row.has_missing_data %}
-                            <button onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn-primary act-enter-labs" title="Enter interim lab results">
-                                <i class="material-icons" style="font-size:0.9rem;">science</i> Enter Labs
-                            </button>
-                        {% elif row.alerts %}
-                            <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-review" title="Review alerts">
-                                <i class="material-icons" style="font-size:0.9rem;">visibility</i> Review
+                        <div style="display:inline-flex; gap:8px; align-items:center;">
+                            <!-- Context-aware primary action -->
+                            {% if not row.has_record or row.has_missing_data %}
+                                <button onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn-primary act-enter-labs" title="Enter interim lab results">
+                                    <i class="material-icons" style="font-size:0.9rem;">science</i> Enter Labs
+                                </button>
+                            {% elif row.alerts %}
+                                <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-review" title="Review alerts">
+                                    <i class="material-icons" style="font-size:0.9rem;">visibility</i> Review
+                                </a>
+                            {% else %}
+                                <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-view" title="View record">
+                                    <i class="material-icons" style="font-size:0.9rem;">person</i> View
+                                </a>
+                            {% endif %}
+
+                            <!-- Analytics (Always visible) -->
+                            <a href="/analytics/patients/{{ row.id }}" class="act-btn-primary act-analytics" title="Patient Analytics">
+                                <i class="material-icons" style="font-size:0.9rem;">bar_chart</i> Analytics
                             </a>
-                        {% else %}
-                            <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-view" title="View record">
-                                <i class="material-icons" style="font-size:0.9rem;">person</i> View
-                            </a>
-                        {% endif %}
+                        </div>
 
                         <!-- Overflow menu -->
                         <div class="more-wrap">
@@ -409,8 +418,8 @@
                                 <i class="material-icons">more_vert</i>
                             </button>
                             <div class="more-dropdown" id="more-{{ row.id }}">
-                                <a href="/analytics/patients/{{ row.id }}" class="more-item">
-                                    <i class="material-icons">bar_chart</i> Analytics
+                                <a href="/patients/{{ row.id }}/profile" class="more-item">
+                                    <i class="material-icons">account_circle</i> Full Profile
                                 </a>
                                 <a href="/events?patient_id={{ p.id }}" class="more-item">
                                     <i class="material-icons">timeline</i> Timeline
