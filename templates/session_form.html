@@ -17,14 +17,6 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
 
-    nav {
-      background: var(--primary); color: white; padding: 14px 24px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    nav .brand { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; }
-    nav .links a { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 0.88rem; margin-left: 18px; }
-    nav .links a:hover { color: white; }
-
     .page-header {
       background: white; border-bottom: 1px solid var(--border);
       padding: 18px 24px; display: flex; align-items: center; gap: 14px;
@@ -129,6 +121,34 @@
 <body>
 
 {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients">Patients</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients/{{ patient.id }}/timeline">{{ patient.name }}</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Log Session</span>
+</nav>
+
+<div id="sessionProgress" style="
+  position: sticky; top: 60px; z-index: 900;
+  background: #fff; border-bottom: 1px solid #e2e8f0;
+  padding: 8px 24px; display: flex; gap: 6px; align-items: center;
+  overflow-x: auto; font-size: 0.73rem; font-family: 'Inter', sans-serif;
+">
+  <span id="sp-vitals"    style="padding:4px 10px; border-radius:20px; background:#f1f5f9; color:#64748b; white-space:nowrap;">Vitals</span>
+  <span style="color:#cbd5e1;">›</span>
+  <span id="sp-access"    style="padding:4px 10px; border-radius:20px; background:#f1f5f9; color:#64748b; white-space:nowrap;">Access</span>
+  <span style="color:#cbd5e1;">›</span>
+  <span id="sp-dialysis"  style="padding:4px 10px; border-radius:20px; background:#f1f5f9; color:#64748b; white-space:nowrap;">Dialysis Rx</span>
+  <span style="color:#cbd5e1;">›</span>
+  <span id="sp-events"    style="padding:4px 10px; border-radius:20px; background:#f1f5f9; color:#64748b; white-space:nowrap;">Events</span>
+  <span style="color:#cbd5e1;">›</span>
+  <span id="sp-labs"      style="padding:4px 10px; border-radius:20px; background:#f1f5f9; color:#64748b; white-space:nowrap;">Labs</span>
+</div>
+
+
 
 <div class="page-header">
   <a href="/patients/{{ patient.id }}/profile" class="back-btn">
@@ -144,7 +164,7 @@
   <form method="POST">
 
     <!-- ── Blood Flow Rate (hero) ── -->
-    <div class="bfr-hero">
+    <div class="bfr-hero" id="section-dialysis">
       <div class="card-title">
         <i class="material-icons">water_drop</i> Blood Flow Rate — Vascular Access Monitor
       </div>
@@ -233,7 +253,7 @@
     </div>
 
     <!-- ── Vascular Access ── -->
-    <div class="card" id="access-card">
+    <div class="card" id="section-access">
       <div class="card-title"><i class="material-icons">device_hub</i> Vascular Access Assessment</div>
       <div class="grid">
         <div>
@@ -341,7 +361,7 @@
     </div>
 
     <!-- ── Weights & BP ── -->
-    <div class="card">
+    <div class="card" id="section-vitals">
       <div class="card-title"><i class="material-icons">monitor_weight</i> Weights & Blood Pressure</div>
       <div class="grid">
         <div>
@@ -406,7 +426,7 @@
     </div>
 
     <!-- ── Interim Labs ── -->
-    <div class="card" style="background: #fffcf0; border: 1.5px solid #fde68a;">
+    <div class="card" id="section-labs" style="background: #fffcf0; border: 1.5px solid #fde68a;">
       <div class="card-title" style="border-bottom-color: #fde68a;"><i class="material-icons" style="color: #d97706;">biotech</i> Interim Labs (Hybrid Entry)</div>
       <p style="font-size: 0.75rem; color: #92400e; margin-bottom: 12px; font-style: italic;">
         Labs entered here will automatically be promoted to the patient's longitudinal Interim Lab Record for ML tracking.
@@ -440,7 +460,7 @@
     </div>
 
     <!-- ── Intradialytic Events ── -->
-    <div class="card">
+    <div class="card" id="section-events">
       <div class="card-title"><i class="material-icons">warning_amber</i> Intradialytic Events & Symptoms</div>
       
       <div style="margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
@@ -481,6 +501,19 @@
           Early Termination
         </label>
       </div>
+      </div>
+    </div>
+
+    <div class="card" style="border-left: 3px solid #f59e0b; margin-bottom: 20px;">
+      <p style="font-size:0.82rem; color:#92400e; margin:0;">
+        <i class="material-icons" style="font-size:1rem; vertical-align:middle;">warning</i>
+        If a significant complication occurred during this session,
+        <a href="/events?patient_id={{ patient.id }}&prefill=intradialytic"
+           target="_blank"
+           style="color:#d97706; font-weight:600; text-decoration:underline;">
+          log it as a Clinical Event →
+        </a>
+      </p>
     </div>
 
     <button type="submit" class="btn-save">
@@ -610,6 +643,30 @@
   }
   qaInput.addEventListener('input', updateQaStatus);
   updateQaStatus();
+
+  // Session Progress Tracker
+  const sectionMap = [
+    ['section-vitals',   'sp-vitals'],
+    ['section-access',   'sp-access'],
+    ['section-dialysis', 'sp-dialysis'],
+    ['section-events',   'sp-events'],
+    ['section-labs',     'sp-labs'],
+  ];
+  const activeStyle = 'padding:4px 10px; border-radius:20px; background:#0ea5e9; color:#fff; white-space:nowrap; font-weight:600;';
+  const idleStyle   = 'padding:4px 10px; border-radius:20px; background:#f1f5f9; color:#64748b; white-space:nowrap;';
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const match = sectionMap.find(([sid]) => sid === e.target.id);
+        if (match) {
+          sectionMap.forEach(([, spid]) => document.getElementById(spid).style.cssText = idleStyle);
+          document.getElementById(match[1]).style.cssText = activeStyle;
+        }
+      }
+    });
+  }, { threshold: 0.3 });
+  sectionMap.forEach(([sid]) => { const el = document.getElementById(sid); if (el) obs.observe(el); });
 </script>
 </body>
 </html>

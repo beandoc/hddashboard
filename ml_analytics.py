@@ -2902,3 +2902,62 @@ def detect_occult_overload(db: Session, patient_id: int):
     
     return None
 
+
+def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
+    """
+    Compute mortality risk for all active patients.
+    Returns a list of dictionaries containing patient info and risk metrics.
+    """
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    rows = []
+    for p in patients:
+        records = (
+            db.query(MonthlyRecord)
+            .filter(MonthlyRecord.patient_id == p.id)
+            .order_by(MonthlyRecord.record_month.desc())
+            .limit(6)
+            .all()
+        )
+        df = [
+            {
+                "month": r.record_month,
+                "hb": r.hb, "albumin": r.albumin,
+                "phosphorus": r.phosphorus, "idwg": r.idwg,
+                "urr": r.urr, "serum_ferritin": r.serum_ferritin,
+                "tsat": r.tsat, "ipth": r.ipth, "bp_sys": r.bp_sys,
+                "epo_weekly_units": r.epo_weekly_units,
+                "epo_mircera_dose": r.epo_mircera_dose,
+                "wbc_count": r.wbc_count, "crp": r.crp,
+                "hospitalization_this_month": r.hospitalization_this_month,
+                "weight": r.target_dry_weight or p.dry_weight,
+            }
+            for r in records
+        ]
+        patient_info = {
+            "age":        p.age,
+            "cad_status": p.cad_status,
+            "chf_status": p.chf_status,
+            "dm_status":  p.dm_status,
+            "ef":         p.ejection_fraction if p.ejection_fraction is not None else 60.0,
+        }
+        mort = predict_mortality_risk(df, patient_info) if df else {"available": False}
+        rows.append({
+            "patient":    p,
+            "mort":       mort,
+            "prob_1yr":   mort.get("prob_1yr") if mort.get("available") else None,
+            "risk_level": mort.get("risk_level", "Unknown"),
+            "css_class":  mort.get("class", "secondary"),
+            "confidence": mort.get("confidence", "—"),
+            "latest_hb":  df[0].get("hb") if df else None,
+            "latest_alb": df[0].get("albumin") if df else None,
+            "n_months":   len(df),
+        })
+    return rows
+
+
+def get_high_risk_mortality_count(db: Session) -> int:
+    """
+    Returns the count of patients with 1-year mortality risk > 0.40.
+    """
+    rows = get_all_patients_mortality_risk(db)
+    return sum(1 for r in rows if r["prob_1yr"] is not None and r["prob_1yr"] > 0.40)

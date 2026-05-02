@@ -69,6 +69,28 @@ async def entry_index(request: Request, month: Optional[str] = None, db: Session
     records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()
     existing_records = {r.patient_id: r for r in records}
     patient_slot_info = {p.id: _build_patient_slot_info(p) for p in patients}
+    
+    # Calculate stats
+    total_count = len(patients)
+    completed_count = len(existing_records)
+    
+    # Calculate days remaining in the month
+    try:
+        from calendar import monthrange
+        year, mon = map(int, month_str.split("-"))
+        _, last_day = monthrange(year, mon)
+        target_date = date(year, mon, last_day)
+        today = date.today()
+        if today.year == year and today.month == mon:
+            days_remaining = (target_date - today).days
+        elif today > target_date:
+            days_remaining = 0
+        else:
+            days_remaining = last_day
+    except:
+        days_remaining = 0
+
+    from urllib.parse import quote
     return templates.TemplateResponse("entry_list.html", {
         "request": request,
         "patients": patients,
@@ -76,6 +98,10 @@ async def entry_index(request: Request, month: Optional[str] = None, db: Session
         "month_str": month_str,
         "month_label": get_month_label(month_str),
         "existing_records": existing_records,
+        "total_count": total_count,
+        "completed_count": completed_count,
+        "days_remaining": days_remaining,
+        "return_to_entry": quote(f"/entry?month={month_str}", safe=""),
         "user": get_user(request),
     })
 
@@ -188,6 +214,19 @@ async def save_entry(
     hospitalization_icd_diagnosis: list[str] = Form([]),
     clinical_background: str = Form(""),
     issues: str = Form(""),
+    action: str = Form("save_back"),
 ):
     entry_service.save_monthly_record(db, patient_id, locals())
-    return RedirectResponse(url=f"/entry?month={month_str}", status_code=303)
+    
+    if action == "save_next":
+        # Find next pending patient
+        all_active = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+        existing = db.query(MonthlyRecord.patient_id).filter(MonthlyRecord.record_month == month_str).all()
+        existing_ids = {r[0] for r in existing}
+        
+        found_next = False
+        for p in all_active:
+            if p.id not in existing_ids:
+                return RedirectResponse(url=f"/entry/{p.id}?month={month_str}&saved=1", status_code=303)
+                
+    return RedirectResponse(url=f"/entry?month={month_str}&saved=1", status_code=303)

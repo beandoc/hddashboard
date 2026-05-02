@@ -75,15 +75,44 @@
             border-color: var(--primary); background: #fff; outline: none; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); 
         }
 
-        .btn-save { 
-            position: fixed; bottom: 20px; left: 16px; right: 16px; max-width: 768px; margin: 0 auto;
-            background: var(--primary); color: white; padding: 16px; border: none; 
-            border-radius: var(--radius); cursor: pointer; font-size: 1.1em; 
-            font-weight: 700; font-family: 'Outfit', sans-serif;
-            box-shadow: 0 10px 25px rgba(14, 165, 233, 0.4); z-index: 500;
-            transition: all 0.2s; min-height: 56px;
+        .save-actions {
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
+            padding: 16px; border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: center; gap: 12px; z-index: 500;
         }
-        .btn-save:hover { background: var(--primary-dark); transform: translateY(-2px); }
+        .btn-save { 
+            flex: 1; max-width: 320px;
+            background: var(--primary); color: white; padding: 14px 24px; border: none; 
+            border-radius: 12px; cursor: pointer; font-size: 1rem; 
+            font-weight: 700; font-family: 'Outfit', sans-serif;
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-save:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 6px 15px rgba(14, 165, 233, 0.35); }
+        .btn-secondary { background: #f1f5f9; color: #475569; box-shadow: none; }
+        .btn-secondary:hover { background: #e2e8f0; color: #0f172a; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+
+        /* Page Hero Layout */
+        .page-hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #fff; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; overflow: hidden;
+        }
+        .page-hero-left { position: relative; z-index: 1; }
+        .page-hero-right { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; }
+
+        /* Section Navigation (Sticky Progress) */
+        .section-nav {
+            position: sticky; top: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+            z-index: 400; padding: 12px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 24px;
+            display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+        }
+        .section-nav::-webkit-scrollbar { display: none; }
+        .nav-dot {
+            padding: 6px 14px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-decoration: none;
+            color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; white-space: nowrap; transition: all 0.2s;
+        }
+        .nav-dot.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 10px rgba(14, 165, 233, 0.2); }
 
         @media(max-width: 640px) {
             header h1 { font-size: 1.25em; }
@@ -108,53 +137,55 @@
       <span class="bc-current">Data Entry</span>
     </nav>
 
-    <header style="padding: 0; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
-        <div style="max-width: 1000px; margin: 0 auto; padding: 20px 24px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                <a href="/patients/{{ patient.id }}/profile" style="display:inline-flex; align-items:center; gap:4px; color:rgba(255,255,255,0.6); text-decoration:none; font-size:0.85em; font-weight:600; transition:color 0.2s; flex-shrink:0;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">
-                    <i class="material-icons" style="font-size:1.1em;">arrow_back</i> Back
+    <header class="page-hero">
+        <div class="page-hero-left">
+            <h1>{{ patient.name }}</h1>
+            <p>Monthly Clinical Record · {{ month_label }}</p>
+        </div>
+        <div class="page-hero-right">
+            <!-- Month navigator -->
+            <div style="display:flex; align-items:center; gap:0; background:rgba(255,255,255,0.08); border-radius:12px; overflow:hidden; flex:1; max-width:420px; min-width:280px;">
+                <a href="/entry/{{ patient.id }}?month={{ prev_month_str }}"
+                   style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-right:1px solid rgba(255,255,255,0.1);"
+                   onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
+                    <i class="material-icons" style="font-size:1em;">chevron_left</i>
+                    <span style="display:none;" class="nav-label">{{ prev_month_label }}</span>
                 </a>
-
-                <!-- Month navigator -->
-                <div style="display:flex; align-items:center; gap:0; background:rgba(255,255,255,0.08); border-radius:12px; overflow:hidden; flex:1; max-width:420px; min-width:280px;">
-                    <a href="/entry/{{ patient.id }}?month={{ prev_month_str }}"
-                       style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-right:1px solid rgba(255,255,255,0.1);"
-                       onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
-                        <i class="material-icons" style="font-size:1em;">chevron_left</i>
-                        <span style="display:none;" class="nav-label">{{ prev_month_label }}</span>
-                    </a>
-                    <div style="flex:1; text-align:center; position:relative;">
-                        <input type="month" value="{{ month_str }}"
-                               onchange="location.href='/entry/{{ patient.id }}?month='+this.value"
-                               style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; border:none;">
-                        <span style="display:block; padding:10px 8px; color:#fff; font-family:'Outfit',sans-serif; font-weight:700; font-size:0.95rem; pointer-events:none;">
-                            {{ month_label }}
-                            <i class="material-icons" style="font-size:0.85em; vertical-align:middle; opacity:0.6;">arrow_drop_down</i>
-                        </span>
-                    </div>
-                    <a href="/entry/{{ patient.id }}?month={{ next_month_str }}"
-                       style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-left:1px solid rgba(255,255,255,0.1);"
-                       onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
-                        <span style="display:none;" class="nav-label">{{ next_month_label }}</span>
-                        <i class="material-icons" style="font-size:1em;">chevron_right</i>
-                    </a>
+                <div style="flex:1; text-align:center; position:relative;">
+                    <input type="month" value="{{ month_str }}"
+                           onchange="location.href='/entry/{{ patient.id }}?month='+this.value"
+                           style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; border:none;">
+                    <span style="display:block; padding:10px 8px; color:#fff; font-family:'Outfit',sans-serif; font-weight:700; font-size:0.95rem; pointer-events:none;">
+                        {{ month_label }}
+                        <i class="material-icons" style="font-size:0.85em; vertical-align:middle; opacity:0.6;">arrow_drop_down</i>
+                    </span>
                 </div>
-
-                <span style="font-size:0.75rem; color:rgba(255,255,255,0.4); flex-shrink:0;">
-                    {{ patient.name }}
-                </span>
+                <a href="/entry/{{ patient.id }}?month={{ next_month_str }}"
+                   style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-left:1px solid rgba(255,255,255,0.1);"
+                   onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
+                    <span style="display:none;" class="nav-label">{{ next_month_label }}</span>
+                    <i class="material-icons" style="font-size:1em;">chevron_right</i>
+                </a>
             </div>
         </div>
     </header>
-    <style>
-        @media(min-width:500px) { .nav-label { display:inline !important; } }
-    </style>
+
+    <div class="section-nav">
+        <div class="container" style="display:flex; gap:8px; margin:0 auto; padding:0 16px;">
+            <a href="#sec-weight" class="nav-dot active">Weight</a>
+            <a href="#sec-anemia" class="nav-dot">Anemia</a>
+            <a href="#sec-mbd" class="nav-dot">MBD</a>
+            <a href="#sec-nutrition" class="nav-dot">Nutrition</a>
+            <a href="#sec-adequacy" class="nav-dot">Adequacy</a>
+            <a href="#sec-iron" class="nav-dot">Iron</a>
+            <a href="#sec-electrolytes" class="nav-dot">Electrolytes</a>
+            <a href="#sec-meds" class="nav-dot">Meds</a>
+            <a href="#sec-events" class="nav-dot">Events</a>
+            <a href="#sec-notes" class="nav-dot">Evaluation</a>
+        </div>
+    </div>
 
     <div class="container">
-        <div class="patient-summary">
-            <strong>Patient:</strong> {{ patient.name }} ({{ patient.hid_no }}) <br>
-            <span style="font-size:0.9em; color:var(--text-muted);">Access: {{ patient.access_type or 'Not specified' }}</span>
-        </div>
 
         {% if prior_record and not record %}
         <div style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:10px; font-size:0.85rem; color:#78350f;">
@@ -166,7 +197,7 @@
         <form method="POST">
             <input type="hidden" name="month_str" value="{{ month_str }}">
             
-            <div class="form-section">
+            <div class="form-section" id="sec-weight">
                 <div class="section-title"><i class="material-icons">monitor_weight</i> Fluid, Weight & Access</div>
                 <div class="grid">
                     <div class="form-group">
@@ -197,13 +228,13 @@
                     </div>
                     <div class="form-group">
                         <label>Entered By</label>
-                        <input type="text" name="entered_by" placeholder="Initial/Name" value="{{ record.entered_by if record else '' }}">
+                        <input type="text" name="entered_by" placeholder="Initial/Name" value="{{ record.entered_by if record and record.entered_by else (user.full_name or user.username) if not record else '' }}">
                     </div>
                 </div>
             </div>
 
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">opacity</i> Anemia & Iron</div>
+            <div class="form-section" id="sec-anemia">
+                <div class="section-title"><i class="material-icons">bloodtype</i> Hematology & Anemia Management</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Hemoglobin (g/dL)</label>
@@ -254,8 +285,8 @@
                 </div>
             </div>
 
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">science</i> Bone & Mineral (BMMD)</div>
+            <div class="form-section" id="sec-mbd">
+                <div class="section-title"><i class="material-icons">science</i> Bone & Mineral Metabolism (MBD)</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Calcium (mg/dL)</label>
@@ -294,8 +325,8 @@
                 </div>
             </div>
 
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">restaurant</i> Nutrition & LFTs</div>
+            <div class="form-section" id="sec-nutrition">
+                <div class="section-title"><i class="material-icons">restaurant</i> Nutritional Status & Inflam.</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Albumin (g/dL)</label>
@@ -321,8 +352,8 @@
             </div>
 
             <!-- ── Dialysis Adequacy ── -->
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy</div>
+            <div class="form-section" id="sec-adequacy">
+                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy & Laboratory Panel</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Single-Pool Kt/V (spKt/V)</label>
@@ -352,12 +383,12 @@
             </div>
 
             <!-- ── Extended Iron Panel & ESA ── -->
-            <div class="form-section">
+            <div class="form-section" id="sec-iron">
                 <div class="section-title"><i class="material-icons">bloodtype</i> Iron Panel, ESA & Haematology</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Hematocrit (%) <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional)</span></label>
-                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="">
+                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="{{ record.hct if record and record.hct else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Serum Iron (µg/dL)</label>
@@ -396,7 +427,7 @@
             </div>
 
             <!-- ── Electrolytes & Extended Labs ── -->
-            <div class="form-section">
+            <div class="form-section" id="sec-electrolytes">
                 <div class="section-title"><i class="material-icons">science</i> Electrolytes & Extended Labs</div>
                 <div class="grid">
                     <div class="form-group">
@@ -435,7 +466,7 @@
             </div>
 
             <!-- ── Antihypertensive Medications ── -->
-            <div class="form-section">
+            <div class="form-section" id="sec-meds">
                 <div class="section-title"><i class="material-icons">medication</i> Antihypertensive Drugs & Regimen</div>
                 <div id="antiMedsWrapper" style="display:flex; flex-direction:column; gap:8px;">
                     {% set display_meds = anti_meds if anti_meds else (prior_anti_meds if prior_anti_meds and not record else []) %}
@@ -495,8 +526,8 @@
             </div>
 
             <!-- ── Emergency & Hospitalizations ── -->
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">emergency</i> Emergency & Hospitalizations</div>
+            <div class="form-section" id="sec-events">
+                <div class="section-title"><i class="material-icons">emergency</i> Emergency Events & Hospitalizations</div>
                 
                 <div id="hospWrapper" style="display:flex; flex-direction:column; gap:20px;">
                     {% set display_hosp = hosp_details if hosp_details else [] %}
@@ -565,30 +596,38 @@
                 </div>
             </div>
 
-            <!-- ── Clinical Background / POMR ── -->
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">history_edu</i> Clinical Background (POMR)</div>
+            <!-- ── Clinical Evaluation & Notes ── -->
+            <div class="form-section" id="sec-notes">
+                <div class="section-title"><i class="material-icons">rate_review</i> Clinical Evaluation & Notes</div>
+                
                 <div class="form-group">
-                    <textarea name="clinical_background" rows="6"
-                        placeholder="e.g. ~15 Years Pre-Transplant: Diagnosed with Type 2 Diabetes..."
+                    <label style="color:var(--primary); font-weight:700;">Monthly Clinical Observations</label>
+                    <textarea name="issues" rows="4"
+                        placeholder="Complications, clinical observations, or follow-up actions specific to this month..."
+                        style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;box-sizing:border-box;font-size:1rem;font-family:'Inter',sans-serif;background:#f8fafc;resize:vertical;line-height:1.6;">{{ record.issues if record and record.issues else '' }}</textarea>
+                </div>
+
+                <div style="height:1px; background:#e2e8f0; margin:24px 0;"></div>
+
+                <div class="form-group">
+                    <label style="color:var(--text-header); font-weight:700;">Master Problem List (POMR)</label>
+                    <textarea name="clinical_background" rows="5"
+                        placeholder="Long-term medical background, comorbidities, and surgical history..."
                         style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;box-sizing:border-box;font-size:0.95rem;font-family:'Inter',sans-serif;background:#f8fafc;resize:vertical;line-height:1.6;">{{ patient.clinical_background if patient and patient.clinical_background else '' }}</textarea>
-                    <div style="font-size:0.8rem; color:#64748b; margin-top:8px;">
-                        <i class="material-icons" style="font-size:1em; vertical-align:middle;">info</i> Updates to this section will sync to the patient's core profile (Problem-Oriented Medical Record).
+                    <div style="font-size:0.78rem; color:#64748b; margin-top:8px;">
+                        <i class="material-icons" style="font-size:1em; vertical-align:middle;">info</i> Updates here will permanently sync to the patient's master profile.
                     </div>
                 </div>
             </div>
 
-            <!-- ── Issues / Clinical Notes ── -->
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">edit_note</i> Issues / Clinical Notes</div>
-                <div class="form-group">
-                    <textarea name="issues" rows="4"
-                        placeholder="Any complications, clinical observations, patient concerns, or follow-up actions for this month..."
-                        style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;box-sizing:border-box;font-size:1rem;font-family:'Inter',sans-serif;background:#f8fafc;resize:vertical;line-height:1.6;">{{ record.issues if record and record.issues else '' }}</textarea>
-                </div>
+            <div class="save-actions">
+                <button type="submit" name="action" value="save_back" class="btn-save btn-secondary">
+                    <i class="material-icons">list</i> Save & Exit to List
+                </button>
+                <button type="submit" name="action" value="save_next" class="btn-save">
+                    <i class="material-icons">bolt</i> Save & Next Pending
+                </button>
             </div>
-
-            <button type="submit" class="btn-save">Save Record for {{ month_label }}</button>
         </form>
     </div>
 
@@ -842,6 +881,56 @@
             });
         }
 
+        // Success toast on redirect
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("saved") === "1") {
+            const toast = document.createElement("div");
+            toast.textContent = "✅ Record saved. Next patient loaded.";
+            toast.style.cssText = `position:fixed;top:24px;right:24px;background:#10b981;
+                color:#fff;padding:12px 20px;border-radius:12px;font-size:0.9rem;font-weight:600;
+                z-index:1000;box-shadow:0 10px 25px rgba(0,0,0,0.1); animation: slideDown 0.3s ease-out;`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        // Hide Save buttons when keyboard is visible on mobile
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                const actions = document.querySelector('.save-actions');
+                if (actions) {
+                    actions.style.display = window.visualViewport.height < window.innerHeight * 0.75 ? 'none' : 'flex';
+                }
+            });
+        }
+
+        // Scroll Spy for Section Nav
+        const dots = document.querySelectorAll('.nav-dot');
+        const sections = Array.from(dots).map(dot => document.querySelector(dot.getAttribute('href')));
+
+        function updateActiveSection() {
+            let current = "";
+            const scrollPos = window.scrollY + 120; // Offset for sticky nav height
+
+            sections.forEach(sec => {
+                if (sec && scrollPos >= sec.offsetTop) {
+                    current = sec.getAttribute('id');
+                }
+            });
+
+            dots.forEach(dot => {
+                dot.classList.toggle('active', dot.getAttribute('href') === `#${current}`);
+            });
+        }
+
+        window.addEventListener('scroll', updateActiveSection);
+        window.addEventListener('load', updateActiveSection); // Initial check on load
     </script>
+    <style>
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
 </body>
 </html>

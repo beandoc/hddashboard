@@ -82,10 +82,15 @@
     .conf-low      .conf-dot { background: #f97316; }
     .conf-insufficient .conf-dot { background: #94a3b8; }
 
-    .btn-analyze { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px;
-                   background: var(--primary); color: white; border-radius: 6px;
-                   font-size: 0.78rem; font-weight: 600; text-decoration: none; }
-    .btn-analyze:hover { background: #0284c7; }
+    .btn-analyze {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 7px 14px;
+      background: #7c3aed; color: white;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600; text-decoration: none;
+    }
+    .btn-analyze:hover { background: #6d28d9; }
 
     .lab-val { font-weight: 600; }
     .lab-low  { color: var(--red); }
@@ -139,6 +144,14 @@
 <body>
 
 {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <a href="/analytics">Analytics Hub</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Mortality Risk</span>
+</nav>
+
 
 <div class="page-header">
   <div class="header-inner">
@@ -196,7 +209,7 @@
       <tbody>
         {% for row in high_risk %}
         {% set mort = row.mort %}
-        <tr>
+        <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
@@ -287,7 +300,7 @@
       <tbody>
         {% for row in moderate %}
         {% set mort = row.mort %}
-        <tr>
+        <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
@@ -378,7 +391,7 @@
       <tbody>
         {% for row in low_risk %}
         {% set mort = row.mort %}
-        <tr>
+        <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
@@ -451,7 +464,7 @@
       </thead>
       <tbody>
         {% for row in no_data %}
-        <tr>
+        <tr id="patient-{{ row.patient.id }}">
           <td><strong>{{ row.patient.name }}</strong></td>
           <td style="color:var(--muted);">{{ row.patient.hid_no }}</td>
           <td style="color:var(--muted);">{{ row.n_months }} month(s) — add labs to enable prediction</td>

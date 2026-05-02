@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clinical Review Queue — HD Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+  <style>
+    :root {
+      --primary: #7c3aed;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --radius: 12px;
+      --shadow: 0 4px 12px rgba(0,0,0,0.05);
+      --red-bg: #fef2f2; --red-text: #991b1b;
+      --orange-bg: #fffbeb; --orange-text: #92400e;
+      --blue-bg: #f0f9ff; --blue-text: #075985;
+      --purple-bg: #f5f3ff; --purple-text: #5b21b6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+    
+    .page-hero {
+      background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+      color: white; padding: 32px 40px;
+      margin-bottom: 30px;
+    }
+    .page-hero h1 { font-family: 'Outfit', sans-serif; font-size: 1.8rem; letter-spacing: -0.02em; }
+    .page-hero p { opacity: 0.9; font-size: 0.9rem; margin-top: 4px; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px 60px; }
+
+    .review-table-card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #f8fafc; padding: 14px 20px; font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+      font-weight: 700; text-align: left; border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.2s; }
+    tbody tr:hover { background: #fdfcff; }
+    td { padding: 16px 20px; vertical-align: middle; }
+
+    .patient-info .name { font-weight: 700; color: var(--text); text-decoration: none; display: block; font-size: 0.95rem; }
+    .patient-info .name:hover { color: var(--primary); }
+    .patient-info .hid { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    .flag-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .flag-pill {
+      padding: 3px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .flag-mortality { background: var(--red-bg); color: var(--red-text); }
+    .flag-hb        { background: #fee2e2; color: #b91c1c; }
+    .flag-occult    { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .flag-albumin   { background: #e0f2fe; color: #0369a1; }
+    .flag-fluid     { background: #f1f5f9; color: #475569; }
+    .flag-idwg      { background: #fae8ff; color: #86198f; }
+
+    .priority-circle {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #f1f5f9; color: #475569;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.85rem;
+    }
+    .priority-high { background: #7c3aed; color: white; }
+
+    .last-review { font-size: 0.82rem; color: var(--muted); }
+    .review-never { font-style: italic; color: #94a3b8; }
+
+    .btn-analyze {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; background: white; color: var(--primary);
+      border: 1px solid var(--primary); border-radius: 8px;
+      font-size: 0.82rem; font-weight: 600; text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-analyze:hover { background: var(--primary); color: white; }
+
+    .generated-info {
+      text-align: right; margin-top: 12px; font-size: 0.72rem; color: var(--muted);
+      font-family: monospace;
+    }
+
+    .empty-state {
+      padding: 80px 40px; text-align: center; color: var(--muted);
+    }
+    .empty-state i { font-size: 3.5rem; opacity: 0.2; display: block; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+{% include "_nav.html" %}
+
+<header class="page-hero">
+  <div class="container" style="padding:0; margin:0;">
+    <h1>Clinical Review Queue</h1>
+    <p>Ranked surveillance of patients requiring urgent multidisciplinary intervention</p>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="review-table-card">
+    {% if review_list %}
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align: center;">#</th>
+          <th>Patient</th>
+          <th>Clinical Flags</th>
+          <th>Last Review</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in review_list %}
+        <tr>
+          <td>
+            <div class="priority-circle {% if item.priority >= 4 %}priority-high{% endif %}">
+              {{ item.flags | length }}
+            </div>
+          </td>
+          <td>
+            <div class="patient-info">
+              <a href="/patients/{{ item.patient.id }}/profile" class="name">{{ item.patient.name }}</a>
+              <div class="hid">HID: {{ item.patient.hid_no }}</div>
+            </div>
+          </td>
+          <td>
+            <div class="flag-pills">
+              {% for flag in item.flags %}
+                <span class="flag-pill 
+                  {% if 'Mortality' in flag %}flag-mortality
+                  {% elif 'Hb' in flag %}flag-hb
+                  {% elif 'Occult' in flag %}flag-occult
+                  {% elif 'Albumin' in flag %}flag-albumin
+                  {% elif 'Fluid' in flag %}flag-fluid
+                  {% elif 'IDWG' in flag %}flag-idwg
+                  {% endif %}">
+                  {{ flag }}
+                </span>
+              {% endfor %}
+            </div>
+          </td>
+          <td>
+            <div class="last-review">
+              {% if item.last_review %}
+                {{ item.last_review.strftime('%d %b %Y') }}
+              {% else %}
+                <span class="review-never">Never reviewed</span>
+              {% endif %}
+            </div>
+          </td>
+          <td style="text-align: right;">
+            <a href="/analytics/patients/{{ item.patient.id }}" class="btn-analyze">
+              Analyze Trajectory <i class="material-icons" style="font-size:1rem;">trending_up</i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <i class="material-icons">check_circle</i>
+      <p>No high-priority clinical flags detected in the current cohort.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="generated-info">
+    Queue generated at: {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') }}
+  </div>
+
+</main>
+
+</body>
+</html>

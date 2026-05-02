@@ -7,7 +7,7 @@ from typing import Optional
 import logging
 import time
 
-from database import engine, Base, get_db, Patient, SessionLocal, User
+from database import engine, Base, get_db, Patient, SessionLocal, User, MonthlyRecord
 from config import templates, serializer, pwd_context
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
@@ -146,6 +146,7 @@ app.include_router(entry.router)
 app.include_router(sessions.router)
 app.include_router(sessions.session_router)
 app.include_router(analytics.router)
+app.include_router(analytics.root_router)
 app.include_router(events.router)
 app.include_router(variables.router)
 app.include_router(admin.router)
@@ -210,13 +211,44 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
         }
 
     _current_month = get_current_month_str()
+    
+    # Contextual banner logic for staff
+    greeting = "morning"
+    from datetime import datetime, date
+    hour = datetime.now().hour
+    if hour < 12: greeting = "morning"
+    elif hour < 17: greeting = "afternoon"
+    else: greeting = "evening"
+
+    pending_entry_count = 0
+    active_patient_ids = {p.id for p in db.query(Patient).filter(Patient.is_active == True).all()}
+    entered_ids = {r.patient_id for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == _current_month).all()}
+    pending_entry_count = len(active_patient_ids - entered_ids)
+
+    # Authentication check
+    user = get_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    
+    # Patient role check - redirect to portal
+    if getattr(user, "role", None) == "patient" or (isinstance(user, dict) and user.get("role") == "patient"):
+        return RedirectResponse(url="/portal", status_code=302)
+
+    high_risk_count = 0
+    if getattr(user, "role", None) == "doctor" or (isinstance(user, dict) and user.get("role") == "doctor"):
+        from ml_analytics import get_high_risk_mortality_count
+        high_risk_count = get_high_risk_mortality_count(db)
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "data": data,
         "month_str": month_str,
         "current_month": _current_month,
         "current_month_label": get_month_label(_current_month),
-        "user": get_user(request),
+        "user": user,
+        "greeting": greeting,
+        "pending_entry_count": pending_entry_count,
+        "high_risk_count": high_risk_count,
     })
 
 # Root health check

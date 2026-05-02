@@ -40,7 +40,7 @@
     .badge-val { font-size: 1.3rem; font-weight: 700; }
     .badge-lbl { font-size: 0.75rem; text-transform: uppercase; opacity: 0.8; letter-spacing: 0.05em; margin-top: 4px; }
 
-    .container { max-width: 1200px; margin: -20px auto 40px; padding: 0 16px; }
+    .container { max-width: 1200px; margin: 24px auto 40px; padding: 0 16px; }
     
     .dashboard-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 24px; align-items: stretch; }
 
@@ -123,6 +123,16 @@
 <body>
 
   {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients">Patients</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients/{{ patient.id }}/profile">{{ patient.name }}</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Analytics</span>
+</nav>
+
 
   <header class="content-header">
     <div class="patient-banner">
@@ -155,11 +165,31 @@
     </div>
   </header>
 
-    <div style="max-width: 1200px; margin: 20px auto -10px; padding: 0 24px;">
-        <a href="/patients/{{ patient.id }}/profile" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
-            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back to Profile
-        </a>
-    </div>
+<div style="max-width: 1200px; margin: 24px auto 0; padding: 0 24px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+  <a href="/patients/{{ patient.id }}/profile"
+     style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;"
+     onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
+    <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back to Profile
+  </a>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="/patients/{{ patient.id }}/timeline"
+       style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#f1f5f9; color:#475569; border-radius:8px; text-decoration:none; font-size:0.82rem; font-weight:600; border:1px solid #e2e8f0;">
+      <i class="material-icons" style="font-size:1rem;">timeline</i> Events
+    </a>
+    <a href="/patients/{{ patient.id }}/fluid-status"
+       style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#f1f5f9; color:#475569; border-radius:8px; text-decoration:none; font-size:0.82rem; font-weight:600; border:1px solid #e2e8f0;">
+      <i class="material-icons" style="font-size:1rem;">water_drop</i> Fluid Status
+    </a>
+    <a href="/entry/{{ patient.id }}"
+       style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#f1f5f9; color:#475569; border-radius:8px; text-decoration:none; font-size:0.82rem; font-weight:600; border:1px solid #e2e8f0;">
+      <i class="material-icons" style="font-size:1rem;">edit_note</i> Monthly Data
+    </a>
+    <a href="/analytics/mortality-risk#patient-{{ patient.id }}"
+       style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#fef2f2; color:#991b1b; border-radius:8px; text-decoration:none; font-size:0.82rem; font-weight:600; border:1px solid #fecaca;">
+      <i class="material-icons" style="font-size:1rem;">psychology</i> Risk Score
+    </a>
+  </div>
+</div>
 
 
   <div class="container">
@@ -179,9 +209,16 @@
     {% endif %}
 
     {% if analytics.status == "no_data" %}
-    <div class="insight-card" style="margin-top: 30px; text-align: center; padding: 40px;">
-      <i class="material-icons" style="font-size: 3rem; color: var(--text-muted);">info</i>
-      <p style="color: var(--text-muted); margin-top: 10px;">No records found for this patient.</p>
+    <div style="text-align: center; padding: 64px 24px; color: #94a3b8; font-family: 'Inter', sans-serif; background: #fff; border-radius: 16px; border: 1px dashed #cbd5e1; margin-top: 20px;">
+      <i class="material-icons" style="font-size: 3rem; display:block; margin-bottom:16px; opacity:0.3;">analytics</i>
+      <p style="font-size: 1rem; font-weight: 600; color: #64748b; margin: 0 0 8px;">No Clinical Analytics Available</p>
+      <p style="font-size: 0.88rem; margin: 0 0 24px;">At least one monthly record is required to generate risk predictions and trajectory insights.</p>
+      <a href="/entry/{{ patient.id }}" style="
+        display: inline-block; padding: 12px 24px;
+        background: #0ea5e9; color: #fff; border-radius: 9px;
+        font-size: 0.88rem; font-weight: 700; text-decoration: none;
+        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+      ">Add Monthly Record</a>
     </div>
     {% else %}
     <div class="dashboard-row">
@@ -433,6 +470,40 @@
         {% endif %}
       </div>
 
+      </div>
+
+      <!-- Recent Session Snapshots -->
+      <div class="insight-card" style="grid-column: 1 / -1;">
+        <div class="card-head">
+          <i class="material-icons">history</i>
+          <h3>Recent Session Snapshots</h3>
+          <a href="/patients/{{ patient.id }}/sessions/new" style="margin-left:auto;padding:6px 14px;background:var(--accent);color:#fff;border-radius:8px;font-size:0.82rem;font-weight:600;text-decoration:none;">+ Log Session</a>
+        </div>
+        <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px;">
+          {% for s in recent_sessions %}
+          <div style="min-width: 160px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; flex-shrink: 0;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">{{ s.session_date }}</div>
+            <div style="font-size: 0.85rem; color: #1e293b;">
+              <strong>Pre:</strong> {{ s.weight_pre or '—' }} kg<br>
+              <strong>Post:</strong> {{ s.weight_post or '—' }} kg
+            </div>
+            <div style="font-size: 0.82rem; color: #0ea5e9; font-weight: 600; margin-top: 4px;">{{ s.bp_pre_sys or '—' }}/{{ s.bp_pre_dia or '—' }} mmHg</div>
+          </div>
+          {% endfor %}
+          {% if not recent_sessions %}
+          <div style="text-align: center; padding: 48px 24px; color: #94a3b8; font-family: 'Inter', sans-serif; width: 100%;">
+            <i class="material-icons" style="font-size: 2.5rem; display:block; margin-bottom:12px; opacity:0.4;">history</i>
+            <p style="font-size: 0.92rem; margin: 0 0 16px;">No sessions logged for this patient.</p>
+            <a href="/patients/{{ patient.id }}/sessions/new" style="
+              display: inline-block; padding: 9px 20px;
+              background: #0ea5e9; color: #fff; border-radius: 9px;
+              font-size: 0.82rem; font-weight: 600; text-decoration: none;
+            ">Log First Session</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
       <!-- MIA Syndrome Status -->
       {% set mia = analytics.mia_status %}
       <div class="insight-card" style="border-top: 3px solid {% if mia.score is not none and mia.score >= 2 %}#dc2626{% elif mia.score == 1 %}#d97706{% else %}#16a34a{% endif %};">
@@ -588,9 +659,14 @@
       {% endfor %}
     </div>
     {% else %}
-    <div style="text-align:center;padding:28px;color:#94a3b8;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-      <i class="material-icons" style="font-size:2rem;display:block;margin-bottom:6px;">event_available</i>
-      No clinical events recorded for this patient yet.
+    <div style="text-align: center; padding: 48px 24px; color: #94a3b8; font-family: 'Inter', sans-serif; background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
+      <i class="material-icons" style="font-size: 2.5rem; display:block; margin-bottom:12px; opacity:0.4;">inbox</i>
+      <p style="font-size: 0.92rem; margin: 0 0 16px;">No clinical events recorded for this patient.</p>
+      <button onclick="document.getElementById('ptEvtForm').classList.remove('hidden')" style="
+        display: inline-block; padding: 9px 20px;
+        background: #0ea5e9; color: #fff; border: none; border-radius: 9px;
+        font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      ">Add First Event</button>
     </div>
     {% endif %}
   </div>
@@ -1048,6 +1124,28 @@
         <div style="font-size:0.85rem;color:#94a3b8;">AVF surgery date or first cannulation date not recorded — enter in patient profile to enable this analysis.</div>
       </div>
       {% endif %}
+
+      <div style="background:#fff; border-radius:12px; padding:20px 24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid #e2e8f0; margin-top:24px; margin-bottom: 24px;">
+        <details>
+          <summary style="font-family:'Outfit',sans-serif; font-weight:700; font-size:0.95rem; cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px;">
+            <i class="material-icons" style="color:#7c3aed; font-size:1.1rem;">rate_review</i>
+            Doctor's Review Note
+            {% if doctor_note and doctor_note.reviewed_at %}
+              <span style="font-size:0.75rem; font-weight:400; color:#64748b; margin-left:auto;">
+                Last: {{ doctor_note.reviewed_by }} · {{ doctor_note.reviewed_at.strftime('%d %b %Y') }}
+              </span>
+            {% endif %}
+          </summary>
+          <form method="POST" action="/analytics/patients/{{ patient.id }}/note" style="margin-top:14px;">
+            <input type="hidden" name="record_month" value="{{ selected_month or current_month }}">
+            <textarea name="note" rows="3" placeholder="Clinical impression, prescription change, follow-up action..."
+              style="width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:9px; font-family:'Inter',sans-serif; font-size:0.9rem; resize:vertical; box-sizing:border-box;">{{ doctor_note.doctor_notes if doctor_note else '' }}</textarea>
+            <button type="submit" style="margin-top:8px; padding:8px 20px; background:#7c3aed; color:#fff; border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer;">
+              Save Note
+            </button>
+          </form>
+        </details>
+      </div>
 
     </div>
   </div>

@@ -327,6 +327,9 @@ class MonthlyRecord(Base):
 
     # ── Clinical Notes ────────────────────────────────────────────────────────
     issues = Column(Text)
+    doctor_notes = Column(Text)
+    reviewed_by = Column(String)
+    reviewed_at = Column(DateTime)
 
     patient = relationship("Patient", back_populates="records")
 

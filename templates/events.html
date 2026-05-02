@@ -181,6 +181,12 @@
 <body>
 
 {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Clinical Events</span>
+</nav>
+
 
 <div class="page-header">
   <div>
@@ -314,10 +320,10 @@
       <div class="log-grid">
         <div class="fg">
           <label>Patient *</label>
-          <select name="patient_id" required>
+          <select name="patient_id" id="log_patient_id" required>
             <option value="">— Select —</option>
             {% for p in patients %}
-            <option value="{{ p.id }}">{{ p.name }}</option>
+            <option value="{{ p.id }}" {{ 'selected' if filter_pid == p.id|string }}>{{ p.name }}</option>
             {% endfor %}
           </select>
         </div>
@@ -332,7 +338,7 @@
             {% for group_name, group_types in event_type_groups %}
             <optgroup label="{{ group_name }}">
               {% for et in group_types %}
-              <option value="{{ et }}">{{ et }}</option>
+              <option value="{{ et }}" {{ 'selected' if (prefill and prefill|lower in et|lower) or (filter_type == et) }}>{{ et }}</option>
               {% endfor %}
             </optgroup>
             {% endfor %}
@@ -361,9 +367,16 @@
 
   <!-- Timeline -->
   {% if not events %}
-  <div class="empty-state">
-    <i class="material-icons">event_busy</i>
-    <p>No clinical events recorded for this period.<br>Use <strong>Log Event</strong> to start building the timeline.</p>
+  <div style="text-align: center; padding: 64px 24px; color: #94a3b8; font-family: 'Inter', sans-serif; background: #fff; border-radius: 16px; border: 1px dashed #cbd5e1; margin-bottom: 40px;">
+    <i class="material-icons" style="font-size: 3rem; display:block; margin-bottom:16px; opacity:0.3;">event_available</i>
+    <p style="font-size: 1rem; font-weight: 600; color: #64748b; margin: 0 0 8px;">No Clinical Events Found</p>
+    <p style="font-size: 0.88rem; margin: 0 0 24px;">No events have been recorded for the selected period{% if filter_pid %} for this patient{% endif %}.</p>
+    <button onclick="toggleLog()" style="
+      display: inline-block; padding: 12px 24px;
+      background: #0ea5e9; color: #fff; border: none; border-radius: 9px;
+      font-size: 0.88rem; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
+    ">Log First Event</button>
   </div>
   {% else %}
 
@@ -554,6 +567,17 @@
 <script>
   var today = new Date().toISOString().split('T')[0];
   document.querySelector('input[name="event_date"]') && (document.querySelector('input[name="event_date"]').value = today);
+
+  // Prefill logic
+  (function() {
+    const prefill = "{{ prefill }}";
+    const pid = "{{ filter_pid }}";
+    if (prefill) {
+      toggleLog();
+      // Optionally scroll to log panel
+      document.getElementById('logPanel').scrollIntoView({ behavior: 'smooth' });
+    }
+  })();
 
   function setRange(days) {
     var to   = new Date();

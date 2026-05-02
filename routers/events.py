@@ -24,6 +24,7 @@ async def events_timeline(
     event_type: Optional[str] = None,
     severity:   Optional[str] = None,
     patient_id: Optional[str] = None,
+    prefill: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     today = date.today()
@@ -79,6 +80,7 @@ async def events_timeline(
         "filter_pid":  patient_id or "",
         "total":       len(events),
         "today":       today.isoformat(),
+        "prefill":     prefill or "",
         "user":        get_user(request),
     })
 

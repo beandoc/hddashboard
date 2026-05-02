@@ -78,6 +78,33 @@
   background: rgba(167,139,250,0.15);
 }
 
+/* High-priority highlights (Review Queue) */
+.nav-highlight-item {
+  color: #c4b5fd !important;
+}
+.nav-highlight-item:hover {
+  background: rgba(196,181,253,0.1) !important;
+}
+.nav-highlight-item.active {
+  background: rgba(196,181,253,0.18) !important;
+  color: #c4b5fd !important;
+}
+
+/* Secondary Tier — muted, smaller items for secondary workflows */
+.nav-secondary {
+  color: rgba(255,255,255,0.4) !important;
+  font-size: 0.72rem !important;
+  font-weight: 400 !important;
+}
+.nav-secondary:hover {
+  color: rgba(255,255,255,0.7) !important;
+  background: rgba(255,255,255,0.05) !important;
+}
+.nav-secondary.active {
+  color: #fff !important;
+  background: rgba(255,255,255,0.1) !important;
+}
+
 /* Logout — ghost treatment */
 .app-nav .nav-logout {
   color: rgba(255,255,255,0.35) !important;
@@ -303,29 +330,57 @@
   <a href="/" class="brand">CH(SC) · Nephrology Unit</a>
 
   <div class="nav-links">
-    <!-- Staff + Admin + Doctor navigation -->
-    {% if _cur_role in ['staff', 'admin', 'doctor'] %}
-      <a href="/">Dashboard</a>
-      <a href="/schedule">Schedule</a>
-      <a href="/patients">Patients</a>
-      <a href="/entry">Data Entry</a>
-      <a href="/events">Events</a>
-      <a href="/alerts">Alerts</a>
-    {% endif %}
-    {% if _cur_role in ['admin', 'doctor'] %}
-      <a href="/analytics">Analytics</a>
-      <a href="/research">Research Hub</a>
-    {% endif %}
-
-    <!-- Admin-only tools -->
-    {% if _cur_role == 'admin' %}
+    {% if _cur_role == 'doctor' %}
+      {# --- DOCTOR PRIMARY --- #}
+      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
+      <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}">Review Queue</a>
+      <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}">Patients</a>
+      <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}">Analytics</a>
+      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
+      
       <span class="nav-divider"></span>
-      <a href="/admin/users" class="nav-admin-item">Admin</a>
-      <a href="/admin/backup" class="nav-admin-item">Data</a>
-      <a href="/variables/manager" class="nav-admin-item">Variables</a>
+      
+      {# --- DOCTOR SECONDARY --- #}
+      <a href="/schedule" class="nav-secondary {{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
+      <a href="/entry" class="nav-secondary {{ 'active' if '/entry' in request.url.path }}">Data Entry</a>
+      <a href="/events" class="nav-secondary {{ 'active' if '/events' in request.url.path }}">Clinical Events</a>
+      <a href="/alerts" class="nav-secondary {{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
+
+    {% elif _cur_role == 'staff' %}
+      {# --- STAFF PRIMARY --- #}
+      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
+      <a href="/entry" class="{{ 'active' if '/entry' in request.url.path }}">Data Entry</a>
+      <a href="/patients" class="{{ 'active' if '/patients' in request.url.path }}">Patients</a>
+      <a href="/schedule" class="{{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
+      
+      <span class="nav-divider"></span>
+      
+      {# --- STAFF SECONDARY --- #}
+      <a href="/events" class="nav-secondary {{ 'active' if '/events' in request.url.path }}">Clinical Events</a>
+      <a href="/alerts" class="nav-secondary {{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
+
+    {% elif _cur_role == 'admin' %}
+      {# --- ADMIN (FULL ACCESS, GROUPED) --- #}
+      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
+      <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}">Review Queue</a>
+      <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}">Patients</a>
+      <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}">Analytics</a>
+      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
+      
+      <span class="nav-divider"></span>
+      
+      <a href="/admin/users" class="nav-admin-item {{ 'active' if '/admin/users' in request.url.path }}">Users</a>
+      <a href="/admin/backup" class="nav-admin-item {{ 'active' if '/admin/backup' in request.url.path }}">Database</a>
+      <a href="/variables/manager" class="nav-admin-item {{ 'active' if '/variables/manager' in request.url.path }}">Lab Config</a>
+      
+      <span class="nav-divider"></span>
+      
+      <a href="/schedule" class="nav-secondary {{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
+      <a href="/entry" class="nav-secondary {{ 'active' if '/entry' in request.url.path }}">Entry</a>
+      <a href="/events" class="nav-secondary {{ 'active' if '/events' in request.url.path }}">Clinical Events</a>
     {% endif %}
 
-    <!-- Patient navigation -->
+    {# --- PATIENT --- #}
     {% if _cur_role == 'patient' %}
       <a href="/patient/dashboard">My Portal</a>
     {% endif %}
@@ -351,37 +406,53 @@
     </button>
   </div>
 
-  {% if _cur_role in ['staff', 'admin', 'doctor'] %}
-    <a href="/">Dashboard</a>
-    <a href="/schedule">Schedule</a>
-    <a href="/patients">Patients</a>
-    <a href="/entry">Data Entry</a>
-    <a href="/events">Events</a>
-    <a href="/alerts">Alerts</a>
-  {% endif %}
-  {% if _cur_role in ['admin', 'doctor'] %}
-    <a href="/analytics">Analytics</a>
-    <a href="/research">Research Hub</a>
-  {% endif %}
+  <div class="drawer-content">
+    {% if _cur_role in ['staff', 'admin', 'doctor'] %}
+      
+      {# --- CLINICAL SECTION --- #}
+      {% if _cur_role in ['doctor', 'admin'] %}
+        <span class="drawer-section-label">Clinical Intelligence</span>
+        <a href="/" class="{{ 'active' if request.url.path == '/' }}"><i class="material-icons">dashboard</i> Dashboard</a>
+        <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}"><i class="material-icons">fact_check</i> Review Queue</a>
+        <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}"><i class="material-icons">people</i> Patients</a>
+        <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}"><i class="material-icons">analytics</i> Analytics</a>
+        <a href="/research" class="{{ 'active' if '/research' in request.url.path }}"><i class="material-icons">science</i> Research Hub</a>
+        <div class="drawer-divider"></div>
+      {% endif %}
 
-  {% if _cur_role == 'admin' %}
+      {# --- OPERATIONS SECTION --- #}
+      <span class="drawer-section-label">Operations & Data</span>
+      {% if _cur_role == 'staff' %}
+        <a href="/" class="{{ 'active' if request.url.path == '/' }}"><i class="material-icons">dashboard</i> Dashboard</a>
+        <a href="/patients" class="{{ 'active' if '/patients' in request.url.path }}"><i class="material-icons">people</i> Patients</a>
+      {% endif %}
+      <a href="/schedule" class="{{ 'active' if '/schedule' in request.url.path }}"><i class="material-icons">event</i> Schedule</a>
+      <a href="/entry" class="{{ 'active' if '/entry' in request.url.path }}"><i class="material-icons">edit_note</i> Data Entry</a>
+      <a href="/events" class="{{ 'active' if '/events' in request.url.path }}"><i class="material-icons">notification_important</i> Clinical Events</a>
+      <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}"><i class="material-icons">warning</i> Alerts</a>
+
+    {% endif %}
+
+    {# --- ADMIN SECTION --- #}
+    {% if _cur_role == 'admin' %}
+      <div class="drawer-divider"></div>
+      <span class="drawer-section-label">Administration</span>
+      <a href="/admin/users" class="drawer-admin-item {{ 'active' if '/admin/users' in request.url.path }}"><i class="material-icons">manage_accounts</i> User Management</a>
+      <a href="/admin/backup" class="drawer-admin-item {{ 'active' if '/admin/backup' in request.url.path }}"><i class="material-icons">storage</i> Database Backup</a>
+      <a href="/variables/manager" class="drawer-admin-item {{ 'active' if '/variables/manager' in request.url.path }}"><i class="material-icons">settings_input_component</i> Lab Config</a>
+    {% endif %}
+
+    {% if _cur_role == 'patient' %}
+      <a href="/patient/dashboard"><i class="material-icons">person</i> My Portal</a>
+    {% endif %}
+
     <div class="drawer-divider"></div>
-    <span class="drawer-section-label">Administration</span>
-    <a href="/admin/users" class="drawer-admin-item">Admin — Users</a>
-    <a href="/admin/backup" class="drawer-admin-item">Data — Backup</a>
-    <a href="/variables/manager" class="drawer-admin-item">Variables</a>
-  {% endif %}
-
-  {% if _cur_role == 'patient' %}
-    <a href="/patient/dashboard">My Portal</a>
-  {% endif %}
-
-  <div class="drawer-divider"></div>
-  {% if user %}
-    <a href="/logout" class="drawer-logout">Logout</a>
-  {% else %}
-    <a href="/login">Login</a>
-  {% endif %}
+    {% if user %}
+      <a href="/logout" class="nav-logout"><i class="material-icons">logout</i> Logout</a>
+    {% else %}
+      <a href="/login"><i class="material-icons">login</i> Login</a>
+    {% endif %}
+  </div>
 </div>
 
 <script>

@@ -54,6 +54,16 @@
 <body>
 
 {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients">Patients</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients/{{ patient.id }}/profile">{{ patient.name }}</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Fluid Status</span>
+</nav>
+
 
 <header>
     <div class="header-content">
@@ -198,9 +208,14 @@
                     {% endfor %}
                 </div>
                 {% else %}
-                <div style="text-align:center; padding:60px; color:#94a3b8;">
-                    <i class="material-icons" style="font-size:3rem; opacity:0.2;">monitor_heart</i>
-                    <p>No specialized dry weight assessments recorded yet.</p>
+                <div style="text-align: center; padding: 48px 24px; color: #94a3b8; font-family: 'Inter', sans-serif;">
+                    <i class="material-icons" style="font-size: 2.5rem; display:block; margin-bottom:12px; opacity:0.4;">monitor_heart</i>
+                    <p style="font-size: 0.92rem; margin: 0 0 16px;">No specialized dry weight assessments recorded yet.</p>
+                    <button onclick="document.querySelector('input[name=assess_date]').focus()" style="
+                        display: inline-block; padding: 9px 20px;
+                        background: #0ea5e9; color: #fff; border: none; border-radius: 9px;
+                        font-size: 0.82rem; font-weight: 600; cursor: pointer;
+                    ">Start Assessment</button>
                 </div>
                 {% endif %}
             </div>

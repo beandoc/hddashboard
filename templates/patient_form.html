@@ -98,14 +98,22 @@
 </head>
 <body>
     {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <a href="/patients">Patients</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">{{ patient.name if patient else 'New Patient' }}</span>
+</nav>
+
 
     <header>
         <h1>{{ "Edit" if mode=="edit" else "Add New" }} Patient</h1>
     </header>
 
     <div style="max-width: 1000px; margin: 20px auto -10px; padding: 0 24px;">
-        <a href="/patients" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
-            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> Back to Patients
+        <a href="{{ return_to if return_to else '/patients' }}" style="display:inline-flex; align-items:center; gap:6px; color:#64748b; text-decoration:none; font-weight:600; font-size:0.9em; transition:color 0.2s;" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
+            <i class="material-icons" style="font-size:1.2em;">arrow_back</i> {{ "Back" if return_to else "Back to Patients" }}
         </a>
     </div>
 
@@ -113,7 +121,7 @@
         {% if error %}
             <div class="error">{{ error }}</div>
         {% endif %}
-        <form method="POST">
+        <form method="POST" action="{% if mode == 'edit' %}/patients/{{ patient.id }}/edit{% else %}/patients/add{% endif %}{% if return_to %}?return_to={{ return_to }}{% endif %}">
             <div class="form-card">
                 <h3><i class="material-icons">person</i> Demographics</h3>
                 <div class="form-row">

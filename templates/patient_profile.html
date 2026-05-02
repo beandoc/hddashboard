@@ -31,6 +31,9 @@
             <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">arrow_back</i> Back to Patients
         </a>
         <div style="display: flex; gap: 12px;">
+            <a href="/analytics/patients/{{ patient.id }}" class="btn-action btn-primary" style="background:#7c3aed; border-color:#7c3aed;">
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">query_stats</i> View Analytics
+            </a>
             <a href="/patients/{{ patient.id }}/edit" class="btn-action btn-ghost">
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">edit</i> Edit Profile
             </a>
@@ -162,7 +165,15 @@
                     {{ lab_box('TSAT', latest_monthly.tsat, '%', low=20) }}
                 </div>
                 {% else %}
-                <div class="empty-state">No monthly lab records found.</div>
+                <div style="text-align: center; padding: 32px 16px; color: #94a3b8; font-family: 'Inter', sans-serif; background: #f8fafc; border-radius: 12px; border: 1px dashed #e2e8f0;">
+                    <i class="material-icons" style="font-size: 2rem; display:block; margin-bottom:8px; opacity:0.4;">biotech</i>
+                    <p style="font-size: 0.85rem; margin: 0 0 12px;">No monthly lab records found.</p>
+                    <a href="/entry/{{ patient.id }}" style="
+                        display: inline-block; padding: 7px 16px;
+                        background: #0ea5e9; color: #fff; border-radius: 8px;
+                        font-size: 0.78rem; font-weight: 600; text-decoration: none;
+                    ">Add First Record</a>
+                </div>
                 {% endif %}
             </section>
 
@@ -375,7 +386,15 @@
                     </div>
                     {% endfor %}
                     {% if not sessions %}
-                    <div class="empty-state" style="width:100%; padding:20px; font-style:italic;">No session logs found.</div>
+                    <div style="text-align: center; padding: 32px; color: #94a3b8; font-family: 'Inter', sans-serif; width: 100%;">
+                        <i class="material-icons" style="font-size: 2.2rem; display:block; margin-bottom:10px; opacity:0.4;">history</i>
+                        <p style="font-size: 0.88rem; margin: 0 0 12px;">No session logs found.</p>
+                        <a href="/patients/{{ patient.id }}/sessions/new" style="
+                            display: inline-block; padding: 7px 16px;
+                            background: #0ea5e9; color: #fff; border-radius: 8px;
+                            font-size: 0.78rem; font-weight: 600; text-decoration: none;
+                        ">Log First Session</a>
+                    </div>
                     {% endif %}
                 </div>
             </section>
@@ -458,7 +477,15 @@
                     {% endif %}
 
                     {% if not events and not (latest_monthly and latest_monthly.hospitalization_this_month) %}
-                    <div class="empty-state" style="padding:10px 0;">No major events logged.</div>
+                    <div style="text-align: center; padding: 24px 12px; color: #94a3b8; font-family: 'Inter', sans-serif;">
+                        <i class="material-icons" style="font-size: 2rem; display:block; margin-bottom:8px; opacity:0.4;">event_busy</i>
+                        <p style="font-size: 0.82rem; margin: 0 0 12px;">No major events logged.</p>
+                        <a href="/events?patient_id={{ patient.id }}" style="
+                            display: inline-block; padding: 6px 12px;
+                            background: #f1f5f9; color: #475569; border-radius: 6px;
+                            font-size: 0.72rem; font-weight: 700; text-decoration: none; border: 1px solid #e2e8f0;
+                        ">View Timeline</a>
+                    </div>
                     {% endif %}
                 </div>
             </div>

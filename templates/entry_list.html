@@ -7,115 +7,215 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <style>
-        body { font-family:'Inter',sans-serif; margin:0; padding:0; background-color:#f8fafc; -webkit-font-smoothing:antialiased; }
+        :root {
+            --primary: #0ea5e9;
+            --primary-dark: #0284c7;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --radius: 12px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --accent-orange: #f59e0b;
+            --accent-green: #10b981;
+        }
+        body { font-family:'Inter',sans-serif; margin:0; padding:0; background-color:var(--bg-main); color:var(--text-main); -webkit-font-smoothing:antialiased; }
         h1,h2,h3 { font-family:'Outfit',sans-serif; }
-        header { background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color:white; padding:24px 20px; text-align:center; }
-        .container { max-width:1000px; margin:20px auto; padding:0 20px; }
-        .month-picker { text-align:center; margin-bottom:20px; }
-        table { width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-        th, td { padding:12px 15px; text-align:left; border-bottom:1px solid #eee; }
-        th { background:#f1f5f9; color:#0f172a; font-size:0.72em; text-transform:uppercase; letter-spacing:0.05em; }
-        .status-done { color: #28a745; font-weight: bold; }
-        .status-pending { color: #e67e22; }
-        .shift-btn { 
-            background:#eee; border:none; border-radius:6px; padding:8px 16px; 
-            cursor:pointer; font-size:0.85em; transition:all .2s; 
-        }
-        .shift-btn.active { background:#0ea5e9; color:#fff; font-weight:bold; }
-        .freq-badge {
-            display:inline-block; font-size:0.72em; font-weight:700;
-            background:#e0f2fe; color:#0369a1; border-radius:4px;
-            padding:1px 7px; margin-right:4px; vertical-align:middle;
-        }
-        .slot-chip {
-            display:inline-block; font-size:0.78em;
-            background:#f1f5f9; color:#475569; border-radius:4px;
-            padding:2px 8px; margin:1px;
-        }
-        .no-slot { color:#bbb; font-size:0.8em; font-style:italic; }
+        
+        .container { max-width:1100px; margin:24px auto; padding:0 24px; }
+        
+        /* Progress Indicator */
+        .completion-widget { background: #fff; border-radius: var(--radius); padding: 18px 24px; margin-bottom: 24px; border: 1px solid #e2e8f0; box-shadow: var(--shadow); }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .progress-title { font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
+        .progress-stats { font-size: 0.85rem; font-weight: 600; color: var(--primary); }
+        .progress-bar-bg { height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #0ea5e9); transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* Filter Bar */
+        .filter-strip { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; }
+        .search-wrap { position: relative; flex: 1; }
+        .search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.2rem; }
+        .search-wrap input { width: 100%; padding: 11px 16px 11px 42px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.9rem; outline: none; transition: all 0.2s; }
+        .search-wrap input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14,165,233,0.1); }
+
+        /* Table */
+        .table-wrap { background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 1px solid #e2e8f0; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:14px 20px; text-align:left; border-bottom:1px solid #f1f5f9; }
+        th { background:#f8fafc; color:var(--text-muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; font-weight: 700; }
+        
+        .patient-cell { display: flex; flex-direction: column; }
+        .patient-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+        .patient-hid { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; }
+
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; }
+        .status-done { color: var(--accent-green); }
+        .status-pending { color: var(--accent-orange); }
+        
         .btn-action {
-            display: inline-flex;
-            align-items: center;
-            background: #eff6ff;
-            color: #1d4ed8;
-            padding: 6px 12px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 0.78rem;
-            font-weight: 600;
-            transition: all 0.2s;
-            white-space: nowrap;
-            border: 1px solid #bfdbfe;
+            display: inline-flex; align-items: center; gap: 5px;
+            background: #f1f5f9; color: #475569; padding: 7px 14px; border-radius: 8px;
+            text-decoration: none; font-size: 0.8rem; font-weight: 600;
+            transition: all 0.2s; border: 1px solid #e2e8f0;
         }
-        .btn-action:hover {
-            background: #1d4ed8;
-            color: #fff;
-            border-color: #1d4ed8;
-        }
+        .btn-action:hover { background: #e2e8f0; color: #0f172a; }
+        .btn-primary { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .btn-primary:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+
+        .empty-state { padding: 60px; text-align: center; color: var(--text-muted); display: none; }
     </style>
 </head>
 <body>
     {% include "_nav.html" %}
-    <header>
-        <h1>Data Entry - {{ month_label }}</h1>
-    </header>
+
+    <nav class="nav-breadcrumb">
+        <a href="/">Dashboard</a>
+        <span class="bc-sep">/</span>
+        <span class="bc-current">Monthly Data Registry</span>
+    </nav>
+
+    <div class="page-hero">
+        <div class="page-hero-left">
+            <h1>Monthly Data Registry</h1>
+            <p>Clinical data capture for <strong>{{ month_label }}</strong></p>
+        </div>
+        <div class="page-hero-right">
+            <div style="background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                <i class="material-icons" style="font-size: 1.1rem; opacity: 0.7;">calendar_month</i>
+                <input type="month" value="{{ month_str }}" 
+                       style="background:transparent; border:none; color:white; font-family:inherit; font-weight:600; font-size:0.85rem; outline:none; cursor:pointer;"
+                       onchange="location.href='/entry?month='+this.value">
+            </div>
+        </div>
+    </div>
+
     <div class="container">
-        <div class="month-picker">
-            <label>Change Month:</label>
-            <input type="month" value="{{ month_str }}" onchange="location.href='/entry?month='+this.value">
+        <!-- Progress Bar -->
+        <div class="completion-widget">
+            <div class="progress-header">
+                <span class="progress-title">Month-to-Date Completion Status</span>
+                <span class="progress-stats">{{ completed_count }} / {{ total_count }} Patients Done</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: {{ (completed_count / (total_count or 1) * 100)|round|int }}%"></div>
+            </div>
+            <div style="margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+                <span>Overall Progress: {{ (completed_count / (total_count or 1) * 100)|round|int }}%</span>
+                <span style="font-weight: 600; color: var(--accent-orange);">
+                    <i class="material-icons" style="font-size: 0.85rem; vertical-align: middle;">timer</i> 
+                    {{ days_remaining }} days remaining to close
+                </span>
+            </div>
         </div>
 
-        <table id="entryTable">
-            <thead>
-                <tr>
-                    <th>HID</th>
-                    <th>Patient Name</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in patients %}
-                <tr>
-                    <td>{{ p.hid_no }}</td>
-                    <td>{{ p.name }}</td>
-                    <td>
-                        {% if p.id in existing_records %}
-                            <div style="display:flex; flex-direction:column; gap:4px;">
-                                <span class="status-done">✓ Completed</span>
-                                <span style="font-size:0.75em; color:#64748b; font-weight:500;">Last updated: {{ existing_records[p.id].timestamp.strftime('%d %b %Y, %H:%M') if existing_records[p.id].timestamp else 'Unknown' }}</span>
+        <!-- Search Bar -->
+        <div class="filter-strip">
+            <div class="search-wrap">
+                <i class="material-icons">search</i>
+                <input type="text" id="patientSearch" placeholder="Search by name or HID..." onkeyup="filterTable()">
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table id="entryTable">
+                <thead>
+                    <tr>
+                        <th>Patient Details</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Clinical Workflows</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in patients %}
+                    <tr class="patient-row" data-name="{{ p.name.lower() }}" data-hid="{{ p.hid_no }}">
+                        <td>
+                            <div class="patient-cell">
+                                <span class="patient-name">{{ p.name }}</span>
+                                <span class="patient-hid">HID: {{ p.hid_no }}</span>
                             </div>
-                        {% else %}
-                            <span class="status-pending">Pending</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                            <a href="/patients/{{ p.id }}/edit" class="btn-action" title="Demographic Info">Demographics</a>
-                            <a href="/entry/{{ p.id }}?month={{ month_str }}" class="btn-action" title="Monthly Clinical Data">
-                                {{ "Edit Clinical Data" if p.id in existing_records else "Add Clinical Data" }}
-                            </a>
-                            <a href="/patients/{{ p.id }}/sessions/new" class="btn-action" title="Per-Session Dialysis Data">Dialysis Session</a>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </td>
+                        <td>
+                            {% if p.id in existing_records %}
+                                <div class="status-badge status-done">
+                                    <i class="material-icons" style="font-size:1.1rem;">check_circle</i>
+                                    <span>Completed</span>
+                                </div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:3px; margin-left:22px;">
+                                    Updated {{ existing_records[p.id].timestamp.strftime('%d %b, %H:%M') if existing_records[p.id].timestamp else 'N/A' }}
+                                </div>
+                            {% else %}
+                                <div class="status-badge status-pending">
+                                    <i class="material-icons" style="font-size:1.1rem;">pending</i>
+                                    <span>Pending</span>
+                                </div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:3px; margin-left:22px;">
+                                    Deadline in {{ days_remaining }} days
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display:flex; gap:8px; justify-content: flex-end; flex-wrap:wrap;">
+                                <a href="/patients/{{ p.id }}/edit?return_to={{ return_to_entry }}" class="btn-action" title="Update Demographics">
+                                    <i class="material-icons" style="font-size:1rem;">person</i> Demographics
+                                </a>
+                                <a href="/entry/{{ p.id }}?month={{ month_str }}" class="btn-action btn-primary" title="Monthly Clinical Report">
+                                    <i class="material-icons" style="font-size:1rem;">medical_information</i>
+                                    {{ "Edit Report" if p.id in existing_records else "New Report" }}
+                                </a>
+                                <a href="/patients/{{ p.id }}/sessions/new" class="btn-action" title="Per-Session Data">
+                                    <i class="material-icons" style="font-size:1rem;">biotech</i> Session
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div id="noResults" class="empty-state">
+                <i class="material-icons" style="font-size: 3rem; opacity: 0.2; display: block; margin-bottom: 12px;">person_off</i>
+                <p>No patients found matching your search.</p>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Show a success toast if redirected after save
+        function filterTable() {
+            const q = document.getElementById('patientSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('.patient-row');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const name = row.getAttribute('data-name');
+                const hid = row.getAttribute('data-hid');
+                if (name.includes(q) || hid.includes(q)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            document.getElementById('noResults').style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+
         const params = new URLSearchParams(window.location.search);
         if (params.get("saved") === "1") {
             const toast = document.createElement("div");
-            toast.textContent = "✅ Record saved successfully";
-            toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:#27ae60;
-                color:#fff;padding:12px 20px;border-radius:8px;font-size:0.9em;
-                z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.2)`;
+            toast.textContent = "✅ Clinical record saved successfully";
+            toast.style.cssText = `position:fixed;bottom:24px;right:24px;background:#10b981;
+                color:#fff;padding:14px 24px;border-radius:12px;font-size:0.9rem;font-weight:600;
+                z-index:999;box-shadow:0 10px 25px rgba(0,0,0,0.2); animation: slideIn 0.3s ease-out;`;
             document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3500);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
         }
     </script>
+    <style>
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
 </body>
 </html>

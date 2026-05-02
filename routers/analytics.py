@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -14,7 +14,7 @@ from ml_analytics import (
     get_at_risk_trends, analyze_pds, analyze_mia_cascade,
     analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
     train_deterioration_model, get_deterioration_model_status,
-    predict_mortality_risk,
+    predict_mortality_risk, get_all_patients_mortality_risk,
 )
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 from krcrw_model import estimate_krcrw
@@ -23,6 +23,7 @@ from phosphate_model import estimate_phosphate_kinetics, calculate_pbe
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+root_router = APIRouter(tags=["clinical-review"])
 
 @router.get("/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
@@ -139,51 +140,8 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
 @router.get("/mortality-risk", response_class=HTMLResponse)
 async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)
-    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-
-    rows = []
-    for p in patients:
-        records = (
-            db.query(MonthlyRecord)
-            .filter(MonthlyRecord.patient_id == p.id)
-            .order_by(MonthlyRecord.record_month.desc())
-            .limit(6)
-            .all()
-        )
-        df = [
-            {
-                "month": r.record_month,
-                "hb": r.hb, "albumin": r.albumin,
-                "phosphorus": r.phosphorus, "idwg": r.idwg,
-                "urr": r.urr, "serum_ferritin": r.serum_ferritin,
-                "tsat": r.tsat, "ipth": r.ipth, "bp_sys": r.bp_sys,
-                "epo_weekly_units": r.epo_weekly_units,
-                "epo_mircera_dose": r.epo_mircera_dose,
-                "wbc_count": r.wbc_count, "crp": r.crp,
-                "hospitalization_this_month": r.hospitalization_this_month,
-                "weight": r.target_dry_weight or p.dry_weight,
-            }
-            for r in records
-        ]
-        patient_info = {
-            "age":        p.age,
-            "cad_status": p.cad_status,
-            "chf_status": p.chf_status,
-            "dm_status":  p.dm_status,
-            "ef":         p.ejection_fraction if p.ejection_fraction is not None else 60.0,
-        }
-        mort = predict_mortality_risk(df, patient_info) if df else {"available": False}
-        rows.append({
-            "patient":    p,
-            "mort":       mort,
-            "prob_1yr":   mort.get("prob_1yr", 0) if mort.get("available") else None,
-            "risk_level": mort.get("risk_level", "Unknown"),
-            "css_class":  mort.get("class", "secondary"),
-            "confidence": mort.get("confidence", "—"),
-            "latest_hb":  df[0].get("hb") if df else None,
-            "latest_alb": df[0].get("albumin") if df else None,
-            "n_months":   len(df),
-        })
+    from ml_analytics import get_all_patients_mortality_risk
+    rows = get_all_patients_mortality_risk(db)
 
     # Sort: no-data patients last, then descending by 1-yr probability
     rows.sort(key=lambda r: (r["prob_1yr"] is None, -(r["prob_1yr"] or 0)))
@@ -222,10 +180,144 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
         "user": get_user(request)
     })
 
-@router.get("/patients", tags=["api"])
-async def api_patients(q: str = "", db: Session = Depends(get_db)):
-    patients = db.query(Patient).filter(Patient.is_active == True, Patient.name.ilike(f"%{q}%")).limit(20).all()
-    return [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients]
+@root_router.get("/review", response_class=HTMLResponse)
+@root_router.get("/review/", response_class=HTMLResponse)
+async def clinical_review_queue(request: Request, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    user = get_user(request)
+
+    # 1. Fetch data from dashboard compute (handles Hb drop, Albumin < 2.5, Phos, IDWG)
+    dash_data = compute_dashboard(db)
+    # 2. Fetch mortality risks
+    mort_data = get_all_patients_mortality_risk(db)
+    mort_map = {r['patient'].id: r for r in mort_data}
+
+    active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+
+    flagged = {}  # patient_id -> {patient, flags, priority}
+
+    for p in active_patients:
+        p_flags = []
+        priority = 0
+        
+        # A. High Mortality Risk (P >= 0.40)
+        m = mort_map.get(p.id)
+        if m and m.get('prob_1yr') and m['prob_1yr'] >= 0.40:
+            p_flags.append("High Mortality Risk")
+            priority += 3
+
+        # B. Hb Drop (Current < 9 and dropped from previous)
+        # Find in dash_data['metrics']['trend_hb']
+        hb_trend = next((item for item in dash_data['metrics']['trend_hb'] if item['id'] == p.id), None)
+        if hb_trend:
+            p_flags.append("Hb Drop (<9)")
+            priority += 2
+
+        # C. Low Albumin (mapped from trend_albumin)
+        alb_trend = next((item for item in dash_data['metrics']['trend_albumin'] if item['id'] == p.id), None)
+        if alb_trend:
+            p_flags.append("Low Albumin")
+            priority += 2
+
+        # D. High IDWG (mapped from dash_data['metrics']['idwg_high'])
+        if p.name in dash_data['metrics']['idwg_high']['names']:
+            p_flags.append("High IDWG (>2.5kg)")
+            priority += 1
+
+        # E. Occult Overload (Calculated on the fly)
+        occult = detect_occult_overload(db, p.id)
+        if occult:
+            p_flags.append("Occult Fluid Overload")
+            priority += 4
+
+        # F. Fluid Status Pending (No assessment in last 90 days)
+        last_fs = db.query(ClinicalEvent).filter(
+            ClinicalEvent.patient_id == p.id,
+            ClinicalEvent.event_type == "Fluid Status Assessment"
+        ).order_by(ClinicalEvent.event_date.desc()).first()
+        
+        if not last_fs or (datetime.now().date() - last_fs.event_date).days > 90:
+            p_flags.append("Fluid Assessment Pending")
+            priority += 1
+
+        if p_flags:
+            # Get last reviewed date (from ClinicalEvent "Clinical Review")
+            last_review = db.query(ClinicalEvent).filter(
+                ClinicalEvent.patient_id == p.id,
+                ClinicalEvent.event_type == "Clinical Review"
+            ).order_by(ClinicalEvent.event_date.desc()).first()
+
+            flagged[p.id] = {
+                "patient": p,
+                "flags": p_flags,
+                "priority": priority,
+                "mort_prob": m['prob_1yr'] if m else 0,
+                "last_review": last_review.event_date if last_review else None
+            }
+
+    # Sort by priority desc, then mortality risk desc
+    review_list = sorted(flagged.values(), key=lambda x: (-x['priority'], -(x['mort_prob'] or 0), x['patient'].name))
+
+    return templates.TemplateResponse("review_queue.html", {
+        "request": request,
+        "user": user,
+        "review_list": review_list,
+        "generated_at": datetime.now()
+    })
+
+@router.get("/patients", response_class=HTMLResponse)
+async def analytics_patient_list(request: Request, db: Session = Depends(get_db), filter: str = None):
+    _require_analytics_access(request)
+    user = get_user(request)
+    
+    # Fetch active patients
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    
+    # Get latest labs and risk for each
+    mort_data = get_all_patients_mortality_risk(db)
+    mort_map = {r['patient'].id: r for r in mort_data}
+    
+    # Fetch latest monthly record for each patient to get current labs
+    enriched_patients = []
+    for p in patients:
+        latest_rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id).order_by(MonthlyRecord.record_month.desc()).first()
+        m = mort_map.get(p.id)
+        
+        # Check if patient matches requested filter
+        matches_filter = True
+        if filter:
+            matches_filter = False
+            if filter == "epo_resistant":
+                # Check for any HypoR level
+                if latest_rec and (latest_rec.esa_hyporesponse_level or 0) > 0: matches_filter = True
+            elif filter == "iv_iron":
+                if m and any("Iron" in f for f in m.get('flags', [])): matches_filter = True
+            elif filter == "idwg_high":
+                if latest_rec and (latest_rec.idwg or 0) > 2.5: matches_filter = True
+            elif filter == "albumin_low":
+                if latest_rec and (latest_rec.albumin or 4) < 2.5: matches_filter = True
+            elif filter == "calcium_low":
+                if latest_rec and (latest_rec.calcium_corrected or 9) < 8.0: matches_filter = True
+            elif filter == "phos_high":
+                if latest_rec and (latest_rec.phosphorus or 0) > 5.5: matches_filter = True
+        
+        if matches_filter:
+            enriched_patients.append({
+                "id": p.id,
+                "name": p.name,
+                "hid_no": p.hid_no,
+                "latest_hb": latest_rec.hb if latest_rec else None,
+                "latest_alb": latest_rec.albumin if latest_rec else None,
+                "latest_phos": latest_rec.phosphorus if latest_rec else None,
+                "mortality_risk": m if m else None
+            })
+        
+    return templates.TemplateResponse("analytics_patients.html", {
+        "request": request,
+        "user": user,
+        "patients": enriched_patients,
+        "active_filter": filter
+    })
 
 @router.get("/patients/{patient_id}", response_class=HTMLResponse)
 async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db)):
@@ -269,7 +361,43 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
         "cardiorenal_cascade": cardiorenal_cascade,
         "avf_cascade": avf_cascade,
         "user": get_user(request),
+        "doctor_note": db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.record_month == get_current_month_str()
+        ).first(),
+        "current_month": get_current_month_str()
     })
+
+@router.post("/patients/{patient_id}/note")
+async def save_doctor_note(
+    patient_id: int,
+    note: str = Form(...),
+    record_month: str = Form(...),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    _require_analytics_access(request)
+    user = get_user(request)
+    
+    record = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month == record_month
+    ).first()
+    
+    if not record:
+        record = MonthlyRecord(
+            patient_id=patient_id,
+            record_month=record_month,
+            entered_by=getattr(user, "username", "doctor")
+        )
+        db.add(record)
+    
+    record.doctor_notes = note
+    record.reviewed_by = getattr(user, "full_name", getattr(user, "username", "Doctor"))
+    record.reviewed_at = datetime.now()
+    
+    db.commit()
+    return RedirectResponse(url=f"/analytics/patients/{patient_id}?success=note_saved", status_code=303)
 
 @router.get("/api/dashboard")
 async def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db)):

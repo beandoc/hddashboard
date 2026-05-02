@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Registry — HD Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <style>
+        :root {
+            --primary: #7c3aed;
+            --primary-dark: #6d28d9;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --radius: 12px;
+            --shadow: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: var(--bg-main); color: var(--text-main); }
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
+        header { background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); color: white; padding: 32px 40px; margin-bottom: 30px; }
+        header h1 { margin: 0; font-size: 1.8rem; letter-spacing: -0.02em; }
+        header p { margin: 4px 0 0; opacity: 0.9; font-size: 0.9rem; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px 60px; }
+
+        .filter-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: var(--radius); padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow); }
+        .filter-search { position: relative; flex: 1; }
+        .filter-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+        .filter-search input { width: 100%; padding: 10px 12px 10px 40px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+        .filter-search input:focus { border-color: var(--primary); }
+
+        .patient-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .patient-card { background: white; border-radius: var(--radius); padding: 20px; border: 1px solid #e2e8f0; box-shadow: var(--shadow); transition: transform 0.2s, border-color 0.2s; text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 12px; }
+        .patient-card:hover { transform: translateY(-3px); border-color: var(--primary); }
+
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .patient-name { font-size: 1.15rem; font-weight: 700; color: #0f172a; margin: 0; }
+        .patient-hid { font-size: 0.8rem; color: var(--text-muted); font-family: monospace; margin-top: 2px; }
+
+        .risk-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .risk-high { background: #fee2e2; color: #991b1b; }
+        .risk-moderate { background: #fef3c7; color: #92400e; }
+        .risk-low { background: #f0fdf4; color: #166534; }
+
+        .card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; background: #f8fafc; border-radius: 8px; }
+        .stat-item { text-align: center; }
+        .stat-val { display: block; font-size: 1rem; font-weight: 700; color: #1e293b; }
+        .stat-lbl { display: block; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+
+        .btn-analyze { width: 100%; padding: 10px; background: #f5f3ff; color: var(--primary); border: 1px solid #ddd6fe; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-align: center; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
+        .patient-card:hover .btn-analyze { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .empty-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+        .empty-state i { font-size: 3rem; opacity: 0.2; display: block; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+
+{% include "_nav.html" %}
+
+<header>
+    <div class="container" style="padding:0; margin:0;">
+        <h1>Analytics Registry</h1>
+        <p>Select a patient to explore longitudinal trajectories, ML predictions, and risk modeling.</p>
+    </div>
+</header>
+
+<div class="container">
+    {% if active_filter %}
+    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">ACTIVE FILTER:</span>
+        <span style="background: #ede9fe; color: #7c3aed; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; border: 1px solid #ddd6fe; display: flex; align-items: center; gap: 6px;">
+            <i class="material-icons" style="font-size: 1rem;">filter_alt</i>
+            {% if active_filter == 'epo_resistant' %}ESA Resistant (HypoR)
+            {% elif active_filter == 'iv_iron' %}IV Iron Recommended
+            {% elif active_filter == 'idwg_high' %}IDWG > 2.5kg
+            {% elif active_filter == 'albumin_low' %}Albumin < 2.5g/dL
+            {% elif active_filter == 'calcium_low' %}Calcium < 8.0mg/dL
+            {% elif active_filter == 'phos_high' %}High Phosphorus > 5.5mg/dL
+            {% else %}{{ active_filter }}{% endif %}
+        </span>
+        <a href="/analytics/patients" style="font-size: 0.8rem; color: #ef4444; text-decoration: none; font-weight: 600;">Clear All</a>
+    </div>
+    {% endif %}
+
+    <div class="filter-bar">
+        <div class="filter-search">
+            <i class="material-icons">search</i>
+            <input type="text" id="patientSearch" placeholder="Search by name or HID..." onkeyup="filterPatients()">
+        </div>
+    </div>
+
+    <div class="patient-grid" id="patientGrid">
+        {% for p in patients %}
+        <a href="/analytics/patients/{{ p.id }}" class="patient-card" data-name="{{ p.name.lower() }}" data-hid="{{ p.hid_no }}">
+            <div class="card-top">
+                <div>
+                    <h3 class="patient-name">{{ p.name }}</h3>
+                    <div class="patient-hid">HID: {{ p.hid_no }}</div>
+                </div>
+                {% if p.mortality_risk %}
+                <span class="risk-badge risk-{{ p.mortality_risk.css_class }}">
+                    {{ p.mortality_risk.risk_level }}
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="card-stats">
+                <div class="stat-item">
+                    <span class="stat-val">{{ p.latest_hb or '—' }}</span>
+                    <span class="stat-lbl">Hb</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-val">{{ p.latest_alb or '—' }}</span>
+                    <span class="stat-lbl">Albumin</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-val">{{ p.latest_phos or '—' }}</span>
+                    <span class="stat-lbl">Phos</span>
+                </div>
+            </div>
+
+            <div class="btn-analyze">
+                <i class="material-icons" style="font-size:1.1rem;">insights</i>
+                Analyze Patient Trajectory
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div id="noResults" class="empty-state" style="display: none;">
+        <i class="material-icons">person_off</i>
+        <p>No patients match your search criteria.</p>
+    </div>
+</div>
+
+<script>
+function filterPatients() {
+    const q = document.getElementById('patientSearch').value.toLowerCase();
+    const cards = document.querySelectorAll('.patient-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+        const name = card.getAttribute('data-name');
+        const hid = card.getAttribute('data-hid');
+        if (name.includes(q) || hid.includes(q)) {
+            card.style.display = 'flex';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    document.getElementById('noResults').style.display = visibleCount === 0 ? 'block' : 'none';
+}
+</script>
+
+</body>
+</html>

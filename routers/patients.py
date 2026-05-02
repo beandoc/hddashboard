@@ -290,12 +290,13 @@ async def patient_med_recon(patient_id: int, request: Request, db: Session = Dep
     })
 
 @router.get("/{patient_id}/edit", response_class=HTMLResponse)
-async def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
+async def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db), return_to: Optional[str] = None):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
     return templates.TemplateResponse("patient_form.html", {
         "request": request, "patient": p, "mode": "edit", "error": None,
         "user": get_user(request),
+        "return_to": return_to
     })
 
 @router.post("/{patient_id}/edit")
@@ -395,10 +396,17 @@ async def update_patient(
     whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
+    # Save logic...
     try:
         patient_service.update_patient_record(db, patient_id, locals())
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    
+    # Handle return_to redirect
+    return_to = request.query_params.get("return_to")
+    if return_to:
+        return RedirectResponse(url=return_to, status_code=303)
+        
     return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
 
 @router.post("/{patient_id}/deactivate")

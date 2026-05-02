@@ -114,6 +114,12 @@
 <body>
 
 {% include "_nav.html" %}
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">Analytics Hub</span>
+</nav>
+
 
 <div class="analytics-header">
     <div>
@@ -124,6 +130,21 @@
 
 <div class="container" style="padding-top: 40px;">
     <div class="grid">
+        <!-- Clinical Review Queue -->
+        <div class="insight-card" style="border: 2px solid #7c3aed; background: #f5f3ff;">
+            <div class="card-icon" style="background: #7c3aed; color: white;">
+                <i class="material-icons">fact_check</i>
+            </div>
+            <div class="card-title" style="color: #4c1d95;">Clinical Review Queue</div>
+            <div class="card-desc" style="color: #5b21b6;">
+                Daily priority list of patients requiring clinical intervention. 
+                Aggregates mortality risk, occult overload, and trend deviations into one ranked queue.
+            </div>
+            <a href="/review" class="btn-action" style="background: #7c3aed; color: white;">
+                <i class="material-icons">bolt</i> Start Clinical Review
+            </a>
+        </div>
+
         <!-- Kalman Filter Insight -->
         <div class="insight-card">
             <div class="card-icon icon-kalman">
@@ -131,10 +152,10 @@
             </div>
             <div class="card-title">Kalman Filter Trajectories</div>
             <div class="card-desc">
-                State-space modeling of individual Hemoglobin and Albumin trends. 
-                Uses constant-velocity Bayesian priors to predict next-month values and identify significant clinical deviations.
+              Bayesian state-space modeling of Hb, Albumin, and Phosphorus for each patient.
+              Predicts next-month values and flags significant deviations. Select any patient to view their individual trajectory.
             </div>
-            <a href="/patients" class="btn-action">
+            <a href="/analytics/patients" class="btn-action">
                 <i class="material-icons">person_search</i> Select Patient for Analysis
             </a>
         </div>

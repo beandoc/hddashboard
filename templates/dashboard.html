@@ -578,6 +578,62 @@
 <body>
 
 {% include "_nav.html" %}
+{% if user and user.role == 'staff' %}
+<div style="
+  background: linear-gradient(90deg, #0ea5e9 0%, #0284c7 100%);
+  color: #fff; padding: 12px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; gap: 12px; flex-wrap: wrap;
+">
+  <span>
+    <strong>Good {{ greeting }}, {{ user.full_name or user.username }}.</strong>
+    {% if pending_entry_count %}
+      {{ pending_entry_count }} patient{{ 's' if pending_entry_count != 1 else '' }}
+      {{ 'are' if pending_entry_count != 1 else 'is' }} missing records for
+      {{ current_month_label }}.
+    {% else %}
+      All monthly records are up to date for {{ current_month_label }}.
+    {% endif %}
+  </span>
+  <a href="/entry" style="
+    background: rgba(255,255,255,0.2); color: #fff; text-decoration: none;
+    padding: 7px 16px; border-radius: 8px; font-weight: 600; font-size: 0.82rem;
+    border: 1px solid rgba(255,255,255,0.3); white-space: nowrap;
+  ">Go to Data Entry →</a>
+</div>
+{% endif %}
+
+{% if user and user.role == 'doctor' %}
+<div style="
+  background: linear-gradient(90deg, #7c3aed 0%, #6d28d9 100%);
+  color: #fff; padding: 12px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; gap: 12px; flex-wrap: wrap;
+">
+  <span>
+    <strong>Good {{ greeting }}, Dr. {{ user.full_name or user.username }}.</strong>
+    {% if high_risk_count %}
+      <span style="background:rgba(255,255,255,0.2); padding:2px 10px; border-radius:20px; margin-left:8px; font-weight:700;">
+        {{ high_risk_count }} high-risk patient{{ 's' if high_risk_count != 1 }} need review.
+      </span>
+    {% else %}
+      No critical alerts at this time.
+    {% endif %}
+  </span>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="/review" style="background:#fff; color:#7c3aed; text-decoration:none; padding:7px 16px; border-radius:8px; font-weight:700; font-size:0.82rem; white-space:nowrap; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+      <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">list_alt</i> Review Queue
+    </a>
+    <a href="/analytics/mortality-risk" style="background:rgba(255,255,255,0.2); color:#fff; text-decoration:none; padding:7px 16px; border-radius:8px; font-weight:600; font-size:0.82rem; border:1px solid rgba(255,255,255,0.3); white-space:nowrap;">
+      Mortality Risk →
+    </a>
+    <a href="/analytics" style="background:rgba(255,255,255,0.15); color:#fff; text-decoration:none; padding:7px 16px; border-radius:8px; font-weight:600; font-size:0.82rem; border:1px solid rgba(255,255,255,0.2); white-space:nowrap;">
+      Analytics Hub →
+    </a>
+  </div>
+</div>
+{% endif %}
+
 
 
 <header>
@@ -591,8 +647,10 @@
       <input type="month" value="{{ month_str }}" onchange="location.href='/?month='+this.value"/>
       <span id="liveIndicator" style="font-size:0.75em;opacity:0.7;font-family:monospace;margin-left:6px;">● Live</span>
     </div>
+    {% if user and user.role in ['staff', 'admin'] %}
     <a href="/entry" class="hero-btn primary"><i class="material-icons" style="font-size:0.95rem;">add</i> Enter Data</a>
     <a href="/patients/new" class="hero-btn"><i class="material-icons" style="font-size:0.95rem;">person_add</i> New Patient</a>
+    {% endif %}
   </div>
 </header>
 
@@ -609,26 +667,40 @@
   <div class="dashboard-grid">
 
     {% set cards = [
-      {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False},
+      {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False,"link":"/patients"},
       {"icon":"♂️","value":data.metrics.male_patients.count,"title":"Male","hl":False,"names":data.metrics.male_patients.names,"wide":False},
       {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False},
-      {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False},
-      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff},
-      {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True},
-      {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"Interdialytic Weight Gain > 2.5kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False},
-      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False},
-      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False},
-      {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False},
+      {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False,"link":"/analytics/vascular-access"},
+      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff,"link":"/analytics/patients?filter=epo_resistant"},
+      {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True,"link":"/analytics/patients?filter=iv_iron"},
+      {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"Interdialytic Weight Gain > 2.5kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False,"link":"/analytics/patients?filter=idwg_high"},
+      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False,"link":"/analytics/patients?filter=albumin_low"},
+      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False,"link":"/analytics/patients?filter=calcium_low"},
+      {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False,"link":"/analytics/patients?filter=phos_high"},
     ] %}
 
     {% for c in cards %}
-    <div class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}">
+    <{{ 'a href="' + c.link + '"' if (c.get('link') and c.value > 0) else 'div' }} class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}"
+      {% if c.get('link') and c.value > 0 %}style="text-decoration:none; color:inherit; cursor:pointer;"{% endif %}>
       {% if c.wide %}
         <div class="wide-card-header">
           <span class="icon">{{ c.icon }}</span>
           <span class="title">{{ c.title }}</span>
           <span class="value">{{ c.value }}</span>
         </div>
+        {% if c.r2 is defined %}
+          <div style="padding: 0 16px 12px; margin-top: -8px;">
+            <div style="font-size:0.72rem;color:#94a3b8;line-height:1.6;"
+                 title="HypoR1: ERI ≥ 1 IU/kg/wk/g/dL (mild)&#10;HypoR2: ERI ≥ 2 IU/kg/wk/g/dL or dose ≥ 450 IU/wk&#10;HypoR3: Dose &gt; unit-specific cutoff (severe)&#10;&#10;Based on ERBP 2012 classification">
+              ESA Hyporesponse Classification
+              <span style="display:inline-block;width:14px;height:14px;background:#e2e8f0;border-radius:50%;text-align:center;line-height:14px;font-size:0.65rem;cursor:help;margin-left:3px;">?</span>
+              <br>
+              <span style="color:#fb923c;">HypoR2: {{ c.r2 }}</span>
+              &nbsp;·&nbsp;
+              <span style="color:#a78bfa;">HypoR3: {{ c.r3 }}{% if c.r3cut %} (&gt;{{ c.r3cut|int }} IU/wk){% endif %}</span>
+            </div>
+          </div>
+        {% endif %}
         {% if c.names %}
         <ul class="visible-list">
           {% for n in c.names %}<li>{{ n }}</li>{% endfor %}
@@ -639,16 +711,21 @@
         <div class="value">{{ c.value }}</div>
         <div class="title">{{ c.title }}</div>
         {% if c.r2 is defined %}
-          <div style="font-size:0.72rem;color:#94a3b8;margin-top:4px;line-height:1.6;">
-            ERI ≥ 2 IU/kg/wk/g/L or dose ≥ 450<br>
-            <span style="color:#fb923c;">HypoR2: {{ c.r2 }}</span> · <span style="color:#a78bfa;">HypoR3: {{ c.r3 }}{% if c.r3cut %} (&gt;{{ c.r3cut|int }} IU/wk){% endif %}</span>
+          <div style="font-size:0.72rem;color:#94a3b8;margin-top:4px;line-height:1.6;"
+               title="HypoR1: ERI ≥ 1 IU/kg/wk/g/dL (mild)&#10;HypoR2: ERI ≥ 2 IU/kg/wk/g/dL or dose ≥ 450 IU/wk&#10;HypoR3: Dose &gt; unit-specific cutoff (severe)&#10;&#10;Based on ERBP 2012 classification">
+            ESA Hyporesponse Classification
+            <span style="display:inline-block;width:14px;height:14px;background:#e2e8f0;border-radius:50%;text-align:center;line-height:14px;font-size:0.65rem;cursor:help;margin-left:3px;">?</span>
+            <br>
+            <span style="color:#fb923c;">HypoR2: {{ c.r2 }}</span>
+            &nbsp;·&nbsp;
+            <span style="color:#a78bfa;">HypoR3: {{ c.r3 }}{% if c.r3cut %} (&gt;{{ c.r3cut|int }} IU/wk){% endif %}</span>
           </div>
         {% endif %}
         {% if c.names %}
           <div class="tooltip">{{ c.names | join('\n') }}</div>
         {% endif %}
       {% endif %}
-    </div>
+    </{{ 'a' if (c.get('link') and c.value > 0) else 'div' }}>
     {% endfor %}
 
   </div>
@@ -673,7 +750,7 @@
       <div id="hbTrendChart" class="trend-chart-content"></div>
       <div class="patient-nav">
         <button onclick="navigatePatient('hb',-1)" id="hbPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
-        <span id="hbPatientName" class="patient-name-display"></span>
+        <a id="hbPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
         <button onclick="navigatePatient('hb',1)" id="hbNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
       </div>
     </div>
@@ -682,7 +759,7 @@
       <div id="albTrendChart" class="trend-chart-content"></div>
       <div class="patient-nav">
         <button onclick="navigatePatient('alb',-1)" id="albPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
-        <span id="albPatientName" class="patient-name-display"></span>
+        <a id="albPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
         <button onclick="navigatePatient('alb',1)" id="albNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
       </div>
     </div>
@@ -691,7 +768,7 @@
       <div id="phosTrendChart" class="trend-chart-content"></div>
       <div class="patient-nav">
         <button onclick="navigatePatient('phos',-1)" id="phosPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
-        <span id="phosPatientName" class="patient-name-display"></span>
+        <a id="phosPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
         <button onclick="navigatePatient('phos',1)" id="phosNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
       </div>
     </div>
@@ -744,7 +821,7 @@
       </div>
       <div class="patient-nav" id="atRiskNav" style="display: none;">
         <button onclick="navigateAtRiskPatient(-1)" id="atRiskPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
-        <span id="atRiskPatientName" class="patient-name-display"></span>
+        <a id="atRiskPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
         <button onclick="navigateAtRiskPatient(1)" id="atRiskNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
       </div>
     </div>
@@ -830,14 +907,19 @@ function renderTrend(key) {
 
   if (!arr || arr.length === 0) {
     el.innerHTML = '<p style="color:#777;text-align:center;padding:60px 0 0">No patients meeting criteria</p>';
-    document.getElementById(cfg.nameEl).textContent = "N/A";
+    const nameEl = document.getElementById(cfg.nameEl);
+    nameEl.textContent = "N/A";
+    nameEl.href = "#";
+    nameEl.style.textDecoration = "none";
     document.getElementById(cfg.prevBtn).disabled = true;
     document.getElementById(cfg.nextBtn).disabled = true;
     return;
   }
   const d = arr[idx];
   const nameEl = document.getElementById(cfg.nameEl);
-  nameEl.innerHTML = `<a href="/patients/${d.id}/profile" style="color:inherit; text-decoration:none; border-bottom:1px dashed var(--primary);">${d.name}</a> (${idx+1}/${arr.length})`;
+  nameEl.innerText = `${d.name} (${idx+1}/${arr.length})`;
+  nameEl.href = d.id ? `/analytics/patients/${d.id}` : '#';
+  nameEl.style.textDecoration = d.id ? 'underline' : 'none';
   document.getElementById(cfg.prevBtn).disabled = (idx === 0);
   document.getElementById(cfg.nextBtn).disabled = (idx === arr.length - 1);
 
@@ -938,6 +1020,9 @@ async function loadAtRiskTrends() {
       chartDiv.style.display = "none";
       emptyMsg.style.display = "block";
       navDiv.style.display = "none";
+      const nameEl = document.getElementById("atRiskPatientName");
+      nameEl.href = "#";
+      nameEl.style.textDecoration = "none";
       return;
     }
 
@@ -957,7 +1042,9 @@ function renderAtRiskTrend() {
   const param = atRiskData.parameter;
   
   const nameEl = document.getElementById("atRiskPatientName");
-  nameEl.innerHTML = `<a href="/patients/${d.id}/profile" style="color:inherit; text-decoration:none; border-bottom:1px dashed var(--primary);">${d.name}</a> (${atRiskIdx+1}/${atRiskData.patients.length})`;
+  nameEl.innerText = `${d.name} (${atRiskIdx+1}/${atRiskData.patients.length})`;
+  nameEl.href = d.id ? `/analytics/patients/${d.id}` : '#';
+  nameEl.style.textDecoration = d.id ? 'underline' : 'none';
   
   document.getElementById("atRiskPrevBtn").disabled = (atRiskIdx === 0);
   document.getElementById("atRiskNextBtn").disabled = (atRiskIdx === atRiskData.patients.length - 1);
