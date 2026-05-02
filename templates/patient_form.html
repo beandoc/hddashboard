@@ -229,7 +229,8 @@
                 </div>
                 <div class="form-group">
                     <label>Access Type</label>
-                    <select name="access_type">
+                    <select name="access_type" id="access_type_select" onchange="toggleAccessFields()">
+                        <option value="">-- Select Access --</option>
                         {% set access_opts = ["RC AVF Rt","RC AVF Lt","Rt BC AVF","Left BC AVF","Rt IJV TCC","Lt IJV TCC","Rt EJV TCC","Rt Femoral TCC","Lt Femoral TCC","RT DLJC","Lt DLJC","Rt Femoral","Lt Femoral"] %}
                         {% for opt in access_opts %}
                         <option value="{{ opt }}" {{ 'selected' if patient and patient.access_type == opt else '' }}>{{ opt }}</option>
@@ -448,15 +449,27 @@
             <!-- ── Vascular Access Details ── -->
             <div class="form-card">
                 <h3><i class="material-icons">device_hub</i> Vascular Access Details</h3>
-                <div class="form-row">
+                
+                <div class="form-group" style="background:#f1f5f9; padding:12px; border-radius:8px; margin-bottom:20px;">
+                    <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer; color:var(--primary); font-weight:700;">
+                        <input type="checkbox" id="dual_access_toggle" onchange="toggleAccessFields()" style="width:18px; height:18px;">
+                        <span>Dual Access / Bridge Phase? (Catheter + AVF/AVG)</span>
+                    </label>
+                    <p style="font-size:0.75rem; color:#64748b; margin:4px 0 0 28px;">Enable this if the patient has a catheter while a new fistula/graft is maturing.</p>
+                </div>
+
+                <div id="avf_fields" class="form-row">
                     <div class="form-group">
-                        <label>Access Creation Date</label>
+                        <label>AVF/AVG Creation Date</label>
                         <input type="date" name="access_date" value="{{ patient.access_date if patient and patient.access_date else '' }}">
                     </div>
                     <div class="form-group">
                         <label>First Cannulation Date</label>
                         <input type="date" name="date_first_cannulation" value="{{ patient.date_first_cannulation if patient and patient.date_first_cannulation else '' }}">
                     </div>
+                </div>
+
+                <div id="catheter_fields" class="form-row">
                     <div class="form-group">
                         <label>Catheter Type</label>
                         <select name="catheter_type">
@@ -476,6 +489,7 @@
                         </select>
                     </div>
                 </div>
+
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
                         <input type="checkbox" name="history_of_access_thrombosis" value="true" {{ 'checked' if patient and patient.history_of_access_thrombosis }} style="width:18px;height:18px;">
@@ -663,6 +677,33 @@
             }
         }
 
+        function toggleAccessFields() {
+            const accessType = document.getElementById('access_type_select').value;
+            const avfFields = document.getElementById('avf_fields');
+            const cathFields = document.getElementById('catheter_fields');
+            const dualToggle = document.getElementById('dual_access_toggle');
+            
+            if (dualToggle.checked) {
+                avfFields.style.display = 'grid';
+                cathFields.style.display = 'grid';
+                return;
+            }
+
+            const isCath = accessType.includes('TCC') || accessType.includes('DLJC') || accessType.includes('Femoral');
+            const isAvf = accessType.includes('AVF') || accessType.includes('AVG');
+
+            if (isCath) {
+                cathFields.style.display = 'grid';
+                avfFields.style.display = 'none';
+            } else if (isAvf) {
+                cathFields.style.display = 'none';
+                avfFields.style.display = 'grid';
+            } else {
+                cathFields.style.display = 'none';
+                avfFields.style.display = 'none';
+            }
+        }
+
         function toggleBiopsyFields() {
             const status = document.getElementById('native_kidney_biopsy').value;
             const bDate = document.getElementById('native_kidney_biopsy_date');
@@ -745,6 +786,15 @@
         document.addEventListener("DOMContentLoaded", () => {
             toggleDeathFields();
             toggleBiopsyFields();
+            
+            // Auto-detect Dual Access state
+            const hasAvf = document.querySelector('input[name="access_date"]').value !== "";
+            const hasCath = document.querySelector('select[name="catheter_type"]').value !== "";
+            if (hasAvf && hasCath) {
+                document.getElementById('dual_access_toggle').checked = true;
+            }
+            
+            toggleAccessFields();
             calculateCCI(); // Calculate initially on load
         });
     </script>
