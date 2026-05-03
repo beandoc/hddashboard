@@ -115,7 +115,8 @@ def generate_whatsapp_link(contact_no: str, message: str) -> str:
     # Remove the + for wa.me format
     number = number.lstrip("+")
     encoded_message = quote(message)
-    return f"https://wa.me/{number}?text={encoded_message}"
+    # Using web.whatsapp.com format to force it to open in the browser tab
+    return f"https://web.whatsapp.com/send?phone={number}&text={encoded_message}"
 
 
 def build_schedule_message(patient_name: str, sessions: list,
