@@ -223,6 +223,9 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "protein": round(w * 1.2, 1)
     }
 
+    from alerts import build_individual_whatsapp_link
+    wa_link = build_individual_whatsapp_link(p, latest_monthly, get_month_label(latest_monthly.record_month) if latest_monthly else "")
+
     return templates.TemplateResponse("patient_profile.html", {
         "request": request,
         "patient": p,
@@ -244,6 +247,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "csrf_token": csrf_token,
         "success_msg": msg,
         "user": get_user(request),
+        "whatsapp_link": wa_link,
     })
 
 @router.get("/{patient_id}/summary", response_class=HTMLResponse)
