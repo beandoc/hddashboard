@@ -154,6 +154,9 @@ class Patient(Base):
     date_of_death = Column(Date)
     primary_cause_of_death = Column(String)      # Cardiac / Infection / Vascular / Withdrawal / Other
     withdrawal_from_dialysis = Column(Boolean)
+    withdrawal_date = Column(Date)
+    withdrawal_reason = Column(String)           # Patient choice / Medical recommendation / Quality of Life
+    withdrawal_clinician = Column(String)        # Responsible clinician
     date_facility_transfer = Column(Date)
 
     # ── Notifications ─────────────────────────────────────────────────────────

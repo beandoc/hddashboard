@@ -1,0 +1,46 @@
+Testing for month: 2026-05
+Traceback (most recent call last):
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py", line 924, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such column: patients.withdrawal_date
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/sachinsrivastava/Downloads/HD Dashboard/scratch/test_entry.py", line 39, in <module>
+    test_entry_index()
+  File "/Users/sachinsrivastava/Downloads/HD Dashboard/scratch/test_entry.py", line 19, in test_entry_index
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/query.py", line 2673, in all
+    return self._iter().all()  # type: ignore
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/query.py", line 2827, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+    return self._execute_internal(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/session.py", line 2236, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/orm/context.py", line 293, in orm_execute_statement
+    result = conn.execute(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1418, in execute
+    return meth(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/sql/elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 2353, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "/Users/sachinsrivastava/Library/Python/3.9/lib/python/site-packages/sqlalchemy/engine/default.py", line 924, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: patients.withdrawal_date
+[SQL: SELECT patients.id AS patients_id, patients.hid_no AS patients_hid_no, patients.name AS patients_name, patients.relation AS patients_relation, patients.relation_type AS patients_relation_type, patients.sex AS patients_sex, patients.contact_no AS patients_contact_no, patients.email AS patients_email, patients.diagnosis AS patients_diagnosis, patients.hd_wef_date AS patients_hd_wef_date, patients.education_level AS patients_education_level, patients.height AS patients_height, patients.primary_renal_disease AS patients_primary_renal_disease, patients.native_kidney_disease AS patients_native_kidney_disease, patients.date_esrd_diagnosis AS patients_date_esrd_diagnosis, patients.native_kidney_biopsy AS patients_native_kidney_biopsy, patients.native_kidney_biopsy_date AS patients_native_kidney_biopsy_date, patients.native_kidney_biopsy_report AS patients_native_kidney_biopsy_report, patients.dm_status AS patients_dm_status, patients.dm_end_organ_damage AS patients_dm_end_organ_damage, patients.htn_status AS patients_htn_status, patients.cad_status AS patients_cad_status, patients.chf_status AS patients_chf_status, patients.history_of_stroke AS patients_history_of_stroke, patients.history_of_pvd AS patients_history_of_pvd, patients.history_of_dementia AS patients_history_of_dementia, patients.history_of_cpd AS patients_history_of_cpd, patients.history_of_ctd AS patients_history_of_ctd, patients.history_of_pud AS patients_history_of_pud, patients.liver_disease AS patients_liver_disease, patients.hemiplegia AS patients_hemiplegia, patients.solid_tumor AS patients_solid_tumor, patients.leukemia AS patients_leukemia, patients.lymphoma AS patients_lymphoma, patients.smoking_status AS patients_smoking_status, patients.alcohol_consumption AS patients_alcohol_consumption, patients.charlson_comorbidity_index AS patients_charlson_comorbidity_index, patients.comorbidities AS patients_comorbidities, patients.drug_allergies AS patients_drug_allergies, patients.clinical_background AS patients_clinical_background, patients.dialysis_modality AS patients_dialysis_modality, patients.previous_dialysis_modality AS patients_previous_dialysis_modality, patients.previous_krt_modality AS patients_previous_krt_modality, patients.history_of_renal_transplant AS patients_history_of_renal_transplant, patients.transplant_prospect AS patients_transplant_prospect, patients.viral_markers AS patients_viral_markers, patients.viral_hbsag AS patients_viral_hbsag, patients.viral_anti_hcv AS patients_viral_anti_hcv, patients.viral_hiv AS patients_viral_hiv, patients.hep_b_status AS patients_hep_b_status, patients.hep_b_dose1_date AS patients_hep_b_dose1_date, patients.hep_b_dose2_date AS patients_hep_b_dose2_date, patients.hep_b_dose3_date AS patients_hep_b_dose3_date, patients.hep_b_dose4_date AS patients_hep_b_dose4_date, patients.hep_b_titer_date AS patients_hep_b_titer_date, patients.pcv13_date AS patients_pcv13_date, patients.ppsv23_date AS patients_ppsv23_date, patients.hz_dose1_date AS patients_hz_dose1_date, patients.hz_dose2_date AS patients_hz_dose2_date, patients.influenza_date AS patients_influenza_date, patients.access_type AS patients_access_type, patients.access_date AS patients_access_date, patients.date_first_cannulation AS patients_date_first_cannulation, patients.history_of_access_thrombosis AS patients_history_of_access_thrombosis, patients.access_intervention_history AS patients_access_intervention_history, patients.catheter_type AS patients_catheter_type, patients.catheter_insertion_site AS patients_catheter_insertion_site, patients.age AS patients_age, patients.ejection_fraction AS patients_ejection_fraction, patients.diastolic_dysfunction AS patients_diastolic_dysfunction, patients.handgrip_strength AS patients_handgrip_strength, patients.echo_date AS patients_echo_date, patients.echo_report AS patients_echo_report, patients.dry_weight AS patients_dry_weight, patients.healthcare_facility AS patients_healthcare_facility, patients.hd_frequency AS patients_hd_frequency, patients.hd_day_1 AS patients_hd_day_1, patients.hd_day_2 AS patients_hd_day_2, patients.hd_day_3 AS patients_hd_day_3, patients.hd_slot_1 AS patients_hd_slot_1, patients.hd_slot_2 AS patients_hd_slot_2, patients.hd_slot_3 AS patients_hd_slot_3, patients.blood_group AS patients_blood_group, patients.baseline_gcr AS patients_baseline_gcr, patients.baseline_vdcr AS patients_baseline_vdcr, patients.is_black AS patients_is_black, patients.current_survival_status AS patients_current_survival_status, patients.date_of_death AS patients_date_of_death, patients.primary_cause_of_death AS patients_primary_cause_of_death, patients.withdrawal_from_dialysis AS patients_withdrawal_from_dialysis, patients.withdrawal_date AS patients_withdrawal_date, patients.withdrawal_reason AS patients_withdrawal_reason, patients.withdrawal_clinician AS patients_withdrawal_clinician, patients.date_facility_transfer AS patients_date_facility_transfer, patients.whatsapp_link AS patients_whatsapp_link, patients.whatsapp_notify AS patients_whatsapp_notify, patients.mail_trigger AS patients_mail_trigger, patients.is_active AS patients_is_active, patients.created_at AS patients_created_at, patients.updated_at AS patients_updated_at, patients.login_username AS patients_login_username, patients.hashed_password AS patients_hashed_password 
+FROM patients 
+WHERE patients.is_active = 1 ORDER BY patients.name]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

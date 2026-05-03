@@ -156,15 +156,15 @@
                         </td>
                         <td style="text-align: right;">
                             <div style="display:flex; gap:8px; justify-content: flex-end; flex-wrap:wrap;">
-                                <a href="/patients/{{ p.id }}/edit?return_to={{ return_to_entry }}" class="btn-action" title="Update Demographics">
-                                    <i class="material-icons" style="font-size:1rem;">person</i> Demographics
+                                <a href="/patients/{{ p.id }}/edit?return_to={{ return_to_entry }}" class="btn-action" title="Patient Profile">
+                                    <i class="material-icons" style="font-size:1rem;">person</i> Patient Profile
                                 </a>
-                                <a href="/entry/{{ p.id }}?month={{ month_str }}" class="btn-action btn-primary" title="Monthly Clinical Report">
+                                <a href="/entry/{{ p.id }}?month={{ month_str }}" class="btn-action btn-primary" title="Monthly Record">
                                     <i class="material-icons" style="font-size:1rem;">medical_information</i>
-                                    {{ "Edit Report" if p.id in existing_records else "New Report" }}
+                                    {{ "Edit Monthly Record" if p.id in existing_records else "Monthly Record" }}
                                 </a>
-                                <a href="/patients/{{ p.id }}/sessions/new" class="btn-action" title="Per-Session Data">
-                                    <i class="material-icons" style="font-size:1rem;">biotech</i> Session
+                                <a href="/patients/{{ p.id }}/sessions/new" class="btn-action" title="Dialysis Session">
+                                    <i class="material-icons" style="font-size:1rem;">biotech</i> Dialysis Session
                                 </a>
                             </div>
                         </td>

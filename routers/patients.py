@@ -91,7 +91,16 @@ async def create_patient(
     native_kidney_biopsy_date: Optional[str] = Form(None),
     native_kidney_biopsy_report: str = Form(""),
     echo_date: Optional[str] = Form(None),
-    echo_report: str = Form("")
+    echo_report: str = Form(""),
+    # Outcome / Status
+    current_survival_status: str = Form(""),
+    date_of_death: Optional[str] = Form(None),
+    primary_cause_of_death: str = Form(""),
+    withdrawal_date: Optional[str] = Form(None),
+    withdrawal_reason: str = Form(""),
+    withdrawal_clinician: str = Form(""),
+    date_facility_transfer: Optional[str] = Form(None),
+    diastolic_dysfunction: str = Form(""),
 ):
     try:
         patient_service.create_patient_record(db, locals())
@@ -351,6 +360,7 @@ async def update_patient(
     clinical_background: str = Form(""),
     # ── Cardiac ───────────────────────────────────────────────────────────────
     ejection_fraction: Optional[float] = Form(None),
+    diastolic_dysfunction: str = Form(""),
     echo_date: Optional[str] = Form(None),
     echo_report: str = Form(""),
     # ── Vascular access ───────────────────────────────────────────────────────
@@ -390,7 +400,9 @@ async def update_patient(
     current_survival_status: str = Form(""),
     date_of_death: Optional[str] = Form(None),
     primary_cause_of_death: str = Form(""),
-    withdrawal_from_dialysis: bool = Form(False),
+    withdrawal_date: Optional[str] = Form(None),
+    withdrawal_reason: str = Form(""),
+    withdrawal_clinician: str = Form(""),
     date_facility_transfer: Optional[str] = Form(None),
     # ── Notifications ─────────────────────────────────────────────────────────
     whatsapp_notify: bool = Form(False),

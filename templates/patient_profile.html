@@ -41,7 +41,7 @@
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">medication</i> <span class="btn-text">Meds</span>
             </a>
             <a href="/entry/{{ patient.id }}" class="btn-action btn-primary">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_chart</i> <span class="btn-text">Monthly Data</span>
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_chart</i> <span class="btn-text">Monthly Record</span>
             </a>
         </div>
     </div>
@@ -54,6 +54,17 @@
                 <div class="patient-sub">
                     <span class="badge badge-hid">HID: {{ patient.hid_no }}</span>
                     <span class="badge badge-status">{{ patient.current_survival_status or 'Active' }}</span>
+                    {% if patient.current_survival_status == 'Withdrawn' %}
+                    <div style="margin-top: 10px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                        <i class="material-icons" style="color: #ea580c; font-size: 1.2rem;">warning</i>
+                        <div style="font-size: 0.8rem; color: #9a3412;">
+                            <strong style="display: block; margin-bottom: 2px;">Withdrawal from Dialysis</strong>
+                            Date: {{ patient.withdrawal_date.strftime('%d %b %Y') if patient.withdrawal_date else 'Not recorded' }} <br>
+                            Reason: {{ patient.withdrawal_reason or 'Not recorded' }} <br>
+                            Clinician: {{ patient.withdrawal_clinician or 'Not recorded' }}
+                        </div>
+                    </div>
+                    {% endif %}
                     <span class="badge badge-status" style="background:#fefce8; color:#854d0e;">In-Centre HD</span>
                     <span class="badge" style="background:#f0fdf4; color:#166534;">{{ patient.blood_group or 'Blood Group —' }}</span>
                 </div>

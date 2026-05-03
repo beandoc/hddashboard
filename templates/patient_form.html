@@ -71,17 +71,6 @@
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .comorbidity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 
-        /* MOBILE DRAWER (standardized) */
-        .mobile-drawer {
-            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
-            z-index: 2000; display: none; flex-direction: column; padding: 40px 24px; gap: 16px;
-        }
-        .mobile-drawer.open { display: flex; }
-        .mobile-drawer a {
-            color: #fff; font-size: 1.2rem; text-decoration: none; padding: 16px; border-radius: 12px;
-            background: rgba(255,255,255,0.05); font-weight: 600;
-        }
-
         @media(max-width: 640px) {
             .app-nav .nav-links { display: none; }
             .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
@@ -209,40 +198,6 @@
                 </div>
             </div>
 
-            <div class="form-card">
-                <h3><i class="material-icons">event_note</i> Dialysis Prescription</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>HD Start Date (WEF)</label>
-                        <input type="date" name="hd_wef_date" value="{{ patient.hd_wef_date if patient and patient.hd_wef_date else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Current Dialysis Modality</label>
-                        <select name="dialysis_modality">
-                            <option value="">-- Select --</option>
-                            {% for m in ["HD","HDF","Online-HDF","CAPD","APD"] %}
-                            <option value="{{ m }}" {{ 'selected' if patient and patient.dialysis_modality == m }}>{{ m }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Target Dry Weight (kg)</label>
-                        <input type="number" step="0.1" name="dry_weight" value="{{ patient.dry_weight if patient else '' }}" inputmode="decimal">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Access Type</label>
-                    <select name="access_type" id="access_type_select" onchange="toggleAccessFields()">
-                        <option value="">-- Select Access --</option>
-                        {% set access_opts = ["RC AVF Rt","RC AVF Lt","Rt BC AVF","Left BC AVF","Rt IJV TCC","Lt IJV TCC","Rt EJV TCC","Rt Femoral TCC","Lt Femoral TCC","RT DLJC","Lt DLJC","Rt Femoral","Lt Femoral"] %}
-                        {% for opt in access_opts %}
-                        <option value="{{ opt }}" {{ 'selected' if patient and patient.access_type == opt else '' }}>{{ opt }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-            </div>
-            
             <!-- ── Renal Disease Profile ── -->
             <div class="form-card">
                 <h3><i class="material-icons">biotech</i> Renal Disease Profile</h3>
@@ -284,106 +239,6 @@
                 </div>
             </div>
 
-            <!-- ── Comorbidities ── -->
-            <div class="form-card">
-                <h3><i class="material-icons">monitor_heart</i> Comorbidities</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Diabetes Mellitus</label>
-                        <select name="dm_status" id="cci_dm_status" onchange="calculateCCI()">
-                            <option value="None" {{ 'selected' if patient and patient.dm_status == 'None' }}>None</option>
-                            <option value="Type 1" {{ 'selected' if patient and patient.dm_status == 'Type 1' }}>Type 1</option>
-                            <option value="Type 2" {{ 'selected' if patient and patient.dm_status == 'Type 2' }}>Type 2</option>
-                            <option value="Secondary" {{ 'selected' if patient and patient.dm_status == 'Secondary' }}>Secondary</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Ejection Fraction (%) <small style="color:#888">Default 60% if unknown</small></label>
-                        <input type="number" step="1" name="ejection_fraction" min="10" max="80" value="{{ patient.ejection_fraction if patient and patient.ejection_fraction else '' }}" placeholder="60">
-                    </div>
-                    <div class="form-group">
-                        <label>2D Echo Date</label>
-                        <input type="date" name="echo_date" value="{{ patient.echo_date if patient and patient.echo_date else '' }}">
-                    </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>2D Echo Report Details</label>
-                        <textarea name="echo_report" rows="2" placeholder="e.g. Detailed findings from the 2D Echo report..." style="resize: vertical;">{{ patient.echo_report if patient and patient.echo_report else '' }}</textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Smoking Status</label>
-                        <select name="smoking_status">
-                            <option value="">-- Select --</option>
-                            <option value="Never" {{ 'selected' if patient and patient.smoking_status == 'Never' }}>Never</option>
-                            <option value="Ex-smoker" {{ 'selected' if patient and patient.smoking_status == 'Ex-smoker' }}>Ex-smoker</option>
-                            <option value="Current" {{ 'selected' if patient and patient.smoking_status == 'Current' }}>Current</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Alcohol Consumption</label>
-                        <select name="alcohol_consumption">
-                            <option value="">-- Select --</option>
-                            <option value="None" {{ 'selected' if patient and patient.alcohol_consumption == 'None' }}>None</option>
-                            <option value="Occasional" {{ 'selected' if patient and patient.alcohol_consumption == 'Occasional' }}>Occasional</option>
-                            <option value="Regular" {{ 'selected' if patient and patient.alcohol_consumption == 'Regular' }}>Regular</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Charlson Comorbidity Index (Calculated)</label>
-                        <input type="number" name="charlson_comorbidity_index" id="cci_score" min="0" max="40" step="1" inputmode="numeric" value="{{ patient.charlson_comorbidity_index if patient and patient.charlson_comorbidity_index is not none else '' }}" placeholder="Auto-calculated" readonly style="background-color: #e2e8f0; opacity: 0.8;">
-                    </div>
-                </div>
-                <div class="comorbidity-grid">
-                    {% for field, label in [
-                        ('htn_status','Hypertension'),
-                        ('cad_status','Myocardial Infarction / CAD'),
-                        ('chf_status','Congestive Heart Failure'),
-                        ('history_of_stroke','CVA / TIA / Stroke'),
-                        ('history_of_pvd','Peripheral Vascular Disease'),
-                        ('history_of_dementia','Dementia'),
-                        ('history_of_cpd','Chronic Pulmonary Disease'),
-                        ('history_of_ctd','Connective Tissue Disease'),
-                        ('history_of_pud','Peptic Ulcer Disease'),
-                        ('hemiplegia','Hemiplegia'),
-                        ('leukemia','Leukemia'),
-                        ('lymphoma','Lymphoma'),
-                        ('dm_end_organ_damage','Diabetes with End-Organ Damage')
-                    ] %}
-                    <div class="form-group">
-                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                            <input type="checkbox" name="{{ field }}" id="cci_{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} style="width:18px;height:18px;" onchange="calculateCCI()">
-                            <span>{{ label }}</span>
-                        </label>
-                    </div>
-                    {% endfor %}
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Liver Disease</label>
-                        <select name="liver_disease" id="cci_liver_disease" onchange="calculateCCI()">
-                            <option value="None" {{ 'selected' if not patient or patient.liver_disease == 'None' }}>None</option>
-                            <option value="Mild" {{ 'selected' if patient and patient.liver_disease == 'Mild' }}>Mild</option>
-                            <option value="Moderate to severe" {{ 'selected' if patient and patient.liver_disease == 'Moderate to severe' }}>Moderate to severe</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Solid Tumor</label>
-                        <select name="solid_tumor" id="cci_solid_tumor" onchange="calculateCCI()">
-                            <option value="None" {{ 'selected' if not patient or patient.solid_tumor == 'None' }}>None</option>
-                            <option value="Localized" {{ 'selected' if patient and patient.solid_tumor == 'Localized' }}>Localized</option>
-                            <option value="Metastatic" {{ 'selected' if patient and patient.solid_tumor == 'Metastatic' }}>Metastatic</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Other Comorbidities (free text)</label>
-                    <textarea name="comorbidities" rows="2" placeholder="e.g. Hypothyroidism, CLD...">{{ patient.comorbidities if patient and patient.comorbidities else '' }}</textarea>
-                </div>
-                <div class="form-group">
-                    <label>Drug Allergies</label>
-                    <input type="text" name="drug_allergies" value="{{ patient.drug_allergies if patient and patient.drug_allergies else '' }}" placeholder="e.g. Penicillin, NSAIDs">
-                </div>
-            </div>
-
             <!-- ── KRT History ── -->
             <div class="form-card">
                 <h3><i class="material-icons">history</i> KRT History & Transplant</h3>
@@ -415,38 +270,38 @@
                 </div>
             </div>
 
-            <!-- ── Viral Markers ── -->
             <div class="form-card">
-                <h3><i class="material-icons">coronavirus</i> Viral Markers</h3>
+                <h3><i class="material-icons">event_note</i> Dialysis Prescription</h3>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>HBsAg</label>
-                        <select name="viral_hbsag">
+                        <label>HD Start Date (WEF)</label>
+                        <input type="date" name="hd_wef_date" value="{{ patient.hd_wef_date if patient and patient.hd_wef_date else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Current Dialysis Modality</label>
+                        <select name="dialysis_modality">
                             <option value="">-- Select --</option>
-                            <option value="Negative" {{ 'selected' if patient and patient.viral_hbsag == 'Negative' }}>Negative</option>
-                            <option value="Positive" {{ 'selected' if patient and patient.viral_hbsag == 'Positive' }}>Positive</option>
-                            <option value="Not tested" {{ 'selected' if patient and patient.viral_hbsag == 'Not tested' }}>Not tested</option>
+                            {% for m in ["HD","HDF","Online-HDF","CAPD","APD"] %}
+                            <option value="{{ m }}" {{ 'selected' if patient and patient.dialysis_modality == m }}>{{ m }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Anti-HCV</label>
-                        <select name="viral_anti_hcv">
-                            <option value="">-- Select --</option>
-                            <option value="Negative" {{ 'selected' if patient and patient.viral_anti_hcv == 'Negative' }}>Negative</option>
-                            <option value="Positive" {{ 'selected' if patient and patient.viral_anti_hcv == 'Positive' }}>Positive</option>
-                            <option value="Not tested" {{ 'selected' if patient and patient.viral_anti_hcv == 'Not tested' }}>Not tested</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>HIV</label>
-                        <select name="viral_hiv" id="cci_viral_hiv" onchange="calculateCCI()">
-                            <option value="">-- Select --</option>
-                            <option value="Negative" {{ 'selected' if patient and patient.viral_hiv == 'Negative' }}>Negative</option>
-                            <option value="Positive" {{ 'selected' if patient and patient.viral_hiv == 'Positive' }}>Positive</option>
-                            <option value="Not tested" {{ 'selected' if patient and patient.viral_hiv == 'Not tested' }}>Not tested</option>
-                        </select>
+                        <label>Target Dry Weight (kg)</label>
+                        <input type="number" step="0.1" name="dry_weight" value="{{ patient.dry_weight if patient else '' }}" inputmode="decimal">
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>Access Type</label>
+                    <select name="access_type" id="access_type_select" onchange="toggleAccessFields()">
+                        <option value="">-- Select Access --</option>
+                        {% set access_opts = ["RC AVF Rt","RC AVF Lt","Rt BC AVF","Left BC AVF","Rt IJV TCC","Lt IJV TCC","Rt EJV TCC","Rt Femoral TCC","Lt Femoral TCC","RT DLJC","Lt DLJC","Rt Femoral","Lt Femoral"] %}
+                        {% for opt in access_opts %}
+                        <option value="{{ opt }}" {{ 'selected' if patient and patient.access_type == opt else '' }}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
             </div>
 
             <!-- ── Vascular Access Details ── -->
@@ -505,36 +360,169 @@
                 </div>
             </div>
 
-            <!-- ── Patient Outcomes ── -->
+            <!-- ── Comorbidities ── -->
             <div class="form-card">
-                <h3><i class="material-icons">assignment_turned_in</i> Patient Outcomes</h3>
+                <h3><i class="material-icons">analytics</i> Comorbidities & Risk Factors</h3>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Current Survival Status</label>
-                        <select name="current_survival_status" id="current_survival_status" onchange="toggleDeathFields()">
-                            {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
-                            <option value="{{ s }}" {{ 'selected' if (patient and patient.current_survival_status == s) or (not patient and s == 'Active') }}>{{ s }}</option>
-                            {% endfor %}
+                        <label>Diabetes Mellitus</label>
+                        <select name="dm_status" id="cci_dm_status" onchange="calculateCCI()">
+                            <option value="None" {{ 'selected' if patient and patient.dm_status == 'None' }}>None</option>
+                            <option value="Type 1" {{ 'selected' if patient and patient.dm_status == 'Type 1' }}>Type 1</option>
+                            <option value="Type 2" {{ 'selected' if patient and patient.dm_status == 'Type 2' }}>Type 2</option>
+                            <option value="Secondary" {{ 'selected' if patient and patient.dm_status == 'Secondary' }}>Secondary</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Date of Death</label>
-                        <input type="date" name="date_of_death" id="date_of_death" value="{{ patient.date_of_death if patient and patient.date_of_death else '' }}">
+                        <label>Smoking Status</label>
+                        <select name="smoking_status">
+                            <option value="">-- Select --</option>
+                            <option value="Never" {{ 'selected' if patient and patient.smoking_status == 'Never' }}>Never</option>
+                            <option value="Ex-smoker" {{ 'selected' if patient and patient.smoking_status == 'Ex-smoker' }}>Ex-smoker</option>
+                            <option value="Current" {{ 'selected' if patient and patient.smoking_status == 'Current' }}>Current</option>
+                        </select>
                     </div>
                     <div class="form-group">
-                        <label>Primary Cause of Death</label>
-                        <input type="text" name="primary_cause_of_death" id="primary_cause_of_death" value="{{ patient.primary_cause_of_death if patient and patient.primary_cause_of_death else '' }}" placeholder="e.g. Cardiac arrest, Sepsis">
+                        <label>Alcohol Consumption</label>
+                        <select name="alcohol_consumption">
+                            <option value="">-- Select --</option>
+                            <option value="None" {{ 'selected' if patient and patient.alcohol_consumption == 'None' }}>None</option>
+                            <option value="Occasional" {{ 'selected' if patient and patient.alcohol_consumption == 'Occasional' }}>Occasional</option>
+                            <option value="Regular" {{ 'selected' if patient and patient.alcohol_consumption == 'Regular' }}>Regular</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="comorbidity-grid" style="margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                    {% for field, label in [
+                        ('htn_status','Hypertension'),
+                        ('history_of_stroke','CVA / TIA / Stroke'),
+                        ('history_of_pvd','Peripheral Vascular Disease'),
+                        ('history_of_dementia','Dementia'),
+                        ('history_of_cpd','Chronic Pulmonary Disease'),
+                        ('history_of_ctd','Connective Tissue Disease'),
+                        ('history_of_pud','Peptic Ulcer Disease'),
+                        ('hemiplegia','Hemiplegia'),
+                        ('leukemia','Leukemia'),
+                        ('lymphoma','Lymphoma'),
+                        ('dm_end_organ_damage','Diabetes with End-Organ Damage')
+                    ] %}
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
+                            <input type="checkbox" name="{{ field }}" id="cci_{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} style="width:18px;height:18px;" onchange="calculateCCI()">
+                            <span>{{ label }}</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Liver Disease</label>
+                        <select name="liver_disease" id="cci_liver_disease" onchange="calculateCCI()">
+                            <option value="None" {{ 'selected' if not patient or patient.liver_disease == 'None' }}>None</option>
+                            <option value="Mild" {{ 'selected' if patient and patient.liver_disease == 'Mild' }}>Mild</option>
+                            <option value="Moderate to severe" {{ 'selected' if patient and patient.liver_disease == 'Moderate to severe' }}>Moderate to severe</option>
+                        </select>
                     </div>
                     <div class="form-group">
-                        <label>Date of Facility Transfer</label>
-                        <input type="date" name="date_facility_transfer" value="{{ patient.date_facility_transfer if patient and patient.date_facility_transfer else '' }}">
+                        <label>Solid Tumor</label>
+                        <select name="solid_tumor" id="cci_solid_tumor" onchange="calculateCCI()">
+                            <option value="None" {{ 'selected' if not patient or patient.solid_tumor == 'None' }}>None</option>
+                            <option value="Localized" {{ 'selected' if patient and patient.solid_tumor == 'Localized' }}>Localized</option>
+                            <option value="Metastatic" {{ 'selected' if patient and patient.solid_tumor == 'Metastatic' }}>Metastatic</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>CCI Score (Calculated)</label>
+                        <input type="number" name="charlson_comorbidity_index" id="cci_score" min="0" max="40" step="1" inputmode="numeric" value="{{ patient.charlson_comorbidity_index if patient and patient.charlson_comorbidity_index is not none else '' }}" placeholder="Auto-calculated" readonly style="background-color: #f1f5f9; color: #475569; font-weight: 700;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Other Comorbidities (free text)</label>
+                    <textarea name="comorbidities" rows="2" placeholder="e.g. Hypothyroidism, CLD...">{{ patient.comorbidities if patient and patient.comorbidities else '' }}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Drug Allergies</label>
+                    <input type="text" name="drug_allergies" value="{{ patient.drug_allergies if patient and patient.drug_allergies else '' }}" placeholder="e.g. Penicillin, NSAIDs">
+                </div>
+            </div>
+
+            <!-- ── Cardiac Assessment ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">monitor_heart</i> Cardiac Assessment</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer; margin-top: 10px;">
+                            <input type="checkbox" name="cad_status" id="cci_cad_status" value="true" {{ 'checked' if patient and patient.cad_status }} style="width:18px;height:18px;" onchange="calculateCCI()">
+                            <span>Myocardial Infarction / CAD</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer; margin-top: 10px;">
+                            <input type="checkbox" name="chf_status" id="cci_chf_status" value="true" {{ 'checked' if patient and patient.chf_status }} style="width:18px;height:18px;" onchange="calculateCCI()">
+                            <span>Congestive Heart Failure</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ejection Fraction (%) <small style="color:#888">Default 60% if unknown</small></label>
+                        <input type="number" step="1" name="ejection_fraction" min="10" max="80" value="{{ patient.ejection_fraction if patient and patient.ejection_fraction else '' }}" placeholder="60">
+                    </div>
+                    <div class="form-group">
+                        <label>Diastolic Grade</label>
+                        <select name="diastolic_dysfunction">
+                            <option value="Normal" {{ 'selected' if (patient and patient.diastolic_dysfunction == 'Normal') or not patient }}>Normal</option>
+                            <option value="Grade I (Impaired)" {{ 'selected' if patient and patient.diastolic_dysfunction == 'Grade I (Impaired)' }}>Grade I (Impaired relaxation)</option>
+                            <option value="Grade II (Pseudonormal)" {{ 'selected' if patient and patient.diastolic_dysfunction == 'Grade II (Pseudonormal)' }}>Grade II (Pseudonormal)</option>
+                            <option value="Grade III (Restrictive)" {{ 'selected' if patient and patient.diastolic_dysfunction == 'Grade III (Restrictive)' }}>Grade III (Restrictive)</option>
+                            <option value="" {{ 'selected' if patient and not patient.diastolic_dysfunction }}>-- Unknown / Not reported --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>2D Echo Date</label>
+                        <input type="date" name="echo_date" value="{{ patient.echo_date if patient and patient.echo_date else '' }}">
                     </div>
                 </div>
                 <div class="form-group">
-                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                        <input type="checkbox" name="withdrawal_from_dialysis" value="true" {{ 'checked' if patient and patient.withdrawal_from_dialysis }} style="width:18px;height:18px;">
-                        <span>Withdrawal from Dialysis</span>
-                    </label>
+                    <label>2D Echo Report Details</label>
+                    <textarea name="echo_report" rows="2" placeholder="e.g. Detailed findings from the 2D Echo report..." style="resize: vertical;">{{ patient.echo_report if patient and patient.echo_report else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- ── Viral Markers ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">coronavirus</i> Viral Markers</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>HBsAg</label>
+                        <select name="viral_hbsag">
+                            <option value="">-- Select --</option>
+                            <option value="Negative" {{ 'selected' if patient and patient.viral_hbsag == 'Negative' }}>Negative</option>
+                            <option value="Positive" {{ 'selected' if patient and patient.viral_hbsag == 'Positive' }}>Positive</option>
+                            <option value="Not tested" {{ 'selected' if patient and patient.viral_hbsag == 'Not tested' }}>Not tested</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Anti-HCV</label>
+                        <select name="viral_anti_hcv">
+                            <option value="">-- Select --</option>
+                            <option value="Negative" {{ 'selected' if patient and patient.viral_anti_hcv == 'Negative' }}>Negative</option>
+                            <option value="Positive" {{ 'selected' if patient and patient.viral_anti_hcv == 'Positive' }}>Positive</option>
+                            <option value="Not tested" {{ 'selected' if patient and patient.viral_anti_hcv == 'Not tested' }}>Not tested</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>HIV</label>
+                        <select name="viral_hiv" id="cci_viral_hiv" onchange="calculateCCI()">
+                            <option value="">-- Select --</option>
+                            <option value="Negative" {{ 'selected' if patient and patient.viral_hiv == 'Negative' }}>Negative</option>
+                            <option value="Positive" {{ 'selected' if patient and patient.viral_hiv == 'Positive' }}>Positive</option>
+                            <option value="Not tested" {{ 'selected' if patient and patient.viral_hiv == 'Not tested' }}>Not tested</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -635,6 +623,60 @@
                 </div>
             </div>
 
+            <!-- ── Patient Outcomes ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">assignment_turned_in</i> Patient Outcomes</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Survival Status</label>
+                        <select name="current_survival_status" id="current_survival_status" onchange="toggleDeathFields(); toggleWithdrawalFields();">
+                            {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
+                            <option value="{{ s }}" {{ 'selected' if (patient and patient.current_survival_status == s) or (not patient and s == 'Active') }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Death</label>
+                        <input type="date" name="date_of_death" id="date_of_death" value="{{ patient.date_of_death if patient and patient.date_of_death else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Primary Cause of Death</label>
+                        <input type="text" name="primary_cause_of_death" id="primary_cause_of_death" value="{{ patient.primary_cause_of_death if patient and patient.primary_cause_of_death else '' }}" placeholder="e.g. Cardiac arrest, Sepsis">
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Facility Transfer</label>
+                        <input type="date" name="date_facility_transfer" value="{{ patient.date_facility_transfer if patient and patient.date_facility_transfer else '' }}">
+                    </div>
+                </div>
+
+                <!-- ── Withdrawal Details (Conditional) ── -->
+                <div id="withdrawal_section" style="margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e2e8f0; display: none;">
+                    <p style="font-size: 0.8em; color: var(--primary); font-weight: 700; text-transform: uppercase; margin-bottom: 15px; display: flex; align-items: center; gap: 6px;">
+                        <i class="material-icons" style="font-size: 1.2em;">warning</i> Withdrawal from Dialysis Details
+                    </p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Withdrawal Date</label>
+                            <input type="date" name="withdrawal_date" id="withdrawal_date" value="{{ patient.withdrawal_date if patient and patient.withdrawal_date else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Reason for Withdrawal</label>
+                            <select name="withdrawal_reason" id="withdrawal_reason">
+                                <option value="">-- Select Reason --</option>
+                                <option value="Patient Choice" {{ 'selected' if patient and patient.withdrawal_reason == 'Patient Choice' }}>Patient Choice</option>
+                                <option value="Medical Recommendation" {{ 'selected' if patient and patient.withdrawal_reason == 'Medical Recommendation' }}>Medical Recommendation</option>
+                                <option value="Quality of Life" {{ 'selected' if patient and patient.withdrawal_reason == 'Quality of Life' }}>Quality of Life</option>
+                                <option value="Other" {{ 'selected' if patient and patient.withdrawal_reason == 'Other' }}>Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Responsible Clinician</label>
+                            <input type="text" name="withdrawal_clinician" id="withdrawal_clinician" value="{{ patient.withdrawal_clinician if patient and patient.withdrawal_clinician else '' }}" placeholder="Name / Initials">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <button type="submit" class="btn-submit">{{ "Update Patient Profile" if mode=="edit" else "Finalize & Create Patient" }}</button>
         </form>
     </div>
@@ -661,13 +703,15 @@
             const dod = document.getElementById('date_of_death');
             const cod = document.getElementById('primary_cause_of_death');
             
-            const isAlive = (status === 'Active' || status === '');
+            const isAlive = (status === 'Active' || status === '' || status === 'Withdrawn'); // Withdrawal handled separately
             dod.disabled = isAlive;
             cod.disabled = isAlive;
             
             if (isAlive) {
-                dod.value = "";
-                cod.value = "";
+                if (status !== 'Withdrawn') {
+                    dod.value = "";
+                    cod.value = "";
+                }
                 dod.style.opacity = "0.5";
                 cod.style.opacity = "0.5";
                 dod.style.background = "#e2e8f0";
@@ -677,6 +721,25 @@
                 cod.style.opacity = "1";
                 dod.style.background = "#f8fafc";
                 cod.style.background = "#f8fafc";
+            }
+        }
+
+        function toggleWithdrawalFields() {
+            const status = document.getElementById('current_survival_status').value;
+            const section = document.getElementById('withdrawal_section');
+            const wDate = document.getElementById('withdrawal_date');
+            const wReason = document.getElementById('withdrawal_reason');
+            const wClinician = document.getElementById('withdrawal_clinician');
+            
+            if (status === 'Withdrawn') {
+                section.style.display = 'block';
+                wDate.required = true;
+                wReason.required = true;
+            } else {
+                section.style.display = 'none';
+                wDate.required = false;
+                wReason.required = false;
+                // Don't clear values here so if user accidentally changes status they don't lose data
             }
         }
 
@@ -788,13 +851,15 @@
         
         document.addEventListener("DOMContentLoaded", () => {
             toggleDeathFields();
+            toggleWithdrawalFields();
             toggleBiopsyFields();
             
             // Auto-detect Dual Access state
-            const hasAvf = document.querySelector('input[name="access_date"]').value !== "";
-            const hasCath = document.querySelector('select[name="catheter_type"]').value !== "";
+            const hasAvf = document.querySelector('input[name="access_date"]') && document.querySelector('input[name="access_date"]').value !== "";
+            const hasCath = document.querySelector('select[name="catheter_type"]') && document.querySelector('select[name="catheter_type"]').value !== "";
             if (hasAvf && hasCath) {
-                document.getElementById('dual_access_toggle').checked = true;
+                const dualToggle = document.getElementById('dual_access_toggle');
+                if (dualToggle) dualToggle.checked = true;
             }
             
             toggleAccessFields();

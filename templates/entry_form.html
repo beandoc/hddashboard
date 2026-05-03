@@ -209,11 +209,12 @@
         <div class="container" style="display:flex; gap:8px; margin:0 auto; padding:0 16px;">
             <a href="#sec-weight" class="nav-dot active">Weight</a>
             <a href="#sec-anemia" class="nav-dot">Anemia</a>
-            <a href="#sec-mbd" class="nav-dot">MBD</a>
-            <a href="#sec-nutrition" class="nav-dot">Nutrition</a>
-            <a href="#sec-adequacy" class="nav-dot">Adequacy</a>
             <a href="#sec-iron" class="nav-dot">Iron</a>
+            <a href="#sec-mbd" class="nav-dot">MBD</a>
+            <a href="#sec-nutrition" class="nav-dot">Nutrition & Liver</a>
+            <a href="#sec-adequacy" class="nav-dot">Adequacy</a>
             <a href="#sec-electrolytes" class="nav-dot">Electrolytes</a>
+            <a href="#sec-metabolic" class="nav-dot">Metabolic</a>
             <a href="#sec-meds" class="nav-dot">Meds</a>
             <a href="#sec-events" class="nav-dot">Events</a>
             <a href="#sec-notes" class="nav-dot">Evaluation</a>
@@ -269,11 +270,15 @@
             </div>
 
             <div class="form-section" id="sec-anemia">
-                <div class="section-title"><i class="material-icons">bloodtype</i> Hematology & Anemia Management</div>
+                <div class="section-title"><i class="material-icons">bloodtype</i> Anemia & Hematology</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Hemoglobin (g/dL)</label>
                         <input type="number" step="0.01" name="hb" min="0" max="25" inputmode="decimal" value="{{ record.hb if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Hematocrit (%) <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional)</span></label>
+                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="{{ record.hct if record and record.hct else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Serum Ferritin (ng/mL)</label>
@@ -316,6 +321,46 @@
                         <label>Oxemia (Desidustat) Dose</label>
                         <input type="text" name="desidustat_dose" value="{{ record.desidustat_dose if record else (prior_record.desidustat_dose if prior_record else '') }}" placeholder="e.g. 100mg thrice a week" style="margin-bottom: 4px;">
                         <div id="conversionHint" style="font-size: 0.85em; margin-top: 8px; display: none; line-height: 1.4;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>TLC / WBC Count (×10³/µL)</label>
+                        <input type="number" step="0.01" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Platelet Count (×10³/µL)</label>
+                        <input type="number" step="0.01" name="platelet_count" inputmode="decimal" placeholder="e.g. 150" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── IV Iron & Infusions ── -->
+            <div class="form-section" id="sec-iron">
+                <div class="section-title"><i class="material-icons">bloodtype</i> IV Iron & Infusions</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Serum Iron (µg/dL)</label>
+                        <input type="number" step="1" name="serum_iron" inputmode="numeric" value="{{ record.serum_iron if record and record.serum_iron else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>TIBC (µg/dL)</label>
+                        <input type="number" step="1" name="tibc" inputmode="numeric" placeholder="e.g. 280" value="{{ record.tibc if record and record.tibc else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>IV Iron Product</label>
+                        <select name="iv_iron_product">
+                            <option value="">-- None / Select --</option>
+                            {% for p in ["Iron Sucrose","Ferric Carboxymaltose","Low Molecular Weight Iron Dextran","Ferumoxytol"] %}
+                            <option value="{{ p }}" {{ 'selected' if record and record.iv_iron_product == p }}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>IV Iron Dose (mg)</label>
+                        <input type="number" step="25" name="iv_iron_dose" inputmode="numeric" placeholder="e.g. 200" value="{{ record.iv_iron_dose if record and record.iv_iron_dose else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>IV Iron Date</label>
+                        <input type="date" name="iv_iron_date" value="{{ record.iv_iron_date.strftime('%Y-%m-%d') if record and record.iv_iron_date else '' }}">
                     </div>
                 </div>
             </div>
@@ -361,7 +406,7 @@
             </div>
 
             <div class="form-section" id="sec-nutrition">
-                <div class="section-title"><i class="material-icons">restaurant</i> Nutritional Status & Inflam.</div>
+                <div class="section-title"><i class="material-icons">restaurant</i> Nutrition & Liver</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Albumin (g/dL)</label>
@@ -417,53 +462,11 @@
                 </div>
             </div>
 
-            <!-- ── Extended Iron Panel & ESA ── -->
-            <div class="form-section" id="sec-iron">
-                <div class="section-title"><i class="material-icons">bloodtype</i> Iron Panel, ESA & Haematology</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Hematocrit (%) <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional)</span></label>
-                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="{{ record.hct if record and record.hct else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Iron (µg/dL)</label>
-                        <input type="number" step="1" name="serum_iron" inputmode="numeric" value="{{ record.serum_iron if record and record.serum_iron else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>TIBC (µg/dL)</label>
-                        <input type="number" step="1" name="tibc" inputmode="numeric" placeholder="e.g. 280" value="{{ record.tibc if record and record.tibc else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>IV Iron Product</label>
-                        <select name="iv_iron_product">
-                            <option value="">-- None / Select --</option>
-                            {% for p in ["Iron Sucrose","Ferric Carboxymaltose","Low Molecular Weight Iron Dextran","Ferumoxytol"] %}
-                            <option value="{{ p }}" {{ 'selected' if record and record.iv_iron_product == p }}>{{ p }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>IV Iron Dose (mg)</label>
-                        <input type="number" step="25" name="iv_iron_dose" inputmode="numeric" placeholder="e.g. 200" value="{{ record.iv_iron_dose if record and record.iv_iron_dose else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>IV Iron Date</label>
-                        <input type="date" name="iv_iron_date" value="{{ record.iv_iron_date.strftime('%Y-%m-%d') if record and record.iv_iron_date else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>TLC / WBC Count (×10³/µL)</label>
-                        <input type="number" step="0.01" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Platelet Count (×10³/µL)</label>
-                        <input type="number" step="0.01" name="platelet_count" inputmode="decimal" placeholder="e.g. 150" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
-                    </div>
-                </div>
-            </div>
+
 
             <!-- ── Electrolytes & Extended Labs ── -->
             <div class="form-section" id="sec-electrolytes">
-                <div class="section-title"><i class="material-icons">science</i> Electrolytes & Extended Labs</div>
+                <div class="section-title"><i class="material-icons">science</i> Electrolytes</div>
                 <div class="grid">
                     <div class="form-group">
                         <label>Serum Sodium (mmol/L)</label>
@@ -477,6 +480,13 @@
                         <label>Serum Bicarbonate (mmol/L)</label>
                         <input type="number" step="1" name="serum_bicarbonate" inputmode="numeric" placeholder="e.g. 22" value="{{ record.serum_bicarbonate if record and record.serum_bicarbonate else '' }}">
                     </div>
+                </div>
+            </div>
+
+            <!-- ── Metabolic & Inflammatory ── -->
+            <div class="form-section" id="sec-metabolic">
+                <div class="section-title"><i class="material-icons">science</i> Metabolic & Inflammatory</div>
+                <div class="grid">
                     <div class="form-group">
                         <label>Serum Uric Acid (mg/dL)</label>
                         <input type="number" step="0.01" name="serum_uric_acid" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.serum_uric_acid if record and record.serum_uric_acid else '' }}">

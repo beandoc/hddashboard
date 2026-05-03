@@ -3,7 +3,7 @@ from datetime import datetime
 import re
 from typing import Optional
 
-from database import Patient
+from database import Patient, ClinicalEvent
 from utils import calculate_cci
 
 def _d(s: Optional[str]) -> Optional[datetime.date]:
@@ -104,6 +104,7 @@ def create_patient_record(db: Session, data: dict) -> Patient:
         catheter_insertion_site=data.get("catheter_insertion_site", ""),
         age=data.get("age"),
         ejection_fraction=data.get("ejection_fraction") if data.get("ejection_fraction") is not None else 60.0,
+        diastolic_dysfunction=data.get("diastolic_dysfunction", ""),
         echo_date=_d(data.get("echo_date")),
         echo_report=data.get("echo_report", ""),
         dry_weight=data.get("dry_weight"),
@@ -119,6 +120,9 @@ def create_patient_record(db: Session, data: dict) -> Patient:
         date_of_death=_d(data.get("date_of_death")),
         primary_cause_of_death=data.get("primary_cause_of_death", ""),
         withdrawal_from_dialysis=data.get("withdrawal_from_dialysis", False),
+        withdrawal_date=_d(data.get("withdrawal_date")),
+        withdrawal_reason=data.get("withdrawal_reason", ""),
+        withdrawal_clinician=data.get("withdrawal_clinician", ""),
         date_facility_transfer=_d(data.get("date_facility_transfer")),
         whatsapp_link=whatsapp_link,
         whatsapp_notify=data.get("whatsapp_notify", False),
@@ -219,6 +223,7 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     p.catheter_insertion_site = data.get("catheter_insertion_site", "")
     p.age = data.get("age")
     p.ejection_fraction = data.get("ejection_fraction") if data.get("ejection_fraction") is not None else (p.ejection_fraction or 60.0)
+    p.diastolic_dysfunction = data.get("diastolic_dysfunction", "")
     p.echo_date = _d(data.get("echo_date"))
     p.echo_report = data.get("echo_report", "")
     p.dry_weight = data.get("dry_weight")
@@ -234,6 +239,9 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     p.date_of_death = _d(data.get("date_of_death"))
     p.primary_cause_of_death = data.get("primary_cause_of_death", "")
     p.withdrawal_from_dialysis = data.get("withdrawal_from_dialysis", False)
+    p.withdrawal_date = _d(data.get("withdrawal_date"))
+    p.withdrawal_reason = data.get("withdrawal_reason", "")
+    p.withdrawal_clinician = data.get("withdrawal_clinician", "")
     p.date_facility_transfer = _d(data.get("date_facility_transfer"))
     
     _cn = re.sub(r"\D", "", data.get("contact_no", "").strip()) if data.get("contact_no") else ""
@@ -241,6 +249,24 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     p.whatsapp_notify = data.get("whatsapp_notify", False)
     p.mail_trigger = data.get("mail_trigger", False)
     p.updated_at = datetime.utcnow()
+
+    # Create Clinical Event if withdrawn
+    if p.current_survival_status == 'Withdrawn' and p.withdrawal_date:
+        existing_event = db.query(ClinicalEvent).filter(
+            ClinicalEvent.patient_id == p.id,
+            ClinicalEvent.event_type == 'Withdrawal from Dialysis',
+            ClinicalEvent.event_date == p.withdrawal_date
+        ).first()
+        if not existing_event:
+            event = ClinicalEvent(
+                patient_id=p.id,
+                event_date=p.withdrawal_date,
+                event_type='Withdrawal from Dialysis',
+                severity='High',
+                notes=f"Reason: {p.withdrawal_reason}. Responsible: {p.withdrawal_clinician}",
+                created_by=data.get("updated_by", "System")
+            )
+            db.add(event)
 
     db.commit()
     db.refresh(p)

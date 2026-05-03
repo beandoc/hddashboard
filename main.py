@@ -232,7 +232,7 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
     
     # Patient role check - redirect to portal
     if getattr(user, "role", None) == "patient" or (isinstance(user, dict) and user.get("role") == "patient"):
-        return RedirectResponse(url="/portal", status_code=302)
+        return RedirectResponse(url="/patient/dashboard", status_code=302)
 
     high_risk_count = 0
     if getattr(user, "role", None) == "doctor" or (isinstance(user, dict) and user.get("role") == "doctor"):
