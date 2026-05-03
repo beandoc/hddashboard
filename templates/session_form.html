@@ -375,6 +375,15 @@
           <input type="number" name="weight_post" step="0.1" inputmode="decimal"
             placeholder="e.g. 65.2"
             value="{{ session.weight_post if session and session.weight_post else '' }}">
+          <div style="font-size:0.7rem; color:var(--muted); margin-top:5px; line-height:1.4;">
+            {% if last_3_sessions %}
+              <b>Recent Post-Weights:</b><br/>
+              {% for s in last_3_sessions %}
+                {{ s.session_date.strftime('%d/%m') }}: {{ s.weight_post or '—' }}kg{% if not loop.last %} → {% endif %}
+              {% endfor %}
+            {% endif %}
+            <br/><b>Baseline Target:</b> {{ patient.dry_weight }}kg
+          </div>
         </div>
         <div>
           <label>BP Pre Systolic (mmHg)</label>

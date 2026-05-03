@@ -20,9 +20,11 @@ session_router = APIRouter(prefix="/sessions", tags=["sessions"])
 async def new_session_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404, detail="Patient not found")
+    last_3_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(3).all()
     return templates.TemplateResponse("session_form.html", {
         "request": request, "patient": patient, "session": None, "mode": "new",
         "user": get_user(request),
+        "last_3_sessions": last_3_sessions
     })
 
 @router.post("/{patient_id}/sessions/new")

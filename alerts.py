@@ -338,6 +338,216 @@ def send_bulk_whatsapp_alerts(alert_patients: list, month_label: str) -> dict:
         }
 
 
+# ── CRITICAL LAB THRESHOLDS ─────────────────────────────────────────────────
+# Panic / action-required values that demand immediate doctor notification.
+# Each entry: (field_key, direction, threshold, display_label, unit)
+CRITICAL_LAB_THRESHOLDS = [
+    ("hb",               "low",   6.0,  "Haemoglobin",       "g/dL"),
+    ("albumin",          "low",   2.0,  "Albumin",           "g/dL"),
+    ("serum_potassium",  "high",  6.5,  "Serum Potassium",   "mEq/L"),
+    ("serum_potassium",  "low",   3.0,  "Serum Potassium",   "mEq/L"),
+    ("serum_sodium",     "low",  120.0, "Serum Sodium",      "mEq/L"),
+    ("serum_sodium",     "high", 155.0, "Serum Sodium",      "mEq/L"),
+    ("phosphorus",       "high",  8.0,  "Phosphorus",        "mg/dL"),
+    ("platelet_count",   "low",   50.0, "Platelet Count",    "×10³/μL"),
+    ("wbc_count",        "high",  20.0, "WBC Count",         "×10³/μL"),
+    ("serum_bicarbonate","low",   14.0, "Serum Bicarbonate", "mEq/L"),
+]
+
+
+def check_critical_labs(data: dict) -> list:
+    """
+    Returns list of dicts describing each critical threshold breach.
+    data: flat dict of lab field keys → numeric values (from entry_service data).
+    """
+    hits = []
+    for field, direction, threshold, label, unit in CRITICAL_LAB_THRESHOLDS:
+        val = data.get(field)
+        if val is None:
+            continue
+        try:
+            val = float(val)
+        except (TypeError, ValueError):
+            continue
+        if direction == "low" and val < threshold:
+            hits.append({
+                "field": field,
+                "label": label,
+                "value": val,
+                "threshold": threshold,
+                "direction": direction,
+                "unit": unit,
+                "text": f"{label}: {val:.1f} {unit} (critical low < {threshold} {unit})",
+            })
+        elif direction == "high" and val > threshold:
+            hits.append({
+                "field": field,
+                "label": label,
+                "value": val,
+                "threshold": threshold,
+                "direction": direction,
+                "unit": unit,
+                "text": f"{label}: {val:.1f} {unit} (critical high > {threshold} {unit})",
+            })
+    return hits
+
+
+def send_critical_lab_alert_email(patient_name: str, hid: str, month_label: str,
+                                   critical_hits: list, entered_by: str = "") -> None:
+    """
+    Fire-and-forget CRITICAL email for panic lab values.
+    Runs in a background thread so it never delays the HTTP response.
+    """
+    if not SMTP_USER or not SMTP_PASSWORD:
+        logger.warning("Critical lab alert not sent — SMTP not configured")
+        return
+    if not DOCTOR_EMAIL:
+        logger.warning("Critical lab alert not sent — DOCTOR_EMAIL not set")
+        return
+    if not critical_hits:
+        return
+
+    def _send():
+        try:
+            timestamp = datetime.now().strftime("%d %b %Y %H:%M")
+
+            alert_rows = ""
+            for hit in critical_hits:
+                direction_icon = "▼" if hit["direction"] == "low" else "▲"
+                bg = "#ffe4e4" if hit["direction"] == "low" else "#fff0dc"
+                border = "#ff4444" if hit["direction"] == "low" else "#ff8800"
+                alert_rows += (
+                    f'<tr>'
+                    f'<td style="padding:10px 14px;font-weight:600;color:#111;'
+                    f'border-bottom:1px solid #f0c0c0">{hit["label"]}</td>'
+                    f'<td style="padding:10px 14px;background:{bg};border:2px solid {border};'
+                    f'border-radius:4px;font-family:monospace;font-size:15px;'
+                    f'font-weight:800;color:#b91c1c;text-align:center;border-bottom:1px solid #f0c0c0">'
+                    f'{direction_icon} {hit["value"]:.1f} {hit["unit"]}</td>'
+                    f'<td style="padding:10px 14px;color:#64748b;font-size:12px;'
+                    f'border-bottom:1px solid #f0c0c0">'
+                    f'{"< " if hit["direction"]=="low" else "> "}{hit["threshold"]} {hit["unit"]}</td>'
+                    f'</tr>'
+                )
+
+            count = len(critical_hits)
+            html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif">
+<div style="max-width:560px;margin:24px auto">
+
+  <!-- CRITICAL BANNER -->
+  <div style="background:#b91c1c;padding:20px 28px;border-radius:10px 10px 0 0;
+              text-align:center">
+    <div style="font-size:32px;margin-bottom:6px">🚨</div>
+    <h1 style="color:#fff;margin:0;font-size:22px;letter-spacing:1px">
+      CRITICAL LAB ALERT
+    </h1>
+    <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px">
+      Immediate attention required — {CLINIC_NAME}
+    </p>
+  </div>
+
+  <!-- PATIENT DETAILS -->
+  <div style="background:#fff0f0;padding:16px 28px;border-left:4px solid #b91c1c;
+              border-right:4px solid #b91c1c">
+    <table style="width:100%;border-collapse:collapse">
+      <tr>
+        <td style="color:#64748b;font-size:12px;text-transform:uppercase;
+                   padding:2px 0;letter-spacing:.05em">Patient</td>
+        <td style="font-weight:700;font-size:16px;color:#111;
+                   padding:2px 0">{patient_name}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;font-size:12px;text-transform:uppercase;
+                   padding:2px 0;letter-spacing:.05em">HID No.</td>
+        <td style="font-weight:600;color:#374151;padding:2px 0">{hid}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;font-size:12px;text-transform:uppercase;
+                   padding:2px 0;letter-spacing:.05em">Period</td>
+        <td style="color:#374151;padding:2px 0">{month_label}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;font-size:12px;text-transform:uppercase;
+                   padding:2px 0;letter-spacing:.05em">Entered by</td>
+        <td style="color:#374151;padding:2px 0">{entered_by or "Staff"}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;font-size:12px;text-transform:uppercase;
+                   padding:2px 0;letter-spacing:.05em">Time</td>
+        <td style="color:#374151;padding:2px 0">{timestamp}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- CRITICAL VALUES TABLE -->
+  <div style="background:#fff;padding:20px 28px;border-left:4px solid #b91c1c;
+              border-right:4px solid #b91c1c">
+    <p style="margin:0 0 14px;font-size:14px;color:#b91c1c;font-weight:700">
+      {count} critical value{"s" if count != 1 else ""} detected:
+    </p>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #fca5a5;
+                  border-radius:8px;overflow:hidden">
+      <thead>
+        <tr style="background:#fef2f2">
+          <th style="padding:8px 14px;text-align:left;font-size:11px;
+                     color:#991b1b;text-transform:uppercase;letter-spacing:.05em">
+            Parameter</th>
+          <th style="padding:8px 14px;text-align:center;font-size:11px;
+                     color:#991b1b;text-transform:uppercase;letter-spacing:.05em">
+            Value</th>
+          <th style="padding:8px 14px;text-align:left;font-size:11px;
+                     color:#991b1b;text-transform:uppercase;letter-spacing:.05em">
+            Panic Limit</th>
+        </tr>
+      </thead>
+      <tbody>{alert_rows}</tbody>
+    </table>
+  </div>
+
+  <!-- ACTION FOOTER -->
+  <div style="background:#b91c1c;padding:14px 28px;border-radius:0 0 10px 10px;
+              text-align:center">
+    <p style="margin:0;color:#fff;font-size:12px;opacity:.85">
+      {CLINIC_NAME} · HD Dashboard · Automated critical alert · Do not reply
+    </p>
+  </div>
+
+</div>
+</body></html>"""
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = (
+                f"🚨 CRITICAL LAB — {patient_name} ({hid}) | "
+                + ", ".join(h["text"].split("(")[0].strip() for h in critical_hits[:2])
+                + (" ..." if len(critical_hits) > 2 else "")
+            )
+            msg["From"] = SMTP_USER
+            msg["To"]   = DOCTOR_EMAIL
+            msg.attach(MIMEText(html, "html"))
+
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.sendmail(SMTP_USER, DOCTOR_EMAIL, msg.as_string())
+
+            logger.info(
+                f"CRITICAL lab alert sent for {patient_name} ({hid}) → {DOCTOR_EMAIL} "
+                f"| {[h['text'] for h in critical_hits]}"
+            )
+        except smtplib.SMTPAuthenticationError:
+            logger.error(
+                "Critical lab alert email failed — Gmail auth error. "
+                "Use an App Password (Google Account → Security → 2FA → App Passwords)"
+            )
+        except Exception as exc:
+            logger.error(f"Critical lab alert email failed for {patient_name}: {exc}")
+
+    import threading
+    threading.Thread(target=_send, daemon=True).start()
+
+
 # ── EMAIL ────────────────────────────────────────────────────────────────────
 
 def build_ward_report_html(alert_patients: list,

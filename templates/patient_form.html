@@ -621,6 +621,12 @@
                         <span>Enable WhatsApp Automated Notifications</span>
                     </label>
                 </div>
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer;">
+                        <input type="checkbox" name="mail_trigger" value="true" {{ 'checked' if patient and patient.mail_trigger else '' }} style="width:20px; height:20px;">
+                        <span>Enable Email Critical Lab Alerts</span>
+                    </label>
+                </div>
             </div>
 
             <!-- ── Patient Outcomes ── -->

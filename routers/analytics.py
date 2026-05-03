@@ -195,6 +195,14 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     active_patients = db.query(Patient).filter(Patient.is_active == True).all()
 
     flagged = {}  # patient_id -> {patient, flags, priority}
+    
+    # Pre-fetch monthly records for weight trend analysis
+    current_month = get_current_month_str()
+    y, m = int(current_month[:4]), int(current_month[5:7])
+    prev_month = f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
+    
+    curr_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == current_month).all()}
+    prev_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()}
 
     for p in active_patients:
         p_flags = []
@@ -224,6 +232,16 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
         if p.name in dash_data['metrics']['idwg_high']['names']:
             p_flags.append("High IDWG (>2.5kg)")
             priority += 1
+
+        # D2. Significant Dry Weight Change (±2.0 kg)
+        curr_r = curr_recs.get(p.id)
+        prev_r = prev_recs.get(p.id)
+        if curr_r and prev_r and curr_r.target_dry_weight and prev_r.target_dry_weight:
+            weight_diff = curr_r.target_dry_weight - prev_r.target_dry_weight
+            if abs(weight_diff) >= 2.0:
+                dir_str = "Reduction" if weight_diff < 0 else "Increase"
+                p_flags.append(f"Dry Weight {dir_str} ({abs(weight_diff):.1f}kg)")
+                priority += 3 if weight_diff < 0 else 2 # Drops are higher priority for malnutrition
 
         # E. Occult Overload
         occult = detect_occult_overload(db, p.id)

@@ -101,6 +101,7 @@ async def create_patient(
     withdrawal_clinician: str = Form(""),
     date_facility_transfer: Optional[str] = Form(None),
     diastolic_dysfunction: str = Form(""),
+    mail_trigger: bool = Form(False),
 ):
     try:
         patient_service.create_patient_record(db, locals())
@@ -128,12 +129,21 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     
     hb_trend_data = []
     esa_trend_data = []
+    weight_trend_data = []
+    albumin_trend_data = []
+    
     for r in trend_records:
         try: hb_trend_data.append(float(r.hb) if r.hb else None)
         except: hb_trend_data.append(None)
         
         try: esa_trend_data.append(round(float(r.epo_weekly_units) / 100, 1) if r.epo_weekly_units else None)
         except: esa_trend_data.append(None)
+        
+        try: weight_trend_data.append(float(r.target_dry_weight) if r.target_dry_weight else None)
+        except: weight_trend_data.append(None)
+        
+        try: albumin_trend_data.append(float(r.albumin) if r.albumin else None)
+        except: albumin_trend_data.append(None)
 
     csrf_token = _csrf_signer.sign(f"interim-{patient_id}").decode()
 
@@ -242,6 +252,8 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "hb_trend_labels": hb_trend_labels,
         "hb_trend_data": hb_trend_data,
         "esa_trend_data": esa_trend_data,
+        "weight_trend_data": weight_trend_data,
+        "albumin_trend_data": albumin_trend_data,
         "krcr_trend_labels": krcr_trend_labels,
         "krcr_trend_data": krcr_trend_data,
         "csrf_token": csrf_token,

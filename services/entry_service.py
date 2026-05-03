@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from database import Patient, MonthlyRecord
-from alerts import send_entry_alert_email
+from alerts import send_entry_alert_email, check_critical_labs, send_critical_lab_alert_email
 from dashboard_logic import get_month_label
 from validators import validate_lab_values
 
@@ -170,7 +170,9 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         if idwg and idwg > 2.5:
             _alerts.append("High Interdialytic Weight Gain")
 
-        if _alerts:
+        if p.mail_trigger and _alerts:
+            from alerts import send_entry_alert_email
+            from dashboard_logic import get_month_label
             send_entry_alert_email(
                 patient_name=p.name,
                 hid=p.hid_no,
@@ -186,5 +188,18 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
                 },
                 entered_by=data.get("entered_by", "")
             )
+
+        # Critical / panic-value check — fires a separate urgent email
+        if p.mail_trigger:
+            critical_hits = check_critical_labs(data)
+            if critical_hits:
+                from alerts import send_critical_lab_alert_email
+                send_critical_lab_alert_email(
+                    patient_name=p.name,
+                    hid=p.hid_no,
+                    month_label=get_month_label(month_str),
+                    critical_hits=critical_hits,
+                    entered_by=data.get("entered_by", "")
+                )
 
     return rec

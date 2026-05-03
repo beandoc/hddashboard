@@ -240,7 +240,25 @@
                     <canvas id="profileTrendChart" aria-label="Hemoglobin and ESA trend chart" role="img"></canvas>
                 </div>
                 {% else %}
-                <div class="empty-state">Not enough data to display trend. Enter monthly records to see the chart.</div>
+                <div class="empty-state">Not enough data to display Hb/ESA trend.</div>
+                {% endif %}
+            </section>
+
+            <!-- 5a. NUTRITIONAL & WEIGHT STABILITY TREND -->
+            <section class="card" aria-labelledby="weight-trend-heading">
+                <h2 class="section-title" id="weight-trend-heading">
+                    <i class="material-icons" aria-hidden="true">trending_down</i> 
+                    Nutritional & Weight Stability (Dry Weight vs Albumin)
+                </h2>
+                {% if weight_trend_data | select | list %}
+                <div style="height: 300px; width: 100%;">
+                    <canvas id="weightStabilityChart" aria-label="Dry weight and albumin trend chart" role="img"></canvas>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; font-style: italic;">
+                    ⚠️ <b>Clinical Alert:</b> A gradual reduction in dry weight, even if the patient appears euvolemic, often indicates muscle wasting and poor nutritional intake. Monitor alongside Albumin levels.
+                </p>
+                {% else %}
+                <div class="empty-state">Not enough data to display weight/albumin trend. Enter monthly records to see the chart.</div>
                 {% endif %}
             </section>
 
@@ -589,7 +607,66 @@
                     legend: { position: 'top', labels: { usePointStyle: true, font: { weight: '600' } } }
                 },
                 scales: {
-                    y: { min: 8, max: 14, ticks: { stepSize: 1 } },
+                    y: { ticks: { stepSize: 1 } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    })();
+    {% endif %}
+
+    // ── Weight Stability Chart (Nutritional Deterioration) ──────────────────
+    {% if weight_trend_data | select | list %}
+    (function () {
+        const ctx = document.getElementById('weightStabilityChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ hb_trend_labels | tojson }},
+                datasets: [{
+                    label: 'Target Dry Weight (kg)',
+                    data: {{ weight_trend_data | tojson }},
+                    borderColor: '#7c3aed',
+                    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                    borderWidth: 3,
+                    yAxisID: 'y',
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 5
+                }, {
+                    label: 'Albumin (g/dL)',
+                    data: {{ albumin_trend_data | tojson }},
+                    borderColor: '#10b981',
+                    borderWidth: 3,
+                    yAxisID: 'y1',
+                    tension: 0.3,
+                    fill: false,
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, font: { weight: '600' } } }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Weight (kg)', font: { weight: 'bold' } }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 2,
+                        max: 5,
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Albumin (g/dL)', font: { weight: 'bold' } }
+                    },
                     x: { grid: { display: false } }
                 }
             }
