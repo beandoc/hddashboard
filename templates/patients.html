@@ -178,29 +178,43 @@
         .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
 
         /* ── MOBILE ── */
+        @media(max-width: 1024px) {
+            .stats-bar { grid-template-columns: repeat(3, 1fr); }
+        }
         @media(max-width: 768px) {
-            header { padding: 30px 20px; text-align: center; justify-content: center; }
+            header { padding: 30px 20px; text-align: center; justify-content: center; flex-direction: column; }
             header h1 { font-size: 1.25rem; }
-            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .stats-bar .stat-card:first-child { grid-column: 1 / -1; }
-            .filter-bar { flex-direction: column; align-items: stretch; gap: 8px; padding: 16px; }
-            .month-nav-group { width: 100%; justify-content: center; }
+            .stat-card { padding: 12px; gap: 10px; }
+            .stat-card .stat-body .val { font-size: 1.2rem; }
+            
+            .filter-bar { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
+            .month-nav-group { width: 100%; justify-content: center; padding: 8px; }
             .filter-search { width: 100%; }
-            .filter-select { width: 100%; min-height: 44px; }
-            .btn-add { width: 100%; justify-content: center; min-height: 44px; }
+            .filter-select { width: 100%; min-height: 48px; }
+            .btn-add { width: 100%; justify-content: center; min-height: 48px; }
             .filter-divider { display: none; }
+            
+            .container { padding: 16px; }
+            .table-wrap { padding-bottom: 80px; }
             table, thead, tbody, th, td, tr { display: block; }
             thead tr { position: absolute; top: -9999px; left: -9999px; }
-            tbody tr { background: #fff; border-radius: 16px; margin-bottom: 16px; padding: 20px; box-shadow: var(--shadow-md); border: 1px solid rgba(0,0,0,0.05); }
-            tbody tr.row-missing { border-left: 4px solid #f97316; }
-            tbody td { border: none; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; border-bottom: 1px solid #f8fafc; }
+            tbody tr { background: #fff; border-radius: 16px; margin-bottom: 20px; padding: 20px; box-shadow: var(--shadow-md); border: 1px solid rgba(0,0,0,0.05); }
+            tbody tr.row-missing { border-left: 5px solid #f97316; }
+            tbody td { border: none; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.92rem; border-bottom: 1px solid #f8fafc; }
             tbody td:last-child { border-bottom: none; }
-            tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
-            tbody td:first-child { display: block; padding: 0 0 12px; border-bottom: 2px solid #f1f5f9; margin-bottom: 12px; }
+            tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+            
+            /* Special Patient Cell */
+            tbody td:first-child { display: block; padding: 0 0 16px; border-bottom: 2px solid #f1f5f9; margin-bottom: 12px; }
             tbody td:first-child::before { display: none; }
-            .act-btn-primary { flex: 1; justify-content: center; }
-            .actions-cell { display: flex; gap: 12px; align-items: center; padding-top: 15px !important; }
-            .more-wrap { flex-shrink: 0; }
+            tbody td:first-child .cell-name { font-size: 1.15rem; font-weight: 700; display: block; margin-bottom: 4px; }
+            
+            .actions-cell { display: flex; flex-direction: column; gap: 12px; align-items: stretch; padding-top: 20px !important; }
+            .act-btn-primary { flex: 1; justify-content: center; min-height: 48px; }
+            .more-wrap { width: 100%; }
+            .act-more { width: 100%; height: 48px; background: #f1f5f9; border-radius: 8px; }
         }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     </style>

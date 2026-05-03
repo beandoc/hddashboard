@@ -115,11 +115,46 @@
         .nav-dot.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 10px rgba(14, 165, 233, 0.2); }
 
         @media(max-width: 640px) {
-            header h1 { font-size: 1.25em; }
-            .form-section { padding: 16px; }
-            .anti-med-row { flex-direction: column; gap: 8px !important; align-items: stretch !important; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
-            .anti-med-row select, .anti-med-row input { flex: none !important; width: 100% !important; }
-            .anti-med-row button { align-self: flex-end; min-height: 44px; min-width: 44px; }
+            header h1 { font-size: 1.3rem; }
+            .container { padding: 0 12px; margin-top: 12px; }
+            .form-section { padding: 16px; border-radius: 12px; }
+            .section-title { font-size: 1.05rem; }
+            .grid { grid-template-columns: 1fr; gap: 12px; }
+            
+            .section-nav {
+                top: 56px; /* Below standard mobile nav height */
+                padding: 10px 12px;
+                margin-bottom: 20px;
+                background: #fff;
+                border-bottom-color: #f1f5f9;
+            }
+            .nav-dot {
+                padding: 8px 16px;
+                font-size: 0.75rem;
+                min-height: 36px;
+                display: flex;
+                align-items: center;
+            }
+
+            .anti-med-row { flex-direction: column; gap: 12px !important; align-items: stretch !important; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
+            .anti-med-row select, .anti-med-row input { flex: none !important; width: 100% !important; min-height: 48px; }
+            .anti-med-row button { align-self: flex-end; height: 48px; width: 48px; }
+
+            .save-actions {
+                padding: 12px 16px 24px;
+                flex-direction: column-reverse;
+                gap: 8px;
+            }
+            .btn-save {
+                max-width: none;
+                width: 100%;
+                min-height: 52px;
+            }
+            .btn-secondary {
+                max-width: none;
+                width: 100%;
+                min-height: 48px;
+            }
         }
     </style>
 </head>

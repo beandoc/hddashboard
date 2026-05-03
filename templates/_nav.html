@@ -310,17 +310,37 @@
 }
 
 /* Responsive */
-@media (max-width: 960px) {
+@media (max-width: 1024px) {
   .app-nav .nav-links { display: none; }
   .mobile-menu-btn { display: block; }
-  .app-nav { padding: 0 20px; }
+  .app-nav { padding: 0 16px; }
+  .app-nav .brand { font-size: 0.9rem; }
 }
 @media (max-width: 640px) {
-  .nav-breadcrumb { padding: 8px 16px; }
+  .nav-breadcrumb { padding: 8px 16px; gap: 4px; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  .nav-breadcrumb::-webkit-scrollbar { display: none; }
   .app-nav { height: 56px; }
-  .page-hero { padding: 16px 20px; }
-  .page-hero-left h1 { font-size: 1.15rem; }
-  .page-hero-right { width: 100%; justify-content: flex-start; }
+  .page-hero { padding: 20px 16px; }
+  .page-hero-left h1 { font-size: 1.25rem; }
+  .page-hero-right { width: 100%; justify-content: flex-start; gap: 8px; }
+  .hero-btn { flex: 1; justify-content: center; min-height: 44px; font-size: 0.85rem; }
+}
+
+/* Enhanced Mobile Drawer */
+.mobile-drawer .drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mobile-drawer a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px; /* Premium touch target */
+}
+.mobile-drawer a i {
+  font-size: 1.25rem;
+  opacity: 0.7;
 }
 </style>
 

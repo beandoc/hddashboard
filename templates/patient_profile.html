@@ -26,28 +26,22 @@
 
 <div class="container">
 
-    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <div class="profile-actions-wrapper">
         <a href="/patients" class="btn-action btn-ghost">
-            <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">arrow_back</i> Back to Patients
+            <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">arrow_back</i> <span class="btn-text">Back</span>
         </a>
-        <div style="display: flex; gap: 12px;">
+        <div class="profile-actions-grid">
             <a href="/analytics/patients/{{ patient.id }}" class="btn-action btn-primary" style="background:#7c3aed; border-color:#7c3aed;">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">query_stats</i> View Analytics
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">query_stats</i> <span class="btn-text">Analytics</span>
             </a>
             <a href="/patients/{{ patient.id }}/edit" class="btn-action btn-ghost">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">edit</i> Edit Profile
-            </a>
-            <a href="/patients/{{ patient.id }}/summary" class="btn-action btn-ghost">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">summarize</i> Print Summary
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">edit</i> <span class="btn-text">Edit</span>
             </a>
             <a href="/patients/{{ patient.id }}/meds" class="btn-action btn-ghost">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">medication</i> Med Recon
-            </a>
-            <a href="/patients/{{ patient.id }}/fluid-status" class="btn-action btn-ghost">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">water_drop</i> Fluid Status
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">medication</i> <span class="btn-text">Meds</span>
             </a>
             <a href="/entry/{{ patient.id }}" class="btn-action btn-primary">
-                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_chart</i> Monthly Data
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_chart</i> <span class="btn-text">Monthly Data</span>
             </a>
         </div>
     </div>

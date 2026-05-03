@@ -168,10 +168,35 @@ textarea.form-control { resize: vertical; }
 }
 .btn-submit:hover { background: var(--primary-dark); }
 
+/* Action Wrapper */
+.profile-actions-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 12px; }
+.profile-actions-grid { display: flex; gap: 12px; }
+
+@media (max-width: 960px) {
+    .profile-actions-wrapper { flex-direction: column; align-items: stretch; gap: 16px; }
+    .profile-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .profile-actions-grid .btn-action { justify-content: center; min-height: 48px; }
+}
+
 @media (max-width: 640px) {
-    .patient-identity h1 { font-size: 1.5rem; }
-    .header-stats { grid-template-columns: repeat(2, 1fr); }
-    .profile-header { padding: 20px 16px; }
-    .header-top { flex-direction: column; gap: 12px; }
-    .header-top > div:last-child { text-align: left !important; }
+    .container { margin: 16px auto; padding: 0 16px; }
+    .patient-identity h1 { font-size: 1.6rem; }
+    .header-stats { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    .profile-header { padding: 24px 20px; }
+    .header-top { flex-direction: column; gap: 16px; align-items: stretch; }
+    .header-top > div:last-child { text-align: left !important; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #f1f5f9; }
+    
+    .labs-summary { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .lab-box { padding: 12px 8px; }
+    .lab-box .value { font-size: 1.15rem; }
+    
+    .med-grid { grid-template-columns: 1fr; }
+    .card { padding: 20px 16px; }
+    
+    .btn-text { display: inline; }
+}
+
+@media (max-width: 480px) {
+    .header-stats { grid-template-columns: 1fr; }
+    .btn-text { font-size: 0.8rem; }
 }
