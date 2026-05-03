@@ -919,6 +919,7 @@ def send_entry_alert_email(patient_name: str, hid: str, month_label: str,
     delays the HTTP response.
     """
     if not SMTP_USER or not SMTP_PASSWORD:
+        logger.warning("Entry alert email skipped — SMTP_USER or SMTP_PASSWORD not configured in environment")
         return
     if not alerts:
         return
