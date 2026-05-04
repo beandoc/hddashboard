@@ -113,7 +113,7 @@
         {% if error %}
             <div class="error">{{ error }}</div>
         {% endif %}
-        <form method="POST" action="{% if mode == 'edit' %}/patients/{{ patient.id }}/edit{% else %}/patients/add{% endif %}{% if return_to %}?return_to={{ return_to }}{% endif %}">
+        <form method="POST" action="{% if mode == 'edit' %}/patients/{{ patient.id }}/edit{% else %}/patients/new{% endif %}{% if return_to %}?return_to={{ return_to }}{% endif %}">
             <div class="form-card">
                 <h3><i class="material-icons">person</i> Demographics</h3>
                 <div class="form-row">

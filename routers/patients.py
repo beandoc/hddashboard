@@ -54,23 +54,32 @@ async def new_patient_form(request: Request):
 async def create_patient(
     request: Request,
     db: Session = Depends(get_db),
+    # ── Identity ──────────────────────────────────────────────────────────────
     hid_no: str = Form(...),
     name: str = Form(...),
-    relation: str = Form(""),
     sex: str = Form(...),
     age: Optional[int] = Form(None),
-    contact_no: str = Form(...),
+    relation: str = Form(""),
+    relation_type: str = Form(""),
+    contact_no: str = Form(""),
+    email: str = Form(""),
     guardian_name: str = Form(""),
     guardian_contact: str = Form(""),
     address: str = Form(""),
-    diagnosis: str = Form(""),
-    access_type: str = Form(""),
-    dry_weight: float = Form(0.0),
+    height: Optional[float] = Form(None),
     blood_group: str = Form(""),
-    viral_marker_hcv: bool = Form(False),
-    viral_marker_hbsag: bool = Form(False),
-    viral_marker_hiv: bool = Form(False),
-    # CCI Fields
+    education_level: str = Form(""),
+    healthcare_facility: str = Form(""),
+    # ── Renal / HD history ────────────────────────────────────────────────────
+    diagnosis: str = Form(""),
+    primary_renal_disease: str = Form(""),
+    date_esrd_diagnosis: Optional[str] = Form(None),
+    hd_wef_date: Optional[str] = Form(None),
+    dialysis_modality: str = Form(""),
+    previous_krt_modality: str = Form(""),
+    history_of_renal_transplant: bool = Form(False),
+    transplant_prospect: str = Form(""),
+    # ── Comorbidities (CCI) ───────────────────────────────────────────────────
     cad_status: bool = Form(False),
     chf_status: bool = Form(False),
     history_of_pvd: bool = Form(False),
@@ -86,13 +95,48 @@ async def create_patient(
     solid_tumor: str = Form("None"),
     leukemia: bool = Form(False),
     lymphoma: bool = Form(False),
-    viral_hiv: str = Form("Negative"),
+    htn_status: bool = Form(False),
+    smoking_status: str = Form(""),
+    alcohol_consumption: str = Form(""),
+    comorbidities: str = Form(""),
+    drug_allergies: str = Form(""),
     clinical_background: str = Form(""),
-    native_kidney_biopsy_date: Optional[str] = Form(None),
-    native_kidney_biopsy_report: str = Form(""),
+    # ── Cardiac ───────────────────────────────────────────────────────────────
+    ejection_fraction: Optional[float] = Form(None),
+    diastolic_dysfunction: str = Form(""),
     echo_date: Optional[str] = Form(None),
     echo_report: str = Form(""),
-    # Outcome / Status
+    # ── Vascular access ───────────────────────────────────────────────────────
+    access_type: str = Form(""),
+    access_date: Optional[str] = Form(None),
+    date_first_cannulation: Optional[str] = Form(None),
+    history_of_access_thrombosis: bool = Form(False),
+    access_intervention_history: str = Form(""),
+    catheter_type: str = Form(""),
+    catheter_insertion_site: str = Form(""),
+    # ── Dry weight ────────────────────────────────────────────────────────────
+    dry_weight: Optional[float] = Form(None),
+    # ── Viral markers ─────────────────────────────────────────────────────────
+    viral_hiv: str = Form("Negative"),
+    viral_hbsag: str = Form(""),
+    viral_anti_hcv: str = Form(""),
+    # ── Vaccination ───────────────────────────────────────────────────────────
+    hep_b_status: str = Form(""),
+    hep_b_dose1_date: Optional[str] = Form(None),
+    hep_b_dose2_date: Optional[str] = Form(None),
+    hep_b_dose3_date: Optional[str] = Form(None),
+    hep_b_dose4_date: Optional[str] = Form(None),
+    hep_b_titer_date: Optional[str] = Form(None),
+    pcv13_date: Optional[str] = Form(None),
+    ppsv23_date: Optional[str] = Form(None),
+    hz_dose1_date: Optional[str] = Form(None),
+    hz_dose2_date: Optional[str] = Form(None),
+    influenza_date: Optional[str] = Form(None),
+    # ── Biopsy ────────────────────────────────────────────────────────────────
+    native_kidney_biopsy: str = Form(""),
+    native_kidney_biopsy_date: Optional[str] = Form(None),
+    native_kidney_biopsy_report: str = Form(""),
+    # ── Outcome / status ──────────────────────────────────────────────────────
     current_survival_status: str = Form(""),
     date_of_death: Optional[str] = Form(None),
     primary_cause_of_death: str = Form(""),
@@ -100,7 +144,8 @@ async def create_patient(
     withdrawal_reason: str = Form(""),
     withdrawal_clinician: str = Form(""),
     date_facility_transfer: Optional[str] = Form(None),
-    diastolic_dysfunction: str = Form(""),
+    # ── Notifications ─────────────────────────────────────────────────────────
+    whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
     try:
@@ -326,6 +371,7 @@ async def edit_patient_form(patient_id: int, request: Request, db: Session = Dep
 
 @router.post("/{patient_id}/edit")
 async def update_patient(
+    request: Request,
     patient_id: int, db: Session = Depends(get_db),
     # ── Identity ──────────────────────────────────────────────────────────────
     hid_no: str = Form(...),
@@ -388,14 +434,11 @@ async def update_patient(
     catheter_type: str = Form(""),
     catheter_insertion_site: str = Form(""),
     # ── Dry weight ────────────────────────────────────────────────────────────
-    dry_weight: float = Form(0.0),
+    dry_weight: Optional[float] = Form(None),
     # ── Viral markers ─────────────────────────────────────────────────────────
     viral_hiv: str = Form("Negative"),
     viral_hbsag: str = Form(""),
     viral_anti_hcv: str = Form(""),
-    viral_marker_hcv: bool = Form(False),
-    viral_marker_hbsag: bool = Form(False),
-    viral_marker_hiv: bool = Form(False),
     # ── Vaccination ───────────────────────────────────────────────────────────
     hep_b_status: str = Form(""),
     hep_b_dose1_date: Optional[str] = Form(None),
