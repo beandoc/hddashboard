@@ -330,46 +330,49 @@ async def analytics_patient_list(request: Request, db: Session = Depends(get_db)
     _require_analytics_access(request)
     user = get_user(request)
     
-    # Fetch active patients
-    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    # Use the dashboard logic to get consistent clinical data
+    from dashboard_logic import compute_dashboard, get_current_month_str
+    month_str = get_current_month_str()
+    dash_data = compute_dashboard(db, month_str)
     
-    # Get latest labs and risk for each
+    # Map of filter keys to alert/category keywords
+    filter_map = {
+        "epo_resistant": ["HypoR1", "HypoR2", "HypoR3"],
+        "iv_iron": ["IV Iron Rec"],
+        "idwg_high": ["High Interdialytic Weight Gain"],
+        "albumin_low": ["Low Albumin"],
+        "calcium_low": ["Low Corrected Calcium"],
+        "phos_high": ["High Phos"],
+        "non_avf": ["Non-AVF"]
+    }
+    
+
+    # Get mortality risk for each for the risk badges
+    from ml_analytics import get_all_patients_mortality_risk
     mort_data = get_all_patients_mortality_risk(db)
     mort_map = {r['patient'].id: r for r in mort_data}
-    
-    # Fetch latest monthly record for each patient to get current labs
+
     enriched_patients = []
-    for p in patients:
-        latest_rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == p.id).order_by(MonthlyRecord.record_month.desc()).first()
-        m = mort_map.get(p.id)
-        
-        # Check if patient matches requested filter
+    for row in dash_data.get("patient_rows", []):
         matches_filter = True
         if filter:
             matches_filter = False
-            if filter == "epo_resistant":
-                # Check for any HypoR level
-                if latest_rec and (latest_rec.esa_hyporesponse_level or 0) > 0: matches_filter = True
-            elif filter == "iv_iron":
-                if m and any("Iron" in f for f in m.get('flags', [])): matches_filter = True
-            elif filter == "idwg_high":
-                if latest_rec and (latest_rec.idwg or 0) > 2.5: matches_filter = True
-            elif filter == "albumin_low":
-                if latest_rec and (latest_rec.albumin or 4) < 2.5: matches_filter = True
-            elif filter == "calcium_low":
-                if latest_rec and (latest_rec.calcium_corrected or 9) < 8.0: matches_filter = True
-            elif filter == "phos_high":
-                if latest_rec and (latest_rec.phosphorus or 0) > 5.5: matches_filter = True
-        
+            keywords = filter_map.get(filter, [])
+            if any(kw in row.get("alerts", []) for kw in keywords):
+                matches_filter = True
+            if filter == "vascular" and "Non-AVF" in row.get("alerts", []):
+                matches_filter = True
+
         if matches_filter:
             enriched_patients.append({
-                "id": p.id,
-                "name": p.name,
-                "hid_no": p.hid_no,
-                "latest_hb": latest_rec.hb if latest_rec else None,
-                "latest_alb": latest_rec.albumin if latest_rec else None,
-                "latest_phos": latest_rec.phosphorus if latest_rec else None,
-                "mortality_risk": m if m else None
+                "id": row["id"],
+                "name": row["name"],
+                "hid_no": row["hid"],
+                "latest_hb": row["hb"],
+                "latest_alb": row["albumin"],
+                "latest_phos": row["phosphorus"],
+                "alerts": row["alerts"],
+                "mortality_risk": mort_map.get(row["id"])
             })
         
     return templates.TemplateResponse("analytics_patients.html", {

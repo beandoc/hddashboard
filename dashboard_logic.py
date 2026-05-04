@@ -156,15 +156,15 @@ def compute_dashboard(db: Session, month: str = None):
     # Process Demographics
     for p in active_patients:
         metrics['total_patients']['count'] += 1
-        metrics['total_patients']['names'].append(p.name)
+        metrics['total_patients']['names'].append({"id": p.id, "name": p.name})
         
-        s = (p.sex or "Unknown").strip()
+        s = (p.sex or "Unknown").strip().capitalize()
         if s == "Male":
             metrics['male_patients']['count'] += 1
-            metrics['male_patients']['names'].append(p.name)
+            metrics['male_patients']['names'].append({"id": p.id, "name": p.name})
         elif s == "Female":
             metrics['female_patients']['count'] += 1
-            metrics['female_patients']['names'].append(p.name)
+            metrics['female_patients']['names'].append({"id": p.id, "name": p.name})
 
     # Fetch Clinical Records for selected month
     records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).yield_per(100).all()
@@ -308,11 +308,11 @@ def compute_dashboard(db: Session, month: str = None):
             access = raw_access
         if access and "AVF" not in access.upper():
             metrics['non_avf']['count'] += 1
-            metrics['non_avf']['names'].append(name)
+            metrics['non_avf']['names'].append({"id": p.id, "name": name})
             if access not in metrics['non_avf']['types']:
                 metrics['non_avf']['types'][access] = {"count": 0, "names": []}
             metrics['non_avf']['types'][access]["count"] += 1
-            metrics['non_avf']['types'][access]["names"].append(name)
+            metrics['non_avf']['types'][access]["names"].append({"id": p.id, "name": name})
             row["alerts"].append("Non-AVF")
 
         if r:
@@ -322,7 +322,7 @@ def compute_dashboard(db: Session, month: str = None):
             # 2. IDWG > 2.5kg
             if r.idwg and r.idwg > 2.5:
                 metrics['idwg_high']['count'] += 1
-                metrics['idwg_high']['names'].append(name)
+                metrics['idwg_high']['names'].append({"id": p.id, "name": name})
                 row["alerts"].append("High Interdialytic Weight Gain")
 
             # Hb < 9 g/dL — tracked for Hemoglobin trendline
@@ -337,7 +337,7 @@ def compute_dashboard(db: Session, month: str = None):
             # 3. Albumin < 2.5 g/dL (User remapped from 3.5)
             if r.albumin and r.albumin < 2.5:
                 metrics['albumin_low']['count'] += 1
-                metrics['albumin_low']['names'].append(name)
+                metrics['albumin_low']['names'].append({"id": p.id, "name": name})
                 metrics['trend_albumin'].append({
                     "id": p.id,
                     "name": name,
@@ -350,13 +350,13 @@ def compute_dashboard(db: Session, month: str = None):
             corr_ca = row["corrected_ca"]
             if corr_ca and corr_ca < 8.0:
                 metrics['calcium_low']['count'] += 1
-                metrics['calcium_low']['names'].append(name)
+                metrics['calcium_low']['names'].append({"id": p.id, "name": name})
                 row["alerts"].append("Low Corrected Calcium")
                 
             # 5. Phosphorus > 5.5 mg/dL
             if r.phosphorus and r.phosphorus > 5.5:
                 metrics['phos_high']['count'] += 1
-                metrics['phos_high']['names'].append(name)
+                metrics['phos_high']['names'].append({"id": p.id, "name": name})
                 metrics['trend_phosphorus'].append({
                     "id": p.id,
                     "name": name,
@@ -387,16 +387,16 @@ def compute_dashboard(db: Session, month: str = None):
 
                 if hypo_r1:
                     metrics['epo_hypo']['count'] += 1
-                    metrics['epo_hypo']['names'].append(name)
+                    metrics['epo_hypo']['names'].append({"id": p.id, "name": name})
                     row["alerts"].append("HypoR1")
                 if hypo_r2:
                     metrics['epo_hypo_r2']['count'] += 1
-                    metrics['epo_hypo_r2']['names'].append(name)
+                    metrics['epo_hypo_r2']['names'].append({"id": p.id, "name": name})
                     if not hypo_r1:
                         row["alerts"].append("HypoR2")
                 if hypo_r3:
                     metrics['epo_hypo_r3']['count'] += 1
-                    metrics['epo_hypo_r3']['names'].append(name)
+                    metrics['epo_hypo_r3']['names'].append({"id": p.id, "name": name})
                     if not hypo_r1 and not hypo_r2:
                         row["alerts"].append("HypoR3")
 
@@ -409,7 +409,7 @@ def compute_dashboard(db: Session, month: str = None):
                     ((r.serum_ferritin and r.serum_ferritin < 500) or
                      (r.tsat and r.tsat < 30))):
                 metrics['iv_iron_rec']['count'] += 1
-                metrics['iv_iron_rec']['names'].append(name)
+                metrics['iv_iron_rec']['names'].append({"id": p.id, "name": name})
                 row["alerts"].append("IV Iron Rec")
 
         patient_rows.append(row)

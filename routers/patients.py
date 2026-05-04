@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("", response_class=HTMLResponse)
-async def patient_list(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+async def patient_list(request: Request, month: Optional[str] = None, filter: Optional[str] = None, db: Session = Depends(get_db)):
     month_str, data_note = get_effective_month(db, month)
     try:
         data = compute_dashboard(db, month_str)
@@ -25,7 +25,14 @@ async def patient_list(request: Request, month: Optional[str] = None, db: Sessio
         logger.error(f"Dashboard computation failed for {month_str}: {e}", exc_info=True)
         data = {"patient_rows": [], "metrics": {}, "data_note": data_note}
 
-    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    query = db.query(Patient).filter(Patient.is_active == True)
+    
+    if filter == "Male":
+        query = query.filter(Patient.sex == "Male")
+    elif filter == "Female":
+        query = query.filter(Patient.sex == "Female")
+        
+    patients = query.order_by(Patient.name).all()
     patients_by_id = {p.id: p for p in patients}
 
     _current_month = get_current_month_str()
@@ -38,6 +45,7 @@ async def patient_list(request: Request, month: Optional[str] = None, db: Sessio
         "current_month": _current_month,
         "current_month_label": get_month_label(_current_month),
         "user": get_user(request),
+        "active_filter": filter
     })
 
 @router.get("/new", response_class=HTMLResponse)
