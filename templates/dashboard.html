@@ -677,8 +677,8 @@
 
     {% set cards = [
       {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False,"link":"/patients"},
-      {"icon":"♂️","value":data.metrics.male_patients.count,"title":"Male","hl":False,"names":data.metrics.male_patients.names,"wide":False, "link":"/patients?filter=Male"},
-      {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False, "link":"/patients?filter=Female"},
+      {"icon":"♂️","value":data.metrics.male_patients.count,"title":"Male","hl":False,"names":data.metrics.male_patients.names,"wide":False},
+      {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False},
       {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False,"link":"/analytics/vascular-access"},
       {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff,"link":"/analytics/patients?filter=epo_resistant"},
       {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True,"link":"/analytics/patients?filter=iv_iron"},
@@ -712,7 +712,7 @@
         {% endif %}
         {% if c.names %}
         <ul class="visible-list">
-          {% for n in c.names %}<li><a href="/patients/{{ n.id }}/profile" style="color:inherit; text-decoration:none;">{{ n.name }}</a></li>{% endfor %}
+          {% for n in c.names %}<li>{{ n }}</li>{% endfor %}
         </ul>
         {% endif %}
       {% else %}
@@ -731,11 +731,7 @@
           </div>
         {% endif %}
         {% if c.names %}
-          <div class="tooltip">
-            {% for n in c.names %}
-              <a href="/patients/{{ n.id }}/profile" style="color:#fff; text-decoration:none; display:block; padding:2px 0;">{{ n.name }}</a>
-            {% endfor %}
-          </div>
+          <div class="tooltip">{{ c.names | join('\n') }}</div>
         {% endif %}
       {% endif %}
     </{{ 'a' if (c.get('link') and c.value > 0) else 'div' }}>
@@ -1158,12 +1154,12 @@ function refreshCards(data) {
         // Update Visible List
         const listEl = card.querySelector(".visible-list");
         if (listEl && dataObj.names) {
-          listEl.innerHTML = dataObj.names.map(n => `<li><a href="/patients/${n.id}/profile" style="color:inherit; text-decoration:none;">${n.name}</a></li>`).join("");
+          listEl.innerHTML = dataObj.names.map(n => `<li>${n}</li>`).join("");
         }
 
         // Update Tooltip
         if (tooltipEl && dataObj.names) {
-          tooltipEl.innerHTML = dataObj.names.map(n => `<a href="/patients/${n.id}/profile" style="color:#fff; text-decoration:none; display:block; padding:2px 0;">${n.name}</a>`).join("");
+          tooltipEl.textContent = dataObj.names.join("\n");
         }
       }
     }
