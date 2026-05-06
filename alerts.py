@@ -673,7 +673,7 @@ def build_ward_report_html(alert_patients: list,
 <div class="wrap">
   <div class="hdr">
     <h1>{CLINIC_NAME} — HD Alert Report</h1>
-    <p>{month_label} {year} &nbsp;·&nbsp; Generated {generated}</p>
+    <p>{month_label} &nbsp;·&nbsp; Generated {generated}</p>
   </div>
   <div class="body">
     <div class="summary">
