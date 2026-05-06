@@ -105,10 +105,13 @@
                 <span class="stat-label">Demographics</span>
                 <span class="stat-value">{{ patient.age or '—' }}y / {{ patient.sex }}</span>
                 <span class="stat-sub">
-                    {% if patient.relation|upper == 'SELF' %}
+                    {% set rt = (patient.relation_type or '')|upper %}
+                    {% if rt in ['SELF', 'SERVICE'] %}
                         Status: Service Person
                     {% else %}
-                        Relation: {{ patient.relation or '—' }}
+                        {% set rt_map = {'F/O': 'Father', 'M/O': 'Mother', 'S/O': 'Son', 'D/O': 'Daughter', 'W/O': 'Wife', 'H/O': 'Husband'} %}
+                        {% set type_name = rt_map.get(rt, rt) %}
+                        Relation: {{ patient.relation if patient.relation else type_name or '—' }}
                     {% endif %}
                 </span>
             </div>
