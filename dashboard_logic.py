@@ -149,8 +149,8 @@ def compute_dashboard(db: Session, month: str = None):
         'trend_phosphorus': []
     }
 
-    # Fetch all active patients
-    active_patients = db.query(Patient).filter(Patient.is_active == True).yield_per(100).all()
+    # Fetch all active patients in alphabetical order
+    active_patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     patient_map = {p.id: p for p in active_patients}
     
     # Process Demographics
