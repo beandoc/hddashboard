@@ -189,7 +189,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         try: hb_trend_data.append(float(r.hb) if r.hb else None)
         except: hb_trend_data.append(None)
         
-        try: esa_trend_data.append(round(float(r.epo_weekly_units) / 100, 1) if r.epo_weekly_units else None)
+        try: esa_trend_data.append(int(r.epo_weekly_units) if r.epo_weekly_units else None)
         except: esa_trend_data.append(None)
         
         try: weight_trend_data.append(float(r.target_dry_weight) if r.target_dry_weight else None)

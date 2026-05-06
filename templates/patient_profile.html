@@ -587,6 +587,7 @@
                     borderColor: '#0ea5e9',
                     backgroundColor: 'rgba(14, 165, 233, 0.1)',
                     borderWidth: 3,
+                    yAxisID: 'y',
                     tension: 0.4,
                     fill: true,
                     pointRadius: 6,
@@ -595,11 +596,12 @@
                     pointBorderWidth: 3,
                     spanGaps: true
                 }, {
-                    label: 'ESA Dose (Units ×100)',
+                    label: 'ESA Weekly Dose (Units)',
                     data: {{ esa_trend_data | tojson }},
                     borderColor: '#ef4444',
                     borderDash: [5, 5],
                     borderWidth: 2,
+                    yAxisID: 'y1',
                     pointRadius: 4,
                     tension: 0,
                     fill: false,
@@ -609,11 +611,28 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'top', labels: { usePointStyle: true, font: { weight: '600' } } }
                 },
                 scales: {
-                    y: { ticks: { stepSize: 1 } },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        min: 6,
+                        max: 16,
+                        title: { display: true, text: 'Hb (g/dL)', font: { weight: 'bold' } },
+                        ticks: { stepSize: 1 }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        min: 0,
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'ESA Dose (Units)', font: { weight: 'bold' } }
+                    },
                     x: { grid: { display: false } }
                 }
             }
