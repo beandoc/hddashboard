@@ -61,7 +61,7 @@
                 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Evaluation Date</label>
+                        <label>Date of Testing</label>
                         <input type="date" name="test_date" id="test_date" required>
                     </div>
                 </div>
@@ -128,8 +128,16 @@
                 { name: "subcutaneous_fat_loss", label: "Fat Loss", type: "select", options: ["None", "Mild", "Moderate", "Severe"] }
             ],
             "BIA": [
-                { name: "phase_angle", label: "Phase Angle (degrees)", type: "number", step: "0.1" },
+                { name: "phase_angle", label: "Whole Body Phase Angle (degrees)", type: "number", step: "0.1" },
+                { name: "body_fat_mass", label: "Body Fat Mass (kg)", type: "number", step: "0.1" },
+                { name: "fat_free_mass", label: "Fat Free Mass (kg)", type: "number", step: "0.1" },
+                { name: "obesity_degree", label: "Obesity Degree (%)", type: "number", step: "0.1" },
+                { name: "percentage_body_fat", label: "Percentage Body Fat (%)", type: "number", step: "0.1" },
+                { name: "skeletal_muscle_mass", label: "Skeletal Muscle Mass (kg)", type: "number", step: "0.1" },
+                { name: "bmi", label: "BMI (kg/m²)", type: "number", step: "0.1" },
                 { name: "tbw_liters", label: "Total Body Water (L)", type: "number", step: "0.1" },
+                { name: "whr", label: "WHR (Waist-Hip Ratio)", type: "number", step: "0.01" },
+                { name: "visceral_fat_level", label: "Visceral Fat Level (Normal < 10)", type: "number", step: "1" },
                 { name: "ecw_liters", label: "Extracellular Water (L)", type: "number", step: "0.1" },
                 { name: "lean_tissue_index", label: "Lean Tissue Index (LTI)", type: "number", step: "0.1" }
             ],
