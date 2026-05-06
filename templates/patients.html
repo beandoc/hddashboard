@@ -444,6 +444,9 @@
                                 <a href="/events?patient_id={{ p.id }}" class="more-item">
                                     <i class="material-icons">timeline</i> Timeline
                                 </a>
+                                <button onclick="openReminderModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
+                                    <i class="material-icons" style="color:var(--accent-orange);">event_note</i> Set Reminder
+                                </button>
                                 <div class="more-divider"></div>
                                 <button onclick="openAdmitModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
                                     <i class="material-icons" style="color:#7c3aed;">local_hospital</i> Hospital Admit

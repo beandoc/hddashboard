@@ -46,6 +46,9 @@
             <a href="/entry/{{ patient.id }}" class="btn-action btn-primary">
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_chart</i> <span class="btn-text">Monthly Record</span>
             </a>
+            <button onclick="openReminderModal()" class="btn-action btn-ghost" style="color:var(--accent-orange); border-color:var(--accent-orange);">
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">notification_add</i> <span class="btn-text">Set Reminder</span>
+            </button>
         </div>
     </div>
 
@@ -768,7 +771,40 @@
     // Auto-dismiss toast after animation completes
     const toast = document.getElementById('successToast');
     if (toast) setTimeout(() => toast.remove(), 4000);
+
+    // ── CLINICAL REMINDER MODAL ──
+    function openReminderModal() {
+        document.getElementById('reminderModal').classList.add('open');
+        document.getElementById('reminder_date').value = new Date().toISOString().slice(0, 10);
+    }
+    function closeReminderModal() {
+        document.getElementById('reminderModal').classList.remove('open');
+    }
 </script>
+
+<div id="reminderModal" class="modal-overlay" onclick="if(event.target===this)closeReminderModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:var(--accent-orange);font-size:1.1rem;">event_note</i> Set Clinical Reminder</h3>
+            <button class="modal-close" onclick="closeReminderModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+        </div>
+        <p style="margin:0 0 16px; font-size:0.875rem; color:#475569;">
+            Set a clinical task or investigation reminder for <strong>{{ patient.name }}</strong>.
+        </p>
+        <form id="reminderForm" method="POST" action="/alerts/reminders/create">
+            <input type="hidden" name="patient_id" value="{{ patient.id }}">
+            <div class="form-field">
+                <label>Reminder Date</label>
+                <input type="date" name="reminder_date" id="reminder_date" required>
+            </div>
+            <div class="form-field">
+                <label>Reminder Message / Task</label>
+                <textarea name="message" id="reminder_message" rows="3" placeholder="e.g. AVF maturation check, special lab investigation, etc." required style="resize:vertical; width:100%; padding:10px; border-radius:8px; border:1px solid #e2e8f0;"></textarea>
+            </div>
+            <button type="submit" class="btn-primary" style="background:var(--accent-orange); border:none; color:white; padding:12px; border-radius:8px; width:100%; font-weight:700; cursor:pointer;">Set Reminder</button>
+        </form>
+    </div>
+</div>
 
 </body>
 </html>
