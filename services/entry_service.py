@@ -111,6 +111,8 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         hba1c=data.get("hba1c"),
         vitamin_d_analog_dose=data.get("vitamin_d_analog_dose", ""),
         phosphate_binder_type=data.get("phosphate_binder_type", ""),
+        phosphate_binder_dose_mg=data.get("phosphate_binder_dose_mg"),
+        phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
         antihypertensive_count=len(meds_list) if meds_list else data.get("antihypertensive_count"),
         antihypertensive_details=antihypertensive_details_json,
         hrqol_score=data.get("hrqol_score"),

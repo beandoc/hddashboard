@@ -397,8 +397,22 @@
                         <select name="phosphate_binder_type">
                             <option value="">-- None / Select --</option>
                             {% set binder_cur = record.phosphate_binder_type if record else (prior_record.phosphate_binder_type if prior_record else '') %}
-                            {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Aluminium Hydroxide"] %}
+                            {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)"] %}
                             <option value="{{ b }}" {{ 'selected' if binder_cur == b }}>{{ b }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Binder Dose (mg/day)</label>
+                        <input type="number" name="phosphate_binder_dose_mg" step="1" placeholder="e.g. 2000" value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg else (prior_record.phosphate_binder_dose_mg if prior_record else '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Binder Frequency</label>
+                        <select name="phosphate_binder_freq">
+                            <option value="">-- Select --</option>
+                            {% set freq_cur = record.phosphate_binder_freq if record else (prior_record.phosphate_binder_freq if prior_record else '') %}
+                            {% for f in ["OD", "BD", "TDS", "QID"] %}
+                            <option value="{{ f }}" {{ 'selected' if freq_cur == f }}>{{ f }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -973,6 +987,50 @@
 
         window.addEventListener('scroll', updateActiveSection);
         window.addEventListener('load', updateActiveSection); // Initial check on load
+
+        // ── Kt/V Auto-Calculation (Daugirdas II) ──
+        function calculateKTV() {
+            const preUrea = parseFloat(document.querySelector('input[name="pre_dialysis_urea"]').value);
+            const postUrea = parseFloat(document.querySelector('input[name="post_dialysis_urea"]').value);
+            const idwg = parseFloat(document.querySelector('input[name="idwg"]').value); // UF in L
+            const preWeight = parseFloat(document.querySelector('input[name="last_prehd_weight"]').value);
+            const targetWeight = parseFloat(document.querySelector('input[name="target_dry_weight"]').value);
+            
+            const ktvInput = document.querySelector('input[name="single_pool_ktv"]');
+            if (!ktvInput) return;
+
+            if (preUrea > 0 && postUrea > 0 && preUrea > postUrea) {
+                const R = postUrea / preUrea;
+                const weight = targetWeight || (preWeight - idwg) || preWeight;
+                const uf = idwg || 0;
+
+                if (weight > 0) {
+                    // Daugirdas II Simplified: Kt/V = -ln(R - 0.03) + (4 - 3.5 * R) * (UF / W)
+                    // Note: 0.03 is a proxy for 0.008 * t (approx 4 hours)
+                    try {
+                        const term1 = -Math.log(R - 0.03);
+                        const term2 = (4 - 3.5 * R) * (uf / weight);
+                        const ktv = term1 + term2;
+                        
+                        if (!isNaN(ktv) && isFinite(ktv) && ktv > 0) {
+                            // Only auto-fill if the field is empty or already contains a calculated value
+                            // We don't want to overwrite a manually entered value unless it's obviously a re-calc
+                            ktvInput.value = ktv.toFixed(2);
+                            ktvInput.style.color = '#0ea5e9'; // Highlight as auto-calculated
+                            ktvInput.style.fontWeight = '700';
+                        }
+                    } catch (e) {
+                        console.error("Kt/V calculation error", e);
+                    }
+                }
+            }
+        }
+
+        // Attach listeners to trigger Kt/V calculation
+        ['pre_dialysis_urea', 'post_dialysis_urea', 'idwg', 'last_prehd_weight', 'target_dry_weight'].forEach(name => {
+            const el = document.querySelector(`input[name="${name}"]`);
+            if (el) el.addEventListener('input', calculateKTV);
+        });
     </script>
     <style>
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

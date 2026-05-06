@@ -588,6 +588,72 @@ async def phosphate_calculator(request: Request, db: Session = Depends(get_db)):
         "user": get_user(request)
     })
 
+@router.get("/urea-modeling", response_class=HTMLResponse)
+async def urea_modeling(request: Request, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    from database import Patient
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    return templates.TemplateResponse("urea_calculator.html", {
+        "request": request,
+        "patients": patients,
+        "user": get_user(request)
+    })
+
+@router.get("/api/patients/{patient_id}/latest-monthly")
+async def api_patient_latest_monthly(patient_id: int, db: Session = Depends(get_db)):
+    from database import MonthlyRecord
+    rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+    if not rec:
+        return {"available": False}
+    
+    return {
+        "available": True,
+        "phosphorus": rec.phosphorus,
+        "phosphate_binder_type": rec.phosphate_binder_type,
+        "phosphate_binder_dose_mg": rec.phosphate_binder_dose_mg,
+        "v_urea": rec.single_pool_ktv # just a guess if needed, but usually v_urea is calc from weight
+    }
+
+@router.post("/api/ukm/clearance")
+async def api_ukm_clearance(payload: dict):
+    from urea_model import calculate_dialyzer_clearance
+    try:
+        res = calculate_dialyzer_clearance(
+            koa_invitro=payload["koa_invitro"],
+            qb=payload["qb"],
+            qd=payload["qd"],
+            td=payload["td"],
+            weight_loss_kg=payload["weight_loss_kg"]
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/api/ukm/adequacy")
+async def api_ukm_adequacy(payload: dict):
+    from urea_model import calculate_std_ktv, calculate_san_std_ktv
+    try:
+        # stdKt/V calc
+        res = calculate_std_ktv(
+            sp_ktv=payload["sp_ktv"],
+            td=payload["td"],
+            sessions_per_week=payload["sessions_per_week"],
+            weight_gain_weekly_l=payload["weight_gain_weekly_l"],
+            v_watson=payload["v_watson"]
+        )
+        
+        # Surface Area Normalization
+        san_ktv = calculate_san_std_ktv(
+            std_ktv=res["std_ktv_adjusted"],
+            v_watson=payload["v_watson"],
+            bsa_dubois=payload.get("bsa", 0),
+            m_ratio=payload.get("m_ratio", 20.0)
+        )
+        res["san_std_ktv"] = san_ktv
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/api/phosphate/calculate")
 async def api_phosphate_calculate(payload: dict):
     try:

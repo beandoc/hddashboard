@@ -267,6 +267,8 @@ class MonthlyRecord(Base):
     vit_d = Column(Float)                    # ng/mL — 25HydroxyvitaminD
     vitamin_d_analog_dose = Column(String)   # e.g. "Calcitriol 0.25mcg TIW" — VitaminDAnalogDose
     phosphate_binder_type = Column(String)   # Calcium Carbonate / Sevelamer / Lanthanum — PhosphateBinderType
+    phosphate_binder_dose_mg = Column(Float) # Total daily mg (e.g. 2000)
+    phosphate_binder_freq = Column(String)    # OD / BD / TDS / QID
 
     # ── Electrolytes & Acid-Base ──────────────────────────────────────────────
     serum_sodium = Column(Float)             # mEq/L — SerumSodium

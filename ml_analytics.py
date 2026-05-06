@@ -2852,9 +2852,17 @@ def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
 def analyze_avf_maturation(db, patient_id: int) -> dict:
     """
     Vascular Access Quality Intelligence:
-    1. Identifies AVF Maturation Failure (Surgery done, No cannulation > 6 weeks).
-    2. Monitors Suboptimal Flow (BFR < 250 ml/min).
-    3. Analyzes Access Recirculation (Two-needle Urea method).
+    1. Context-aware AVF Maturation Monitoring — handles three distinct clinical scenarios:
+       - Scenario A (Bridge phase): HD already running via catheter; AVF created to replace it.
+         Maturation clock = days since surgery. Alert fires if > 6 weeks without cannulation.
+       - Scenario B (Pre-emptive): AVF created before HD was ever initiated.
+         Sub-case B1 — HD still not started (hd_wef_date is null): Alert suppressed;
+           cannulation is appropriately deferred pending dialysis initiation.
+         Sub-case B2 — HD started after AVF creation: Maturation clock starts from
+           hd_wef_date (not surgery date) — avoids false-positive failure alerts when
+           the patient waited months before dialysis was required.
+    2. Monitors Suboptimal Flow (BFR < 250 ml/min across recent sessions).
+    3. Analyzes Access Recirculation (Two-needle Urea method, threshold > 10%).
     """
     from database import Patient, SessionRecord
     from datetime import date
@@ -2875,25 +2883,122 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
     has_access_data = bool(p.access_date or p.date_first_cannulation)
 
     # ── 1. Maturation Monitoring (AVF/Graft only) ─────────────────────────────
+    # Clinical context for the maturation clock:
+    #   - Scenario A (Bridge): AVF created before/during early HD → temp catheter used
+    #     while fistula matures. Maturation clock = days since surgery.
+    #   - Scenario B (Pre-emptive): AVF created before HD ever started (hd_wef_date is
+    #     null OR hd_wef_date > access_date). Cannulation is deliberately deferred until
+    #     dialysis is actually required — this is NOT a maturation failure.
+    #     Maturation clock should start from hd_wef_date, not surgery date.
+    #   - Scenario C (Historic): Both dates are recorded — compute actual maturation lag.
     if is_avf_or_graft:
         if p.access_date and not p.date_first_cannulation:
             days_since_surgery = (today - p.access_date).days
-            delay_days = days_since_surgery
-            if days_since_surgery > 0:
-                events.append({"text": f"Access created {days_since_surgery} days ago; first cannulation date not recorded."})
+
+            if not p.hd_wef_date:
+                # ── Scenario B (Pre-emptive, HD not yet started) ──────────────
+                # AVF was created ahead of anticipated dialysis need.
+                # Suppress maturation failure alert — cannulation has not yet
+                # occurred simply because dialysis has not been initiated.
+                delay_days = days_since_surgery
+                events.append({
+                    "text": (
+                        f"Pre-emptive AVF created {days_since_surgery} days ago. "
+                        "Patient is not yet on dialysis — cannulation pending HD initiation. "
+                        "No maturation failure concern at this stage."
+                    )
+                })
+                # No risk_score increment — this is an expected clinical state.
+
+            elif p.hd_wef_date > p.access_date:
+                # ── Scenario B variant (HD started after AVF creation) ────────
+                # The fistula was surgically created in anticipation of HD.
+                # The clinically meaningful maturation window begins from the
+                # date HD was initiated (i.e., when cannulation became relevant),
+                # not from the surgery date.
+                pre_hd_wait_days = (p.hd_wef_date - p.access_date).days
+                days_since_hd_start = (today - p.hd_wef_date).days
+                delay_days = days_since_hd_start   # expose the clinically relevant counter
+                events.append({
+                    "text": (
+                        f"AVF created {pre_hd_wait_days} days before HD initiation "
+                        f"({p.hd_wef_date.strftime('%d %b %Y')}). "
+                        f"Maturation clock starts from HD start date: "
+                        f"{days_since_hd_start} days elapsed without cannulation."
+                    )
+                })
+                if days_since_hd_start > 42:
+                    alerts.append(
+                        f"AVF Cannulation Overdue: {days_since_hd_start} days since HD initiation "
+                        f"without first cannulation — KDOQI recommends cannulation within 6 weeks "
+                        f"of HD start when fistula is clinically mature."
+                    )
+                    risk_score += 3
+                elif days_since_hd_start > 28:
+                    events.append({
+                        "text": (
+                            f"Approaching 6-week cannulation threshold since HD start "
+                            f"({days_since_hd_start} days). Assess fistula thrill/bruit; "
+                            "consider Doppler if maturation is in doubt."
+                        )
+                    })
+
+            else:
+                # ── Scenario A (Bridge phase) ─────────────────────────────────
+                # HD started before or on the same day as AVF creation.
+                # Patient is on temp catheter while the new fistula matures.
+                # Standard KDOQI 6-week window applies from surgery date.
+                delay_days = days_since_surgery
+                events.append({
+                    "text": (
+                        f"AVF created {days_since_surgery} days ago "
+                        f"(HD via catheter since {p.hd_wef_date.strftime('%d %b %Y')}). "
+                        "First cannulation date not yet recorded."
+                    )
+                })
                 if days_since_surgery > 42:
-                    alerts.append(f"AVF Maturation Failure Risk: {days_since_surgery} days since surgery — first cannulation not recorded (KDOQI threshold: 6 weeks).")
+                    alerts.append(
+                        f"AVF Maturation Failure Risk: {days_since_surgery} days since surgery "
+                        "without cannulation — KDOQI 6-week threshold exceeded. "
+                        "Assess fistula maturity; consider Doppler ultrasound."
+                    )
                     risk_score += 3
                 elif days_since_surgery > 28:
-                    events.append({"text": "Approaching maturation threshold (4 weeks). Schedule Doppler if thrill is weak."})
+                    events.append({
+                        "text": (
+                            "Approaching 4-week mark since AVF surgery. "
+                            "Assess thrill and bruit; schedule Doppler if maturation is uncertain."
+                        )
+                    })
 
         elif p.access_date and p.date_first_cannulation:
-            delay_days = (p.date_first_cannulation - p.access_date).days
-            if delay_days >= 0:
-                events.append({"text": f"AVF matured and first cannulated in {delay_days} days from surgery."})
-                if delay_days > 45:
-                    risk_score += 2
-                    events.append({"text": "Delayed AVF maturation (> 6 weeks) recorded in history."})
+            # ── Scenario C (Historic — cannulation already done) ──────────────
+            # For the maturation delay display, use the clinically correct reference:
+            # If HD started after AVF creation, the relevant delay is from HD start.
+            # If HD started before or at AVF creation (bridge), use surgery date.
+            if p.hd_wef_date and p.hd_wef_date > p.access_date:
+                # Cannulation delay relative to when dialysis actually started
+                cannulation_vs_hd_start = (p.date_first_cannulation - p.hd_wef_date).days
+                cannulation_vs_surgery  = (p.date_first_cannulation - p.access_date).days
+                delay_days = cannulation_vs_hd_start
+                events.append({
+                    "text": (
+                        f"AVF created {cannulation_vs_surgery} days before first cannulation "
+                        f"({(p.hd_wef_date - p.access_date).days} days of which preceded HD initiation). "
+                        f"First cannulation occurred {cannulation_vs_hd_start} days after HD start."
+                    )
+                })
+                if cannulation_vs_hd_start > 45:
+                    risk_score += 1   # minor flag — prolonged catheter use after HD initiation
+                    events.append({"text": "Delayed cannulation after HD initiation (> 6 weeks) — prolonged catheter dependency recorded."})
+            else:
+                # Standard bridge-phase calculation from surgery date
+                delay_days = (p.date_first_cannulation - p.access_date).days
+                if delay_days >= 0:
+                    events.append({"text": f"AVF matured and first cannulated in {delay_days} days from surgery."})
+                    if delay_days > 45:
+                        risk_score += 2
+                        events.append({"text": "Delayed AVF maturation (> 6 weeks) recorded in history."})
 
         elif not p.access_date and p.date_first_cannulation:
             events.append({"text": f"First cannulation recorded on {p.date_first_cannulation}; surgery date not entered."})

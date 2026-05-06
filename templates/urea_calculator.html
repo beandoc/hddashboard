@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header Section -->
+    <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <span class="material-icons-outlined text-blue-600 text-4xl">calculate</span>
+                Urea Kinetic Modeling (UKM)
+            </h1>
+            <p class="text-slate-500 mt-1">Daugirdas Model v2.0 — Solute Solver Integration</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="window.print()" class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2">
+                <span class="material-icons text-sm">print</span> Print Report
+            </button>
+            <button onclick="runModel()" class="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all transform hover:-translate-y-0.5 flex items-center gap-2">
+                <span class="material-icons text-sm">bolt</span> Calculate Adequacy
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Input Column -->
+        <div class="lg:col-span-4 space-y-6">
+            <!-- Patient Selector -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="material-icons text-xs">person</span> Patient Context
+                </h2>
+                <select id="ptSelect" onchange="autoFillPt()" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                    <option value="">-- Manual Input --</option>
+                    {% for p in patients %}
+                    <option value="{{ p.id }}" 
+                            data-sex="{{ p.sex }}" 
+                            data-weight="{{ p.dry_weight or 70 }}"
+                            data-height="{{ p.height or 170 }}"
+                            data-age="{{ p.age or 50 }}">
+                        {{ p.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Parameters -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="material-icons text-xs">settings</span> Dialysis Prescription
+                </h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">In Vitro KoA</label>
+                        <input type="number" id="koa_invitro" step="10" value="1000" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Qb (mL/min)</label>
+                        <input type="number" id="qb" step="5" value="300" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Qd (mL/min)</label>
+                        <input type="number" id="qd" step="10" value="500" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Time (min)</label>
+                        <input type="number" id="td" step="5" value="240" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-50 space-y-4">
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Schedules / Week</label>
+                        <select id="sessions_per_week" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                            <option value="2">2 times / week</option>
+                            <option value="3" selected>3 times / week</option>
+                            <option value="4">4 times / week</option>
+                            <option value="5">5 times / week</option>
+                            <option value="6">6 times / week</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Weekly Fluid Gain (L)</label>
+                        <input type="number" id="uf_week" step="0.5" value="9.0" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Column -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="material-icons text-xs">biotech</span> Laboratory & Anthropometry
+                </h2>
+
+                <div class="form-group">
+                    <label class="text-xs font-bold text-slate-500 mb-1 block">spKt/V (per session)</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="sp_ktv" step="0.01" value="1.45" class="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        <button onclick="estimateSpKtv()" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold">Estimate</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Height (cm)</label>
+                        <input type="number" id="height" step="1" value="170" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Weight (kg)</label>
+                        <input type="number" id="weight" step="1" value="70" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Age</label>
+                        <input type="number" id="age" step="1" value="50" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="form-group">
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">Sex</label>
+                        <select id="sex" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none">
+                            <option value="m">Male</option>
+                            <option value="f">Female</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-50 space-y-4">
+                    <div class="flex justify-between items-center text-xs font-bold text-slate-400">
+                        <span>Calculated Volumes</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <p class="text-[9px] uppercase text-slate-500 font-bold">V (Watson)</p>
+                            <p id="res_v_watson" class="text-lg font-bold text-slate-700">--</p>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <p class="text-[9px] uppercase text-slate-500 font-bold">BSA (Dubois)</p>
+                            <p id="res_bsa" class="text-lg font-bold text-slate-700">--</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dialyzer Performance Result -->
+            <div id="dialyzerCard" class="bg-emerald-50 rounded-2xl border border-emerald-100 p-5 hidden">
+                <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-3">Estimated Dialyzer Performance</h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-emerald-700">In Vivo KoA:</span>
+                        <span id="res_koa_invivo" class="font-bold text-emerald-900">--</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-emerald-700">Blood Water Clearance (Kd):</span>
+                        <span id="res_kd" class="font-bold text-emerald-900">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Final Adequacy -->
+        <div class="lg:col-span-4 space-y-6">
+            <div class="bg-slate-900 rounded-3xl p-8 shadow-2xl text-white relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-sm font-bold text-blue-400 uppercase tracking-widest mb-6">Standard Kt/V (stdKt/V)</h2>
+                    
+                    <div class="flex items-baseline gap-2 mb-8">
+                        <span id="res_std_ktv" class="text-7xl font-black tracking-tighter">--</span>
+                        <span class="text-blue-400 font-bold">Weekly</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10">
+                            <div>
+                                <p class="text-[10px] font-bold text-white/40 uppercase">SAN-stdKt/V</p>
+                                <p id="res_san_ktv" class="text-xl font-bold">--</p>
+                            </div>
+                            <span class="text-[10px] bg-blue-500 text-white px-2 py-1 rounded-md font-bold">Normalized</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-[10px] font-bold text-white/40 uppercase">eKt/V (Single)</p>
+                                <p id="res_ektv" class="text-lg font-medium">--</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-white/40 uppercase">Fixed Vol S</p>
+                                <p id="res_s_fixed" class="text-lg font-medium">--</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 pt-8 border-t border-white/10">
+                        <div id="adequacyBadge" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Background decoration -->
+                <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-blue-600/20 blur-[100px] rounded-full"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-100 p-6">
+                <h4 class="text-xs font-bold text-slate-800 uppercase mb-3">Model References</h4>
+                <ul class="text-[10px] text-slate-500 space-y-2 leading-relaxed">
+                    <li>• <strong>In Vivo KoA:</strong> Factor 0.574 applied (Daugirdas, Solute Solver).</li>
+                    <li>• <strong>Standard Kt/V:</strong> Leypoldt Equation (fixed volume) + FHN adjustment.</li>
+                    <li>• <strong>SAN-stdKt/V:</strong> Normalized by V/S ratio M=20.0 (Adult Dubois).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function autoFillPt() {
+    const sel = document.getElementById('ptSelect');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt.value) return;
+
+    document.getElementById('sex').value = opt.dataset.sex.toLowerCase().startsWith('f') ? 'f' : 'm';
+    document.getElementById('weight').value = opt.dataset.weight;
+    document.getElementById('height').value = opt.dataset.height;
+    document.getElementById('age').value = opt.dataset.age;
+    
+    // Attempt to fetch latest monthly for spKt/V and UF_week
+    fetchLatestData(opt.value);
+}
+
+async function fetchLatestData(ptId) {
+    try {
+        const resp = await fetch(`/analytics/api/patients/${ptId}/latest-monthly`);
+        const data = await resp.json();
+        if (data.available) {
+            if (data.v_urea) document.getElementById('sp_ktv').value = data.v_urea;
+            // Guessing UF_week as IDWG * freq
+            const freq = parseInt(document.getElementById('sessions_per_week').value);
+            document.getElementById('uf_week').value = (data.idwg || 3.0) * freq;
+        }
+    } catch(e) {}
+}
+
+async function runModel() {
+    // 1. Calculate Anthropometry locally
+    const weight = parseFloat(document.getElementById('weight').value);
+    const height = parseFloat(document.getElementById('height').value);
+    const age = parseFloat(document.getElementById('age').value);
+    const sex = document.getElementById('sex').value;
+    
+    const v_watson = calculateWatson(sex, weight, height, age);
+    const bsa = calculateBSA(weight, height);
+    
+    document.getElementById('res_v_watson').innerText = v_watson.toFixed(1) + ' L';
+    document.getElementById('res_bsa').innerText = bsa.toFixed(2) + ' m²';
+
+    // 2. Call Clearance API
+    const clearancePayload = {
+        koa_invitro: parseFloat(document.getElementById('koa_invitro').value),
+        qb: parseFloat(document.getElementById('qb').value),
+        qd: parseFloat(document.getElementById('qd').value),
+        td: parseFloat(document.getElementById('td').value),
+        weight_loss_kg: parseFloat(document.getElementById('uf_week').value) / parseFloat(document.getElementById('sessions_per_week').value)
+    };
+
+    const adequacyPayload = {
+        sp_ktv: parseFloat(document.getElementById('sp_ktv').value),
+        td: parseFloat(document.getElementById('td').value),
+        sessions_per_week: parseInt(document.getElementById('sessions_per_week').value),
+        weight_gain_weekly_l: parseFloat(document.getElementById('uf_week').value),
+        v_watson: v_watson,
+        bsa: bsa
+    };
+
+    try {
+        const [cResp, aResp] = await Promise.all([
+            fetch('/analytics/api/ukm/clearance', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(clearancePayload)
+            }),
+            fetch('/analytics/api/ukm/adequacy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(adequacyPayload)
+            })
+        ]);
+
+        const cData = await cResp.json();
+        const aData = await aResp.json();
+
+        // Update UI
+        document.getElementById('dialyzerCard').classList.remove('hidden');
+        document.getElementById('res_koa_invivo').innerText = cData.koa_invivo + ' mL/min';
+        document.getElementById('res_kd').innerText = cData.kd + ' mL/min';
+
+        document.getElementById('res_std_ktv').innerText = aData.std_ktv_adjusted.toFixed(2);
+        document.getElementById('res_san_ktv').innerText = aData.san_std_ktv.toFixed(2);
+        document.getElementById('res_ektv').innerText = aData.ektv.toFixed(2);
+        document.getElementById('res_s_fixed').innerText = aData.std_ktv_fixed.toFixed(2);
+
+        updateBadge(aData.std_ktv_adjusted);
+    } catch(e) {
+        alert("Calculation failed: " + e.message);
+    }
+}
+
+function calculateWatson(sex, weight, height, age) {
+    if (sex === 'm') {
+        return 2.447 - (0.09156 * age) + (0.1074 * height) + (0.3362 * weight);
+    } else {
+        return -2.097 + (0.1069 * height) + (0.2466 * weight);
+    }
+}
+
+function calculateBSA(weight, height) {
+    // Dubois & Dubois
+    return 0.007184 * Math.pow(weight, 0.425) * Math.pow(height, 0.725);
+}
+
+function updateBadge(val) {
+    const badge = document.getElementById('adequacyBadge');
+    if (val >= 2.15) {
+        badge.className = "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+        badge.innerHTML = '<span class="material-icons text-xs">check_circle</span> Target Achieved';
+    } else if (val >= 2.0) {
+        badge.className = "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30";
+        badge.innerHTML = '<span class="material-icons text-xs">warning</span> Sub-optimal';
+    } else {
+        badge.className = "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30";
+        badge.innerHTML = '<span class="material-icons text-xs">dangerous</span> Critical Adequacy';
+    }
+}
+
+function estimateSpKtv() {
+    // Simplified: Kt/V = -ln(R - 0.03) + (4 - 3.5 * R) * (UF / Weight)
+    // Here we can just ask for URR
+    const urr = prompt("Enter URR (%) - e.g. 70", "70");
+    if (urr) {
+        const R = 1 - (parseFloat(urr)/100);
+        const ktv = -Math.log(R - 0.03);
+        document.getElementById('sp_ktv').value = ktv.toFixed(2);
+    }
+}
+</script>
+{% endblock %}

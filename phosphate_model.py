@@ -13,10 +13,12 @@ def calculate_pbe(binders: List[Dict[str, Any]]) -> Dict[str, float]:
     pbe_coeffs = {
         "calcium_acetate": 1.0,
         "sevelamer": 0.75,
-        "lanthanum": 1.25,
-        "calcium_carbonate": 1.0,
-        "sucroferric": 2.5,  # Adjusted to match Ferric Citrate potency example
-        "ferric_citrate": 2.5  # 1g Ferric Citrate = 2.5g PBED per user example
+        "lanthanum": 2.0,            # Elemental Lanthanum
+        "calcium_carbonate": 1.0,    # Reference
+        "magnesium_carbonate_anhydrous": 1.7,
+        "magnesium_carbonate_hydrated": 1.3,
+        "sucroferric": 2.5,          # High-potency ferric
+        "ferric_citrate": 2.5
     }
     ca_content = {
         "calcium_acetate": 0.25,

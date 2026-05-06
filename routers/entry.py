@@ -202,6 +202,8 @@ async def save_entry(
     hba1c: Optional[float] = Form(None),
     vitamin_d_analog_dose: str = Form(""),
     phosphate_binder_type: str = Form(""),
+    phosphate_binder_dose_mg: Optional[float] = Form(None),
+    phosphate_binder_freq: str = Form(""),
     antihypertensive_count: Optional[int] = Form(None),
     antihypertensive_name: list[str] = Form([]),
     antihypertensive_dose: list[str] = Form([]),

@@ -202,7 +202,7 @@
                                 <option value="sevelamer">Sevelamer (800mg)</option>
                                 <option value="lanthanum">Lanthanum Carbonate (500mg)</option>
                                 <option value="calcium_carbonate">Calcium Carbonate (500mg)</option>
-                                <option value="sucroferric">Velphoro (500mg)</option>
+                                <option value="sucroferric">Sucroferric Oxyhydroxide</option>
                                 <option value="ferric_citrate">Ferric Citrate (250mg)</option>
                             </select>
                         </div>
@@ -341,7 +341,7 @@ function setSolveFor(mode) {
     document.getElementById(`val_${mode.split('_')[1]}`).disabled = true;
 }
 
-function autoFillPt() {
+async function autoFillPt() {
     const sel = document.getElementById('ptSelect');
     const opt = sel.options[sel.selectedIndex];
     if (opt.value) {
@@ -350,6 +350,45 @@ function autoFillPt() {
         document.getElementById('vurea').value = (w * 0.5).toFixed(1);
         const sexVal = (opt.dataset.sex || '').toLowerCase().startsWith('f') ? 'f' : 'm';
         document.getElementById('sex').value = sexVal;
+
+        // Fetch latest monthly data
+        try {
+            const resp = await fetch(`/analytics/api/patients/${opt.value}/latest-monthly`);
+            const data = await resp.json();
+            if (data.available) {
+                if (data.phosphorus) document.getElementById('val_pre').value = data.phosphorus;
+                
+                if (data.phosphate_binder_type && data.phosphate_binder_dose_mg) {
+                    // Pre-fill the PBE calculator row
+                    const container = document.getElementById('binderRows');
+                    container.innerHTML = ''; // Clear existing
+                    addBinderRow();
+                    const row = container.querySelector('.binder-row');
+                    const typeSel = row.querySelector('.binder-type');
+                    
+                    // Map display name to key
+                    const mapping = {
+                        "Calcium Carbonate": "calcium_carbonate",
+                        "Sevelamer Carbonate": "sevelamer",
+                        "Sevelamer HCl": "sevelamer",
+                        "Lanthanum Carbonate": "lanthanum",
+                        "Sucroferric Oxyhydroxide": "sucroferric",
+                        "Magnesium Carbonate (Anhydrous)": "magnesium_carbonate_anhydrous",
+                        "Magnesium Carbonate (Hydrated)": "magnesium_carbonate_hydrated"
+                    };
+                    
+                    const key = mapping[data.phosphate_binder_type];
+                    if (key) {
+                        typeSel.value = key;
+                        row.querySelector('.binder-mg').value = data.phosphate_binder_dose_mg;
+                        calcTotalPBE();
+                        syncPBE();
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch latest monthly data", e);
+        }
     }
 }
 
@@ -361,12 +400,14 @@ function addBinderRow() {
         <div class="md:col-span-7">
             <label class="md:hidden text-[10px] font-bold text-slate-500 uppercase mb-1 block">Binder Type</label>
             <select class="w-full p-2 bg-slate-900 md:bg-slate-800 border border-slate-700 rounded-lg text-sm binder-type" onchange="calcTotalPBE()">
-                <option value="calcium_acetate">Calcium Acetate (667mg)</option>
-                <option value="sevelamer">Sevelamer (800mg)</option>
-                <option value="lanthanum">Lanthanum Carbonate (500mg)</option>
-                <option value="calcium_carbonate">Calcium Carbonate (500mg)</option>
-                <option value="sucroferric">Velphoro (500mg)</option>
-                <option value="ferric_citrate">Ferric Citrate (250mg)</option>
+                <option value="calcium_acetate">Calcium Acetate</option>
+                <option value="sevelamer">Sevelamer (HCl/Carbonate)</option>
+                <option value="lanthanum">Lanthanum Carbonate</option>
+                <option value="calcium_carbonate">Calcium Carbonate</option>
+                <option value="magnesium_carbonate_anhydrous">Magnesium Carbonate (Anhydrous)</option>
+                <option value="magnesium_carbonate_hydrated">Magnesium Carbonate (Hydrated)</option>
+                <option value="sucroferric">Sucroferric Oxyhydroxide</option>
+                <option value="ferric_citrate">Ferric Citrate</option>
             </select>
         </div>
         <div class="md:col-span-4">
@@ -387,8 +428,10 @@ function calcTotalPBE() {
     const pbeCoeffs = {
         calcium_acetate: 1.0,
         sevelamer: 0.75,
-        lanthanum: 1.25,
+        lanthanum: 2.0,
         calcium_carbonate: 1.0,
+        magnesium_carbonate_anhydrous: 1.7,
+        magnesium_carbonate_hydrated: 1.3,
         sucroferric: 2.5,
         ferric_citrate: 2.5
     };
