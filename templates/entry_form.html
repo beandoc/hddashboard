@@ -209,6 +209,7 @@
         <div class="container" style="display:flex; gap:8px; margin:0 auto; padding:0 16px;">
             <a href="#sec-weight" class="nav-dot active">Weight</a>
             <a href="#sec-anemia" class="nav-dot">Anemia</a>
+            <a href="#sec-transfusion" class="nav-dot">Transfusion</a>
             <a href="#sec-iron" class="nav-dot">Iron</a>
             <a href="#sec-mbd" class="nav-dot">MBD</a>
             <a href="#sec-nutrition" class="nav-dot">Nutrition & Liver</a>
@@ -331,6 +332,37 @@
                         <input type="number" step="0.01" name="platelet_count" inputmode="decimal" placeholder="e.g. 150" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
                     </div>
                 </div>
+            </div>
+
+            <!-- ── Blood Transfusion ── -->
+            <div class="form-section" id="sec-transfusion" style="border-left: 5px solid #dc2626;">
+                <div class="section-title" style="color: #dc2626;">
+                    <i class="material-icons" style="color:#dc2626;">water_drop</i>
+                    Blood Transfusion (PRBC)
+                    <span style="font-size:0.72rem; font-weight:600; background:#fee2e2; color:#dc2626; padding:3px 10px; border-radius:20px; margin-left:8px;">Affects Hb Trajectory &amp; EPO Responsiveness</span>
+                </div>
+                <div style="background:#fff1f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; margin-bottom:18px; font-size:0.83rem; color:#991b1b; display:flex; align-items:flex-start; gap:10px;">
+                    <i class="material-icons" style="font-size:1.1rem; color:#dc2626; flex-shrink:0; margin-top:1px;">info</i>
+                    <span>Recording transfusion units here allows the analytics engine to automatically correct the Hb trajectory (Kalman filter) and EPO Resistance Index (ERI) for transfusion confounding. Failure to record will cause falsely <strong>optimistic</strong> EPO responsiveness scores.</span>
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>PRBC Units Transfused This Month</label>
+                        <input type="number" step="1" min="0" max="20" name="blood_transfusion_units" id="blood_transfusion_units" inputmode="numeric"
+                               placeholder="0"
+                               value="{{ record.blood_transfusion_units if record and record.blood_transfusion_units else '' }}"
+                               style="border-color: #fca5a5;"
+                               oninput="updateTransfusionHint()">
+                        <div style="font-size:0.78rem; color:#64748b; margin-top:5px;">Each unit raises Hb by ~1 g/dL. Enter 0 or leave blank if no transfusion.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Date of Transfusion (most recent)</label>
+                        <input type="date" name="transfusion_date" id="transfusion_date"
+                               value="{{ record.transfusion_date if record and record.transfusion_date else '' }}"
+                               style="border-color: #fca5a5;">
+                    </div>
+                </div>
+                <div id="transfusion_hint" style="display:none; background:#fff1f2; border:1px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-top:8px; font-size:0.85rem; color:#7f1d1d;"></div>
             </div>
 
             <!-- ── IV Iron & Infusions ── -->
@@ -845,6 +877,29 @@
             conversionHint.style.borderRadius = '8px';
             conversionHint.style.borderLeft = '4px solid #0ea5e9';
         }
+
+        function updateTransfusionHint() {
+            const units = parseInt(document.getElementById('blood_transfusion_units')?.value);
+            const hintEl = document.getElementById('transfusion_hint');
+            if (!hintEl) return;
+            if (!units || units <= 0) {
+                hintEl.style.display = 'none';
+                return;
+            }
+            const hbInput = document.querySelector('input[name="hb"]');
+            const rawHb = parseFloat(hbInput?.value);
+            let correctionNote = '';
+            if (!isNaN(rawHb)) {
+                const corrected = Math.max(rawHb - units, 5.0).toFixed(1);
+                correctionNote = ` Entered Hb: <strong>${rawHb} g/dL</strong> → Endogenous (corrected) Hb: <strong>${corrected} g/dL</strong>.`;
+            }
+            hintEl.innerHTML = `<strong>⚠ Transfusion Confounding Detected:</strong> ${units} unit(s) transfused.${correctionNote} The analytics engine will use the corrected Hb to compute accurate ERI and Hb trajectory.`;
+            hintEl.style.display = 'block';
+        }
+
+        // Also update hint when Hb changes
+        document.querySelector('input[name="hb"]')?.addEventListener('input', updateTransfusionHint);
+        updateTransfusionHint(); // Run on page load if data exists
 
         if(esaTypeSelect) {
             esaTypeSelect.addEventListener('change', toggleESACalculator);

@@ -122,6 +122,8 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         hospitalization_icd_code=hosp_list[0]["icd_code"] if hosp_list else "",
         hospitalization_icd_diagnosis=hosp_list[0]["icd_diagnosis"] if hosp_list else "",
         hospitalization_details=hosp_details_json,
+        blood_transfusion_units=data.get("blood_transfusion_units"),
+        transfusion_date=data.get("transfusion_date") or None,
     )
 
     if rec:
@@ -171,6 +173,10 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
             
         if idwg and idwg > 2.5:
             _alerts.append("High Interdialytic Weight Gain")
+
+        bt_units = data.get("blood_transfusion_units")
+        if bt_units and bt_units > 0:
+            _alerts.append(f"Blood Transfusion this month ({bt_units} PRBC unit(s))")
 
         if p.mail_trigger and _alerts:
             from alerts import send_entry_alert_email

@@ -214,6 +214,8 @@ async def save_entry(
     hospitalization_diagnosis: list[str] = Form([]),
     hospitalization_icd_code: list[str] = Form([]),
     hospitalization_icd_diagnosis: list[str] = Form([]),
+    blood_transfusion_units: Optional[int] = Form(None),
+    transfusion_date: Optional[str] = Form(None),
     clinical_background: str = Form(""),
     issues: str = Form(""),
     action: str = Form("save_back"),
