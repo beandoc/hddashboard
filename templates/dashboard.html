@@ -689,8 +689,13 @@
     ] %}
 
     {% for c in cards %}
-    <{{ 'a href="' + c.link + '"' if (c.get('link') and c.value > 0) else 'div' }} class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}"
-      {% if c.get('link') and c.value > 0 %}style="text-decoration:none; color:inherit; cursor:pointer;"{% endif %}>
+    {% set has_perm = (user.role in ['admin', 'doctor']) or (c.link == '/patients') %}
+    {% if c.get('link') and c.value > 0 and has_perm %}
+      <a href="{{ c.link }}" class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}" style="text-decoration:none; color:inherit; cursor:pointer;">
+    {% else %}
+      <div class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}">
+    {% endif %}
+
       {% if c.wide %}
         <div class="wide-card-header">
           <span class="icon">{{ c.icon }}</span>
@@ -734,7 +739,12 @@
           <div class="tooltip">{{ c.names | join('\n') }}</div>
         {% endif %}
       {% endif %}
-    </{{ 'a' if (c.get('link') and c.value > 0) else 'div' }}>
+
+    {% if c.get('link') and c.value > 0 and has_perm %}
+      </a>
+    {% else %}
+      </div>
+    {% endif %}
     {% endfor %}
 
   </div>
@@ -961,12 +971,27 @@ renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
 
 // ── COHORT TRENDS (PHASE 4) ──
 function loadCohortTrends() {
-    fetch('/api/cohort-trends')
-    .then(r => r.json())
+    console.log("Fetching cohort trends from /analytics/api/cohort-trends...");
+    fetch('/analytics/api/cohort-trends')
+    .then(r => {
+        if (!r.ok) {
+            console.error("Cohort trends fetch failed:", r.status, r.statusText);
+            throw new Error(`HTTP error! status: ${r.status}`);
+        }
+        return r.json();
+    })
     .then(data => {
+        console.log("Cohort trends data received:", data);
+        if (!data.available) {
+            console.warn("Cohort trends data not available.");
+            return;
+        }
         const renderCohort = (divId, statKey, color) => {
             const months = data.months;
-            if (!data[statKey]) return;
+            if (!data[statKey]) {
+                console.warn(`Stat key ${statKey} missing in cohort data.`);
+                return;
+            }
             const medians = data[statKey].map(s => s.median);
             const p25 = data[statKey].map(s => s.p25);
             const p75 = data[statKey].map(s => s.p75);
@@ -1003,6 +1028,9 @@ function loadCohortTrends() {
         renderCohort('cohortHbChart', 'hb', 'rgb(198, 40, 40)');
         renderCohort('cohortAlbChart', 'albumin', 'rgb(26, 115, 232)');
         renderCohort('cohortPhosChart', 'phosphorus', 'rgb(46, 125, 50)');
+    })
+    .catch(err => {
+        console.error("Error in loadCohortTrends:", err);
     });
 }
 loadCohortTrends();
@@ -1021,7 +1049,7 @@ async function loadAtRiskTrends() {
   titleEl.textContent = `At-Risk ${param.toUpperCase()} Trendline`;
 
   try {
-    const res = await fetch(`/api/at-risk-trends?parameter=${param}&month=${MONTH_STR}`);
+    const res = await fetch(`/analytics/api/at-risk-trends?parameter=${param}&month=${MONTH_STR}`);
     atRiskData = await res.json();
     atRiskIdx = 0;
 
@@ -1093,7 +1121,7 @@ let pollTimer = null;
 
 async function pollDashboard() {
   try {
-    const res = await fetch(`/api/dashboard?month=${MONTH_STR}`);
+    const res = await fetch(`/analytics/api/dashboard?month=${MONTH_STR}`);
     if (!res.ok) return;
     const data = await res.json();
     const snapshot = JSON.stringify(data.metrics);

@@ -2224,7 +2224,7 @@ def run_cohort_analytics(db: Session) -> Dict:
             if val is not None:
                 trends[m][p].append(val)
 
-    months = sorted(trends.keys())
+    months = sorted(trends.keys())[-12:]
     result = {
         "available": True,
         "months": months,

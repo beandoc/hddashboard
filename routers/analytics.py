@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
@@ -7,7 +7,7 @@ import logging
 from datetime import date, datetime, timedelta
 from database import get_db, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
 from config import templates
-from dependencies import get_user, _require_analytics_access
+from dependencies import get_user, _require_analytics_access, _get_role
 from dashboard_logic import compute_dashboard, get_current_month_str
 from ml_analytics import (
     run_patient_analytics, analyze_bfr_trend, run_cohort_analytics,
@@ -463,9 +463,15 @@ async def save_doctor_note(
     return RedirectResponse(url=f"/analytics/patients/{patient_id}?success=note_saved", status_code=303)
 
 @router.get("/api/dashboard")
-async def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_db)):
+async def api_dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     from dashboard_logic import get_current_month_str
     from fastapi.encoders import jsonable_encoder
+    from dependencies import get_user, _get_role
+    # Allow any authenticated staff/doctor/admin
+    user = get_user(request)
+    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     month_str = month or get_current_month_str()
     try:
         data = compute_dashboard(db, month_str)
@@ -474,8 +480,14 @@ async def api_dashboard(month: Optional[str] = None, db: Session = Depends(get_d
     return JSONResponse(content=jsonable_encoder(data))
 
 @router.get("/api/cohort-trends")
-async def api_cohort_trends(db: Session = Depends(get_db)):
+async def api_cohort_trends(request: Request, db: Session = Depends(get_db)):
     from fastapi.encoders import jsonable_encoder
+    from dependencies import get_user, _get_role
+    # Allow any authenticated staff/doctor/admin
+    user = get_user(request)
+    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     try:
         data = run_cohort_analytics(db)
     except Exception as e:
@@ -483,12 +495,33 @@ async def api_cohort_trends(db: Session = Depends(get_db)):
     return JSONResponse(content=jsonable_encoder(data))
 
 @router.get("/api/at-risk-trends")
-async def api_at_risk_trends(parameter: str, month: Optional[str] = None, db: Session = Depends(get_db)):
+async def api_at_risk_trends(request: Request, parameter: str, month: Optional[str] = None, db: Session = Depends(get_db)):
     from fastapi.encoders import jsonable_encoder
+    from dependencies import get_user, _get_role
+    # Allow any authenticated staff/doctor/admin
+    user = get_user(request)
+    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
     try:
         data = get_at_risk_trends(db, parameter, month)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse(content=jsonable_encoder(data))
+
+@router.get("/api/patients")
+async def api_patients(request: Request, q: str = "", db: Session = Depends(get_db)):
+    from database import Patient
+    from fastapi.encoders import jsonable_encoder
+    from dependencies import get_user, _get_role
+    # Allow any authenticated staff/doctor/admin
+    user = get_user(request)
+    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    patients = db.query(Patient).filter(Patient.name.contains(q)).all()
+    # Simple serialization for the test
+    data = [{"id": p.id, "name": p.name, "hid_no": p.hid_no} for p in patients]
     return JSONResponse(content=jsonable_encoder(data))
 
 
