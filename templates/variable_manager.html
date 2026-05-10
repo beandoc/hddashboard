@@ -190,10 +190,14 @@ textarea { resize:vertical; min-height:70px; }
           {% if v.description %}<span style="color:#aaa">{{ v.description[:80] }}{% if v.description|length > 80 %}…{% endif %}</span>{% endif %}
         </div>
         <div class="var-actions">
+          {% if v.id > 0 %}
           <button class="btn btn-sm btn-ghost" onclick="editVariable({{ v.id }})">Edit</button>
           <button class="btn btn-sm btn-danger" onclick="toggleVariable({{ v.id }}, {{ 'false' if v.is_active else 'true' }})">
             {% if v.is_active %}Deactivate{% else %}Activate{% endif %}
           </button>
+          {% else %}
+          <span style="font-size:0.75rem;color:#94a3b8;font-style:italic">Core System Variable</span>
+          {% endif %}
         </div>
       </div>
       {% endfor %}
