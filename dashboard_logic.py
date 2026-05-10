@@ -80,21 +80,26 @@ def get_month_label(month_str: str) -> str:
 def get_effective_month(db: Session, requested_month: str = None) -> tuple:
     """
     Returns (month_str, data_note).
-    When no month is explicitly requested and the current month has no records yet
-    (e.g. day 1 of a new month), falls back to the previous month so the UI
-    doesn't appear broken, and sets data_note to signal the banner.
+    Falls back to the previous month when the current month has no records yet,
+    or when fewer than 50% of active patients have records (month is still being
+    entered and the incomplete data would mislead clinical metrics).
     """
     if requested_month:
         return requested_month, None
 
     current = get_current_month_str()
+    y, m = int(current[:4]), int(current[5:7])
+    prev = f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
+
     record_count = db.query(func.count(MonthlyRecord.patient_id)).filter(
         MonthlyRecord.record_month == current
     ).scalar() or 0
 
     if record_count == 0:
-        y, m = int(current[:4]), int(current[5:7])
-        prev = f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
+        return prev, "new_month_no_data"
+
+    active_count = db.query(func.count(Patient.id)).filter(Patient.is_active == True).scalar() or 0
+    if active_count > 0 and record_count < active_count * 0.5:
         return prev, "new_month_no_data"
 
     return current, None
