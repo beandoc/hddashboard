@@ -451,7 +451,7 @@
                         </select>
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1; margin-top: -10px;">
-                        <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg" value="{{ record.phosphate_binder_dose_mg if record else '' }}">
+                        <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg" value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else '' }}">
                         <div id="pb_calc_hint" style="font-size: 0.85em; color: var(--text-muted); font-weight: 600;">
                             {% if record and record.phosphate_binder_dose_mg %}
                             Total Daily Dose: {{ record.phosphate_binder_dose_mg }} mg
