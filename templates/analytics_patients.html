@@ -76,7 +76,7 @@
             <i class="material-icons" style="font-size: 1rem;">filter_alt</i>
             {% if active_filter == 'epo_resistant' %}ESA Resistant (HypoR)
             {% elif active_filter == 'iv_iron' %}IV Iron Recommended
-            {% elif active_filter == 'idwg_high' %}IDWG > 2.5kg
+            {% elif active_filter == 'idwg_high' %}IDWG >= 2.5kg
             {% elif active_filter == 'albumin_low' %}Albumin < 2.5g/dL
             {% elif active_filter == 'calcium_low' %}Calcium < 8.0mg/dL
             {% elif active_filter == 'phos_high' %}High Phosphorus > 5.5mg/dL
@@ -95,7 +95,7 @@
 
     <div class="patient-grid" id="patientGrid">
         {% for p in patients %}
-        <a href="/analytics/patients/{{ p.id }}" class="patient-card" data-name="{{ p.name.lower() }}" data-hid="{{ p.hid_no }}">
+        <a href="/patients/{{ p.id }}/profile" class="patient-card" data-name="{{ p.name.lower() }}" data-hid="{{ p.hid_no }}">
             <div class="card-top">
                 <div>
                     <h3 class="patient-name">{{ p.name }}</h3>

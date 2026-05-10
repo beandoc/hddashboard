@@ -828,7 +828,7 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
             "p_value":         ols.get("p_value"),
             "durbin_watson":   ols.get("durbin_watson"),
             "n_points":        kal.get("n_points") or ols.get("n_points"),
-            "alert_predicted_low": alert_predicted,
+            "alert_predicted_low": bool(predicted is not None and predicted < 10.0),
             "message": message,
         }
     }

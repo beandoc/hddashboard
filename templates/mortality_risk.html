@@ -263,7 +263,7 @@
         {% set mort = row.mort.data %}
         <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
-            <strong>{{ row.patient.name }}</strong>
+            <a href="/patients/{{ row.patient.id }}/profile" style="color:inherit; text-decoration:none;"><strong>{{ row.patient.name }}</strong></a>
             <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
           </td>
           <td data-label="1-Year Risk">

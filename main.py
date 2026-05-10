@@ -199,6 +199,7 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
                 "epo_hypo_r2": {"count": 0, "names": []},
                 "epo_hypo_r3": {"count": 0, "names": [], "cutoff": None},
                 "iv_iron_rec": {"count": 0, "names": []},
+                "missing_records": {"count": 0, "names": []},
                 "trend_hb": [],
                 "trend_albumin": [],
                 "trend_phosphorus": []
@@ -221,9 +222,6 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
     else: greeting = "evening"
 
     pending_entry_count = 0
-    active_patient_ids = {p.id for p in db.query(Patient).filter(Patient.is_active == True).all()}
-    entered_ids = {r.patient_id for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == _current_month).all()}
-    pending_entry_count = len(active_patient_ids - entered_ids)
 
     # Authentication check
     user = get_user(request)

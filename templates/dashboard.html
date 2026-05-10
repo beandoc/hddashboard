@@ -657,7 +657,10 @@
       <span id="liveIndicator" style="font-size:0.75em;opacity:0.7;font-family:monospace;margin-left:6px;">● Live</span>
     </div>
     {% if user and user.role in ['staff', 'admin'] %}
-    <a href="/entry" class="hero-btn primary"><i class="material-icons" style="font-size:0.95rem;">add</i> Enter Data</a>
+      <a href="/entry?month={{ month_str }}" class="btn btn-primary" style="background:var(--secondary); border:none; display:flex; align-items:center; gap:8px;">
+        <i class="material-icons" style="font-size:1.1rem;">add</i>
+        Enter Data
+      </a>
     <a href="/patients/new" class="hero-btn"><i class="material-icons" style="font-size:0.95rem;">person_add</i> New Patient</a>
     {% endif %}
   </div>
@@ -676,17 +679,18 @@
   <div class="dashboard-grid">
 
     {% set cards = [
-      {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False,"link":"/patients"},
+      {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False,"link":"/patients?month=" ~ month_str},
       {"icon":"♂️","value":data.metrics.male_patients.count,"title":"Male","hl":False,"names":data.metrics.male_patients.names,"wide":False},
       {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False},
-      {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False,"link":"/analytics/vascular-access"},
-      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff,"link":"/analytics/patients?filter=epo_resistant"},
-      {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True,"link":"/analytics/patients?filter=iv_iron"},
-      {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"Interdialytic Weight Gain > 2.5kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False,"link":"/analytics/patients?filter=idwg_high"},
-      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False,"link":"/analytics/patients?filter=albumin_low"},
-      {"icon":"⚠️💉","value":data.metrics.hb_high.count,"title":"High Hb > 13.0g/dL","hl":data.metrics.hb_high.count>0,"names":data.metrics.hb_high.names,"wide":False,"link":"/analytics/patients?filter=hb_high"},
-      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False,"link":"/analytics/patients?filter=calcium_low"},
-      {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False,"link":"/analytics/patients?filter=phos_high"},
+      {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False,"link":"/analytics/vascular-access?month=" ~ month_str},
+      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=epo_resistant"},
+      {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=iv_iron"},
+      {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"Interdialytic Weight Gain >= 2.5kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=idwg_high"},
+      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=albumin_low"},
+      {"icon":"⚠️💉","value":data.metrics.hb_high.count,"title":"High Hb > 13.0g/dL","hl":data.metrics.hb_high.count>0,"names":data.metrics.hb_high.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=hb_high"},
+      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=calcium_low"},
+      {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=phos_high"},
+      {"icon":"⏳","value":data.metrics.missing_records.count,"title":"Missing Records","hl":data.metrics.missing_records.count>0,"names":data.metrics.missing_records.names,"wide":False,"link":"/entry?month=" ~ month_str},
     ] %}
 
     {% for c in cards %}
@@ -938,7 +942,8 @@ function renderTrend(key) {
   const d = arr[idx];
   const nameEl = document.getElementById(cfg.nameEl);
   nameEl.innerText = `${d.name} (${idx+1}/${arr.length})`;
-  nameEl.href = d.id ? `/analytics/patients/${d.id}` : '#';
+  nameEl.href = d.id ? `/patients/${d.id}/profile` : '#';
+  nameEl.title = "View patient profile";
   nameEl.style.textDecoration = d.id ? 'underline' : 'none';
   document.getElementById(cfg.prevBtn).disabled = (idx === 0);
   document.getElementById(cfg.nextBtn).disabled = (idx === arr.length - 1);
@@ -1081,7 +1086,8 @@ function renderAtRiskTrend() {
   
   const nameEl = document.getElementById("atRiskPatientName");
   nameEl.innerText = `${d.name} (${atRiskIdx+1}/${atRiskData.patients.length})`;
-  nameEl.href = d.id ? `/analytics/patients/${d.id}` : '#';
+  nameEl.href = d.id ? `/patients/${d.id}/profile` : '#';
+  nameEl.title = "View patient profile";
   nameEl.style.textDecoration = d.id ? 'underline' : 'none';
   
   document.getElementById("atRiskPrevBtn").disabled = (atRiskIdx === 0);

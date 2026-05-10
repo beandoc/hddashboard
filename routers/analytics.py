@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from database import get_db, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
 from config import templates
 from dependencies import get_user, _require_analytics_access, _get_role
-from dashboard_logic import compute_dashboard, get_current_month_str
+from dashboard_logic import compute_dashboard, get_current_month_str, get_effective_month
 from ml_analytics import (
     run_patient_analytics, analyze_bfr_trend, run_cohort_analytics,
     get_at_risk_trends, analyze_pds, analyze_mia_cascade,
@@ -28,7 +28,7 @@ root_router = APIRouter(tags=["clinical-review"])
 @router.get("/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)
-    month_str = month or get_current_month_str()
+    month_str, _ = get_effective_month(db, month)
     
     # 1. Monthly Totals
     patients = db.query(Patient).all()
@@ -72,7 +72,7 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     _require_analytics_access(request)
     from datetime import datetime
     from ml_analytics import analyze_avf_maturation
-    month_str = month or get_current_month_str()
+    month_str, _ = get_effective_month(db, month)
     
     patients = db.query(Patient).filter(Patient.is_active == True).all()
     total_prevalent = len(patients)
@@ -171,7 +171,8 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     # We can reuse the dashboard data logic or fetch patients with alerts
     patients = db.query(Patient).filter(Patient.is_active == True).all()
     # Simple logic to find patients with alerts for the watchlist
-    data = compute_dashboard(db, get_current_month_str())
+    month_str, _ = get_effective_month(db)
+    data = compute_dashboard(db, month_str)
     patient_rows = data.get("patient_rows", [])
     
     return templates.TemplateResponse("analytics_hub.html", {
@@ -335,21 +336,21 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     })
 
 @router.get("/patients", response_class=HTMLResponse)
-async def analytics_patient_list(request: Request, db: Session = Depends(get_db), filter: str = None):
+async def analytics_patient_list(request: Request, db: Session = Depends(get_db), filter: str = None, month: Optional[str] = None):
     _require_analytics_access(request)
     user = get_user(request)
-    
+
     # Use the dashboard logic to get consistent clinical data
-    from dashboard_logic import compute_dashboard, get_current_month_str
-    month_str = get_current_month_str()
+    month_str, _ = get_effective_month(db, month)
     dash_data = compute_dashboard(db, month_str)
-    
+
     # Map of filter keys to alert/category keywords
     filter_map = {
         "epo_resistant": ["HypoR1", "HypoR2", "HypoR3"],
         "iv_iron": ["IV Iron Rec"],
         "idwg_high": ["High Interdialytic Weight Gain"],
         "albumin_low": ["Low Albumin"],
+        "hb_high": ["High Hb (>13)"],
         "calcium_low": ["Low Corrected Calcium"],
         "phos_high": ["High Phos"],
         "non_avf": ["Non-AVF"]

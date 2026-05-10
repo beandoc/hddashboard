@@ -101,7 +101,11 @@ def get_effective_month(db: Session, requested_month: str = None) -> tuple:
         return prev, "new_month_no_data"
 
     active_count = db.query(func.count(Patient.id)).filter(Patient.is_active == True).scalar() or 0
-    if active_count > 0 and record_count < active_count * 0.5:
+    threshold = active_count * 0.5
+    
+    if active_count > 0 and record_count < threshold:
+        import logging
+        logging.info(f"Fallback triggered: month={current}, records={record_count}, active={active_count}, threshold={threshold}. Using {prev}")
         return prev, "new_month_no_data"
 
     return current, None
@@ -122,7 +126,7 @@ def compute_dashboard(db: Session, month: str = None):
     last_mod = db.query(func.max(MonthlyRecord.timestamp)).filter(MonthlyRecord.record_month == month).scalar()
     last_mod_str = last_mod.isoformat() if last_mod else "none"
     
-    cache_key = f"{month}_{last_mod_str}"
+    cache_key = f"{month}_{last_mod_str}_v2"
     now = datetime.utcnow()
     
     if cache_key in _DASHBOARD_CACHE:
@@ -131,11 +135,15 @@ def compute_dashboard(db: Session, month: str = None):
             return cached_data
 
     # 2. If not in cache or expired, compute from scratch
-    y, m = int(month[:4]), int(month[5:7])
-    if m == 1:
-        prev_month = f"{y-1}-12"
-    else:
-        prev_month = f"{y}-{m-1:02d}"
+    try:
+        y, m = int(month[:4]), int(month[5:7])
+        if m == 1:
+            prev_month = f"{y-1}-12"
+        else:
+            prev_month = f"{y}-{m-1:02d}"
+    except Exception as e:
+        logger.error(f"Month parsing error for '{month}': {e}")
+        raise
 
 
     metrics = {
@@ -152,6 +160,7 @@ def compute_dashboard(db: Session, month: str = None):
         'epo_hypo_r3': {'count': 0, 'names': [], 'cutoff': None},  # HypoR3: top 20th %ile dose
         'iv_iron_rec': {'count': 0, 'names': []},
         'hb_high': {'count': 0, 'names': []},
+        'missing_records': {'count': 0, 'names': []},
         'trend_hb': [],
         'trend_albumin': [],
         'trend_phosphorus': []
@@ -327,8 +336,8 @@ def compute_dashboard(db: Session, month: str = None):
                 
             prev_r = prev_record_map.get(p.id)
 
-            # 2. IDWG > 2.5kg
-            if r.idwg and r.idwg > 2.5:
+            # 2. IDWG >= 2.5kg
+            if r.idwg and r.idwg >= 2.5:
                 metrics['idwg_high']['count'] += 1
                 metrics['idwg_high']['names'].append(name)
                 row["alerts"].append("High Interdialytic Weight Gain")
@@ -430,8 +439,15 @@ def compute_dashboard(db: Session, month: str = None):
                 metrics['iv_iron_rec']['count'] += 1
                 metrics['iv_iron_rec']['names'].append(name)
                 row["alerts"].append("IV Iron Rec")
+        else:
+            metrics['missing_records']['count'] += 1
+            metrics['missing_records']['names'].append(name)
 
-        patient_rows.append(row)
+        try:
+            patient_rows.append(row)
+        except Exception as e:
+            logger.error(f"Error processing row for patient {p.id}: {e}")
+            raise
 
     result = {
         "metrics": metrics,
@@ -470,7 +486,7 @@ def get_patients_needing_alerts(db: Session, month: str = None):
             access = raw_access
         if access and "AVF" not in access.upper():
             alerts.append("Non-AVF")
-        if r.idwg and r.idwg > 2.5:
+        if r.idwg and r.idwg >= 2.5:
             alerts.append("High Interdialytic Weight Gain")
         if r.albumin and r.albumin < 2.5:
             alerts.append("Low Albumin")

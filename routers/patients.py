@@ -8,7 +8,7 @@ import re
 from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord
 from config import templates, _csrf_signer
 from dependencies import get_user
-from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
+from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month, _resolve_epo_dose
 from services import patient_service
 
 logger = logging.getLogger(__name__)
@@ -184,19 +184,25 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     esa_trend_data = []
     weight_trend_data = []
     albumin_trend_data = []
-    
+    idwg_trend_data = []
+
     for r in trend_records:
         try: hb_trend_data.append(float(r.hb) if r.hb else None)
         except: hb_trend_data.append(None)
-        
-        try: esa_trend_data.append(int(r.epo_weekly_units) if r.epo_weekly_units else None)
+
+        try:
+            _dose = _resolve_epo_dose(r)
+            esa_trend_data.append(float(_dose) if _dose is not None else None)
         except: esa_trend_data.append(None)
-        
+
         try: weight_trend_data.append(float(r.target_dry_weight) if r.target_dry_weight else None)
         except: weight_trend_data.append(None)
-        
+
         try: albumin_trend_data.append(float(r.albumin) if r.albumin else None)
         except: albumin_trend_data.append(None)
+
+        try: idwg_trend_data.append(float(r.idwg) if r.idwg else None)
+        except: idwg_trend_data.append(None)
 
     csrf_token = _csrf_signer.sign(f"interim-{patient_id}").decode()
 
@@ -239,7 +245,10 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
 
     eri = None
     if latest_monthly and p.dry_weight and latest_monthly.hb and latest_monthly.epo_weekly_units:
-        try: eri = round(float(latest_monthly.epo_weekly_units) / float(p.dry_weight) / float(latest_monthly.hb), 2)
+        try:
+            _dose = _resolve_epo_dose(latest_monthly)
+            if _dose:
+                eri = round(float(_dose) / float(p.dry_weight) / (float(latest_monthly.hb) * 10), 2)
         except: pass
 
     # Nutrition Logic
@@ -307,6 +316,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "esa_trend_data": esa_trend_data,
         "weight_trend_data": weight_trend_data,
         "albumin_trend_data": albumin_trend_data,
+        "idwg_trend_data": idwg_trend_data,
         "krcr_trend_labels": krcr_trend_labels,
         "krcr_trend_data": krcr_trend_data,
         "csrf_token": csrf_token,
