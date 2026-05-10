@@ -326,12 +326,17 @@ def compute_dashboard(db: Session, month: str = None):
                 row["alerts"].append("High Interdialytic Weight Gain")
 
             # Hb < 9 g/dL — tracked for Hemoglobin trendline
-            if r.hb and r.hb < 9:
+            # Use row["hb"] so interim lab overrides are reflected (not raw r.hb)
+            effective_hb = row["hb"]
+            prev_hb = prev_r.hb if prev_r else None
+            hb_drop = round(prev_hb - effective_hb, 2) if effective_hb and prev_hb else None
+            if effective_hb and effective_hb < 9:
                 metrics['trend_hb'].append({
                     "id": p.id,
                     "name": name,
-                    "current": r.hb,
-                    "previous": prev_r.hb if prev_r else None
+                    "current": effective_hb,
+                    "previous": prev_hb,
+                    "drop": hb_drop,
                 })
 
             # 3. Albumin < 2.5 g/dL (User remapped from 3.5)

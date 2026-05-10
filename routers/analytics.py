@@ -198,8 +198,8 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     
     # Pre-fetch monthly records for weight trend analysis
     current_month = get_current_month_str()
-    y, m = int(current_month[:4]), int(current_month[5:7])
-    prev_month = f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
+    y, mo = int(current_month[:4]), int(current_month[5:7])
+    prev_month = f"{y-1}-12" if mo == 1 else f"{y}-{mo-1:02d}"
     
     curr_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == current_month).all()}
     prev_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()}
@@ -216,11 +216,20 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
             p_flags.append("High Mortality Risk")
             priority += 3
 
-        # B. Hb Drop (Current < 9 and dropped from previous)
+        # B. Hb — tiered severity: Critical (<7) > Acute drop (>3 g/dL fall) > Low (<9)
         hb_trend = next((item for item in dash_data['metrics']['trend_hb'] if item['id'] == p.id), None)
         if hb_trend:
-            p_flags.append("Hb Drop (<9)")
-            priority += 2
+            hb_val  = hb_trend.get("current") or 0
+            hb_drop_mag = hb_trend.get("drop") or 0
+            if hb_val < 7:
+                p_flags.append(f"Critical Hb ({hb_val} g/dL)")
+                priority += 8
+            elif hb_drop_mag >= 3:
+                p_flags.append(f"Acute Hb Drop ({hb_val} g/dL, ↓{hb_drop_mag:.1f})")
+                priority += 5
+            else:
+                p_flags.append("Hb Drop (<9)")
+                priority += 2
 
         # C. Low Albumin
         alb_trend = next((item for item in dash_data['metrics']['trend_albumin'] if item['id'] == p.id), None)
@@ -266,8 +275,8 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
             phos_bay = bay.get("phosphorus", {})
 
             # High Hb persistence: prob of being low for 3+ months >= 40%
-            # Only add if Hb Drop flag not already present (avoid double-flag)
-            if hb_bay.get("prob_persistent_3", 0) >= 0.40 and "Hb Drop (<9)" not in p_flags:
+            # Skip if any Hb flag already present (Critical Hb, Acute Hb Drop, or plain Hb Drop)
+            if hb_bay.get("prob_persistent_3", 0) >= 0.40 and not any("Hb" in f for f in p_flags):
                 pct = round(hb_bay["prob_persistent_3"] * 100)
                 p_flags.append(f"P(Hb Low×3) {pct}%")
                 priority += 2

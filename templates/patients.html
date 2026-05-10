@@ -139,8 +139,17 @@
         .act-review:hover { background: #fecaca; }
         .act-view { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
         .act-view:hover { background: #bae6fd; }
-        .act-analytics { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .act-analytics:hover { background: #dbeafe; }
+        .act-analytics-icon { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .act-analytics-icon:hover { background: #dbeafe; }
+        .act-reminder-icon { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+        .act-reminder-icon:hover { background: #ffedd5; }
+        .act-admit-icon { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+        .act-admit-icon:hover { background: #ede9fe; }
+
+        @media (max-width: 1200px) {
+            .act-lbl { display: none; }
+            .act-btn-primary { padding: 0 12px; }
+        }
 
         /* overflow dropdown */
         .more-wrap { position: relative; display: inline-block; vertical-align: middle; }
@@ -403,63 +412,65 @@
                                     </span>
                                 {% endif %}
                             {% endfor %}
-                        {% else %}
-                            <span style="color:#94a3b8; font-size:0.8rem;">—</span>
                         {% endif %}
                     </td>
 
-                    <!-- Actions: 3 icon buttons + overflow menu -->
+                    <!-- Actions: Context-aware primary + Quick Actions + Overflow -->
                     <td data-label="Actions" class="actions-cell">
                         <div style="display:inline-flex; gap:8px; align-items:center;">
-                            <!-- Context-aware primary action -->
+                            <!-- Primary Action -->
                             {% if not row.has_record or row.has_missing_data %}
                                 <button onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn-primary act-enter-labs" title="Enter interim lab results">
-                                    <i class="material-icons" style="font-size:0.9rem;">science</i> Enter Labs
+                                    <i class="material-icons">science</i> <span class="act-lbl">Enter Labs</span>
                                 </button>
                             {% elif row.alerts %}
                                 <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-review" title="Review alerts">
-                                    <i class="material-icons" style="font-size:0.9rem;">visibility</i> Review
+                                    <i class="material-icons">visibility</i> <span class="act-lbl">Review</span>
                                 </a>
                             {% else %}
                                 <a href="/patients/{{ row.id }}/profile" class="act-btn-primary act-view" title="View record">
-                                    <i class="material-icons" style="font-size:0.9rem;">person</i> View
+                                    <i class="material-icons">person</i> <span class="act-lbl">View</span>
                                 </a>
                             {% endif %}
 
-                            <!-- Analytics (Always visible) -->
-                            <a href="/analytics/patients/{{ row.id }}" class="act-btn-primary act-analytics" title="Patient Analytics">
-                                <i class="material-icons" style="font-size:0.9rem;">bar_chart</i> Analytics
+                            <!-- Quick Action: Analytics -->
+                            <a href="/analytics/patients/{{ row.id }}" class="act-btn act-analytics-icon" title="Patient Analytics">
+                                <i class="material-icons">bar_chart</i>
                             </a>
-                        </div>
 
-                        <!-- Overflow menu -->
-                        <div class="more-wrap">
-                            <button class="act-btn act-more" onclick="toggleMore('more-{{ row.id }}', event)">
-                                <i class="material-icons">more_vert</i>
+                            <!-- Quick Action: Reminder -->
+                            <button onclick="openReminderModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn act-reminder-icon" title="Set Clinical Reminder">
+                                <i class="material-icons" style="color:var(--accent-orange);">event_note</i>
                             </button>
-                            <div class="more-dropdown" id="more-{{ row.id }}">
-                                <a href="/patients/{{ row.id }}/profile" class="more-item">
-                                    <i class="material-icons">account_circle</i> Full Profile
-                                </a>
-                                <a href="/events?patient_id={{ p.id }}" class="more-item">
-                                    <i class="material-icons">timeline</i> Timeline
-                                </a>
-                                <button onclick="openReminderModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
-                                    <i class="material-icons" style="color:var(--accent-orange);">event_note</i> Set Reminder
+
+                            <!-- Quick Action: Admit -->
+                            <button onclick="openAdmitModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn act-admit-icon" title="Hospital Admission">
+                                <i class="material-icons" style="color:#7c3aed;">local_hospital</i>
+                            </button>
+
+                            <!-- Overflow menu -->
+                            <div class="more-wrap">
+                                <button class="act-btn act-more" onclick="toggleMore('more-{{ row.id }}', event)" title="More options">
+                                    <i class="material-icons">more_vert</i>
                                 </button>
-                                <div class="more-divider"></div>
-                                <button onclick="openAdmitModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
-                                    <i class="material-icons" style="color:#7c3aed;">local_hospital</i> Hospital Admit
-                                </button>
-                                <button onclick="openDischargeModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" 
-                                        class="more-item" {{ 'disabled' if not row.is_admitted else '' }}
-                                        style="{{ 'opacity:0.5; cursor:not-allowed;' if not row.is_admitted else '' }}">
-                                    <i class="material-icons" style="color:#0369a1;">logout</i> Discharge
-                                </button>
-                                <div class="more-divider"></div>
-                                <button onclick="openDeactivateModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
-                                    <i class="material-icons">person_off</i> Deactivate
-                                </button>
+                                <div class="more-dropdown" id="more-{{ row.id }}">
+                                    <a href="/patients/{{ row.id }}/profile" class="more-item">
+                                        <i class="material-icons">account_circle</i> Full Profile
+                                    </a>
+                                    <a href="/events?patient_id={{ p.id }}" class="more-item">
+                                        <i class="material-icons">timeline</i> Timeline
+                                    </a>
+                                    <div class="more-divider"></div>
+                                    <button onclick="openDischargeModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" 
+                                            class="more-item" {{ 'disabled' if not row.is_admitted else '' }}
+                                            style="{{ 'opacity:0.5; cursor:not-allowed;' if not row.is_admitted else '' }}">
+                                        <i class="material-icons" style="color:#0369a1;">logout</i> Discharge
+                                    </button>
+                                    <div class="more-divider"></div>
+                                    <button onclick="openDeactivateModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
+                                        <i class="material-icons">person_off</i> Deactivate Patient
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </td>

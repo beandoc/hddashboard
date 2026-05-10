@@ -59,8 +59,14 @@
       padding: 3px 10px; border-radius: 6px; font-size: 0.72rem; font-weight: 600;
       display: inline-flex; align-items: center; gap: 4px;
     }
-    .flag-mortality { background: var(--red-bg); color: var(--red-text); }
+    .flag-mortality  { background: var(--red-bg); color: var(--red-text); }
+    .flag-critical-hb{ background: #7f1d1d; color: #ffffff; font-size: 0.74rem; animation: pulse-red 1.4s ease-in-out infinite; }
+    .flag-acute-hb  { background: #fee2e2; color: #7f1d1d; border: 1.5px solid #fca5a5; }
     .flag-hb        { background: #fee2e2; color: #b91c1c; }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+      50%       { box-shadow: 0 0 0 5px rgba(220,38,38,0); }
+    }
     .flag-occult    { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
     .flag-albumin   { background: #e0f2fe; color: #0369a1; }
     .flag-fluid     { background: #f1f5f9; color: #475569; }
@@ -173,6 +179,8 @@
               {% for flag in item.flags %}
                 <span class="flag-pill
                   {% if 'Mortality' in flag %}flag-mortality
+                  {% elif 'Critical Hb' in flag %}flag-critical-hb
+                  {% elif 'Acute Hb Drop' in flag %}flag-acute-hb
                   {% elif 'Hb Drop' in flag %}flag-hb
                   {% elif 'P(Hb' in flag %}flag-bay
                   {% elif 'P(Alb' in flag %}flag-bay

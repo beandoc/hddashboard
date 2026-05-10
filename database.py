@@ -267,7 +267,8 @@ class MonthlyRecord(Base):
     vit_d = Column(Float)                    # ng/mL — 25HydroxyvitaminD
     vitamin_d_analog_dose = Column(String)   # e.g. "Calcitriol 0.25mcg TIW" — VitaminDAnalogDose
     phosphate_binder_type = Column(String)   # Calcium Carbonate / Sevelamer / Lanthanum — PhosphateBinderType
-    phosphate_binder_dose_mg = Column(Float) # Total daily mg (e.g. 2000)
+    pb_strength = Column(Float)              # Individual tablet strength (e.g. 800)
+    phosphate_binder_dose_mg = Column(Float) # Total daily mg (e.g. 2400)
     phosphate_binder_freq = Column(String)    # OD / BD / TDS / QID
 
     # ── Electrolytes & Acid-Base ──────────────────────────────────────────────
@@ -313,6 +314,9 @@ class MonthlyRecord(Base):
     bp_dia = Column(Float)                   # Diastolic BP mmHg
     troponin_i = Column(Float)               # ng/mL
     nt_probnp = Column(Float)                # pg/mL
+    ejection_fraction = Column(Float)        # %
+    diastolic_dysfunction = Column(String)   # Grade I / II / III
+    echo_date = Column(Date)                 # Date of Echocardiography
     access_type = Column(String)             # AVF / Permacath — monthly access status
 
     # ── Quality of Life ───────────────────────────────────────────────────────

@@ -96,6 +96,40 @@
       background: #fafafa; border: 1px dashed #e2e8f0; border-radius: 8px;
       padding: 10px 14px; font-size: 0.83rem; color: #94a3b8; margin-top: 8px;
     }
+    .missing-inputs-box {
+      margin-top: 12px;
+      padding: 12px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+    }
+    .missing-inputs-box h4 {
+      margin: 0 0 8px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #92400e;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .missing-inputs-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .missing-inputs-list li {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #b45309;
+      background: #fef3c7;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #fcd34d;
+    }
     .risk-factors {
       margin: 10px 0 0; padding: 10px 14px; list-style: none;
       border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 6px;
@@ -117,6 +151,14 @@
       .p-info h1 { font-size: 1.25rem; }
       .stats-row { width: 100%; justify-content: space-between; }
       .badge { flex: 1; padding: 10px; }
+    }
+    .hb-msg-critical { color: #991b1b; font-weight: 700; }
+    .hb-msg-warn     { color: #b45309; }
+    .mort-hb-critical { margin-top:9px; padding:8px 12px; border-radius:7px; font-size:0.78rem; font-weight:600; line-height:1.4; background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
+    .mort-hb-low      { margin-top:9px; padding:8px 12px; border-radius:7px; font-size:0.78rem; font-weight:600; line-height:1.4; background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+      50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
     }
   </style>
 </head>
@@ -193,6 +235,22 @@
 
 
   <div class="container">
+    {% macro missing_inputs(fields) %}
+      {% if fields %}
+      <div class="missing-inputs-box">
+        <h4><i class="material-icons" style="font-size:0.9rem;">error_outline</i> Missing Required Data</h4>
+        <ul class="missing-inputs-list">
+          {% for f in fields %}
+          <li>{{ f }}</li>
+          {% endfor %}
+        </ul>
+        <p style="font-size:0.68rem; color:#92400e; margin:6px 0 0; opacity:0.8;">
+          Update <a href="/entry/{{ patient.id }}" style="color:inherit; text-decoration:underline; font-weight:700;">Monthly Records</a> to enable analysis.
+        </p>
+      </div>
+      {% endif %}
+    {% endmacro %}
+
     {% if analytics.occult_alert %}
     <div class="insight-card" style="margin-bottom:24px; border-left: 6px solid var(--accent-red); background: #fff1f2;">
         <div class="card-head">
@@ -228,12 +286,18 @@
         <div class="card-head">
           <i class="material-icons">trending_up</i>
           <h3>Hb Trajectory</h3>
-          <span class="status-pill {{ 'danger' if hb.alert else 'success' }}">
-            {{ 'High Risk' if hb.alert else 'Stable' }}
-          </span>
+          {% if hb.severity == 'critical' %}
+            <span class="status-pill danger" style="animation:pulse-red 1.2s ease-in-out infinite;background:#7f1d1d;color:#fff;">CRITICAL</span>
+          {% elif hb.severity in ('high', 'watch') %}
+            <span class="status-pill danger">High Risk</span>
+          {% elif hb.alert %}
+            <span class="status-pill warning">Watch</span>
+          {% else %}
+            <span class="status-pill success">Stable</span>
+          {% endif %}
           <span class="confidence-badge {{ hb.confidence }}">{{ hb.confidence }}</span>
         </div>
-        <div class="card-val">{{ hb.current or '—' }} <small>g/dL</small></div>
+        <div class="card-val" {% if hb.severity == 'critical' %}style="color:#dc2626;font-weight:900;"{% endif %}>{{ hb.current or '—' }} <small>g/dL</small></div>
         {% if hb.ready_for_prediction %}
           <div class="prediction-box">
             <strong>Next Month:</strong> {{ hb.next_predicted }} g/dL
@@ -258,9 +322,10 @@
             </div>
             {% endif %}
           </div>
-          <div class="card-desc" style="margin-top:8px;">{{ hb.message }}</div>
+          <div class="card-desc {{ 'hb-msg-critical' if hb.severity == 'critical' else ('hb-msg-warn' if hb.severity in ('high','watch') and hb.alert_predicted_low else '') }}" style="margin-top:8px;">{{ hb.message }}</div>
         {% else %}
           <div class="insufficient-box">⚠ {{ hb.message }}</div>
+          {{ missing_inputs(hb.inputs_missing) }}
         {% endif %}
       </div>
 
@@ -282,6 +347,7 @@
           <div class="card-desc">{{ epo.message }}<br/><small>{{ epo.n_points }} months with Hb + EPO data</small></div>
         {% else %}
           <div class="insufficient-box">⚠ {{ epo.message }}</div>
+          {{ missing_inputs(epo.inputs_missing) }}
         {% endif %}
       </div>
 
@@ -321,6 +387,7 @@
           </div>
         {% else %}
           <div class="insufficient-box">⚠ {{ alb.message }}</div>
+          {{ missing_inputs(alb.inputs_missing) }}
         {% endif %}
       </div>
 
@@ -348,6 +415,7 @@
             </div>
             {% endif %}
         </div>
+        {{ missing_inputs(analytics.target_score.inputs_missing) }}
       </div>
 
       <!-- Iron Status -->
@@ -361,6 +429,7 @@
         </div>
         <div class="card-val">{{ analytics.iron_status.status }}</div>
         <div class="card-desc">{{ analytics.iron_status.message }}</div>
+        {{ missing_inputs(analytics.iron_status.inputs_missing) }}
       </div>
 
       <!-- Deterioration Risk -->
@@ -378,6 +447,7 @@
           {% endfor %}
         </ul>
         {% endif %}
+        {{ missing_inputs(dr.inputs_missing) }}
       </div>
 
       <!-- Mortality Predictor AI -->
@@ -403,6 +473,11 @@
           {% endif %}
         </div>
         <div class="card-desc">{{ mort.message }}</div>
+        {% if mort.acute_hb_warning %}
+        <div class="{{ 'mort-hb-critical' if mort.acute_hb_severity == 'critical' else 'mort-hb-low' }}">
+          {{ mort.acute_hb_warning }}
+        </div>
+        {% endif %}
         {% if mort.features_used %}
         <div style="font-size:0.75rem; color:#64748b; margin-top:10px; line-height: 1.3;">
           <strong style="color: #475569;">Features extracted:</strong> {{ mort.features_used | join(', ') }}
@@ -410,6 +485,7 @@
         {% endif %}
         {% else %}
         <div class="insufficient-box">⚠ Insufficient data for mortality prediction model.</div>
+        {{ missing_inputs(mort.inputs_missing) }}
         {% endif %}
       </div>
 
@@ -530,6 +606,7 @@
         </div>
         {% else %}
         <div class="insufficient-box">⚠ Insufficient data for MIA scoring (Requires Albumin, Weight, Height, and CRP).</div>
+        {{ missing_inputs(mia.inputs_missing) }}
         {% endif %}
       </div>
 

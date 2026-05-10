@@ -679,6 +679,17 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
     ]
     has_transfusion = bool(transfusion_months)
 
+    if current is None:
+        _severity = "unknown"
+    elif current < 7:
+        _severity = "critical"
+    elif current < 9:
+        _severity = "high"
+    elif current < 10:
+        _severity = "watch"
+    else:
+        _severity = "stable"
+
     base = {
         "current": current,
         "confidence": readiness["confidence"],
@@ -686,6 +697,7 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         "completeness": readiness["completeness"],
         "recommendation": readiness["recommendation"],
         "alert": current is not None and current < 10.0,
+        "severity": _severity,
         "transfusion_months": transfusion_months,
         "has_transfusion_confounding": has_transfusion,
     }
@@ -729,8 +741,27 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         if has_transfusion else ""
     )
 
-    if alert_predicted:
-        message = f"Predicted to drop below 10 g/dL — review urgently.{transfusion_note}"
+    predicting_improvement = (predicted is not None and current is not None and predicted > current)
+
+    if _severity == "critical":
+        if predicting_improvement:
+            message = (
+                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
+                f"Model projects partial recovery to {predicted:.1f} g/dL next month, but current level demands urgent action.{transfusion_note}"
+            )
+        else:
+            message = (
+                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
+                f"Predicted to remain critically low at {predicted:.1f} g/dL.{transfusion_note}"
+            )
+    elif _severity in ("high", "watch") and alert_predicted:
+        if predicting_improvement:
+            message = f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
+        else:
+            message = f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
+    elif alert_predicted:
+        # current >= 10 but predicted to fall below
+        message = f"Predicted to drop below 10 g/dL (→ {predicted:.1f} g/dL) — review urgently.{transfusion_note}"
     elif has_transfusion:
         message = f"Hb trajectory acceptable.{transfusion_note}"
     else:
@@ -804,12 +835,20 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     ]
 
     if len(complete_pairs) < 3:
+        missing = []
+        # Check which months have Hb but no dose, or vice-versa
+        hb_count = sum(1 for r in df if r.get("hb") is not None)
+        dose_count = sum(1 for r in df if _resolve_weekly_iu_iv(r) is not None)
+        if hb_count < 3: missing.append(f"Hb ({3-hb_count} more required)")
+        if dose_count < 3: missing.append(f"ESA dose ({3-dose_count} more required)")
+
         return {
             "hypo_response": False,
             "status": "Insufficient Data",
             "class": "warning",
             "ready": False,
             "confidence": "insufficient",
+            "inputs_missing": missing,
             "message": (
                 f"Need 3+ months with both Hb and ESA dose recorded "
                 f"(currently have {len(complete_pairs)})."
@@ -946,6 +985,7 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
             "r_squared": None, "adj_r_squared": None,
             "p_value": None, "durbin_watson": None,
             "risk_crossing_35": base["risk"],
+            "inputs_missing": [f"Albumin ({2 - readiness['n_points']} more required)"]
         }
 
     pairs = [
@@ -990,7 +1030,15 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
 def classify_iron_status(latest: Dict) -> Dict:
     fer, tsat = latest.get("serum_ferritin"), latest.get("tsat")
     if fer is None or tsat is None:
-        return {"status": "Unknown", "class": "warning", "message": "Incomplete labs — enter Ferritin + TSAT"}
+        missing = []
+        if fer is None: missing.append("Ferritin")
+        if tsat is None: missing.append("TSAT")
+        return {
+            "status": "Unknown",
+            "class": "warning",
+            "message": "Incomplete labs — enter Ferritin + TSAT",
+            "inputs_missing": missing
+        }
 
     if (tsat or 0) < 20:
         status, rec = "Absolute Iron Deficiency", "Initiate IV Iron Loading (KDIGO 3.4.2)"
@@ -1024,6 +1072,7 @@ def compute_target_score(df: List[Dict]) -> Dict:
     latest = df[0]
     points = 0
     available = 0
+    missing_fields = []
 
     def _score(met: bool):
         nonlocal points, available
@@ -1033,35 +1082,45 @@ def compute_target_score(df: List[Dict]) -> Dict:
 
     hb = latest.get("hb")
     if hb is not None:          _score(hb >= 10)
+    else:                       missing_fields.append("Hb")
 
     albumin = latest.get("albumin")
     if albumin is not None:     _score(albumin >= 3.5)
+    else:                       missing_fields.append("Albumin")
 
     phosphorus = latest.get("phosphorus")
     if phosphorus is not None:  _score(phosphorus <= 5.5)
+    else:                       missing_fields.append("Phosphorus")
 
     idwg = latest.get("idwg")
     if idwg is not None:        _score(idwg <= 2.5)
+    else:                       missing_fields.append("IDWG")
 
     urr = latest.get("urr")
     if urr is not None:         _score(urr >= 65)
+    else:                       missing_fields.append("URR")
 
     ipth = latest.get("ipth")
     if ipth is not None:        _score(150 <= ipth <= 600)
+    else:                       missing_fields.append("iPTH")
 
     ferritin = latest.get("serum_ferritin")
     if ferritin is not None:    _score(ferritin >= 200)
+    else:                       missing_fields.append("Ferritin")
 
     tsat = latest.get("tsat")
     if tsat is not None:        _score(tsat >= 20)
+    else:                       missing_fields.append("TSAT")
 
     bp_sys = latest.get("bp_sys")
     if bp_sys is not None:
         _score(bp_sys <= 140)
         _score(bp_sys >= 110)
+    else:
+        missing_fields.append("BP Systolic")
 
     if available == 0:
-        return {"score": 0, "raw_score": 0, "available": 0, "status": "No Data", "label": "No Data"}
+        return {"score": 0, "raw_score": 0, "available": 0, "status": "No Data", "label": "No Data", "inputs_missing": missing_fields}
 
     # Normalize to 10-point scale; raw score for display
     normalized = round(points / available * 10)
@@ -1072,6 +1131,7 @@ def compute_target_score(df: List[Dict]) -> Dict:
         "available": available,
         "status": status,
         "label": status,
+        "inputs_missing": missing_fields
     }
 
 
@@ -1400,6 +1460,16 @@ def compute_deterioration_risk(
                 except Exception:
                     pass
 
+            missing = []
+            if hb.get("current") is None: missing.append("Hemoglobin")
+            if alb.get("current") is None: missing.append("Albumin")
+            if target.get("score") is None: missing.append("Target Score (labs)")
+            if (epo or {}).get("hypo_response") is None: missing.append("ESA Response")
+            if (patient_info or {}).get("age") is None: missing.append("Age")
+            if (patient_info or {}).get("cad_status") is None: missing.append("CAD Status")
+            if (patient_info or {}).get("chf_status") is None: missing.append("CHF Status")
+            if (patient_info or {}).get("dm_status") is None: missing.append("DM Status")
+
             return {
                 "available":       True,
                 "method":          "LogisticRegression (calibrated)",
@@ -1410,6 +1480,7 @@ def compute_deterioration_risk(
                 "level":           risk_level,
                 "risk_factors":    factors,
                 "factors":         factors,
+                "inputs_missing":  missing,
                 # Model quality metadata surfaced to the UI
                 "model_cv_auc":    meta.get("cv_auc"),
                 "model_n_samples": meta.get("n_samples"),
@@ -1425,6 +1496,11 @@ def compute_deterioration_risk(
     if alb.get("risk"):             risk_score += 30
     if target.get("score", 0) < 6: risk_score += 30
     risk_level = "High" if risk_score >= 60 else "Moderate" if risk_score >= 30 else "Low"
+    missing = []
+    if hb.get("current") is None: missing.append("Hemoglobin")
+    if alb.get("current") is None: missing.append("Albumin")
+    if target.get("score") is None: missing.append("Target Score (labs)")
+
     return {
         "available":   True,
         "method":      "Heuristic (no trained model — POST /admin/train-deterioration-model)",
@@ -1434,6 +1510,7 @@ def compute_deterioration_risk(
         "level":       risk_level,
         "risk_factors": factors,
         "factors":     factors,
+        "inputs_missing": missing,
         "model_cv_auc":    None,
         "model_n_samples": None,
         "model_trained_at": None,
@@ -1811,6 +1888,29 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     if "imputed" in model_type:
         message += " ⚠ Some features imputed from population median."
 
+    # Acute Hb override — Hb is not a feature in the Xu 2023 XGBoost model.
+    # When Hb is critically low, the chronic-disease model will silently
+    # underestimate near-term mortality risk. Surface this as an explicit warning.
+    _current_hb = latest.get("hb")
+    if _current_hb is not None and _current_hb < 7.0:
+        acute_hb_warning = (
+            f"ACUTE RISK OVERLAY: Current Hb {_current_hb} g/dL is life-threatening. "
+            f"This chronic-disease model does not include Hb as a feature — "
+            f"near-term mortality risk is likely significantly higher than the figure above. "
+            f"Urgent clinical review and likely transfusion required."
+        )
+        acute_hb_severity = "critical"
+    elif _current_hb is not None and _current_hb < 9.0:
+        acute_hb_warning = (
+            f"Hb {_current_hb} g/dL is below target. The chronic-disease model does not "
+            f"include Hb as a feature — anaemia management should be optimised alongside "
+            f"mortality risk monitoring."
+        )
+        acute_hb_severity = "low"
+    else:
+        acute_hb_warning = None
+        acute_hb_severity = None
+
     return {
         "available":          True,
         "prob_1yr":           prob_1yr,
@@ -1830,9 +1930,12 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         "n_core_used":        n_core_used,
         "features_used":      used,
         "features_missing":   missing,
+        "inputs_missing":     missing,
         "message":            message,
         "high_risk_threshold": 0.439,
         "above_threshold":    prob_1yr >= 0.439,
+        "acute_hb_warning":   acute_hb_warning,
+        "acute_hb_severity":  acute_hb_severity,
         "indian_pop_note":    (
             "Trained on Chinese HD cohort (n~900). Indian HD patients have earlier "
             "ESRD onset, higher DM burden, and lower baseline albumin. "
@@ -1880,11 +1983,13 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
     """
     score = 0
     components = []
+    inputs_missing = []
     n_missing = 0
 
     age = patient_info.get("age")
     if age is None:
         n_missing += 1
+        inputs_missing.append("Age")
     elif age > 75:
         score += 2
         components.append("Age > 75 (+2)")
@@ -1892,6 +1997,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
     cad = patient_info.get("cad_status")
     if cad is None:
         n_missing += 1
+        inputs_missing.append("CAD Status")
     elif cad:
         score += 2
         components.append("IHD/CAD (+2)")
@@ -1899,6 +2005,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
     pvd = patient_info.get("history_of_pvd")
     if pvd is None:
         n_missing += 1
+        inputs_missing.append("PVD Status")
     elif pvd:
         score += 1
         components.append("PVD (+1)")
@@ -1906,6 +2013,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
     dm_eo = patient_info.get("dm_end_organ_damage")
     if dm_eo is None:
         n_missing += 1
+        inputs_missing.append("DM End-Organ Damage")
     elif dm_eo:
         score += 2
         components.append("DM + end-organ damage (+2)")
@@ -1929,6 +2037,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
         albumin_gdl = latest_record.get("albumin")
     if albumin_gdl is None:
         n_missing += 1
+        inputs_missing.append("Albumin")
     elif albumin_gdl < 2.5:
         score += 2
         components.append("Albumin < 2.5 g/dL (+2)")
@@ -1954,6 +2063,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
         "css_class":          css_class,
         "components":         components,
         "n_missing":          n_missing,
+        "inputs_missing":     inputs_missing,
         "note":               "Davies comorbidity score (Wright & Jones 1999). Mortality estimates from UK Renal Registry validation.",
     }
 
@@ -2145,6 +2255,9 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
             # Bayesian intervention fields
             "iv_iron_dose":               r.iv_iron_dose,
             "phosphate_binder_type":      r.phosphate_binder_type,
+            "residual_urine_output":      r.residual_urine_output,
+            "vit_d":                      r.vit_d,
+            "nt_probnp":                  r.nt_probnp,
         }
         for r in records
     ]
@@ -2153,6 +2266,49 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
 
     if not df:
         return {"status": "no_data"}
+
+    # Apply interim lab overrides to the most recent month's row so that
+    # analytics (EPO ERI, Hb trajectory, albumin risk) use the latest effective
+    # values rather than the potentially stale monthly-record snapshot.
+    if df:
+        from database import InterimLabRecord
+        _interim_overridable = ("hb", "albumin", "phosphorus", "calcium")
+        _interim_rows = (
+            db.query(InterimLabRecord)
+            .filter(
+                InterimLabRecord.patient_id == patient_id,
+                InterimLabRecord.record_month == df[0]["month"],
+                InterimLabRecord.parameter.in_(_interim_overridable),
+            )
+            .order_by(InterimLabRecord.lab_date.asc())
+            .all()
+        )
+        for il in _interim_rows:
+            df[0][il.parameter] = il.value
+
+    def _get_latest(key: str, default=None):
+        for entry in df:
+            if entry.get(key) is not None:
+                return entry[key]
+        return default
+
+    # Latest available for sparse/infrequent labs (scan last 12 months)
+    latest_sparse = {
+        "serum_ferritin": _get_latest("serum_ferritin"),
+        "tsat":           _get_latest("tsat"),
+        "serum_iron":      _get_latest("serum_iron"),
+        "ipth":           _get_latest("ipth"),
+        "vit_d":          _get_latest("vit_d"),
+        "crp":            _get_latest("crp"),
+        "nt_probnp":      _get_latest("nt_probnp"),
+        "residual_urine_output": _get_latest("residual_urine_output"),
+        "ejection_fraction": _get_latest("ejection_fraction"),
+        "diastolic_dysfunction": _get_latest("diastolic_dysfunction"),
+        "echo_date":      _get_latest("echo_date"),
+    }
+    
+    # Update the most recent record with these carry-forward values for analysis
+    df[0] = {**df[0], **latest_sparse}
 
     # Build patient-level info for mortality model from ORM relationship
     patient_obj = records[0].patient if records else None
@@ -2167,15 +2323,25 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
         patient_info["solid_tumor"]       = getattr(patient_obj, "solid_tumor",       None)
         patient_info["leukemia"]          = getattr(patient_obj, "leukemia",          None)
         patient_info["lymphoma"]          = getattr(patient_obj, "lymphoma",          None)
-        # Default EF to 60% (normal) when not recorded, per clinical convention
-        ef_raw = getattr(patient_obj, "ejection_fraction", None)
+        
+        # Pull latest EF/Dysfunction from sparse records, or fallback to patient master profile
+        ef_raw = latest_sparse.get("ejection_fraction")
+        if ef_raw is None:
+            ef_raw = getattr(patient_obj, "ejection_fraction", None)
         patient_info["ef"] = ef_raw if ef_raw is not None else 60.0
+
+        dd_raw = latest_sparse.get("diastolic_dysfunction")
+        if dd_raw is None:
+            dd_raw = getattr(patient_obj, "diastolic_dysfunction", None)
+        patient_info["diastolic_dysfunction"] = dd_raw
 
     from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
 
     hb_traj    = predict_hb_trajectory(df)
     epo_resp   = detect_epo_hyporesponse(df, hb_traj)
     alb_risk   = assess_albumin_decline(df)
+    
+    # Now these functions will naturally see the carry-forward values in df[0]
     iron_stat  = classify_iron_status(df[0])
     target_sc  = compute_target_score(df)
     det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
@@ -2183,7 +2349,7 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
     mia_status = compute_mia_score(db, patient_id)
     bay_profile = compute_bayesian_alert_profile(df, patient_info)
     mort_risk   = augment_mortality_risk(mort_risk, bay_profile)
-    davies      = compute_davies_score(patient_info, df[0] if df else None)
+    davies      = compute_davies_score(patient_info, df[0])
 
     return {
         "status": "ok",
@@ -2556,6 +2722,14 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
         # ── 2. INFLAMMATION (CRP > 0.3) ───────────────────────────────────────
         inflam_score = 0
         crp = getattr(rec, "crp", None)
+        
+        # Fallback: look back up to 6 months if current month missing CRP
+        if crp is None:
+            prev_crps = [getattr(r, "crp", None) for r in records if r.record_month < rec.record_month]
+            valid_prev = [v for v in prev_crps if v is not None]
+            if valid_prev:
+                crp = valid_prev[-1] # use latest available
+        
         if crp is not None:
             values["inflammation"] = {"CRP": crp}
             if crp > 0.3:
@@ -2628,6 +2802,12 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
     else:
         cascade_reason = ""
 
+    last_month = timeline[-1] if timeline else None
+    inputs_missing = []
+    if last_month:
+        for dom_missing in last_month["missing_fields"].values():
+            inputs_missing.extend(dom_missing)
+
     return {
         "available": True,
         "timeline": timeline,
@@ -2635,6 +2815,7 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
         "months_of_data": len(timeline),
         "alert_triggered": alert,
         "cascade_reason": cascade_reason,
+        "inputs_missing": list(set(inputs_missing)),
     }
 
 def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:

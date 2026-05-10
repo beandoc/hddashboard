@@ -111,8 +111,13 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         hba1c=data.get("hba1c"),
         vitamin_d_analog_dose=data.get("vitamin_d_analog_dose", ""),
         phosphate_binder_type=data.get("phosphate_binder_type", ""),
+        pb_strength=data.get("pb_strength"),
         phosphate_binder_dose_mg=data.get("phosphate_binder_dose_mg"),
         phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
+        nt_probnp=data.get("nt_probnp"),
+        ejection_fraction=data.get("ejection_fraction"),
+        diastolic_dysfunction=data.get("diastolic_dysfunction", ""),
+        echo_date=_d(data.get("echo_date")),
         antihypertensive_count=len(meds_list) if meds_list else data.get("antihypertensive_count"),
         antihypertensive_details=antihypertensive_details_json,
         hrqol_score=data.get("hrqol_score"),
@@ -143,6 +148,12 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
             p.dry_weight = data["target_dry_weight"]
         if data.get("clinical_background"):
             p.clinical_background = data["clinical_background"]
+        if data.get("ejection_fraction") is not None:
+            p.ejection_fraction = data["ejection_fraction"]
+        if data.get("diastolic_dysfunction"):
+            p.diastolic_dysfunction = data["diastolic_dysfunction"]
+        if data.get("echo_date"):
+            p.echo_date = _d(data["echo_date"])
 
     db.commit()
     db.refresh(rec)
