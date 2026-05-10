@@ -88,8 +88,10 @@ def get_effective_month(db: Session, requested_month: str = None) -> tuple:
         return requested_month, None
 
     current = get_current_month_str()
-    y, m = int(current[:4]), int(current[5:7])
-    prev = f"{y-1}-12" if m == 1 else f"{y}-{m-1:02d}"
+    current_dt = datetime.strptime(current, "%Y-%m")
+    # 1st of current month minus 1 day gives last day of prev month
+    prev_dt = current_dt.replace(day=1) - timedelta(days=1)
+    prev = prev_dt.strftime("%Y-%m")
 
     record_count = db.query(func.count(MonthlyRecord.patient_id)).filter(
         MonthlyRecord.record_month == current
@@ -149,6 +151,7 @@ def compute_dashboard(db: Session, month: str = None):
         'epo_hypo_r2': {'count': 0, 'names': []},   # HypoR2: ERI ≥ 1.5 g/L
         'epo_hypo_r3': {'count': 0, 'names': [], 'cutoff': None},  # HypoR3: top 20th %ile dose
         'iv_iron_rec': {'count': 0, 'names': []},
+        'hb_high': {'count': 0, 'names': []},
         'trend_hb': [],
         'trend_albumin': [],
         'trend_phosphorus': []
@@ -343,6 +346,12 @@ def compute_dashboard(db: Session, month: str = None):
                     "previous": prev_hb,
                     "drop": hb_drop,
                 })
+                
+            # 2.5 High Hb > 13.0 g/dL (Risk: Stroke/Thrombosis)
+            if effective_hb and effective_hb > 13.0:
+                metrics['hb_high']['count'] += 1
+                metrics['hb_high']['names'].append(name)
+                row["alerts"].append("High Hb (>13)")
 
             # 3. Albumin < 2.5 g/dL (User remapped from 3.5)
             if r.albumin and r.albumin < 2.5:

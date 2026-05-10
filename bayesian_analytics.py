@@ -59,9 +59,10 @@ _WEIGHTS = {"hb": 0.35, "albumin": 0.30, "phosphorus": 0.20, "idwg": 0.15}
 def _months_between(from_str: str, to_str: str) -> int:
     """Return (to - from) in whole months. Returns 99 on parse error."""
     try:
-        y1, m1 = map(int, to_str.split("-"))
-        y2, m2 = map(int, from_str.split("-"))
-        return (y1 - y2) * 12 + (m1 - m2)
+        from datetime import datetime
+        dt1 = datetime.strptime(to_str, "%Y-%m")
+        dt2 = datetime.strptime(from_str, "%Y-%m")
+        return (dt1.year - dt2.year) * 12 + (dt1.month - dt2.month)
     except Exception:
         return 99
 
@@ -193,7 +194,11 @@ def compute_bayesian_alert_profile(
       }
     """
     if not df:
-        return {"available": False}
+        return {
+            "available": False,
+            "error":     "No monthly records for Bayesian analysis.",
+            "data":      {"available": False}
+        }
 
     result: Dict = {}
     max_pers = 0.0
@@ -218,7 +223,7 @@ def compute_bayesian_alert_profile(
         result[param] = {
             "prob_alert_next": round(prob_next, 3),
             "prob_persistent_3": prob_pers3,
-            "ci_95": ci,
+            "pi_95": ci,
             "n_alert": n_alert,
             "n_observed": n_obs,
             "intervention_adjusted": adjusted,
@@ -241,24 +246,28 @@ def compute_bayesian_alert_profile(
         "composite_alert_score": round(composite, 3),
     }
     result["available"] = True
-    return result
+    return {
+        "available": True,
+        "error":     None,
+        "data":      result
+    }
 
 
 def augment_mortality_risk(mort: Dict, bay_profile: Dict) -> Dict:
     """
     Attach a Bayesian persistence signal to an existing predict_mortality_risk()
     output dict. Does NOT replace the XGBoost probability — adds 'bay_signal'.
-
-    Rationale: persistent Hb < 10 and persistent Albumin < 3.5 are independent
-    mortality predictors that cross-sectional XGBoost features may underweight
-    when a patient is borderline but deteriorating longitudinally.
     """
+    # Handle standardized inputs
+    mort_data = mort.get("data", mort)
+    bay_data  = bay_profile.get("data", bay_profile)
+
     if not bay_profile.get("available") or not mort:
         return mort
 
-    summary = bay_profile.get("summary", {})
+    summary   = bay_data.get("summary", {})
     composite = summary.get("composite_alert_score", 0.0)
-    max_prob = summary.get("max_persistence_prob", 0.0)
+    max_prob  = summary.get("max_persistence_prob", 0.0)
     max_param = summary.get("max_persistence_param")
 
     if composite >= 0.55 or max_prob >= 0.55:
@@ -268,17 +277,22 @@ def augment_mortality_risk(mort: Dict, bay_profile: Dict) -> Dict:
     else:
         tier, css = "low", "success"
 
-    mort["bay_signal"] = {
+    mort_data["bay_signal"] = {
         "tier": tier,
         "css": css,
         "composite_score": composite,
         "max_persistence_param": max_param,
         "max_persistence_prob": max_prob,
-        "hb_prob_next": bay_profile.get("hb", {}).get("prob_alert_next"),
-        "hb_prob_persistent_3": bay_profile.get("hb", {}).get("prob_persistent_3"),
-        "alb_prob_next": bay_profile.get("albumin", {}).get("prob_alert_next"),
-        "alb_prob_persistent_3": bay_profile.get("albumin", {}).get("prob_persistent_3"),
-        "hb_intervention_adjusted": bay_profile.get("hb", {}).get("intervention_adjusted", False),
-        "phos_prob_next": bay_profile.get("phosphorus", {}).get("prob_alert_next"),
+        "hb_prob_next": bay_data.get("hb", {}).get("prob_alert_next"),
+        "hb_prob_persistent_3": bay_data.get("hb", {}).get("prob_persistent_3"),
+        "alb_prob_next": bay_data.get("albumin", {}).get("prob_alert_next"),
+        "alb_prob_persistent_3": bay_data.get("albumin", {}).get("prob_persistent_3"),
+        "hb_intervention_adjusted": bay_data.get("hb", {}).get("intervention_adjusted", False),
+        "phos_prob_next": bay_data.get("phosphorus", {}).get("prob_alert_next"),
     }
-    return mort
+    
+    # If it was standardized, return the wrapper, otherwise return the modified data
+    if "data" in mort:
+        mort["data"] = mort_data
+        return mort
+    return mort_data

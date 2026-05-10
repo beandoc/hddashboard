@@ -39,6 +39,24 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import json
 from database import MonthlyRecord, Patient, ResearchRecord
+import numpy as np
+try:
+    import statsmodels.api as sm
+    _STATSMODELS_AVAILABLE = True
+except ImportError:
+    _STATSMODELS_AVAILABLE = False
+
+try:
+    import pandas as pd
+    _PANDAS_AVAILABLE = True
+except ImportError:
+    _PANDAS_AVAILABLE = False
+
+try:
+    import joblib
+    _JOBLIB_AVAILABLE = True
+except ImportError:
+    _JOBLIB_AVAILABLE = False
 
 def get_patient_research_data(db: Session, patient_id: int) -> Dict[str, Any]:
     """
@@ -157,21 +175,33 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict[str, Any]:
     score = None
     if malnut is not None or inflam is not None or athero is not None:
         score = int(athero or 0) + int(inflam or 0) + int(malnut or 0)
-    
+
+    available = gnri is not None
+    missing_inputs = []
+    if alb_val is None: missing_inputs.append("Albumin")
+    if weight_val is None: missing_inputs.append("Weight")
+    if height is None: missing_inputs.append("Height")
+    if crp_val is None: missing_inputs.append("CRP")
+
     return {
-        "score": score,
-        "components": {
-            "malnutrition": malnut,
-            "inflammation": inflam,
-            "atherosclerosis": athero
-        },
-        "metrics": {
-            "gnri": round(gnri, 2) if gnri is not None else None,
-            "risk_grade": risk_grade,
-            "crp": crp_val,
-            "albumin": alb_val,
-            "weight": weight_val,
-            "malnut_sensitivity": malnut_sensitivity
+        "available": available,
+        "error": None if available else "Insufficient data for full MIA scoring.",
+        "data": {
+            "score": score,
+            "components": {
+                "malnutrition": malnut,
+                "inflammation": inflam,
+                "atherosclerosis": athero
+            },
+            "metrics": {
+                "gnri": round(gnri, 2) if gnri is not None else None,
+                "risk_grade": risk_grade,
+                "crp": crp_val,
+                "albumin": alb_val,
+                "weight": weight_val,
+                "malnut_sensitivity": malnut_sensitivity
+            },
+            "inputs_missing": missing_inputs
         }
     }
 
@@ -187,14 +217,6 @@ try:
     _SCIPY_AVAILABLE = True
 except ImportError:
     _SCIPY_AVAILABLE = False
-
-try:
-    import numpy as np
-    import statsmodels.api as sm
-    from statsmodels.stats.stattools import durbin_watson
-    _STATSMODELS_AVAILABLE = True
-except ImportError:
-    _STATSMODELS_AVAILABLE = False
 
 try:
     from sklearn.linear_model import LogisticRegression
@@ -214,10 +236,10 @@ logger = logging.getLogger(__name__)
 def _month_to_ordinal(month_str: str) -> int:
     """Convert YYYY-MM to integer (months since epoch) for regression x-axis."""
     try:
-        y, m = int(month_str[:4]), int(month_str[5:7])
-        return y * 12 + m
+        dt = datetime.strptime(month_str, "%Y-%m")
+        return dt.year * 12 + dt.month
     except (ValueError, TypeError):
-        return 0
+        raise ValueError(f"Invalid month format: {month_str!r}")
 
 
 
@@ -295,7 +317,7 @@ def normalize_epo_dose(dose_str: str) -> dict:
         if frequency == "unknown": frequency = "monthly"
         mult = 208.0
         if frequency == "monthly":
-            weekly_iu = (dose_value / 4.33) * mult
+            weekly_iu = (dose_value / 4.0) * mult
         elif frequency == "biweekly":
             weekly_iu = (dose_value / 2.0) * mult
 
@@ -556,7 +578,7 @@ def _kalman_trend(
 ) -> dict:
     """
     Constant-velocity Kalman filter returning a next-step prediction with
-    a Bayesian 95 % credible interval.
+    a 95% predictive interval.
 
     Parameters
     ----------
@@ -601,7 +623,7 @@ def _kalman_trend(
         P_p = F @ P @ F.T + Q
 
         # Update (innovation)
-        S   = float(np.squeeze(H @ P_p @ H.T)) + r_obs
+        S   = max(float(np.squeeze(H @ P_p @ H.T)) + r_obs, 1e-6)
         K   = (P_p @ H.T) / S
         x   = x_p + K.flatten() * (y - float(np.squeeze(H @ x_p)))
         P   = (np.eye(2) - np.outer(K.flatten(), H)) @ P_p
@@ -668,9 +690,70 @@ def _albumin_kalman(xs: list, ys: list) -> dict:
 
 # ── Hb Trajectory ────────────────────────────────────────────────────────────
 
+def _hb_trajectory_severity(current: Optional[float]) -> str:
+    """Classify Hb severity based on current level."""
+    if current is None: return "unknown"
+    if current > 13.0:  return "critical_high" # Risk: Stroke, Thrombosis
+    if current < 7.0:   return "critical"
+    if current < 9.0:   return "high"
+    if current < 10.0:  return "watch"
+    if 10.0 <= current <= 12.0: return "optimal"
+    return "stable"
+
+
+def _hb_trajectory_message(
+    severity: str, current: float, predicted: float, 
+    prev_hb: float, has_transfusion: bool, transfusion_months: list
+) -> str:
+    """Generate human-readable clinical message for Hb trajectory."""
+    transfusion_note = (
+        f" (trajectory based on endogenous Hb — transfusions in {', '.join(transfusion_months)} excluded)"
+        if has_transfusion else ""
+    )
+    
+    predicting_improvement = (predicted is not None and current is not None and predicted > current)
+    alert_predicted = predicted is not None and predicted < 10.0
+
+    if severity == "critical_high":
+        return f"🚨 HIGH RISK: Hb {current} g/dL exceeds 13.0 g/dL. Risk of thrombosis/stroke. Reduce/hold ESA dosage immediately."
+    
+    if severity == "critical":
+        if predicting_improvement:
+            return (
+                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
+                f"Model projects partial recovery to {predicted:.1f} g/dL next month, but current level demands urgent action.{transfusion_note}"
+            )
+        return (
+            f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
+            f"Predicted to remain critically low at {predicted:.1f} g/dL.{transfusion_note}"
+        )
+        
+    if severity in ("high", "watch") and alert_predicted:
+        if predicting_improvement:
+            return f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
+        return f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
+        
+    if alert_predicted:
+        # current >= 10 but predicted to fall below
+        return f"Predicted to drop below 10 g/dL (→ {predicted:.1f} g/dL) — review urgently.{transfusion_note}"
+        
+    if current is not None and prev_hb is not None and current < prev_hb and prev_hb > 13.0 and current >= 10.0:
+        return f"✅ Favorable Trend: Controlled downtitration from {prev_hb} to {current} g/dL (Target 10-12 g/dL).{transfusion_note}"
+        
+    if severity == "optimal":
+        return f"✅ Optimal: Hb {current} g/dL is within the target range (10-12 g/dL).{transfusion_note}"
+        
+    return f"Hb trajectory acceptable.{transfusion_note}"
+
+
+# ── Hb Trajectory ────────────────────────────────────────────────────────────
+
 def predict_hb_trajectory(df: List[Dict]) -> Dict:
+    # T1-4: Defensive sort descending
+    df = sorted(df, key=lambda x: x.get("month", ""), reverse=True)
     readiness = compute_ml_readiness(df, "hb")
     current = next((r["hb"] for r in df if r.get("hb") is not None), None)
+    prev_hb = df[1]["hb"] if len(df) > 1 and df[1].get("hb") is not None else None
 
     # Identify months where a blood transfusion was given
     transfusion_months = [
@@ -678,17 +761,7 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
         if r.get("transfusion_units") and r.get("month")
     ]
     has_transfusion = bool(transfusion_months)
-
-    if current is None:
-        _severity = "unknown"
-    elif current < 7:
-        _severity = "critical"
-    elif current < 9:
-        _severity = "high"
-    elif current < 10:
-        _severity = "watch"
-    else:
-        _severity = "stable"
+    _severity = _hb_trajectory_severity(current)
 
     base = {
         "current": current,
@@ -704,20 +777,21 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
 
     if not readiness["ready"]:
         return {
-            **base,
-            "ready_for_prediction": False,
-            "predicted": None, "next_predicted": None,
-            "pi_lower": None, "pi_upper": None,
-            "r_squared": None, "adj_r_squared": None,
-            "p_value": None, "durbin_watson": None,
-            "n_points": readiness["n_points"],
-            "alert_predicted_low": False,
-            "message": readiness["recommendation"],
+            "available": False,
+            "error":     readiness["recommendation"],
+            "data": {
+                **base,
+                "ready_for_prediction": False,
+                "predicted": None, "next_predicted": None,
+                "pi_lower": None, "pi_upper": None,
+                "r_squared": None, "adj_r_squared": None,
+                "p_value": None, "durbin_watson": None,
+                "alert_predicted_low": False,
+                "message": readiness["recommendation"],
+            }
         }
 
     # Use endogenous (transfusion-corrected) Hb for trajectory fitting.
-    # For months with transfusions: hb_endo = hb - (units × 1 g/dL).
-    # This prevents transfusion spikes from biasing the Kalman filter and OLS slope.
     pairs = [
         (
             _month_to_ordinal(r["month"]),
@@ -729,63 +803,34 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
     xs = [p[0] for p in pairs]
     ys = [p[1] for p in pairs]
 
-    # Kalman for prediction; OLS for supplementary diagnostics
     kal   = _hb_kalman(xs, ys)
     ols   = _linear_trend_with_ci(xs, ys)
 
     predicted = kal.get("next_predicted") or ols.get("next_predicted")
-    alert_predicted = predicted is not None and predicted < 10.0
-
-    transfusion_note = (
-        f" (trajectory based on endogenous Hb — transfusions in {', '.join(transfusion_months)} excluded)"
-        if has_transfusion else ""
-    )
-
-    predicting_improvement = (predicted is not None and current is not None and predicted > current)
-
-    if _severity == "critical":
-        if predicting_improvement:
-            message = (
-                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
-                f"Model projects partial recovery to {predicted:.1f} g/dL next month, but current level demands urgent action.{transfusion_note}"
-            )
-        else:
-            message = (
-                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
-                f"Predicted to remain critically low at {predicted:.1f} g/dL.{transfusion_note}"
-            )
-    elif _severity in ("high", "watch") and alert_predicted:
-        if predicting_improvement:
-            message = f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
-        else:
-            message = f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
-    elif alert_predicted:
-        # current >= 10 but predicted to fall below
-        message = f"Predicted to drop below 10 g/dL (→ {predicted:.1f} g/dL) — review urgently.{transfusion_note}"
-    elif has_transfusion:
-        message = f"Hb trajectory acceptable.{transfusion_note}"
-    else:
-        message = "Hb trajectory acceptable."
+    message = _hb_trajectory_message(_severity, current, predicted, prev_hb, has_transfusion, transfusion_months)
 
     return {
-        **base,
-        "ready_for_prediction": True,
-        "predicted":       predicted,
-        "next_predicted":  predicted,
-        "slope":           kal.get("slope") or ols.get("slope"),
-        "filtered_level":  kal.get("filtered_level"),
-        "pi_lower":        kal.get("pi_lower"),
-        "pi_upper":        kal.get("pi_upper"),
-        "posterior_std":   kal.get("posterior_std"),
-        "method":          kal.get("method", "OLS"),
-        # OLS diagnostics kept as supplementary model-quality info
-        "r_squared":       ols.get("r_squared"),
-        "adj_r_squared":   ols.get("adj_r_squared"),
-        "p_value":         ols.get("p_value"),
-        "durbin_watson":   ols.get("durbin_watson"),
-        "n_points":        kal.get("n_points") or ols.get("n_points"),
-        "alert_predicted_low": alert_predicted,
-        "message": message,
+        "available": True,
+        "error":     None,
+        "data": {
+            **base,
+            "ready_for_prediction": True,
+            "predicted":       predicted,
+            "next_predicted":  predicted,
+            "slope":           kal.get("slope") or ols.get("slope"),
+            "filtered_level":  kal.get("filtered_level"),
+            "pi_lower":        kal.get("pi_lower"),
+            "pi_upper":        kal.get("pi_upper"),
+            "posterior_std":   kal.get("posterior_std"),
+            "method":          kal.get("method", "OLS"),
+            "r_squared":       ols.get("r_squared"),
+            "adj_r_squared":   ols.get("adj_r_squared"),
+            "p_value":         ols.get("p_value"),
+            "durbin_watson":   ols.get("durbin_watson"),
+            "n_points":        kal.get("n_points") or ols.get("n_points"),
+            "alert_predicted_low": alert_predicted,
+            "message": message,
+        }
     }
 
 
@@ -814,19 +859,18 @@ def _resolve_weekly_iu_iv(record: dict) -> Optional[float]:
 def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001
     """
     Assess ESA (Epoetin / Darbepoetin / Mircera) response quality.
-
-    Standards:
-    - ERI (ESA Resistance Index) = (IV Units/kg/wk) / Hb (g/dL)
-    - Hyporesponsive if ERI >= 10.0 OR IV dose >= 450 IU/kg/wk
-
-    Transfusion correction: when a month has blood_transfusion_units recorded,
-    the observed Hb is reduced by (units × 1 g/dL) before computing ERI.
-    Using the inflated post-transfusion Hb would make EPO appear more effective
-    than it actually is, masking true hyporesponsiveness.
     """
+    # T1-4: Defensive sort descending
+    df = sorted(df, key=lambda x: x.get("month", ""), reverse=True)
     if not df:
-        return {"hypo_response": False, "status": "No Data", "class": "warning",
-                "message": "No records.", "ready": False, "confidence": "insufficient"}
+        return {
+            "available": False,
+            "error":     "No records available.",
+            "data": {
+                "hypo_response": False, "status": "No Data", "class": "warning",
+                "message": "No records.", "ready": False, "confidence": "insufficient"
+            }
+        }
 
     # Gate: require 3+ months with BOTH Hb and any ESA dose entry
     complete_pairs = [
@@ -843,16 +887,20 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
         if dose_count < 3: missing.append(f"ESA dose ({3-dose_count} more required)")
 
         return {
-            "hypo_response": False,
-            "status": "Insufficient Data",
-            "class": "warning",
-            "ready": False,
-            "confidence": "insufficient",
-            "inputs_missing": missing,
-            "message": (
-                f"Need 3+ months with both Hb and ESA dose recorded "
-                f"(currently have {len(complete_pairs)})."
-            ),
+            "available": False,
+            "error":     f"Need 3+ months (currently have {len(complete_pairs)}).",
+            "data": {
+                "hypo_response": False,
+                "status": "Insufficient Data",
+                "class": "warning",
+                "ready": False,
+                "confidence": "insufficient",
+                "inputs_missing": missing,
+                "message": (
+                    f"Need 3+ months with both Hb and ESA dose recorded "
+                    f"(currently have {len(complete_pairs)})."
+                ),
+            }
         }
 
     latest = complete_pairs[0]
@@ -865,27 +913,62 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     hb = _hb_endo(hb_raw, transfusion_units) if transfusion_confounded else hb_raw
 
     dose_iv = _resolve_weekly_iu_iv(latest) or 0
-    weight = latest.get("weight") or 60.0
+    weight = latest.get("weight")
+    if not weight or weight <= 0:
+        return {
+            "available": False,
+            "error":     "Current weight not recorded.",
+            "data": {
+                "hypo_response": False,
+                "status": "Incomplete Data",
+                "class": "warning",
+                "ready": False,
+                "confidence": "insufficient",
+                "message": "Current weight not recorded — ERI calculation requires weight.",
+            }
+        }
 
-    # ── ESA Resistance Index (ERI) Calculation ────────────────────────────────
-    dose_per_kg = dose_iv / weight
-    eri = dose_per_kg / hb if hb > 0 else 0
-
-    # Identify drug type for richer reporting
+    # ── ESA Resistance Index (ERI) Calculation (Sustained over 3 Months) ───────
+    # KDOQI intent: Sustained ERI >= 10 over >= 2 consecutive months. 
+    # We use 2 of last 3 months to handle sporadic data gaps/errors.
+    eris = []
+    dose_per_kgs = []
+    
+    for r in complete_pairs[:3]:
+        r_hb_raw = r.get("hb") or 0.1
+        r_trans  = r.get("transfusion_units") or 0
+        r_hb     = _hb_endo(r_hb_raw, r_trans) if r_trans > 0 else r_hb_raw
+        
+        r_dose_iv = _resolve_weekly_iu_iv(r) or 0
+        r_w       = r.get("weight") or weight # fallback to latest weight
+        
+        if r_w and r_w > 0:
+            r_dpk = r_dose_iv / r_w
+            r_eri = r_dpk / r_hb if r_hb > 0 else 0
+            eris.append(r_eri)
+            dose_per_kgs.append(r_dpk)
+            
+    # Rolling 3-month averages for display
+    eri         = sum(eris) / len(eris) if eris else 0
+    dose_per_kg = sum(dose_per_kgs) / len(dose_per_kgs) if dose_per_kgs else 0
+    
+    # Identify drug type (latest recorded)
     drug_type = "unknown"
     dose_str = latest.get("epo_mircera_dose", "")
     if dose_str:
         drug_type = normalize_epo_dose(dose_str).get("drug_type", "unknown")
 
     # ── Classify response ─────────────────────────────────────────────────────
-    # Hyporesponsiveness defined as ERI >= 10.0 IU/(kg·week·g/dL) or Dose >= 450 IU/kg/wk
-    # Reference: Kalantar-Zadeh et al. (2005); ERI <10 = adequate, ≥10 = hyporesponsive
-    is_hypo = eri >= 10.0 or dose_per_kg >= 450
+    # Sustained hyporesponsiveness: >= 2 of last 3 months exceed threshold
+    hypo_months   = sum(1 for e, d in zip(eris, dose_per_kgs) if e >= 10.0 or d >= 450)
+    severe_months = sum(1 for e, d in zip(eris, dose_per_kgs) if e >= 20.0 or d >= 600)
+    
+    is_hypo = hypo_months >= 2
     severity = "none"
     response_class = "excellent"
 
     if dose_iv > 0:
-        if eri >= 20.0 or dose_per_kg >= 600:
+        if severe_months >= 2:
             severity = "severe"
             response_class = "severe"
             is_hypo = True
@@ -914,12 +997,12 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
 
     if severity == "severe":
         message = (
-            f"Severe hypo-response ({eri_display}): Hb {hb:.1f} g/dL on {dose_per_kg:.1f} IU/kg/wk. "
+            f"Sustained severe hypo-response (Avg ERI {eri:.1f}): Hb {hb:.1f} g/dL on {dose_per_kg:.1f} IU/kg/wk. "
             f"Urgent: check iron, inflammation (CRP), or marrow suppression.{transfusion_note}"
         )
     elif severity == "significant":
         message = (
-            f"Hypo-response ({eri_display}): Hb {hb:.1f} g/dL on high-dose {drug_label} "
+            f"Sustained hypo-response (Avg ERI {eri:.1f}): Hb {hb:.1f} g/dL on high-dose {drug_label} "
             f"({dose_per_kg:.1f} IU/kg/wk). Review iron stores and ESA resistance workup.{transfusion_note}"
         )
     elif response_class == "suboptimal":
@@ -936,28 +1019,32 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     )
 
     return {
-        "hypo_response": is_hypo,
-        "eri": round(eri, 2),
-        "dose_per_kg_iv": round(dose_per_kg, 1),
-        "severity": severity,
-        "response_class": response_class,
-        "status": {
-            "severe":     "Severe Hypo-Res",
-            "hypo":        "Hypo-Responsive",
-            "suboptimal": "Suboptimal",
-            "adequate":   "Adequate",
-            "excellent":  "Excellent",
-        }.get(response_class, "Unknown"),
-        "class": css_class,
-        "ready": True,
-        "confidence": confidence,
-        "n_points": len(complete_pairs),
-        "drug_type": drug_type,
-        "weekly_iu_iv": dose_iv,
-        "transfusion_confounded": transfusion_confounded,
-        "hb_raw": round(hb_raw, 1),
-        "hb_corrected": round(hb, 1),
-        "message": message,
+        "available": True,
+        "error":     None,
+        "data": {
+            "hypo_response": is_hypo,
+            "eri": round(eri, 2),
+            "dose_per_kg_iv": round(dose_per_kg, 1),
+            "severity": severity,
+            "response_class": response_class,
+            "status": {
+                "severe":     "Severe Hypo-Res",
+                "hypo":        "Hypo-Responsive",
+                "suboptimal": "Suboptimal",
+                "adequate":   "Adequate",
+                "excellent":  "Excellent",
+            }.get(response_class, "Unknown"),
+            "class": css_class,
+            "ready": True,
+            "confidence": confidence,
+            "n_points": len(complete_pairs),
+            "drug_type": drug_type,
+            "weekly_iu_iv": dose_iv,
+            "transfusion_confounded": transfusion_confounded,
+            "hb_raw": round(hb_raw, 1),
+            "hb_corrected": round(hb, 1),
+            "message": message,
+        }
     }
 
 
@@ -970,7 +1057,7 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
 
     base = {
         "current": current,
-        "risk": current is not None and current < 2.5,
+        "risk": current is not None and current < 3.5,
         "confidence": readiness["confidence"],
         "n_points": readiness["n_points"],
         "message": readiness["recommendation"],
@@ -978,14 +1065,18 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
 
     if not readiness["ready"]:
         return {
-            **base,
-            "trend": "→", "direction": "→",
-            "predicted": None, "predicted_2m": None,
-            "pi_lower": None, "pi_upper": None,
-            "r_squared": None, "adj_r_squared": None,
-            "p_value": None, "durbin_watson": None,
-            "risk_crossing_35": base["risk"],
-            "inputs_missing": [f"Albumin ({2 - readiness['n_points']} more required)"]
+            "available": False,
+            "error":     readiness["recommendation"],
+            "data": {
+                **base,
+                "trend": "→", "direction": "→",
+                "predicted": None, "predicted_2m": None,
+                "pi_lower": None, "pi_upper": None,
+                "r_squared": None, "adj_r_squared": None,
+                "p_value": None, "durbin_watson": None,
+                "risk_crossing_35": base["risk"],
+                "inputs_missing": [f"Albumin ({2 - readiness['n_points']} more required)"]
+            }
         }
 
     pairs = [
@@ -1005,39 +1096,48 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
     risk = base["risk"] or (predicted is not None and predicted < 2.5)
 
     return {
-        **base,
-        "risk": risk,
-        "trend": direction,
-        "direction": direction,
-        "predicted": predicted,
-        "predicted_2m": predicted,
-        "filtered_level":  kal.get("filtered_level"),
-        "pi_lower":        kal.get("pi_lower"),
-        "pi_upper":        kal.get("pi_upper"),
-        "posterior_std":   kal.get("posterior_std"),
-        "method":          kal.get("method", "OLS"),
-        "r_squared":       ols.get("r_squared"),
-        "adj_r_squared":   ols.get("adj_r_squared"),
-        "p_value":         ols.get("p_value"),
-        "durbin_watson":   ols.get("durbin_watson"),
-        "n_points":        kal.get("n_points") or ols.get("n_points", readiness["n_points"]),
-        "risk_crossing_35": risk,
+        "available": True,
+        "error":     None,
+        "data": {
+            **base,
+            "risk": risk,
+            "trend": direction,
+            "direction": direction,
+            "predicted": predicted,
+            "predicted_2m": predicted,
+            "filtered_level":  kal.get("filtered_level"),
+            "pi_lower":        kal.get("pi_lower"),
+            "pi_upper":        kal.get("pi_upper"),
+            "posterior_std":   kal.get("posterior_std"),
+            "method":          kal.get("method", "OLS"),
+            "r_squared":       ols.get("r_squared"),
+            "adj_r_squared":   ols.get("adj_r_squared"),
+            "p_value":         ols.get("p_value"),
+            "durbin_watson":   ols.get("durbin_watson"),
+            "n_points":        kal.get("n_points") or ols.get("n_points", readiness["n_points"]),
+            "risk_crossing_35": risk,
+        }
     }
 
 
 # ── Iron Status ───────────────────────────────────────────────────────────────
 
-def classify_iron_status(latest: Dict) -> Dict:
+def classify_iron_status(latest: Dict, staleness: Dict = None) -> Dict:
+    staleness = staleness or {}
     fer, tsat = latest.get("serum_ferritin"), latest.get("tsat")
     if fer is None or tsat is None:
         missing = []
         if fer is None: missing.append("Ferritin")
         if tsat is None: missing.append("TSAT")
         return {
-            "status": "Unknown",
-            "class": "warning",
-            "message": "Incomplete labs — enter Ferritin + TSAT",
-            "inputs_missing": missing
+            "available": False,
+            "error":     "Incomplete labs (Ferritin/TSAT).",
+            "data": {
+                "status": "Unknown",
+                "class": "warning",
+                "message": "Incomplete labs — enter Ferritin + TSAT",
+                "inputs_missing": missing
+            }
         }
 
     if (tsat or 0) < 20:
@@ -1051,11 +1151,22 @@ def classify_iron_status(latest: Dict) -> Dict:
     else:
         status, rec = "Adequate Iron Stores", "Maintenance dose"
 
+    # Staleness check
+    stale_months = max(staleness.get("serum_ferritin", 0), staleness.get("tsat", 0))
+    stale_warning = f" (⚠ Data is {stale_months} months old)" if stale_months > 3 else ""
+
     return {
-        "status": status, "recommendation": rec, "message": rec,
-        "class": "danger" if "Deficiency" in status
-                 else "warning" if ("Overload" in status or "Replete" in status)
-                 else "success",
+        "available": True,
+        "error":     None,
+        "data": {
+            "status": status,
+            "recommendation": rec,
+            "message": rec + stale_warning,
+            "class": "danger" if "Deficiency" in status
+                     else "warning" if ("Overload" in status or "Replete" in status)
+                     else "success",
+            "inputs_missing": []
+        }
     }
 
 
@@ -1120,18 +1231,28 @@ def compute_target_score(df: List[Dict]) -> Dict:
         missing_fields.append("BP Systolic")
 
     if available == 0:
-        return {"score": 0, "raw_score": 0, "available": 0, "status": "No Data", "label": "No Data", "inputs_missing": missing_fields}
+        return {
+            "available": False,
+            "error":     "No clinical targets measurable.",
+            "data": {
+                "score": 0, "raw_score": 0, "available": 0, "status": "No Data", "label": "No Data", "inputs_missing": missing_fields
+            }
+        }
 
     # Normalize to 10-point scale; raw score for display
     normalized = round(points / available * 10)
     status = "Optimal" if normalized >= 8 else "Sub-optimal" if normalized >= 6 else "Critical"
     return {
-        "score": normalized,
-        "raw_score": points,
-        "available": available,
-        "status": status,
-        "label": status,
-        "inputs_missing": missing_fields
+        "available": True,
+        "error":     None,
+        "data": {
+            "score": normalized,
+            "raw_score": points,
+            "available": available,
+            "status": status,
+            "label": status,
+            "inputs_missing": missing_fields
+        }
     }
 
 
@@ -1155,15 +1276,44 @@ _MODEL_PATH      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "det
 _MODEL_META_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model_meta.json")
 
 
+def _build_feature_vector(
+    hb_val, hb_alert,
+    alb_val, alb_alert,
+    target_score,
+    epo_hypo,
+    age, cad, chf, dm_status,
+    is_training=False
+) -> list:
+    """
+    Unified feature vector constructor.
+    Ensures identical feature ordering and normalization for both training and inference.
+    """
+    # Imputation for inference path only
+    if not is_training:
+        hb_val       = hb_val if hb_val is not None else 10.0
+        alb_val      = alb_val if alb_val is not None else 3.5
+        target_score = target_score if target_score is not None else 5.0
+
+    return [
+        float(hb_alert or 0),
+        hb_val,
+        float(alb_alert or 0),
+        alb_val,
+        float(target_score),
+        float(epo_hypo or 0),
+        float(age or 60),
+        float(cad or 0),
+        float(chf or 0),
+        1.0 if "type" in str(dm_status or "").lower() else 0.0,
+    ]
+
+
 def _extract_record_features_for_training(record, patient) -> list:
-    """
-    Build a 10-element feature vector from a MonthlyRecord ORM row + Patient row.
-    Called during model training; returns None-safe floats (None → imputed later).
-    """
+    """ORM path for training."""
     hb      = record.hb
     albumin = record.albumin
 
-    # Inline KDOQI target score using available fields (mirrors compute_target_score logic)
+    # Standard KDOQI target score computation
     points, available = 0, 0
     for val, met in [
         (hb,               hb        is not None and hb        >= 10.0),
@@ -1175,66 +1325,64 @@ def _extract_record_features_for_training(record, patient) -> list:
     ]:
         if val is not None:
             available += 1
-            if met:
-                points += 1
+            if met: points += 1
     target_score = float(round(points / available * 10)) if available > 0 else 5.0
 
-    epo_hypo_proxy = float(
-        hb is not None and hb < 10.0 and
-        (record.epo_weekly_units is not None or bool(record.epo_mircera_dose))
-    )
+    epo_hypo = (hb is not None and hb < 10.0 and (record.epo_weekly_units is not None or bool(record.epo_mircera_dose)))
 
-    return [
-        1.0 if (hb is not None and hb < 10.0) else 0.0,
-        hb,          # kept as None → SimpleImputer fills with column median
-        1.0 if (albumin is not None and albumin < 3.5) else 0.0,
-        albumin,     # kept as None → imputed
-        target_score,
-        epo_hypo_proxy,
-        float(patient.age or 60),
-        1.0 if patient.cad_status else 0.0,
-        1.0 if patient.chf_status else 0.0,
-        1.0 if ("type" in str(patient.dm_status or "").lower()) else 0.0,
-    ]
+    return _build_feature_vector(
+        hb_val       = hb,
+        hb_alert     = (hb is not None and hb < 10.0),
+        alb_val      = albumin,
+        alb_alert    = (albumin is not None and albumin < 3.5),
+        target_score = target_score,
+        epo_hypo     = epo_hypo,
+        age          = patient.age,
+        cad          = patient.cad_status,
+        chf          = patient.chf_status,
+        dm_status    = patient.dm_status,
+        is_training  = True
+    )
 
 
 def _extract_analytics_features_for_inference(
     hb: dict, alb: dict, target: dict,
     epo: dict = None, patient_info: dict = None,
 ) -> list:
-    """
-    Build the same 10-element feature vector from derived analytics dicts.
-    Called during compute_deterioration_risk() for real-time inference.
-    Missing values are replaced with population-level clinical midpoints.
-    """
+    """Dict path for real-time inference."""
     epo          = epo or {}
     patient_info = patient_info or {}
-    hb_val  = hb.get("current")
-    alb_val = alb.get("current")
-    return [
-        1.0 if hb.get("alert")          else 0.0,
-        hb_val  if hb_val  is not None  else 10.0,
-        1.0 if alb.get("risk")          else 0.0,
-        alb_val if alb_val is not None  else 3.5,
-        float(target.get("score", 5)),
-        1.0 if epo.get("hypo_response") else 0.0,
-        float(patient_info.get("age") or 60),
-        1.0 if patient_info.get("cad_status") else 0.0,
-        1.0 if patient_info.get("chf_status") else 0.0,
-        1.0 if "type" in str(patient_info.get("dm_status") or "").lower() else 0.0,
-    ]
+    return _build_feature_vector(
+        hb_val       = hb.get("current"),
+        hb_alert     = hb.get("alert"),
+        alb_val      = alb.get("current"),
+        alb_alert    = alb.get("risk"),
+        target_score = target.get("score"),
+        epo_hypo     = epo.get("hypo_response"),
+        age          = patient_info.get("age"),
+        cad          = patient_info.get("cad_status"),
+        chf          = patient_info.get("chf_status"),
+        dm_status    = patient_info.get("dm_status"),
+        is_training  = False
+    )
 
 
 _DETERIORATION_MODEL = None
+_MODEL_LOAD_TIME = 0
 
 def _load_deterioration_model():
-    global _DETERIORATION_MODEL
-    if _DETERIORATION_MODEL is not None:
-        return _DETERIORATION_MODEL
+    global _DETERIORATION_MODEL, _MODEL_LOAD_TIME
+    
     if os.path.exists(_MODEL_PATH):
         try:
+            mtime = os.path.getmtime(_MODEL_PATH)
+            # If already loaded and file hasn't changed, return cached
+            if _DETERIORATION_MODEL is not None and mtime <= _MODEL_LOAD_TIME:
+                return _DETERIORATION_MODEL
+            
             with open(_MODEL_PATH, "rb") as f:
                 _DETERIORATION_MODEL = pickle.load(f)
+                _MODEL_LOAD_TIME = mtime
             return _DETERIORATION_MODEL
         except Exception as e:
             logger.warning("Failed to load deterioration model: %s", e)
@@ -1260,7 +1408,6 @@ def train_deterioration_model(db: Session) -> dict:
     deterioration_model.pkl       — serialised calibrated Pipeline
     deterioration_model_meta.json — training metadata for the status endpoint
     """
-    import json
 
     if not _SKLEARN_AVAILABLE:
         return {
@@ -1327,9 +1474,8 @@ def train_deterioration_model(db: Session) -> dict:
         }
 
     # ── 2. Build pipeline ─────────────────────────────────────────────────────
-    import numpy as _np_train
-    X_arr = _np_train.array(X, dtype=float)
-    y_arr = _np_train.array(y, dtype=int)
+    X_arr = np.array(X, dtype=float)
+    y_arr = np.array(y, dtype=int)
 
     base = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
@@ -1430,20 +1576,26 @@ def compute_deterioration_risk(
       Moderate score ≥ 30
       Low      score < 30
     """
+    # ── Unpack standardized inputs ───────────────────────────────────────────
+    hb_data     = hb.get("data", hb)
+    alb_data    = alb.get("data", alb)
+    target_data = target.get("data", target)
+    epo_data    = (epo or {}).get("data", epo or {})
+
     # ── Derive human-readable risk factors (shared by both paths) ─────────────
     factors = []
-    if hb.get("alert"):                         factors.append("Hb below 10 g/dL")
-    if hb.get("alert_predicted_low"):           factors.append("Hb predicted to fall below 10 g/dL")
-    if alb.get("risk"):                         factors.append("Albumin below 3.5 g/dL")
-    if (epo or {}).get("hypo_response"):        factors.append("ESA hypo-response (high ERI)")
-    if target.get("score", 10) < 6:             factors.append("Low KDOQI target score (<6/10)")
+    if hb_data.get("alert"):                         factors.append("Hb below 10 g/dL")
+    if hb_data.get("alert_predicted_low"):           factors.append("Hb predicted to fall below 10 g/dL")
+    if alb_data.get("risk"):                         factors.append("Albumin below 3.5 g/dL")
+    if (epo_data or {}).get("hypo_response"):        factors.append("ESA hypo-response (high ERI)")
+    if target_data.get("score", 10) < 6:             factors.append("Low KDOQI target score (<6/10)")
     if (patient_info or {}).get("cad_status"):  factors.append("Coronary artery disease")
     if (patient_info or {}).get("chf_status"):  factors.append("Congestive heart failure")
 
     model = _load_deterioration_model()
 
     if model is not None:
-        feats = _extract_analytics_features_for_inference(hb, alb, target, epo, patient_info)
+        feats = _extract_analytics_features_for_inference(hb_data, alb_data, target_data, epo_data, patient_info)
         try:
             import numpy as _np_inf
             prob      = float(model.predict_proba(_np_inf.array([feats]))[0][1])
@@ -1461,60 +1613,68 @@ def compute_deterioration_risk(
                     pass
 
             missing = []
-            if hb.get("current") is None: missing.append("Hemoglobin")
-            if alb.get("current") is None: missing.append("Albumin")
-            if target.get("score") is None: missing.append("Target Score (labs)")
-            if (epo or {}).get("hypo_response") is None: missing.append("ESA Response")
+            if hb_data.get("current") is None: missing.append("Hemoglobin")
+            if alb_data.get("current") is None: missing.append("Albumin")
+            if target_data.get("score") is None: missing.append("Target Score (labs)")
+            if (epo_data or {}).get("hypo_response") is None: missing.append("ESA Response")
             if (patient_info or {}).get("age") is None: missing.append("Age")
             if (patient_info or {}).get("cad_status") is None: missing.append("CAD Status")
             if (patient_info or {}).get("chf_status") is None: missing.append("CHF Status")
             if (patient_info or {}).get("dm_status") is None: missing.append("DM Status")
 
             return {
-                "available":       True,
-                "method":          "LogisticRegression (calibrated)",
-                "risk_score":      risk_pct,
-                "score":           risk_pct,
-                "risk_probability": prob,
-                "risk_level":      risk_level,
-                "level":           risk_level,
-                "risk_factors":    factors,
-                "factors":         factors,
-                "inputs_missing":  missing,
-                # Model quality metadata surfaced to the UI
-                "model_cv_auc":    meta.get("cv_auc"),
-                "model_n_samples": meta.get("n_samples"),
-                "model_trained_at": meta.get("trained_at"),
-                "auc_warning":     meta.get("auc_warning", False),
+                "available": True,
+                "error":     None,
+                "data": {
+                    "available":       True,
+                    "method":          "LogisticRegression (calibrated)",
+                    "risk_score":      risk_pct,
+                    "score":           risk_pct,
+                    "risk_probability": prob,
+                    "risk_level":      risk_level,
+                    "level":           risk_level,
+                    "risk_factors":    factors,
+                    "factors":         factors,
+                    "inputs_missing":  missing,
+                    # Model quality metadata surfaced to the UI
+                    "model_cv_auc":    meta.get("cv_auc"),
+                    "model_n_samples": meta.get("n_samples"),
+                    "model_trained_at": meta.get("trained_at"),
+                    "auc_warning":     meta.get("auc_warning", False),
+                }
             }
         except Exception as e:
             logger.warning("Deterioration model predict_proba failed: %s — using heuristic", e)
 
     # ── Heuristic fallback (no trained model or prediction failed) ────────────
     risk_score = 0
-    if hb.get("alert"):             risk_score += 40
-    if alb.get("risk"):             risk_score += 30
-    if target.get("score", 0) < 6: risk_score += 30
+    if hb_data.get("alert"):             risk_score += 40
+    if alb_data.get("risk"):             risk_score += 30
+    if target_data.get("score", 0) < 6:  risk_score += 30
     risk_level = "High" if risk_score >= 60 else "Moderate" if risk_score >= 30 else "Low"
     missing = []
-    if hb.get("current") is None: missing.append("Hemoglobin")
-    if alb.get("current") is None: missing.append("Albumin")
-    if target.get("score") is None: missing.append("Target Score (labs)")
+    if hb_data.get("current") is None: missing.append("Hemoglobin")
+    if alb_data.get("current") is None: missing.append("Albumin")
+    if target_data.get("score") is None: missing.append("Target Score (labs)")
 
     return {
-        "available":   True,
-        "method":      "Heuristic (no trained model — POST /admin/train-deterioration-model)",
-        "risk_score":  risk_score,
-        "score":       risk_score,
-        "risk_level":  risk_level,
-        "level":       risk_level,
-        "risk_factors": factors,
-        "factors":     factors,
-        "inputs_missing": missing,
-        "model_cv_auc":    None,
-        "model_n_samples": None,
-        "model_trained_at": None,
-        "auc_warning":     False,
+        "available": True,
+        "error":     None,
+        "data": {
+            "available":   True,
+            "method":      "Heuristic (no trained model — POST /admin/train-deterioration-model)",
+            "risk_score":  risk_score,
+            "score":       risk_score,
+            "risk_level":  risk_level,
+            "level":       risk_level,
+            "risk_factors": factors,
+            "factors":     factors,
+            "inputs_missing": missing,
+            "model_cv_auc":    None,
+            "model_n_samples": None,
+            "model_trained_at": None,
+            "auc_warning":     False,
+        }
     }
 
 
@@ -1658,7 +1818,7 @@ def _rule_based_log_odds_fallback(latest: dict, patient_info: dict) -> tuple:
             missing.append("Neutrophil / WBC")
 
     ef = patient_info.get("ef")
-    if ef is not None and ef != 60.0:
+    if ef is not None:
         if   ef < 30: log_odds += 1.40
         elif ef < 40: log_odds += 0.90
         elif ef < 50: log_odds += 0.50
@@ -1719,7 +1879,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     neut_source = "direct" if latest.get("neutrophil_count") else "estimated from WBC"
 
     # EF: ignore default 60 (treated as missing)
-    ef = ef_raw if (ef_raw is not None and ef_raw != 60.0) else None
+    ef = ef_raw
 
     # IDH: 1=Yes, 0=No
     idh = 1 if cad else 0
@@ -1740,10 +1900,14 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     if n_core_used < 2:
         return {
             "available": False,
-            "reason": (
-                "Insufficient core features (need ≥2 of: Age, Albumin, "
-                "Neutrophil/WBC, EF, CAD status)"
-            ),
+            "error":     "Insufficient core features (need ≥2).",
+            "data": {
+                "available": False,
+                "reason": (
+                    "Insufficient core features (need ≥2 of: Age, Albumin, "
+                    "Neutrophil/WBC, EF, CAD status)"
+                ),
+            }
         }
 
     # Age is the dominant XGBoost feature — imputing it can swing the result
@@ -1752,7 +1916,11 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     if age is None:
         return {
             "available": False,
-            "reason": "Patient age not entered. Age is the most influential feature in this model — imputing it can swing the result by 90+ percentage points. Enter the patient's age in the profile to enable mortality prediction.",
+            "error":     "Patient age missing.",
+            "data": {
+                "available": False,
+                "reason": "Patient age not entered. Age is the most influential feature in this model — imputing it can swing the result by 90+ percentage points. Enter the patient's age in the profile to enable mortality prediction.",
+            }
         }
 
     # ── Attempt XGBoost prediction ───────────────────────────────────────────
@@ -1763,7 +1931,6 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     if models and all(f is not None for f in [age, albumin_gl, neutrophil, ef, cad]):
         # All 5 features available → use XGBoost directly
         try:
-            import pandas as pd
             x = pd.DataFrame(
                 [[idh, age, albumin_gl, neutrophil, ef]],
                 columns=["IDH", "Age", "Albumin", "N109L", "EF"]
@@ -1803,7 +1970,6 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         if cad is None:      imputed.append(f"IDH (imputed No)")
 
         try:
-            import pandas as pd
             x = pd.DataFrame(
                 [[idh_x, age_x, albumin_x, neut_x, ef_x]],
                 columns=["IDH", "Age", "Albumin", "N109L", "EF"]
@@ -1846,11 +2012,11 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
 
     # ── Confidence tier ──────────────────────────────────────────────────────
     if model_type == "xgboost_full":
-        confidence = "high" if n_core_used == 5 else "moderate"
+        data_completeness = "high" if n_core_used == 5 else "moderate"
     elif model_type == "xgboost_imputed":
-        confidence = "moderate" if n_core_used >= 3 else "low"
+        data_completeness = "moderate" if n_core_used >= 3 else "low"
     else:
-        confidence = "low"
+        data_completeness = "low"
 
     # ── Uncertainty band ─────────────────────────────────────────────────────
     ub = _mortality_uncertainty_band(prob_1yr, n_core_used, model_type)
@@ -1884,7 +2050,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         )
 
     if missing:
-        message += f" ({len(missing)} feature(s) missing — {confidence} confidence.)"
+        message += f" ({len(missing)} feature(s) missing — {data_completeness} data completeness.)"
     if "imputed" in model_type:
         message += " ⚠ Some features imputed from population median."
 
@@ -1913,34 +2079,42 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
 
     return {
         "available":          True,
-        "prob_1yr":           prob_1yr,
-        "prob_4yr":           prob_4yr,
-        "prob_7yr":           prob_7yr,
-        "prob_4yr_note":      "Xu et al. 4-year XGBoost model (AUC 0.933). Indian population calibration pending.",
-        "prob_7yr_note":      "Xu et al. 7-year XGBoost model (AUC 0.935). Indian population calibration pending.",
-        "uncertainty_lower":  ub["uncertainty_lower"],
-        "uncertainty_upper":  ub["uncertainty_upper"],
-        "ci_valid":           False,
-        "uncertainty_note":   ub["uncertainty_note"],
-        "model_type":         model_type,
-        "model_label":        model_label,
-        "risk_level":         risk_level,
-        "class":              css_class,
-        "confidence":         confidence,
-        "n_core_used":        n_core_used,
-        "features_used":      used,
-        "features_missing":   missing,
-        "inputs_missing":     missing,
-        "message":            message,
-        "high_risk_threshold": 0.439,
-        "above_threshold":    prob_1yr >= 0.439,
-        "acute_hb_warning":   acute_hb_warning,
-        "acute_hb_severity":  acute_hb_severity,
-        "indian_pop_note":    (
-            "Trained on Chinese HD cohort (n~900). Indian HD patients have earlier "
-            "ESRD onset, higher DM burden, and lower baseline albumin. "
-            "Risk direction is valid; absolute values require local validation."
-        ),
+        "error":              None,
+        "data": {
+            "available":          True,
+            "prob_1yr":           prob_1yr,
+            "prob_4yr":           prob_4yr,
+            "prob_7yr":           prob_7yr,
+            "prob_4yr_note":      "Xu et al. 4-year XGBoost model (AUC 0.933). Indian population calibration pending.",
+            "prob_7yr_note":      "Xu et al. 7-year XGBoost model (AUC 0.935). Indian population calibration pending.",
+            "uncertainty_lower":  ub["uncertainty_lower"],
+            "uncertainty_upper":  ub["uncertainty_upper"],
+            "ci_valid":           False,
+            "uncertainty_note":   ub["uncertainty_note"],
+            "model_type":         model_type,
+            "model_label":        model_label,
+            "risk_level":         risk_level,
+            "class":              css_class,
+            "data_completeness":  data_completeness,
+            "model_calibration_status": "pending Indian cohort validation",
+            "n_core_used":        n_core_used,
+            "features_used":      used,
+            "features_missing":   missing,
+            "inputs_missing":     missing,
+            "message":            message,
+            # Threshold 0.439 derived from Xu et al. (2023) ROC optimization on Chinese HD cohort.
+            # Local threshold validation for Indian population is pending.
+            "high_risk_threshold": 0.439,
+            "above_threshold":    prob_1yr >= 0.439,
+            "threshold_validation": "Chinese cohort only",
+            "acute_hb_warning":   acute_hb_warning,
+            "acute_hb_severity":  acute_hb_severity,
+            "indian_pop_note":    (
+                "Trained on Chinese HD cohort (n~900). Indian HD patients have earlier "
+                "ESRD onset, higher DM burden, and lower baseline albumin. "
+                "Risk direction is valid; absolute values require local validation."
+            ),
+        }
     }
 
 
@@ -2226,10 +2400,23 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
         records = (
             db.query(MonthlyRecord)
             .filter(MonthlyRecord.patient_id == patient_id)
-            .order_by(desc(MonthlyRecord.record_month))
-            .limit(12)
             .all()
         )
+
+    # T1-5: Deduplicate monthly records (latest entry wins)
+    # If a patient has multiple records for the same month (e.g. corrected values),
+    # we take the first one found (which is the most recent due to DB ordering or query sequence).
+    seen_months = {}
+    deduped = []
+    for r in records:
+        if r.record_month not in seen_months:
+            seen_months[r.record_month] = True
+            deduped.append(r)
+    records = deduped
+
+    # T1-4: Defensive sort (descending) to ensure df[0] is always the most recent month
+    records.sort(key=lambda x: x.record_month, reverse=True)
+
     df = [
         {
             "month": r.record_month,
@@ -2286,26 +2473,27 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
         for il in _interim_rows:
             df[0][il.parameter] = il.value
 
-    def _get_latest(key: str, default=None):
-        for entry in df:
+    def _get_latest_info(key: str, default=None):
+        for i, entry in enumerate(df):
             if entry.get(key) is not None:
-                return entry[key]
-        return default
+                return entry[key], i
+        return default, None
 
     # Latest available for sparse/infrequent labs (scan last 12 months)
-    latest_sparse = {
-        "serum_ferritin": _get_latest("serum_ferritin"),
-        "tsat":           _get_latest("tsat"),
-        "serum_iron":      _get_latest("serum_iron"),
-        "ipth":           _get_latest("ipth"),
-        "vit_d":          _get_latest("vit_d"),
-        "crp":            _get_latest("crp"),
-        "nt_probnp":      _get_latest("nt_probnp"),
-        "residual_urine_output": _get_latest("residual_urine_output"),
-        "ejection_fraction": _get_latest("ejection_fraction"),
-        "diastolic_dysfunction": _get_latest("diastolic_dysfunction"),
-        "echo_date":      _get_latest("echo_date"),
-    }
+    latest_sparse = {}
+    lab_staleness = {}
+    
+    _sparse_keys = [
+        "serum_ferritin", "tsat", "serum_iron", "ipth", "vit_d", "crp",
+        "nt_probnp", "residual_urine_output", "ejection_fraction",
+        "diastolic_dysfunction", "echo_date"
+    ]
+    
+    for k in _sparse_keys:
+        val, months_ago = _get_latest_info(k)
+        latest_sparse[k] = val
+        if months_ago is not None:
+            lab_staleness[k] = months_ago
     
     # Update the most recent record with these carry-forward values for analysis
     df[0] = {**df[0], **latest_sparse}
@@ -2328,7 +2516,7 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
         ef_raw = latest_sparse.get("ejection_fraction")
         if ef_raw is None:
             ef_raw = getattr(patient_obj, "ejection_fraction", None)
-        patient_info["ef"] = ef_raw if ef_raw is not None else 60.0
+        patient_info["ef"] = ef_raw
 
         dd_raw = latest_sparse.get("diastolic_dysfunction")
         if dd_raw is None:
@@ -2342,7 +2530,7 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
     alb_risk   = assess_albumin_decline(df)
     
     # Now these functions will naturally see the carry-forward values in df[0]
-    iron_stat  = classify_iron_status(df[0])
+    iron_stat  = classify_iron_status(df[0], lab_staleness)
     target_sc  = compute_target_score(df)
     det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
     mort_risk  = predict_mortality_risk(df, patient_info)
@@ -2365,6 +2553,7 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
         "davies": davies,
         "history_count": len(df),
         "n_months": len(df),
+        "lab_staleness": lab_staleness,
     }
 
 
@@ -2408,19 +2597,21 @@ def run_cohort_analytics(db: Session) -> Dict:
             med = statistics.median(vals)
             sv = sorted(vals)
             n = len(sv)
-            if n == 1:
+            if n < 3:
+                warning = "n < 3, percentiles unreliable" if n > 0 else "No data"
                 stats_list.append({
-                    "median": round(sv[0], 2),
-                    "p25": round(sv[0], 2),
-                    "p75": round(sv[0], 2),
-                    "n": 1
+                    "median": round(med, 2),
+                    "p25": round(sv[0], 2) if n > 0 else 0,
+                    "p75": round(sv[-1], 2) if n > 0 else 0,
+                    "n": n,
+                    "warning": warning
                 })
                 continue
 
             stats_list.append({
                 "median": round(med, 2),
-                "p25": round(sv[int(n * 0.25)], 2),
-                "p75": round(sv[int(n * 0.75)], 2),
+                "p25": round(float(np.percentile(sv, 25)), 2),
+                "p75": round(float(np.percentile(sv, 75)), 2),
                 "n": n
             })
         result[p] = stats_list
@@ -2463,7 +2654,10 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
     for r in curr_records:
         val = getattr(r, parameter, None)
         if parameter == "calcium" and r.calcium is not None and r.albumin is not None:
-            val = r.calcium + 0.8 * (4.0 - r.albumin)
+            # Payne's formula for corrected calcium.
+            # Reference albumin 3.5 g/dL used for this Indian cohort (standard 4.0 
+            # often overestimates risk in malnourished patients).
+            val = r.calcium + 0.8 * (3.5 - r.albumin)
         
         if val is None: continue
         
@@ -2480,9 +2674,13 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
     # Get months for last 4 months (including current)
     from datetime import datetime, timedelta
     def get_prev_month(m_str):
-        y, m = int(m_str[:4]), int(m_str[5:7])
-        if m == 1: return f"{y-1}-12"
-        return f"{y}-{m-1:02d}"
+        try:
+            dt = datetime.strptime(m_str, "%Y-%m")
+            # Go to 1st of current month, then subtract 1 day to get last day of prev month
+            prev = dt.replace(day=1) - timedelta(days=1)
+            return prev.strftime("%Y-%m")
+        except Exception:
+            return m_str
 
     target_months = [month]
     m = month
@@ -2515,7 +2713,8 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
         
         h_val = getattr(h, parameter, None)
         if parameter == "calcium" and h.calcium is not None and h.albumin is not None:
-            h_val = h.calcium + 0.8 * (4.0 - h.albumin)
+            # Using 3.5 g/dL population-specific albumin reference
+            h_val = h.calcium + 0.8 * (3.5 - h.albumin)
         
         history_by_patient[h.patient_id][h.record_month] = h_val
 
@@ -3254,17 +3453,20 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
 
     return {
         "available": True,
-        "cascade_detected": cascade_detected,
-        "maturation_failure": maturation_failure,
-        "suboptimal_flow": low_bfr_count >= 2,
-        "high_recirculation": high_recirc_count >= 1,
-        "alerts": alerts,
-        "risk_score": risk_score,
-        "delay_days": delay_days,
-        "has_access_data": has_access_data,
-        "is_catheter": is_catheter,
-        "events": events,
-        "message": alerts[0] if alerts else default_message,
+        "error":     None,
+        "data": {
+            "cascade_detected": cascade_detected,
+            "maturation_failure": maturation_failure,
+            "suboptimal_flow": low_bfr_count >= 2,
+            "high_recirculation": high_recirc_count >= 1,
+            "alerts": alerts,
+            "risk_score": risk_score,
+            "delay_days": delay_days,
+            "has_access_data": has_access_data,
+            "is_catheter": is_catheter,
+            "events": events,
+            "message": alerts[0] if alerts else default_message,
+        }
     }
 
 
@@ -3311,13 +3513,21 @@ def detect_occult_overload(db: Session, patient_id: int):
             reason = f"Emergency session required due to {emergency_sessions[0].reason_emergency}. " + reason
             
         return {
-            "type": "Occult Overload Suspected",
-            "reason": reason,
-            "recommendation": "Perform BIA, IVC Diameter check, and Lung USG. Review dry weight and consider upgrading to 3x/week schedule.",
-            "severity": "High"
+            "available": True,
+            "error":     None,
+            "data": {
+                "type": "Occult Overload Suspected",
+                "reason": reason,
+                "recommendation": "Perform BIA, IVC Diameter check, and Lung USG. Review dry weight and consider upgrading to 3x/week schedule.",
+                "severity": "High"
+            }
         }
     
-    return None
+    return {
+        "available": False,
+        "error":     "No occult overload detected.",
+        "data":      {}
+    }
 
 
 def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
@@ -3358,7 +3568,7 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
             "cad_status":         p.cad_status,
             "chf_status":         p.chf_status,
             "dm_status":          p.dm_status,
-            "ef":                 p.ejection_fraction if p.ejection_fraction is not None else 60.0,
+            "ef":                 p.ejection_fraction,
             "history_of_pvd":     getattr(p, "history_of_pvd",     None),
             "dm_end_organ_damage": getattr(p, "dm_end_organ_damage", None),
             "solid_tumor":        getattr(p, "solid_tumor",        None),
@@ -3373,10 +3583,10 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
         rows.append({
             "patient":     p,
             "mort":        mort,
-            "prob_1yr":    mort.get("prob_1yr") if mort.get("available") else None,
-            "risk_level":  mort.get("risk_level", "Unknown"),
-            "css_class":   mort.get("class", "secondary"),
-            "confidence":  mort.get("confidence", "—"),
+            "prob_1yr":    mort["data"].get("prob_1yr") if mort.get("available") else None,
+            "risk_level":  mort["data"].get("risk_level", "Unknown") if mort.get("available") else "Unknown",
+            "css_class":   mort["data"].get("class", "secondary") if mort.get("available") else "secondary",
+            "confidence":  mort["data"].get("data_completeness", "—") if mort.get("available") else "—",
             "latest_hb":   df[0].get("hb") if df else None,
             "latest_alb":  df[0].get("albumin") if df else None,
             "n_months":    len(df),

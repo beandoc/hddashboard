@@ -260,7 +260,7 @@
       </thead>
       <tbody>
         {% for row in high_risk %}
-        {% set mort = row.mort %}
+        {% set mort = row.mort.data %}
         <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
@@ -279,13 +279,13 @@
             </div>
             {% if mort.uncertainty_lower is defined and mort.uncertainty_upper is defined %}
             <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">
-              <span title="Approximate uncertainty range; not a validated 95% CI">Range: {{ (mort.uncertainty_lower * 100) | int }}%&ndash;{{ (mort.uncertainty_upper * 100) | int }}%</span>
+              <span title="Estimated uncertainty range; not a validated predictive interval">Range: {{ (mort.uncertainty_lower * 100) | int }}%&ndash;{{ (mort.uncertainty_upper * 100) | int }}%</span>
             </div>
             {% endif %}
           </td>
           <td data-label="4-Year Risk">
-            {% if row.mort.prob_4yr is not none %}
-            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (row.mort.prob_4yr * 100) | round | int }}%</span>
+            {% if mort.prob_4yr is not none %}
+            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (mort.prob_4yr * 100) | round | int }}%</span>
             {% else %}<span style="color:var(--muted);">—</span>{% endif %}
           </td>
           <td>
@@ -353,7 +353,7 @@
       </thead>
       <tbody>
         {% for row in moderate %}
-        {% set mort = row.mort %}
+        {% set mort = row.mort.data %}
         <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>
@@ -377,8 +377,8 @@
             {% endif %}
           </td>
           <td data-label="4-Year Risk">
-            {% if row.mort.prob_4yr is not none %}
-            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (row.mort.prob_4yr * 100) | round | int }}%</span>
+            {% if mort.prob_4yr is not none %}
+            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (mort.prob_4yr * 100) | round | int }}%</span>
             {% else %}<span style="color:var(--muted);">—</span>{% endif %}
           </td>
           <td>
@@ -446,7 +446,7 @@
       </thead>
       <tbody>
         {% for row in low_risk %}
-        {% set mort = row.mort %}
+        {% set mort = row.mort.data %}
         <tr id="patient-{{ row.patient.id }}">
           <td class="patient-name-cell">
             <strong>{{ row.patient.name }}</strong>

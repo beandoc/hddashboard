@@ -281,7 +281,7 @@
     {% else %}
     <div class="dashboard-row">
       <!-- HB Trajectory -->
-      {% set hb = analytics.hb_trajectory %}
+      {% set hb = analytics.hb_trajectory.data %}
       <div class="insight-card">
         <div class="card-head">
           <i class="material-icons">trending_up</i>
@@ -306,7 +306,7 @@
             {% endif %}
             {% if hb.pi_lower is not none and hb.pi_upper is not none %}
             <div class="ci-line">
-              95% CI: {{ hb.pi_lower }} – {{ hb.pi_upper }} g/dL
+              95% PI: {{ hb.pi_lower }} – {{ hb.pi_upper }} g/dL
               &nbsp;·&nbsp; {{ hb.n_points }} data points
               {% if hb.method %}&nbsp;·&nbsp; <span style="color:#3b5bdb;font-weight:600;">{{ hb.method }}</span>{% if hb.posterior_std %} σ={{ hb.posterior_std }}{% endif %}{% endif %}
             </div>
@@ -330,7 +330,7 @@
       </div>
 
       <!-- EPO Response -->
-      {% set epo = analytics.epo_response %}
+      {% set epo = analytics.epo_response.data %}
       <div class="insight-card">
         <div class="card-head">
           <i class="material-icons">medication</i>
@@ -352,7 +352,7 @@
       </div>
 
       <!-- Albumin Trend -->
-      {% set alb = analytics.albumin_risk %}
+      {% set alb = analytics.albumin_risk.data %}
       <div class="insight-card">
         <div class="card-head">
           <i class="material-icons">restaurant</i>
@@ -371,7 +371,7 @@
             {% endif %}
             {% if alb.pi_lower is not none and alb.pi_upper is not none %}
             <div class="ci-line">
-              95% CI: {{ alb.pi_lower }} – {{ alb.pi_upper }} g/dL
+              95% PI: {{ alb.pi_lower }} – {{ alb.pi_upper }} g/dL
               &nbsp;·&nbsp; {{ alb.n_points }} data points
               {% if alb.method %}&nbsp;·&nbsp; <span style="color:#3b5bdb;font-weight:600;">{{ alb.method }}</span>{% if alb.posterior_std %} σ={{ alb.posterior_std }}{% endif %}{% endif %}
             </div>
@@ -400,8 +400,9 @@
           <i class="material-icons">check_circle</i>
           <h3>Achievement</h3>
         </div>
-        {% set ts_score = analytics.target_score.score %}
-        {% set ts_status = analytics.target_score.status %}
+        {% set ts = analytics.target_score.data %}
+        {% set ts_score = ts.score %}
+        {% set ts_status = ts.status %}
         {% set ts_circle_class = "green" if ts_score >= 8 else "amber" if ts_score >= 6 else "red" %}
         {% set ts_pill_class = "success" if ts_score >= 8 else "warning" if ts_score >= 6 else "danger" %}
         <div class="score-circle {{ ts_circle_class }}">
@@ -409,31 +410,33 @@
         </div>
         <div style="text-align: center;">
             <span class="status-pill {{ ts_pill_class }}">{{ ts_status }} Status</span>
-            {% if analytics.target_score.available is defined and analytics.target_score.available < 10 %}
+            {% if ts.available is defined and ts.available < 10 %}
             <div style="font-size:0.72rem; color:#888; margin-top:6px;">
-              {{ analytics.target_score.raw_score }}/{{ analytics.target_score.available }} criteria available
+              {{ ts.raw_score }}/{{ ts.available }} criteria available
             </div>
             {% endif %}
         </div>
-        {{ missing_inputs(analytics.target_score.inputs_missing) }}
+        {{ missing_inputs(ts.inputs_missing) }}
       </div>
 
       <!-- Iron Status -->
       <div class="insight-card">
+        {% set iron = analytics.iron_status.data %}
         <div class="card-head">
           <i class="material-icons">opacity</i>
           <h3>Iron Reserves</h3>
-          <span class="status-pill {{ analytics.iron_status.class }}">
-            {{ analytics.iron_status.status }}
+          <span class="status-pill {{ iron.class }}">
+            {{ iron.status }}
           </span>
         </div>
-        <div class="card-val">{{ analytics.iron_status.status }}</div>
-        <div class="card-desc">{{ analytics.iron_status.message }}</div>
-        {{ missing_inputs(analytics.iron_status.inputs_missing) }}
+        <div class="card-val">{{ iron.status }}</div>
+        <div class="card-desc">{{ iron.message }}</div>
+        {{ missing_inputs(iron.inputs_missing) }}
       </div>
 
       <!-- Deterioration Risk -->
       <div class="insight-card">
+        {% set dr = analytics.deterioration_risk.data %}
         <div class="card-head">
           <i class="material-icons">report_problem</i>
           <h3>Priority Level</h3>
@@ -451,7 +454,7 @@
       </div>
 
       <!-- Mortality Predictor AI -->
-      {% set mort = analytics.mortality_risk %}
+      {% set mort = analytics.mortality_risk.data %}
       <div class="insight-card" style="border-top: 3px solid {% if mort.class == 'danger' %}#dc2626{% elif mort.class == 'warning' %}#d97706{% else %}#16a34a{% endif %};">
         <div class="card-head">
           <i class="material-icons">memory</i>
@@ -581,7 +584,7 @@
       </div>
 
       <!-- MIA Syndrome Status -->
-      {% set mia = analytics.mia_status %}
+      {% set mia = analytics.mia_status.data %}
       <div class="insight-card" style="border-top: 3px solid {% if mia.score is not none and mia.score >= 2 %}#dc2626{% elif mia.score == 1 %}#d97706{% else %}#16a34a{% endif %};">
         <div class="card-head">
           <i class="material-icons" style="color:#6366f1;">biotech</i>

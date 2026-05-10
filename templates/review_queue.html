@@ -199,9 +199,10 @@
 
             {# Bayesian mini-panel — shown when profile is available #}
             {% if bay %}
-            {% set hb_b   = bay.hb %}
-            {% set alb_b  = bay.albumin %}
-            {% set phos_b = bay.phosphorus %}
+            {% set bay_data = bay.data %}
+            {% set hb_b   = bay_data.hb %}
+            {% set alb_b  = bay_data.albumin %}
+            {% set phos_b = bay_data.phosphorus %}
             <div class="bay-panel">
               <div class="bay-panel-title">
                 <i class="material-icons" style="font-size:0.8rem; vertical-align:middle;">auto_graph</i>
@@ -248,9 +249,9 @@
 
               {# 95% CI for Hb — gives nephrologist a sense of uncertainty #}
               <div style="width:100%; font-size:0.65rem; color:#94a3b8; margin-top:2px;">
-                Hb 95% CI: {{ (hb_b.ci_95[0]*100)|round|int }}%–{{ (hb_b.ci_95[1]*100)|round|int }}%
+                Hb 95% PI: {{ (hb_b.pi_95[0]*100)|round|int }}%–{{ (hb_b.pi_95[1]*100)|round|int }}%
                 &nbsp;·&nbsp; based on {{ hb_b.n_observed }} observed months
-                &nbsp;·&nbsp; composite score: <strong>{{ (bay.summary.composite_alert_score * 100)|round|int }}%</strong>
+                &nbsp;·&nbsp; composite score: <strong>{{ (bay_data.summary.composite_alert_score * 100)|round|int }}%</strong>
               </div>
             </div>
             {% endif %}

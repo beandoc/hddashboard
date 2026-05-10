@@ -372,6 +372,7 @@
       <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
       <a href="/entry" class="{{ 'active' if '/entry' in request.url.path }}">Data Entry</a>
       <a href="/patients" class="{{ 'active' if '/patients' in request.url.path }}">Patients</a>
+      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
       <a href="/schedule" class="{{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
       
       <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
@@ -387,6 +388,7 @@
       <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}">Review Queue</a>
       <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}">Patients</a>
       <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}">Analytics</a>
+      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
       <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
       
       <span class="nav-divider"></span>
