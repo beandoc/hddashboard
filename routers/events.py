@@ -184,6 +184,14 @@ async def create_interim_lab(
     except BadData:
         raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
     
+    user = get_user(request)
+    entered_by = "Unknown"
+    if user:
+        if isinstance(user, dict):
+            entered_by = user.get("username", "Unknown")
+        else:
+            entered_by = getattr(user, "username", "Unknown")
+
     interim = InterimLabRecord(
         patient_id=patient_id,
         lab_date=date.fromisoformat(lab_date),
@@ -193,7 +201,7 @@ async def create_interim_lab(
         unit=unit,
         trigger=trigger,
         notes=notes,
-        entered_by=get_user(request).get("username", "Unknown") if get_user(request) else "Unknown"
+        entered_by=entered_by
     )
     db.add(interim)
     db.commit()

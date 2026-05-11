@@ -57,16 +57,24 @@ def _run_startup_migrations():
             for col in mapper.persist_selectable.columns:
                 if col.name in existing or col.primary_key:
                     continue
-                sql_type = type_map.get(type(col.type), "VARCHAR")
+                # Robust type compilation using the engine's dialect
+                try:
+                    sql_type = col.type.compile(engine.dialect)
+                except Exception:
+                    sql_type = type_map.get(type(col.type), "VARCHAR")
+                
                 default_clause = ""
                 if col.default is not None and hasattr(col.default, "arg") and not callable(col.default.arg):
-                    default_clause = f" DEFAULT {col.default.arg}"
+                    default_clause = f" DEFAULT '{col.default.arg}'" if isinstance(col.default.arg, str) else f" DEFAULT {col.default.arg}"
+                
                 try:
-                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {sql_type}{default_clause}"))
-                    conn.commit()
-                    logging.info(f"Migration: added {col.name} to {table_name}")
-                except Exception:
-                    pass  # column already exists or unsupported
+                    # Use a separate connection for each migration to avoid transaction issues
+                    with engine.begin() as migration_conn:
+                        migration_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {sql_type}{default_clause}"))
+                    logging.info(f"Migration: successfully added {col.name} to {table_name}")
+                except Exception as e:
+                    # Log the error but continue (usually means column exists)
+                    logging.debug(f"Migration skip: {col.name} in {table_name} (%s)", e)
 
 _run_startup_migrations()
 

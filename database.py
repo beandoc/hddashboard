@@ -178,6 +178,7 @@ class Patient(Base):
     reminders = relationship("PatientReminder", back_populates="patient", cascade="all, delete-orphan")
     dry_weight_assessments = relationship("DryWeightAssessment", back_populates="patient", cascade="all, delete-orphan")
     events = relationship("ClinicalEvent", back_populates="patient", cascade="all, delete-orphan")
+    research_records = relationship("ResearchRecord", back_populates="patient", cascade="all, delete-orphan")
 
 class PatientReminder(Base):
     __tablename__ = "patient_reminders"
@@ -664,7 +665,7 @@ class ResearchRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("ResearchProject", back_populates="records")
-    patient = relationship("Patient")
+    patient = relationship("Patient", back_populates="research_records")
 
 def to_dict(obj):
     """Serialize SQLAlchemy model to dictionary, skipping internal state and relationships."""

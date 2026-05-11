@@ -5,7 +5,7 @@ from typing import Optional
 from datetime import date as date_type, datetime
 import json
 
-from database import get_db, Patient, ResearchProject, ResearchRecord
+from database import get_db, Patient, ResearchProject, ResearchRecord, MonthlyRecord, SessionRecord
 from config import templates
 from dependencies import get_user, _require_admin_role
 
