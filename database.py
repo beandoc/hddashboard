@@ -648,7 +648,7 @@ class ResearchProject(Base):
     status = Column(String, default="Active")
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    records = relationship("ResearchRecord", back_populates="project")
+    records = relationship("ResearchRecord", back_populates="project", cascade="all, delete-orphan")
 
 class ResearchRecord(Base):
     __tablename__ = "research_records"

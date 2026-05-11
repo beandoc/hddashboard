@@ -62,6 +62,7 @@
                             <th>Metrics (JSON)</th>
                             <th>Notes</th>
                             <th>Logged By</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -77,6 +78,13 @@
                             </td>
                             <td style="font-size:0.85rem; color:var(--text-muted);">{{ r.record.notes }}</td>
                             <td style="font-size:0.85rem;">{{ r.record.entered_by }}</td>
+                            <td>
+                                <form method="POST" action="/research/projects/{{ project.id }}/records/{{ r.record.id }}/delete" onsubmit="return confirm('Delete this test record?');" style="margin:0;">
+                                    <button type="submit" style="background:none; border:none; color:#ef4444; cursor:pointer;" title="Delete Record">
+                                        <i class="material-icons" style="font-size:1.1rem;">delete_outline</i>
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>

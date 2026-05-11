@@ -88,6 +88,27 @@
         
         const testType = "{{ test_type }}";
         const fieldsArea = document.getElementById('fieldsArea');
+
+        // Pre-calculated values from backend
+        const mappedData = {
+            name: {{ patient.name|tojson }},
+            age: {{ patient.age|tojson }},
+            sex: {{ patient.sex|tojson }},
+            education: {{ patient.education_level|tojson }},
+            hb: {{ (latest_monthly.hb if latest_monthly else "")|tojson }},
+            creatinine: {{ (latest_monthly.serum_creatinine if latest_monthly else "")|tojson }},
+            calcium: {{ (latest_monthly.calcium if latest_monthly else "")|tojson }},
+            phosphorus: {{ (latest_monthly.phosphorus if latest_monthly else "")|tojson }},
+            albumin: {{ (latest_monthly.albumin if latest_monthly else "")|tojson }},
+            dialysis_type: {{ patient.dialysis_modality|tojson }},
+            dialysis_freq: {{ patient.hd_frequency|tojson }},
+            dialysis_duration: {{ dialysis_years|tojson }},
+            comorbidities: {{ patient.comorbidities|tojson }},
+            transplant: {{ ("Yes" if patient.history_of_renal_transplant else "No")|tojson }},
+            bp: {{ ((latest_session.bp_pre_sys ~ '/' ~ latest_session.bp_pre_dia) if latest_session else "")|tojson }},
+            bp_meds: {{ (latest_monthly.antihypertensive_details if latest_monthly else "")|tojson }},
+            htn_count: {{ (latest_monthly.antihypertensive_count if latest_monthly else "")|tojson }}
+        };
         
         const fieldSchemas = {
             "NT_PRO_BNP": [
@@ -100,11 +121,76 @@
                 { name: "dynamometer_model", label: "Dynamometer Model", type: "text" }
             ],
             "KDQOL_36": [
-                { name: "sf12_physical", label: "SF-12 Physical Component", type: "number", step: "0.1" },
-                { name: "sf12_mental", label: "SF-12 Mental Component", type: "number", step: "0.1" },
-                { name: "burden_kidney_disease", label: "Burden of Kidney Disease", type: "number", step: "0.1" },
-                { name: "symptoms_problems", label: "Symptoms and Problems", type: "number", step: "0.1" },
-                { name: "effects_kidney_disease", label: "Effects of Kidney Disease", type: "number", step: "0.1" }
+                { name: "baseline_info_header", label: "I. Baseline Information / बेसलाइन माहिती", type: "header" },
+                { name: "name_marathi", label: "नाव:/ NAME", type: "text", defaultValue: mappedData.name },
+                { name: "age_marathi", label: "वय: /AGE (IN YEARS)", type: "number", defaultValue: mappedData.age },
+                { name: "sex_marathi", label: "लिंग:/ SEX", type: "select", options: ["Male / पुरुष", "Female / स्त्री", "Other / इतर"], defaultValue: (mappedData.sex == 'Male' ? 'Male / पुरुष' : (mappedData.sex == 'Female' ? 'Female / स्त्री' : '')) },
+                { name: "education_marathi", label: "शिक्षण स्तर: / EDUCATION LEVEL", type: "text", defaultValue: mappedData.education },
+                { name: "occupation_marathi", label: "व्यवसाय: / OCCUPATION", type: "text" },
+                { name: "marital_status_marathi", label: "वैवाहिक स्थिती: /MARITAL STATUS", type: "text" },
+                { name: "monthly_income_marathi", label: "आर्थिक स्थिती: / monthly income", type: "text" },
+                { name: "contact_number_marathi", label: "CONTACT NUMBER", type: "text" },
+
+                { name: "clinical_header", label: "II. Clinical Parameters / क्लिनिकल मापदंड", type: "header" },
+                { name: "hb_marathi", label: "हिमोग्लोबिन / hemoglobin (g/dL):", type: "number", step: "0.1", defaultValue: mappedData.hb },
+                { name: "creatinine_marathi", label: "सीरम क्रिएटिनिन / S. CREATININE (mg/dL):", type: "number", step: "0.1", defaultValue: mappedData.creatinine },
+                { name: "calcium_marathi", label: "सीरम कॅल्शियम / S. CALCIUM (mg/dL):", type: "number", step: "0.1", defaultValue: mappedData.calcium },
+                { name: "phosphorus_marathi", label: "S. PHOSPHORUS (mg/dl)", type: "number", step: "0.1", defaultValue: mappedData.phosphorus },
+                { name: "albumin_marathi", label: "S. Albumin levels (g/dL)", type: "number", step: "0.1", defaultValue: mappedData.albumin },
+                { name: "dialysis_duration_marathi", label: "डायलिसिस कालावधी (वर्षे): /Duration of dialysis (years)", type: "number", step: "0.1", defaultValue: mappedData.dialysis_duration },
+                { name: "dialysis_type_marathi", label: "डायलिसिस प्रकार / Type of Dialysis", type: "text", defaultValue: mappedData.dialysis_type },
+                { name: "dialysis_freq_marathi", label: "डायलिसिस वारंवारता (सत्रे प्रति आठवडा): / Frequency per week", type: "number", defaultValue: mappedData.dialysis_freq },
+                { name: "comorbidities_marathi", label: "सहवर्ती आजारांचा इतिहास: / Any co-morbidities", type: "text", fullWidth: true, defaultValue: mappedData.comorbidities },
+                { name: "transplant_history_marathi", label: "प्रत्यारोपणाचा इतिहास:/ Any history of renal transplant?", type: "text", fullWidth: true, defaultValue: mappedData.transplant },
+
+                { name: "qol_header", label: "III. Quality of Life (SF-12) / जीवनमानाचा दर्जा", type: "header" },
+                { name: "q1_health", label: "In general, how is your health? / सामान्यतः, आपले आरोग्य कसे आहे?", type: "select", options: ["Excellent", "Very Good", "Good", "Fair", "Poor"], fullWidth: true },
+                { name: "q2_moderate_activities", label: "Moderate activities (cleaning/walking)? / सामान्य कामे (झाडू मारणे/चालणे)?", type: "select", options: ["Limited A Lot", "Limited A Little", "Not Limited At All"], fullWidth: true },
+                { name: "q3_stairs", label: "Climb multiple stairs? / अनेक जिने चढू शकता का?", type: "select", options: ["Limited A Lot", "Limited A Little", "Not Limited At All"], fullWidth: true },
+                { name: "q4_physical_work", label: "Physical health affected work? / आरोग्यामुळे कामावर परिणाम झाला का?", type: "select", options: ["Yes", "No"], fullWidth: true },
+                { name: "q5_limited_work", label: "Limited in type of work? / कामाच्या प्रकाराबाबत मर्यादा वाटली का?", type: "select", options: ["Yes", "No"], fullWidth: true },
+                { name: "q6_emotional_work", label: "Emotional problems got less work done? / भावनिक अडचणींमुळे कमी काम झाले का?", type: "select", options: ["Yes", "No"], fullWidth: true },
+                { name: "q7_emotional_careful", label: "Work less carefully due to emotions? / भावनिक कारणांमुळे काम नीट झाले नाही का?", type: "select", options: ["Yes", "No"], fullWidth: true },
+                { name: "q8_pain", label: "Pain interference with work? / दुखण्यामुळे कामात अडथळा आला का?", type: "select", options: ["Not at all", "A little bit", "Moderately", "Quite a bit", "Extremely"], fullWidth: true },
+                { name: "q9_calm", label: "Felt calm and peaceful? / शांत आणि समाधानी वाटले का?", type: "select", options: ["All the time", "Most time", "Some time", "Little time", "None"], fullWidth: true },
+                { name: "q10_energy", label: "Did you have a lot of energy? / तुमच्यात खूप ऊर्जा होती का?", type: "select", options: ["All the time", "Most time", "Some time", "Little time", "None"], fullWidth: true },
+                { name: "q11_socializing", label: "Health issues stop socializing? / सामाजिक भेटींना टाळलं का?", type: "select", options: ["All the time", "Most time", "Some time", "Little time", "None"], fullWidth: true },
+                { name: "q12_down_sad", label: "Did you feel down or sad? / तुम्ही दुःखी वाटत होतात का?", type: "select", options: ["All the time", "Most time", "Some time", "Little time", "None"], fullWidth: true },
+
+                { name: "impact_header", label: "IV. Kidney Disease Impact / किडनी रोगाचा प्रभाव", type: "header" },
+                { name: "s2_affects_life", label: "Affects my life a lot / आयुष्यावर खूप परिणाम होतो", type: "select", options: ["Definitely True", "Mostly True", "Don't Know", "Mostly False", "Definitely False"], fullWidth: true },
+                { name: "s2_too_much_time", label: "Too much time dealing with it / उपचारात खूप वेळ जातो", type: "select", options: ["Definitely True", "Mostly True", "Don't Know", "Mostly False", "Definitely False"], fullWidth: true },
+                { name: "s2_frustrated", label: "Feel frustrated / आजारामुळे मी त्रस्त आहे", type: "select", options: ["Definitely True", "Mostly True", "Don't Know", "Mostly False", "Definitely False"], fullWidth: true },
+                { name: "s2_family_burden", label: "Burden on my family / कुटुंबावर बोझ असल्याचे वाटते", type: "select", options: ["Definitely True", "Mostly True", "Don't Know", "Mostly False", "Definitely False"], fullWidth: true },
+
+                { name: "symptoms_header", label: "V. Symptoms and Problems / लक्षणे आणि समस्या", type: "header" },
+                { name: "s3_muscle_pain", label: "Muscle pain / स्नायूंमध्ये वेदना", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_chest_pain", label: "Chest pain / छातीत दुखणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_cramps", label: "Cramps / आकडी / मुंग्या येणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_itchy_skin", label: "Itchy skin / खाज येणारी त्वचा", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_dry_skin", label: "Dry skin / कोरडी त्वचा", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_breathlessness", label: "Breathlessness / श्वास घेण्यास त्रास", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_dizziness", label: "Dizziness / चक्कर येणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_loss_appetite", label: "Loss of appetite / भूक न लागणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_weakness", label: "Weakness / अशक्तपणा", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_numbness", label: "Numbness / बधीरपणा / सुन्न होणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_nausea", label: "Nausea / मळमळ / उलटीसारखे वाटणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s3_site_problems", label: "Dialysis site problems / डायलिसिसच्या ठिकाणी त्रास", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+
+                { name: "burden_header", label: "VI. Specific Burdens / विशिष्ट त्रास", type: "header" },
+                { name: "s4_fluid", label: "Fluid restrictions / पाणी पिण्यावर मर्यादा", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s4_dietary", label: "Dietary restrictions / खाण्यावर/आहारावर बंधन", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s4_household", label: "Household work / घरकाम", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s4_travel", label: "Travel / प्रवास", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s4_dependence", label: "Dependence on doctors / डॉक्टरांवर अवलंबून राहणे", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s4_stress", label: "Stress or worries / ताण किंवा चिंता", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+                { name: "s4_appearance", label: "Personal appearance / शारीरिक बनावट / देखावा", type: "select", options: ["Not bothered", "Somewhat", "Moderately", "Very much", "Extremely"], fullWidth: true },
+
+                { name: "meta_header", label: "VII. Vital Metrics / इतर मापदंड", type: "header" },
+                { name: "form_filled_by", label: "Form filled by / फॉर्म भरला", type: "text" },
+                { name: "last_bp", label: "Last BP (mm Hg) / शेवटचा रक्तदाब", type: "text", defaultValue: mappedData.bp },
+                { name: "bp_medicines", label: "BP Medicines / बीपी औषधे", type: "text", fullWidth: true, defaultValue: mappedData.bp_meds },
+                { name: "total_htn_meds", label: "Total HTN Meds Count / बीपी औषधांची संख्या", type: "number", defaultValue: mappedData.htn_count }
             ],
             "FALL_RISK": [
                 { name: "history_of_falls", label: "History of Falls (Past Year)", type: "select", options: ["No", "Yes"] },
@@ -403,25 +489,33 @@
 
             let html = '';
             schema.forEach(field => {
+                if (field.type === 'header') {
+                    html += `<div class="full-width" style="margin-top:25px; padding-bottom:8px; border-bottom:2px solid #fed7aa; color:#9a3412; font-weight:800; font-family:'Outfit'; font-size:1.05rem;">${field.label}</div>`;
+                    return;
+                }
+
                 const stepAttr = field.step ? `step="${field.step}"` : '';
                 const maxAttr = field.max ? `max="${field.max}"` : '';
                 const minAttr = field.min ? `min="${field.min}"` : '';
                 const readonlyAttr = field.readonly ? 'readonly style="background:#f1f5f9; cursor:not-allowed;"' : '';
+                const fullWidthClass = field.fullWidth ? 'full-width' : '';
+                const val = field.defaultValue || "";
                 
                 let inputHtml = '';
                 if (field.type === 'select') {
                     const options = field.options.map(o => {
-                        const val = (typeof o === 'object') ? o.value : o;
-                        const lab = (typeof o === 'object') ? o.label : o;
-                        return `<option value="${val}">${lab}</option>`;
+                        const optVal = (typeof o === 'object') ? o.value : o;
+                        const optLab = (typeof o === 'object') ? o.label : o;
+                        const selected = (optVal === val || optLab === val) ? 'selected' : '';
+                        return `<option value="${optVal}" ${selected}>${optLab}</option>`;
                     }).join('');
                     inputHtml = `<select name="${field.name}" ${readonlyAttr}><option value="">-- Select --</option>${options}</select>`;
                 } else {
-                    inputHtml = `<input type="${field.type}" name="${field.name}" ${stepAttr} ${maxAttr} ${minAttr} ${readonlyAttr} placeholder="Enter value...">`;
+                    inputHtml = `<input type="${field.type}" name="${field.name}" value="${val}" ${stepAttr} ${maxAttr} ${minAttr} ${readonlyAttr} placeholder="Enter value...">`;
                 }
 
                 html += `
-                    <div class="form-group">
+                    <div class="form-group ${fullWidthClass}">
                         <label>${field.label}</label>
                         ${inputHtml}
                     </div>

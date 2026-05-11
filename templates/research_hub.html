@@ -78,7 +78,14 @@
                 <p>{{ project.description or "No description provided." }}</p>
                 <div class="card-footer">
                     <span class="status-badge">{{ project.status }}</span>
-                    <a href="/research/projects/{{ project.id }}" class="btn-outline">Open Project</a>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <a href="/research/projects/{{ project.id }}" class="btn-outline">Open Project</a>
+                        <form method="POST" action="/research/projects/{{ project.id }}/delete" onsubmit="return confirm('Delete this project and all its records?');" style="margin:0;">
+                            <button type="submit" style="background:none; border:none; color:#ef4444; cursor:pointer; display:flex; align-items:center;" title="Delete Project">
+                                <i class="material-icons" style="font-size:1.2rem;">delete</i>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
             {% else %}

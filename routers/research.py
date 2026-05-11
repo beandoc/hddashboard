@@ -70,6 +70,16 @@ async def new_record_form(project_id: int, patient_id: int, test_type: str, requ
         
     from dynamic_vars import get_all_variables
     all_variables = get_all_variables(db)
+
+    # Fetch latest clinical data for auto-filling
+    latest_monthly = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+    latest_session = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).first()
+
+    dialysis_years = None
+    if patient.hd_wef_date:
+        from datetime import date as date_obj
+        delta = date_obj.today() - patient.hd_wef_date
+        dialysis_years = round(delta.days / 365.25, 1)
         
     return templates.TemplateResponse("research_record_form.html", {
         "request": request,
@@ -77,6 +87,9 @@ async def new_record_form(project_id: int, patient_id: int, test_type: str, requ
         "patient": patient,
         "test_type": test_type,
         "all_variables": all_variables,
+        "latest_monthly": latest_monthly,
+        "latest_session": latest_session,
+        "dialysis_years": dialysis_years,
         "user": get_user(request)
     })
 
@@ -118,5 +131,25 @@ async def save_record(
     )
     
     db.add(record)
+    db.commit()
+    return RedirectResponse(url=f"/research/projects/{project_id}", status_code=303)
+
+@router.post("/projects/{project_id}/delete")
+async def delete_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+    _require_admin_role(request)
+    project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404)
+    db.delete(project)
+    db.commit()
+    return RedirectResponse(url="/research", status_code=303)
+
+@router.post("/projects/{project_id}/records/{record_id}/delete")
+async def delete_record(project_id: int, record_id: int, request: Request, db: Session = Depends(get_db)):
+    _require_admin_role(request)
+    record = db.query(ResearchRecord).filter(ResearchRecord.id == record_id, ResearchRecord.project_id == project_id).first()
+    if not record:
+        raise HTTPException(status_code=404)
+    db.delete(record)
     db.commit()
     return RedirectResponse(url=f"/research/projects/{project_id}", status_code=303)
