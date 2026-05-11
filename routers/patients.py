@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 import re
+from datetime import datetime
 
 from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord
 from config import templates, _csrf_signer
@@ -499,10 +500,28 @@ async def update_patient(
     return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
 
 @router.post("/{patient_id}/deactivate")
-async def deactivate_patient(patient_id: int, db: Session = Depends(get_db)):
+async def deactivate_patient(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    """Deactivates a patient record. Restricted to admin/doctor roles."""
+    user = get_user(request)
+    if not user or getattr(user, "role", None) not in ["admin", "doctor"]:
+        # Also check if user is a dict (from auth_middleware)
+        role = user.get("role") if isinstance(user, dict) else getattr(user, "role", None)
+        if role not in ["admin", "doctor"]:
+            logger.warning(f"Unauthorized deactivation attempt for patient {patient_id} by user {getattr(user, 'username', 'unknown')}")
+            raise HTTPException(status_code=403, detail="Only doctors or admins can deactivate patients.")
+
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
-    p.is_active = False
-    db.commit()
+    
+    try:
+        p.is_active = False
+        p.updated_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"Patient {patient_id} ({p.name}) deactivated by {getattr(user, 'username', 'unknown') if not isinstance(user, dict) else user.get('username')}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"CRITICAL: Failed to deactivate patient {patient_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during deactivation. Clinical data integrity preserved.")
+
     return RedirectResponse(url="/patients", status_code=303)
