@@ -245,11 +245,13 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     ]
 
     eri = None
-    if latest_monthly and p.dry_weight and latest_monthly.hb and latest_monthly.epo_weekly_units:
+    if latest_monthly and latest_monthly.hb:
         try:
             _dose = _resolve_epo_dose(latest_monthly)
-            if _dose:
-                eri = round(float(_dose) / float(p.dry_weight) / (float(latest_monthly.hb) * 10), 2)
+            _weight = latest_monthly.target_dry_weight or p.dry_weight
+            if _dose and _weight and float(latest_monthly.hb) > 0:
+                # ERI = (Weekly ESA Dose / Weight) / Hemoglobin (g/dL)
+                eri = round((float(_dose) / float(_weight)) / float(latest_monthly.hb), 2)
         except: pass
 
     # Nutrition Logic

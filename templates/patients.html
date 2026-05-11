@@ -346,6 +346,7 @@
                 <tr>
                     <th data-label="Patient">Patient</th>
                     <th>Last HD Session</th>
+                    <th>Hb Variability (6m Range)</th>
                     <th>Lab Status</th>
                     <th>Clinical Alerts</th>
                     <th data-label="Actions">Actions</th>
@@ -377,6 +378,20 @@
                             </span>
                         {% else %}
                             <span style="color:#94a3b8; font-size:0.82rem;">No sessions</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Hb Variability (6m) -->
+                    <td data-label="Hb Variability (6m Range)">
+                        {% if row.hb_var_range is not none %}
+                            <div style="font-weight:700; font-size:0.95rem; color:{{ '#dc2626' if row.hb_var_range > 2.5 else '#16a34a' }};">
+                                {{ row.hb_var_range }} <span style="font-size:0.7rem; font-weight:400; color:#64748b;">g/dL</span>
+                            </div>
+                            {% if row.hb_var_pattern %}
+                                <div style="font-size:0.68rem; color:#64748b; margin-top:2px;">Pattern {{ row.hb_var_pattern }}</div>
+                            {% endif %}
+                        {% else %}
+                            <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">Insufficient data</span>
                         {% endif %}
                     </td>
 

@@ -52,6 +52,8 @@ async def sustainability_dashboard(request: Request, month: Optional[str] = None
             ]
         }
 
+    active_count = db.query(Patient).filter(Patient.is_active == True).count()
+
     return templates.TemplateResponse("sustainability.html", {
         "request": request,
         "month_str": month_str,
@@ -59,6 +61,7 @@ async def sustainability_dashboard(request: Request, month: Optional[str] = None
         "record": record,
         "session_count": session_count,
         "analysis": analysis,
+        "active_count": active_count,
         "user": get_user(request)
     })
 

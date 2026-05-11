@@ -116,7 +116,6 @@ def compute_dashboard(db: Session, month: str = None):
     Uses in-memory caching to avoid redundant heavy calculations.
     """
     if not month:
-        from dashboard_logic import get_current_month_str
         month = get_current_month_str()
 
     # 1. Check Cache
@@ -160,11 +159,27 @@ def compute_dashboard(db: Session, month: str = None):
         'epo_hypo_r3': {'count': 0, 'names': [], 'cutoff': None},  # HypoR3: top 20th %ile dose
         'iv_iron_rec': {'count': 0, 'names': []},
         'hb_high': {'count': 0, 'names': []},
+        'hb_variability_high': {'count': 0, 'names': []}, # Range > 2.5 g/dL (High risk)
         'missing_records': {'count': 0, 'names': []},
+        'adherence_risk':  {'count': 0, 'names': [], 'flags': {}}, # USRDS criteria
         'trend_hb': [],
         'trend_albumin': [],
         'trend_phosphorus': []
     }
+
+    # 6-month list for Hb Variability
+    six_months = []
+    try:
+        curr_y, curr_m = int(month[:4]), int(month[5:7])
+        for i in range(6):
+            target_m = curr_m - i
+            target_y = curr_y
+            while target_m <= 0:
+                target_m += 12
+                target_y -= 1
+            six_months.append(f"{target_y}-{target_m:02d}")
+    except:
+        six_months = [month]
 
     # Fetch all active patients in alphabetical order
     active_patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
@@ -190,6 +205,19 @@ def compute_dashboard(db: Session, month: str = None):
     # Fetch previous month records for trendlines
     prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).yield_per(100).all()
     prev_record_map = {r.patient_id: r for r in prev_records}
+
+    # Fetch all records for the last 6 months for variability analysis
+    all_6m_records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.record_month.in_(six_months),
+        MonthlyRecord.hb.isnot(None)
+    ).all()
+    
+    # Map patient_id -> [hb values]
+    hb_history = {}
+    for rec in all_6m_records:
+        if rec.patient_id not in hb_history:
+            hb_history[rec.patient_id] = []
+        hb_history[rec.patient_id].append(rec.hb)
 
     # Fetch interim records for this month
     interim_labs = db.query(InterimLabRecord).filter(InterimLabRecord.record_month == month).order_by(InterimLabRecord.lab_date.asc()).yield_per(100).all()
@@ -222,6 +250,14 @@ def compute_dashboard(db: Session, month: str = None):
     _hypo_r3_cutoff = _percentile(_all_doses, 90)  # top 10% = > 90th percentile
     metrics['epo_hypo_r3']['cutoff'] = round(_hypo_r3_cutoff, 0) if _hypo_r3_cutoff else None
 
+    # Fetch sessions for the month to check adherence (skipping/shortening)
+    all_month_sessions = db.query(SessionRecord).filter(SessionRecord.record_month == month).all()
+    session_by_patient = {}
+    for s in all_month_sessions:
+        if s.patient_id not in session_by_patient:
+            session_by_patient[s.patient_id] = []
+        session_by_patient[s.patient_id].append(s)
+
     # Fetch latest session date per patient for current month
     session_map = {}
     session_rows = (
@@ -248,15 +284,16 @@ def compute_dashboard(db: Session, month: str = None):
             "TSAT": r.tsat if r else None,
         }
         _missing_fields = [k for k, v in _CORE_FIELDS.items() if v is None]
-        _has_missing_data = bool(_missing_fields)  # True if any core field is blank
 
-        # Admission status (last event is Hospitalization and not yet Discharged)
+        # 1. Determine Admission Status
         last_hosp_event = db.query(ClinicalEvent).filter(
             ClinicalEvent.patient_id == p.id,
             ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"])
         ).order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc()).first()
         is_admitted = (last_hosp_event.event_type == "Hospitalization") if last_hosp_event else False
 
+        # 2. Initialize Row Basic Data
+        _has_missing_data = bool(_missing_fields)
         row = {
             "id": p.id,
             "last_session_date": session_map.get(p.id),
@@ -277,12 +314,65 @@ def compute_dashboard(db: Session, month: str = None):
             "ipth": r.ipth if r else None,
             "vit_d": r.vit_d if r else None,
             "protein": r.av_daily_protein if r else None,
+            "hb_var_range": None,
+            "hb_var_pattern": None,
+            "adherence_flags": [],
             "is_interim": False,
             "interim_details": {},
             "alerts": []
         }
+
+        # 3. Hb Variability Analysis
+        hist = hb_history.get(p.id, [])
+        if len(hist) >= 1:
+            hb_var_range = round(max(hist) - min(hist), 1)
+            row["hb_var_range"] = hb_var_range
+            if hb_var_range > 2.5:
+                metrics['hb_variability_high']['count'] += 1
+                metrics['hb_variability_high']['names'].append(p.name)
+            
+            has_low = any(v < 11.0 for v in hist)
+            has_target = any(11.0 <= v < 12.5 for v in hist)
+            has_high = any(v >= 12.5 for v in hist)
+            
+            if has_low and not has_target and not has_high: hb_var_pattern = 1
+            elif not has_low and has_target and not has_high: hb_var_pattern = 2
+            elif not has_low and not has_target and has_high: hb_var_pattern = 3
+            elif has_low and has_target and not has_high: hb_var_pattern = 4
+            elif not has_low and has_target and has_high: hb_var_pattern = 5
+            elif has_low and has_high: hb_var_pattern = 6
+            row["hb_var_pattern"] = hb_var_pattern
+
+        # 4. Adherence Monitor (USRDS)
+        adherence_flags = []
+        pt_sessions = session_by_patient.get(p.id, [])
+        if len(pt_sessions) < 10 and not is_admitted:
+             adherence_flags.append("Skipped Sessions")
         
-        # Override with Latest Interim Labs
+        shortened = False
+        for s in pt_sessions:
+            actual_min = (s.duration_hours or 0) * 60 + (s.duration_minutes or 0)
+            prescribed_min = s.scheduled_treatment_duration or 240
+            if prescribed_min - actual_min >= 10:
+                shortened = True
+                break
+        if shortened: adherence_flags.append("Shortened Sessions")
+            
+        if r and r.idwg and (r.target_dry_weight or p.dry_weight):
+            dw = r.target_dry_weight or p.dry_weight
+            if (r.idwg / dw * 100) > 5.7: adherence_flags.append("High IDWG (>5.7%)")
+        
+        if r and r.phosphorus and r.phosphorus > 7.5: adherence_flags.append("Hyperphosphatemia (>7.5)")
+            
+        if adherence_flags:
+            metrics['adherence_risk']['count'] += 1
+            metrics['adherence_risk']['names'].append(p.name)
+            metrics['adherence_risk']['flags'][p.id] = adherence_flags
+            row["adherence_flags"] = adherence_flags
+            for f in adherence_flags:
+                row["alerts"].append(f)
+
+        # 5. Override with Latest Interim Labs
         p_interim = interim_map.get(p.id, {})
         if p_interim:
             if "hb" in p_interim:

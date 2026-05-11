@@ -25,6 +25,36 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 root_router = APIRouter(tags=["clinical-review"])
 
+@router.get("/hb-variability", response_class=HTMLResponse)
+@router.get("/hb-variability/", response_class=HTMLResponse)
+async def hb_variability_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    from dashboard_logic import compute_dashboard
+    month_str, _ = get_effective_month(db, month)
+    data = compute_dashboard(db, month_str)
+    patient_rows = data.get("patient_rows", [])
+    valid_rows = [r for r in patient_rows if r.get("hb_var_range") is not None]
+    valid_rows.sort(key=lambda x: x["hb_var_range"], reverse=True)
+    high_var = [r for r in valid_rows if r["hb_var_range"] > 2.5]
+    stable = [r for r in valid_rows if r["hb_var_range"] <= 2.5]
+    return templates.TemplateResponse("hb_variability_report.html", {
+        "request": request, "month_str": month_str, "high_var": high_var, "stable": stable, "user": get_user(request)
+    })
+
+@router.get("/adherence", response_class=HTMLResponse)
+@router.get("/adherence/", response_class=HTMLResponse)
+async def adherence_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    from dashboard_logic import compute_dashboard
+    month_str, _ = get_effective_month(db, month)
+    data = compute_dashboard(db, month_str)
+    patient_rows = data.get("patient_rows", [])
+    at_risk = [r for r in patient_rows if r.get("adherence_flags")]
+    at_risk.sort(key=lambda x: len(x["adherence_flags"]), reverse=True)
+    return templates.TemplateResponse("adherence_report.html", {
+        "request": request, "month_str": month_str, "at_risk": at_risk, "user": get_user(request)
+    })
+
 @router.get("/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)

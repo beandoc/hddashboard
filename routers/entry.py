@@ -225,17 +225,24 @@ async def save_entry(
     issues: str = Form(""),
     action: str = Form("save_back"),
 ):
-    entry_service.save_monthly_record(db, patient_id, locals())
-    
+    try:
+        entry_service.save_monthly_record(db, patient_id, locals())
+    except Exception as exc:
+        db.rollback()
+        logger.error(
+            "SAVE FAILED — patient_id=%s month=%s error=%s",
+            patient_id, month_str, exc, exc_info=True
+        )
+        return HTMLResponse(content=f"Error saving record: {str(exc)}", status_code=500)
+
     if action == "save_next":
         # Find next pending patient
         all_active = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
         existing = db.query(MonthlyRecord.patient_id).filter(MonthlyRecord.record_month == month_str).all()
         existing_ids = {r[0] for r in existing}
-        
-        found_next = False
+
         for p in all_active:
             if p.id not in existing_ids:
                 return RedirectResponse(url=f"/entry/{p.id}?month={month_str}&saved=1", status_code=303)
-                
+
     return RedirectResponse(url=f"/entry?month={month_str}&saved=1", status_code=303)
