@@ -60,6 +60,12 @@
                 <div class="patient-sub">
                     <span class="badge badge-hid">HID: {{ patient.hid_no }}</span>
                     <span class="badge badge-status">{{ patient.current_survival_status or 'Active' }}</span>
+                    {% if patient.transplant_prospect in ['Active', 'Listed'] %}
+                    <span class="badge" style="background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe; display: inline-flex; align-items: center; gap: 4px;">
+                        <i class="material-icons" style="font-size:1rem;">volunteer_activism</i>
+                        Transplant Prospect: {{ patient.transplant_prospect }}
+                    </span>
+                    {% endif %}
                     {% if patient.current_survival_status == 'Withdrawn' %}
                     <div style="margin-top: 10px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
                         <i class="material-icons" style="color: #ea580c; font-size: 1.2rem;">warning</i>
