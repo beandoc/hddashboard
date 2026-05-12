@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistical Analysis – Research Hub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #e0e7ff;
+            --secondary: #0ea5e9;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-dark); margin: 0; }
+        header { background: #1e1b4b; color: white; padding: 24px 32px; border-bottom: 4px solid var(--primary); }
+        header h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 1.9rem; display: flex; align-items: center; gap: 12px; }
+        .container { max-width: 1280px; margin: 28px auto; padding: 0 24px; }
+
+        /* ── Config Panel ───────────────────────────────── */
+        .config-panel {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 28px 32px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            margin-bottom: 28px;
+        }
+        .config-title { font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: var(--primary); margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px; }
+
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; align-items: end; }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        .form-group select, .form-group input[type="month"] {
+            padding: 9px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-family: 'Inter';
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            background: white;
+            transition: border-color 0.15s;
+        }
+        .form-group select:focus, .form-group input[type="month"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+        }
+
+        /* Test type selector tabs */
+        .test-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+        .test-tab {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            background: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s;
+        }
+        .test-tab:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+        .test-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .test-tab .material-icons { font-size: 1rem; }
+
+        .btn-run {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        .btn-run:hover { background: #4338ca; }
+        .btn-run:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        /* ── Results Panel ──────────────────────────────── */
+        .results-panel {
+            display: none;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 28px 32px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            margin-bottom: 28px;
+        }
+        .results-panel.visible { display: block; }
+
+        .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .results-title { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text-dark); }
+        .results-subtitle { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+
+        .results-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+
+        /* Stats table */
+        .stats-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .stats-table th { text-align: left; padding: 8px 12px; background: #f1f5f9; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+        .stats-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; }
+        .stats-table tr:last-child td { border-bottom: none; }
+        .stats-table .value-cell { font-weight: 600; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+        .stats-table .label-cell { color: var(--text-muted); }
+
+        .chart-container { min-height: 340px; }
+
+        /* Interpretation badge */
+        .interpretation {
+            margin-top: 20px;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            line-height: 1.6;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .interpretation.significant { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+        .interpretation.not-significant { background: #fefce8; border: 1px solid #fef08a; color: #854d0e; }
+        .interpretation.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+        .interpretation .material-icons { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+
+        /* Group comparison table */
+        .group-table-wrap { overflow-x: auto; }
+        .group-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; min-width: 500px; }
+        .group-table th { background: #f1f5f9; padding: 9px 14px; text-align: center; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); border-bottom: 2px solid var(--border); }
+        .group-table th:first-child { text-align: left; }
+        .group-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+        .group-table td:first-child { text-align: left; font-weight: 600; }
+        .group-table tr:last-child td { border-bottom: none; }
+        .sig-row { background: #fafafa; font-size: 0.82rem; color: var(--text-muted); }
+        .p-sig { color: var(--success); font-weight: 700; }
+        .p-ns { color: var(--warning); }
+
+        /* Loading spinner */
+        .spinner-wrap { display: none; align-items: center; gap: 12px; color: var(--text-muted); font-size: 0.9rem; padding: 20px 0; }
+        .spinner-wrap.visible { display: flex; }
+        .spinner { width: 22px; height: 22px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error banner */
+        .error-banner { display: none; padding: 12px 16px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 0.88rem; margin-bottom: 20px; }
+        .error-banner.visible { display: flex; gap: 10px; align-items: center; }
+
+        /* Correlation info */
+        .corr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .corr-card { background: #f8fafc; border-radius: 8px; padding: 14px 16px; border: 1px solid var(--border); }
+        .corr-card .label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+        .corr-card .value { font-size: 1.5rem; font-weight: 700; font-family: 'Outfit', sans-serif; }
+        .corr-card .sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .results-layout { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+            header { padding: 18px 20px; }
+            header h1 { font-size: 1.4rem; }
+            .container { padding: 0 16px; }
+            .config-panel, .results-panel { padding: 20px; }
+            .config-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    {% include "_nav.html" %}
+    <nav class="nav-breadcrumb" aria-label="Breadcrumb">
+        <a href="/">Dashboard</a>
+        <span class="bc-sep">/</span>
+        <a href="/research">Research Hub</a>
+        <span class="bc-sep">/</span>
+        <span class="bc-current">Statistical Analysis</span>
+    </nav>
+
+    <header>
+        <h1><i class="material-icons" style="font-size:2rem;">analytics</i> Statistical Analysis Module</h1>
+        <p style="opacity:0.75; margin:6px 0 0 44px; font-size:0.9rem;">Run descriptive stats, group comparisons, correlations, and trend analysis across <strong style="opacity:1">{{ patient_count }} active patients</strong>.</p>
+    </header>
+
+    <div class="container">
+
+        <!-- Config Panel -->
+        <div class="config-panel">
+            <div class="config-title"><i class="material-icons" style="font-size:1.1rem;">tune</i> Configure Analysis</div>
+
+            <!-- Test type tabs -->
+            <div class="test-tabs" id="testTabs">
+                <button class="test-tab active" data-type="descriptive" onclick="selectTest('descriptive')">
+                    <i class="material-icons">bar_chart</i> Descriptive Stats
+                </button>
+                <button class="test-tab" data-type="group_comparison" onclick="selectTest('group_comparison')">
+                    <i class="material-icons">compare</i> Group Comparison
+                </button>
+                <button class="test-tab" data-type="correlation" onclick="selectTest('correlation')">
+                    <i class="material-icons">scatter_plot</i> Correlation
+                </button>
+                <button class="test-tab" data-type="trend" onclick="selectTest('trend')">
+                    <i class="material-icons">trending_up</i> Trend Analysis
+                </button>
+            </div>
+
+            <div class="config-grid">
+                <!-- Variable 1 -->
+                <div class="form-group">
+                    <label>Variable</label>
+                    <select id="varSelect">
+                        {% for key, (label, unit) in stat_vars.items() %}
+                        <option value="{{ key }}">{{ label }}{% if unit %} ({{ unit }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Variable 2 (correlation only) -->
+                <div class="form-group" id="var2Group" style="display:none;">
+                    <label>Second Variable (Y-axis)</label>
+                    <select id="var2Select">
+                        {% for key, (label, unit) in stat_vars.items() %}
+                        <option value="{{ key }}">{{ label }}{% if unit %} ({{ unit }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Group By (comparison only) -->
+                <div class="form-group" id="groupByGroup" style="display:none;">
+                    <label>Group By</label>
+                    <select id="groupBySelect">
+                        {% for key, (label, source) in stat_groups.items() %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Date range -->
+                <div class="form-group">
+                    <label>From (Month)</label>
+                    <input type="month" id="dateFrom" value="2024-01">
+                </div>
+                <div class="form-group">
+                    <label>To (Month)</label>
+                    <input type="month" id="dateTo" value="{{ now[:7] if now else '2026-05' }}">
+                </div>
+
+                <!-- Run button -->
+                <div class="form-group" style="justify-content: flex-end;">
+                    <button class="btn-run" id="runBtn" onclick="runAnalysis()">
+                        <i class="material-icons" style="font-size:1rem;">play_arrow</i> Run Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error banner -->
+        <div class="error-banner" id="errorBanner">
+            <i class="material-icons">error_outline</i>
+            <span id="errorText"></span>
+        </div>
+
+        <!-- Loading -->
+        <div class="spinner-wrap" id="spinnerWrap">
+            <div class="spinner"></div>
+            Running analysis…
+        </div>
+
+        <!-- Results Panel -->
+        <div class="results-panel" id="resultsPanel">
+            <div class="results-header">
+                <div>
+                    <div class="results-title" id="resultsTitle">Results</div>
+                    <div class="results-subtitle" id="resultsSubtitle"></div>
+                </div>
+            </div>
+            <div id="resultsBody"></div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentTest = 'descriptive';
+
+        function selectTest(type) {
+            currentTest = type;
+            document.querySelectorAll('.test-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-type="${type}"]`).classList.add('active');
+
+            document.getElementById('var2Group').style.display = type === 'correlation' ? '' : 'none';
+            document.getElementById('groupByGroup').style.display = type === 'group_comparison' ? '' : 'none';
+
+            hideResults();
+        }
+
+        function hideResults() {
+            document.getElementById('resultsPanel').classList.remove('visible');
+            document.getElementById('errorBanner').classList.remove('visible');
+        }
+
+        async function runAnalysis() {
+            const runBtn = document.getElementById('runBtn');
+            runBtn.disabled = true;
+            hideResults();
+            document.getElementById('spinnerWrap').classList.add('visible');
+
+            const payload = {
+                test_type: currentTest,
+                variable: document.getElementById('varSelect').value,
+                variable2: document.getElementById('var2Select').value,
+                group_by: document.getElementById('groupBySelect').value,
+                date_from: document.getElementById('dateFrom').value,
+                date_to: document.getElementById('dateTo').value,
+            };
+
+            try {
+                const res = await fetch('/research/stats/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                document.getElementById('spinnerWrap').classList.remove('visible');
+
+                if (data.error) {
+                    document.getElementById('errorText').textContent = data.error;
+                    document.getElementById('errorBanner').classList.add('visible');
+                } else {
+                    renderResults(data);
+                }
+            } catch (e) {
+                document.getElementById('spinnerWrap').classList.remove('visible');
+                document.getElementById('errorText').textContent = 'Network error — please try again.';
+                document.getElementById('errorBanner').classList.add('visible');
+            } finally {
+                runBtn.disabled = false;
+            }
+        }
+
+        function fmtP(p) {
+            if (p < 0.001) return '< 0.001';
+            return p.toFixed(3);
+        }
+
+        function renderResults(d) {
+            const panel = document.getElementById('resultsPanel');
+            const title = document.getElementById('resultsTitle');
+            const subtitle = document.getElementById('resultsSubtitle');
+            const body = document.getElementById('resultsBody');
+
+            body.innerHTML = '';
+
+            if (d.test_type === 'descriptive') {
+                const s = d.stats;
+                const unit = d.unit ? ` ${d.unit}` : '';
+                title.textContent = `Descriptive Statistics — ${d.variable}`;
+                subtitle.textContent = `${s.n} patients · per-patient mean values within selected date range`;
+
+                const normText = s.shapiro_p !== undefined
+                    ? (s.is_normal
+                        ? `Normal distribution (Shapiro-Wilk W=${s.shapiro_w}, p=${fmtP(s.shapiro_p)})`
+                        : `Non-normal distribution (Shapiro-Wilk W=${s.shapiro_w}, p=${fmtP(s.shapiro_p)})`)
+                    : 'Normality not tested';
+
+                body.innerHTML = `
+                    <div class="results-layout">
+                        <div>
+                            <table class="stats-table">
+                                <thead><tr><th>Statistic</th><th>Value</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="label-cell">N (patients)</td><td class="value-cell">${s.n}</td></tr>
+                                    <tr><td class="label-cell">Mean ± SD</td><td class="value-cell">${s.mean}${unit} ± ${s.sd}</td></tr>
+                                    <tr><td class="label-cell">Median</td><td class="value-cell">${s.median}${unit}</td></tr>
+                                    <tr><td class="label-cell">IQR (Q1–Q3)</td><td class="value-cell">${s.q1}–${s.q3}${unit}</td></tr>
+                                    <tr><td class="label-cell">Range</td><td class="value-cell">${s.min}–${s.max}${unit}</td></tr>
+                                    ${s.shapiro_p !== undefined ? `<tr><td class="label-cell">Shapiro-Wilk W</td><td class="value-cell">${s.shapiro_w}</td></tr>
+                                    <tr><td class="label-cell">Shapiro-Wilk p</td><td class="value-cell">${fmtP(s.shapiro_p)}</td></tr>` : ''}
+                                </tbody>
+                            </table>
+                            <div class="interpretation info" style="margin-top:16px;">
+                                <i class="material-icons">info</i>
+                                <span>${normText}</span>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="chart1"></div>
+                    </div>`;
+
+                // Histogram + box as subplots
+                const traceHist = {
+                    x: d.patient_values.map(p => p.value),
+                    type: 'histogram',
+                    name: d.variable,
+                    marker: { color: 'rgba(79,70,229,0.7)', line: { color: '#4f46e5', width: 1 } },
+                    xbins: { size: (s.max - s.min) / Math.min(20, Math.max(5, s.n / 3)) },
+                };
+                const traceBox = {
+                    x: d.patient_values.map(p => p.value),
+                    type: 'box',
+                    name: '',
+                    marker: { color: '#4f46e5' },
+                    boxmean: 'sd',
+                    xaxis: 'x',
+                    yaxis: 'y2',
+                };
+                Plotly.newPlot('chart1', [traceHist, traceBox], {
+                    title: { text: `Distribution of ${d.variable}`, font: { family: 'Outfit', size: 15 } },
+                    xaxis: { title: `${d.variable}${d.unit ? ' (' + d.unit + ')' : ''}`, domain: [0, 1] },
+                    yaxis: { title: 'Count', domain: [0.28, 1] },
+                    yaxis2: { domain: [0, 0.22], showticklabels: false },
+                    showlegend: false,
+                    margin: { t: 50, r: 20, l: 50, b: 50 },
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: '#f8fafc',
+                    font: { family: 'Inter' },
+                }, { responsive: true });
+
+            } else if (d.test_type === 'group_comparison') {
+                const unit = d.unit ? ` ${d.unit}` : '';
+                title.textContent = `${d.variable} by ${d.group_by}`;
+                subtitle.textContent = `${d.test_name} · ${d.significance} · Effect: ${d.effect_label} = ${d.effect_size}`;
+
+                const groups = Object.keys(d.groups);
+                const colors = ['#4f46e5','#0ea5e9','#16a34a','#d97706','#dc2626','#9333ea','#0891b2'];
+
+                const groupRows = groups.map(g => {
+                    const gs = d.groups[g];
+                    return `<tr>
+                        <td>${g}</td>
+                        <td>${gs.n}</td>
+                        <td>${gs.mean}${unit}</td>
+                        <td>${gs.sd}</td>
+                        <td>${gs.median}${unit}</td>
+                        <td>${gs.q1}–${gs.q3}</td>
+                    </tr>`;
+                }).join('');
+
+                const pClass = d.is_significant ? 'p-sig' : 'p-ns';
+                const interpClass = d.is_significant ? 'significant' : 'not-significant';
+                const interpIcon = d.is_significant ? 'check_circle' : 'warning';
+                const interpText = d.is_significant
+                    ? `Statistically significant difference in <strong>${d.variable}</strong> across <strong>${d.group_by}</strong> groups (${d.significance}). Effect size (${d.effect_label} = ${d.effect_size}). ${!d.all_normal ? 'Non-parametric test used (not all groups normally distributed).' : ''}`
+                    : `No statistically significant difference detected (${d.significance}). This may reflect insufficient sample size or a true null effect.`;
+
+                body.innerHTML = `
+                    <div class="group-table-wrap" style="margin-bottom:24px;">
+                        <table class="group-table">
+                            <thead><tr><th>Group</th><th>N</th><th>Mean</th><th>SD</th><th>Median</th><th>IQR</th></tr></thead>
+                            <tbody>
+                                ${groupRows}
+                                <tr class="sig-row">
+                                    <td colspan="6" style="padding:10px 14px;">
+                                        <strong>${d.test_name}</strong> — statistic = ${d.statistic},
+                                        <span class="${pClass}">p ${d.significance.replace('p ','')} </span>,
+                                        ${d.effect_label} = ${d.effect_size}
+                                        ${!d.all_normal ? '&nbsp;· Non-parametric (Shapiro-Wilk failed ≥1 group)' : '&nbsp;· Parametric (all groups normally distributed)'}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="chart-container" id="chart1"></div>
+                    <div class="interpretation ${interpClass}" style="margin-top:20px;">
+                        <i class="material-icons">${interpIcon}</i>
+                        <span>${interpText}</span>
+                    </div>`;
+
+                // Violin + box traces per group
+                const traces = groups.map((g, i) => ({
+                    type: 'violin',
+                    y: d.groups[g].values,
+                    name: g,
+                    box: { visible: true },
+                    meanline: { visible: true },
+                    points: 'all',
+                    jitter: 0.3,
+                    pointpos: -1.5,
+                    marker: { color: colors[i % colors.length], size: 5, opacity: 0.6 },
+                    line: { color: colors[i % colors.length] },
+                    fillcolor: colors[i % colors.length].replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', 'rgba(').replace(/([0-9a-f]{2})/gi, (m, h) => parseInt(h, 16) + ','),
+                }));
+
+                Plotly.newPlot('chart1', traces, {
+                    title: { text: `${d.variable} by ${d.group_by}`, font: { family: 'Outfit', size: 15 } },
+                    yaxis: { title: `${d.variable}${d.unit ? ' (' + d.unit + ')' : ''}` },
+                    showlegend: false,
+                    margin: { t: 50, r: 20, l: 60, b: 50 },
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: '#f8fafc',
+                    font: { family: 'Inter' },
+                    violinmode: 'group',
+                }, { responsive: true });
+
+            } else if (d.test_type === 'correlation') {
+                const unitX = d.unit ? ` (${d.unit})` : '';
+                const unitY = d.unit2 ? ` (${d.unit2})` : '';
+                title.textContent = `Correlation: ${d.variable} vs ${d.variable2}`;
+                subtitle.textContent = `${d.n} patients with paired values`;
+
+                const pearsonSig = d.pearson_p < 0.05 ? 'p-sig' : 'p-ns';
+                const spearmanSig = d.spearman_p < 0.05 ? 'p-sig' : 'p-ns';
+
+                const strength = Math.abs(d.spearman_r);
+                let strengthLabel = strength >= 0.7 ? 'strong' : strength >= 0.4 ? 'moderate' : strength >= 0.2 ? 'weak' : 'negligible';
+                const direction = d.spearman_r >= 0 ? 'positive' : 'negative';
+                const interpClass = strength >= 0.4 && d.spearman_p < 0.05 ? 'significant' : d.spearman_p < 0.05 ? 'info' : 'not-significant';
+                const interpIcon = strength >= 0.4 && d.spearman_p < 0.05 ? 'check_circle' : 'info';
+
+                body.innerHTML = `
+                    <div class="results-layout">
+                        <div>
+                            <div class="corr-grid" style="margin-bottom:16px;">
+                                <div class="corr-card">
+                                    <div class="label">Spearman ρ</div>
+                                    <div class="value" style="color:var(--primary)">${d.spearman_r}</div>
+                                    <div class="sub"><span class="${spearmanSig}">p ${fmtP(d.spearman_p) === '< 0.001' ? '< 0.001' : '= ' + fmtP(d.spearman_p)}</span></div>
+                                </div>
+                                <div class="corr-card">
+                                    <div class="label">Pearson r</div>
+                                    <div class="value" style="color:var(--secondary)">${d.pearson_r}</div>
+                                    <div class="sub"><span class="${pearsonSig}">p ${fmtP(d.pearson_p) === '< 0.001' ? '< 0.001' : '= ' + fmtP(d.pearson_p)}</span></div>
+                                </div>
+                                <div class="corr-card">
+                                    <div class="label">R²</div>
+                                    <div class="value">${d.r_squared}</div>
+                                    <div class="sub">Linear fit</div>
+                                </div>
+                                <div class="corr-card">
+                                    <div class="label">N Patients</div>
+                                    <div class="value">${d.n}</div>
+                                    <div class="sub">Paired observations</div>
+                                </div>
+                            </div>
+                            <div class="interpretation ${interpClass}">
+                                <i class="material-icons">${interpIcon}</i>
+                                <span>
+                                    <strong>${strengthLabel.charAt(0).toUpperCase() + strengthLabel.slice(1)} ${direction} correlation</strong> between ${d.variable} and ${d.variable2}
+                                    (ρ = ${d.spearman_r}, p ${fmtP(d.spearman_p) === '< 0.001' ? '< 0.001' : '= ' + fmtP(d.spearman_p)}).
+                                    The linear model explains ${Math.round(d.r_squared * 100)}% of the variance (R² = ${d.r_squared}).
+                                </span>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="chart1"></div>
+                    </div>`;
+
+                const scatter = {
+                    x: d.scatter_x,
+                    y: d.scatter_y,
+                    mode: 'markers+text',
+                    type: 'scatter',
+                    text: d.scatter_names,
+                    textposition: 'top center',
+                    textfont: { size: 9 },
+                    marker: { color: '#4f46e5', size: 8, opacity: 0.7, line: { color: 'white', width: 1 } },
+                    name: 'Patients',
+                    hovertemplate: '%{text}<br>X: %{x}<br>Y: %{y}<extra></extra>',
+                };
+                const regLine = {
+                    x: d.reg_x,
+                    y: d.reg_y,
+                    mode: 'lines',
+                    type: 'scatter',
+                    line: { color: '#ef4444', width: 2, dash: 'dash' },
+                    name: `Regression (R²=${d.r_squared})`,
+                };
+
+                Plotly.newPlot('chart1', [scatter, regLine], {
+                    title: { text: `${d.variable} vs ${d.variable2}`, font: { family: 'Outfit', size: 15 } },
+                    xaxis: { title: `${d.variable}${unitX}` },
+                    yaxis: { title: `${d.variable2}${unitY}` },
+                    showlegend: true,
+                    margin: { t: 50, r: 20, l: 60, b: 60 },
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: '#f8fafc',
+                    font: { family: 'Inter' },
+                }, { responsive: true });
+
+            } else if (d.test_type === 'trend') {
+                const unit = d.unit ? ` (${d.unit})` : '';
+                title.textContent = `Trend Analysis — ${d.variable}`;
+                subtitle.textContent = `${d.months.length} months · Cohort medians with IQR`;
+
+                const slopeDir = d.slope > 0 ? 'increasing' : 'decreasing';
+                const interpClass = d.is_significant ? (d.slope > 0 ? 'not-significant' : 'significant') : 'info';
+                const interpIcon = d.is_significant ? 'trending_' + (d.slope > 0 ? 'up' : 'down') : 'show_chart';
+                const interpText = d.is_significant
+                    ? `Statistically significant <strong>${slopeDir} trend</strong> detected (slope = ${d.slope} per month, R² = ${d.r_squared}, p = ${fmtP(d.p_value)}). The cohort median ${d.variable} is ${slopeDir} over the selected period.`
+                    : `No statistically significant trend (slope = ${d.slope} per month, R² = ${d.r_squared}, p = ${fmtP(d.p_value)}). Values appear stable over the selected period.`;
+
+                body.innerHTML = `
+                    <div style="margin-bottom:8px; display:flex; gap:16px; flex-wrap:wrap;">
+                        <div class="corr-card" style="min-width:140px;">
+                            <div class="label">Slope / month</div>
+                            <div class="value" style="font-size:1.3rem; color:${d.slope > 0 ? 'var(--danger)' : 'var(--success)'}">${d.slope > 0 ? '+' : ''}${d.slope}</div>
+                            <div class="sub">${d.unit}</div>
+                        </div>
+                        <div class="corr-card" style="min-width:120px;">
+                            <div class="label">R²</div>
+                            <div class="value" style="font-size:1.3rem;">${d.r_squared}</div>
+                            <div class="sub">Goodness of fit</div>
+                        </div>
+                        <div class="corr-card" style="min-width:120px;">
+                            <div class="label">p-value</div>
+                            <div class="value" style="font-size:1.3rem; color:${d.is_significant ? 'var(--success)' : 'var(--warning)'}">
+                                ${fmtP(d.p_value)}
+                            </div>
+                            <div class="sub">${d.is_significant ? 'Significant' : 'NS'}</div>
+                        </div>
+                        <div class="corr-card" style="min-width:120px;">
+                            <div class="label">Months</div>
+                            <div class="value" style="font-size:1.3rem;">${d.months.length}</div>
+                            <div class="sub">Data points</div>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="chart1"></div>
+                    <div class="interpretation ${interpClass}" style="margin-top:16px;">
+                        <i class="material-icons">${interpIcon}</i>
+                        <span>${interpText}</span>
+                    </div>`;
+
+                const iqrFill = {
+                    x: [...d.months, ...d.months.slice().reverse()],
+                    y: [...d.q3s, ...d.q1s.slice().reverse()],
+                    fill: 'toself',
+                    fillcolor: 'rgba(79,70,229,0.1)',
+                    line: { color: 'transparent' },
+                    type: 'scatter',
+                    mode: 'none',
+                    name: 'IQR (Q1–Q3)',
+                    showlegend: true,
+                    hoverinfo: 'skip',
+                };
+                const medianLine = {
+                    x: d.months,
+                    y: d.medians,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Cohort Median',
+                    line: { color: '#4f46e5', width: 2.5 },
+                    marker: { size: 7, color: '#4f46e5' },
+                    hovertemplate: '%{x}<br>Median: %{y}<extra></extra>',
+                };
+                const regTrace = {
+                    x: d.months,
+                    y: d.regression_line,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: `Trend (R²=${d.r_squared})`,
+                    line: { color: '#ef4444', width: 1.5, dash: 'dash' },
+                    hoverinfo: 'skip',
+                };
+
+                Plotly.newPlot('chart1', [iqrFill, medianLine, regTrace], {
+                    title: { text: `${d.variable} Over Time`, font: { family: 'Outfit', size: 15 } },
+                    xaxis: { title: 'Month', type: 'category', tickangle: -45 },
+                    yaxis: { title: `${d.variable}${unit}` },
+                    showlegend: true,
+                    legend: { orientation: 'h', y: -0.25 },
+                    margin: { t: 50, r: 20, l: 60, b: 80 },
+                    paper_bgcolor: 'transparent',
+                    plot_bgcolor: '#f8fafc',
+                    font: { family: 'Inter' },
+                }, { responsive: true });
+            }
+
+            panel.classList.add('visible');
+        }
+
+        // Set default date_to to current month
+        const now = new Date();
+        document.getElementById('dateTo').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        document.getElementById('dateFrom').value = `${now.getFullYear()-2}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@ Core clinical calculation logic for the Hemodialysis Dashboard.
 Locked - Do not modify without clinical validation.
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from database import Patient, MonthlyRecord, InterimLabRecord, SessionRecord, ClinicalEvent
 from datetime import datetime, timedelta
 import logging
@@ -269,6 +269,25 @@ def compute_dashboard(db: Session, month: str = None):
     for pid, sdate in session_rows:
         session_map[pid] = sdate
 
+    # ── Batch-load latest hospitalization/discharge event per patient ────────
+    # Replaces 1-query-per-patient lookup inside the loop (N+1 → 1 query).
+    # We fetch all Hospitalization/Discharge events for active patients, sorted
+    # desc by date then id, and keep only the most-recent one per patient.
+    hosp_events_raw = (
+        db.query(ClinicalEvent)
+        .filter(
+            ClinicalEvent.patient_id.in_([p.id for p in active_patients]),
+            ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"]),
+        )
+        .order_by(ClinicalEvent.patient_id, ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc())
+        .all()
+    )
+    # Keep only the most-recent event per patient
+    latest_hosp_event: dict = {}
+    for ev in hosp_events_raw:
+        if ev.patient_id not in latest_hosp_event:
+            latest_hosp_event[ev.patient_id] = ev
+
     patient_rows = []
 
     for p in active_patients:
@@ -285,11 +304,8 @@ def compute_dashboard(db: Session, month: str = None):
         }
         _missing_fields = [k for k, v in _CORE_FIELDS.items() if v is None]
 
-        # 1. Determine Admission Status
-        last_hosp_event = db.query(ClinicalEvent).filter(
-            ClinicalEvent.patient_id == p.id,
-            ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"])
-        ).order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc()).first()
+        # 1. Determine Admission Status (O(1) dict lookup — batch-loaded above)
+        last_hosp_event = latest_hosp_event.get(p.id)
         is_admitted = (last_hosp_event.event_type == "Hospitalization") if last_hosp_event else False
 
         # 2. Initialize Row Basic Data

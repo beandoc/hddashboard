@@ -304,7 +304,7 @@ def _get_var_data(db: Session, var_id: int):
     return all_data, thresholds, var_name, unit
 
 @router.get("/{var_id}/summary")
-async def api_variable_summary(var_id: int, var2_id: Optional[int] = None, db: Session = Depends(get_db)):
+async def api_variable_summary(var_id: int, var2_id: Optional[int] = None, var3_id: Optional[int] = None, db: Session = Depends(get_db)):
     all_data, thresholds, var_name, unit = _get_var_data(db, var_id)
     if all_data is None: raise HTTPException(status_code=404, detail="Variable not found")
 
@@ -314,7 +314,11 @@ async def api_variable_summary(var_id: int, var2_id: Optional[int] = None, db: S
     for p in patients:
         months = all_data.get(p.id, {})
         latest = months[max(months)] if months else None
-        patient_rows.append({"id": p.id, "name": p.name, "hid": p.hid_no, "latest_value": latest})
+        # Add basic demographic info for Treemaps/Pyramids
+        patient_rows.append({
+            "id": p.id, "name": p.name, "hid": p.hid_no, "latest_value": latest,
+            "gender": p.sex, "age": p.age, "access_type": p.access_type, "shift": p.hd_slot_1 or "N/A"
+        })
 
     # Statistical Trend (Median, Percentiles)
     month_buckets: dict = {}
@@ -352,16 +356,16 @@ async def api_variable_summary(var_id: int, var2_id: Optional[int] = None, db: S
         "thresholds": thresholds
     }
 
-    # Handle Optional Correlation Data
+    # Handle Optional Correlation Data (X, Y, Size)
     if var2_id:
         v2_all_data, v2_thresholds, v2_name, v2_unit = _get_var_data(db, var2_id)
         if v2_all_data is not None:
-            res["var2"] = {
-                "name": v2_name,
-                "unit": v2_unit,
-                "all_data": v2_all_data,
-                "thresholds": v2_thresholds
-            }
+            res["var2"] = {"name": v2_name, "unit": v2_unit, "all_data": v2_all_data, "thresholds": v2_thresholds}
+            
+    if var3_id:
+        v3_all_data, v3_thresholds, v3_name, v3_unit = _get_var_data(db, var3_id)
+        if v3_all_data is not None:
+            res["var3"] = {"name": v3_name, "unit": v3_unit, "all_data": v3_all_data, "thresholds": v3_thresholds}
 
     # Pre-calculate Trajectory (Dumbbell) data for convenience
     months_with_data = sorted(month_buckets.keys(), reverse=True)

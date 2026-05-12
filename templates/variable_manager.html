@@ -147,6 +147,9 @@ textarea { resize:vertical; min-height:70px; }
   .retro-table td.patient-name-cell:before { display: none; }
   .month-input { width: 100%; text-align: right; border: none; padding: 0; background: transparent; }
 }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.rotating { animation: spin 2s linear infinite; }
 </style>
 </head>
 <body>
@@ -313,7 +316,15 @@ textarea { resize:vertical; min-height:70px; }
             <optgroup label="Advanced & Correlation">
               <option value="heatmap">Heatmap (Patient × Month)</option>
               <option value="correlation">Variable Correlation (Scatter)</option>
+              <option value="bubble">Multi-Variable Correlation (Bubble)</option>
+              <option value="quadrant">Risk Quadrant Analysis</option>
+               <option value="bland_altman">Bland-Altman Agreement Plot</option>
               <option value="improvement">Improvement / Deterioration View</option>
+            </optgroup>
+            <optgroup label="Clinical Targets & Cohorts">
+              <option value="target_gauge">Target Achievement Gauge</option>
+              <option value="treemap">Cohort Composition (Treemap)</option>
+              <option value="pyramid">Age/Gender Demographics (Pyramid)</option>
             </optgroup>
           </select>
         </div>
@@ -335,6 +346,15 @@ textarea { resize:vertical; min-height:70px; }
             <label>Compare with Variable</label>
             <select id="viewVar2Select" onchange="loadVariableChart()">
               <option value="">— select variable 2 —</option>
+              {% for v in variables %}
+              <option value="{{ v.id }}">{{ v.display_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field" id="subOptVar3" style="display:none">
+            <label>Bubble Size (3rd Variable)</label>
+            <select id="viewVar3Select" onchange="loadVariableChart()">
+              <option value="">— select variable 3 —</option>
               {% for v in variables %}
               <option value="{{ v.id }}">{{ v.display_name }}</option>
               {% endfor %}
@@ -732,46 +752,61 @@ function toggleSubOptions() {
   const wrap = document.getElementById('viewSubOptions');
   const optP = document.getElementById('subOptPatient');
   const optV2 = document.getElementById('subOptVar2');
+  const optV3 = document.getElementById('subOptVar3');
 
-  wrap.style.display = (vt === 'individual_trend' || vt === 'correlation') ? 'block' : 'none';
-  optP.style.display = (vt === 'individual_trend') ? 'block' : 'none';
-  optV2.style.display = (vt === 'correlation') ? 'block' : 'none';
+  const needsV2 = (vt === 'correlation' || vt === 'bubble' || vt === 'quadrant' || vt === 'bland_altman');
+  const needsV3 = (vt === 'bubble');
+  const needsP = (vt === 'individual_trend');
+
+  wrap.style.display = (needsV2 || needsV3 || needsP) ? 'block' : 'none';
+  optP.style.display = needsP ? 'block' : 'none';
+  optV2.style.display = needsV2 ? 'block' : 'none';
+  optV3.style.display = needsV3 ? 'block' : 'none';
 }
 
 async function loadVariableChart() {
   const varId = document.getElementById('viewVarSelect').value;
   const viewType = document.getElementById('viewType').value;
   const var2Id = document.getElementById('viewVar2Select').value;
+  const var3Id = document.getElementById('viewVar3Select').value;
   if (!varId) return;
 
   const opt = document.getElementById('viewVarSelect').selectedOptions[0];
   const varName = opt.dataset.name;
   const varUnit = opt.dataset.unit;
 
-  // Optimize: Pass var2Id if we are in correlation view
+  // Optimize: Pass var2Id/var3Id if needed
   let url = `/variables/${varId}/summary`;
-  if (viewType === 'correlation' && var2Id) {
-    url += `?var2_id=${var2Id}`;
-  }
+  const params = new URLSearchParams();
+  if ((viewType === 'correlation' || viewType === 'bubble' || viewType === 'quadrant' || viewType === 'bland_altman') && var2Id) params.append('var2_id', var2Id);
+  if (viewType === 'bubble' && var3Id) params.append('var3_id', var3Id);
+  if (params.toString()) url += `?${params.toString()}`;
 
-  const res = await fetch(url);
-  if (!res.ok) return;
-  const data = await res.json();
-
+  const chartDiv = document.getElementById('viewChart');
+  chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light)"><i class="material-icons rotating" style="font-size:24px;display:block;margin-bottom:8px">sync</i>Loading chart data...</div>';
   document.getElementById('viewChartWrap').style.display = 'block';
-  document.getElementById('viewChartTitle').textContent = varName;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `Server error: ${res.status}`);
+    }
+    const data = await res.json();
+
+    document.getElementById('viewChartTitle').textContent = varName;
   document.getElementById('viewSummaryValueHeader').textContent =
-    viewType === 'target_rate' ? 'Target Achievement %' : `Latest Value ${varUnit ? '(' + varUnit + ')' : ''}`;
+    (viewType === 'target_rate' || viewType === 'target_gauge') ? 'Achievement %' : `Latest Value ${varUnit ? '(' + varUnit + ')' : ''}`;
 
   const FONT = { family:"'Roboto',sans-serif", size:11 };
   const vdef = ALL_VARS.find(x => x.id === parseInt(varId));
 
-  function isAlert(v) {
+  function isAlert(v, def = vdef) {
     if (v === null || v === undefined || isNaN(v)) return false;
-    if (!vdef) return false;
-    const hasLow = vdef.threshold_low !== null && vdef.threshold_low !== undefined;
-    const hasHigh = vdef.threshold_high !== null && vdef.threshold_high !== undefined;
-    return (hasHigh && v > vdef.threshold_high) || (hasLow && v < vdef.threshold_low);
+    if (!def) return false;
+    const hasLow = def.threshold_low !== null && def.threshold_low !== undefined;
+    const hasHigh = def.threshold_high !== null && def.threshold_high !== undefined;
+    return (hasHigh && v > def.threshold_high) || (hasLow && v < def.threshold_low);
   }
 
   function getStatusHtml(v) {
@@ -782,7 +817,7 @@ async function loadVariableChart() {
 
   const tbody = document.getElementById('viewSummaryBody');
   const chartDiv = document.getElementById('viewChart');
-  chartDiv.innerHTML = ''; // Clear for fresh start
+  chartDiv.innerHTML = ''; 
 
   if (viewType === 'cohort' || viewType === 'ranking' || viewType === 'out_of_range' || viewType === 'outliers') {
     let patients = [...data.patients];
@@ -795,17 +830,14 @@ async function loadVariableChart() {
 
     const names = patients.map(p => p.name);
     const values = patients.map(p => p.latest_value);
-    const markerColors = values.map(v => {
-      if (v === null) return '#ccc';
-      return isAlert(v) ? 'var(--red)' : 'var(--green)';
-    });
+    const markerColors = values.map(v => (v === null) ? '#ccc' : (isAlert(v) ? '#ef4444' : '#10b981'));
 
     Plotly.newPlot('viewChart', [{
       type: 'bar', x: names, y: values, marker: { color: markerColors },
       hovertemplate: '<b>%{x}</b><br>%{y} ' + varUnit + '<extra></extra>',
     }], {
       margin:{ t:20, b:100, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
-      xaxis:{ tickangle:-45, gridcolor:'#f0f0f0' }, yaxis:{ title: varUnit, gridcolor:'#f0f0f0' },
+      xaxis:{ tickangle:-45, gridcolor:'#f0f0f0' }, yaxis:{ title: varUnit, gridcolor:'#f0f0f0', rangemode: 'tozero' },
       font: FONT,
     }, { displayModeBar:false, responsive:true });
 
@@ -830,16 +862,12 @@ async function loadVariableChart() {
       fill:'tonexty', fillcolor:'rgba(144,202,249,0.15)', hoverinfo:'skip',
     }], {
       margin:{ t:20, b:50, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
-      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' }, xaxis:{ gridcolor:'#f0f0f0' }, font: FONT, showlegend: true,
+      yaxis:{ title: varUnit, gridcolor:'#f0f0f0', rangemode: 'tozero' }, xaxis:{ gridcolor:'#f0f0f0' }, font: FONT, showlegend: true,
     }, { displayModeBar:false, responsive:true });
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px">See chart for unit trend overview.</td></tr>';
 
   } else if (viewType === 'individual_trend') {
     const pid = document.getElementById('viewPatientId').value;
-    if (!pid) {
-      chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Please select a patient to view their individual trend.</div>';
-      return;
-    }
+    if (!pid) { chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Please select a patient.</div>'; return; }
     const pData = data.all_data[pid] || {};
     const months = Object.keys(pData).sort();
     const values = months.map(m => pData[m]);
@@ -848,8 +876,7 @@ async function loadVariableChart() {
       type:'scatter', x: months, y: values, mode:'lines+markers',
       line:{ color:'#0ea5e9', width:3 }, marker:{ size:8, color: values.map(v => isAlert(v)?'#ef4444':'#0ea5e9') }
     }], {
-      margin:{ t:20, b:50, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
-      yaxis:{ title: varUnit, gridcolor:'#f0f0f0' }, xaxis:{ gridcolor:'#f0f0f0' }, font: FONT,
+      margin:{ t:20, b:50, l:60, r:20 }, yaxis:{ title: varUnit, rangemode: 'tozero' }, font: FONT,
     }, { displayModeBar:false, responsive:true });
 
     tbody.innerHTML = months.reverse().map(m => `<tr>
@@ -857,39 +884,39 @@ async function loadVariableChart() {
     </tr>`).join('');
 
   } else if (viewType === 'comparison' || viewType === 'improvement') {
-    const currentMonth = generateMonthRange('2020-01', '2030-12').reverse().find(m => m <= new Date().toISOString().slice(0,7));
-    const prevMonth = generateMonthRange('2020-01', currentMonth).slice(-2)[0];
-    
-    let patients = data.patients.map(p => {
-      const cur = data.all_data[p.id]?.[currentMonth] ?? null;
-      const pre = data.all_data[p.id]?.[prevMonth] ?? null;
-      const delta = (cur !== null && pre !== null) ? (cur - pre) : null;
-      return { ...p, current: cur, previous: pre, delta: delta };
-    }).filter(p => p.current !== null || p.previous !== null);
-
-    if (viewType === 'improvement') {
-       patients.sort((a,b) => Math.abs(b.delta || 0) - Math.abs(a.delta || 0));
+    const traj = data.trajectory || [];
+    if (traj.length === 0) {
+      chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">No sufficient data found for month-on-month comparison.</div>';
+      return;
     }
+
+    const currMonth = traj[0].month_curr;
+    const prevMonth = traj[0].month_prev;
+    
+    let patients = traj.map(p => {
+      const delta = p.curr - p.prev;
+      return { ...p, current: p.curr, previous: p.prev, delta: delta };
+    });
+
+    if (viewType === 'improvement') patients.sort((a,b) => Math.abs(b.delta || 0) - Math.abs(a.delta || 0));
 
     Plotly.newPlot('viewChart', [
       { x: patients.map(p => p.name), y: patients.map(p => p.previous), name: prevMonth, type: 'bar', marker:{color:'#cbd5e1'} },
-      { x: patients.map(p => p.name), y: patients.map(p => p.current), name: currentMonth, type: 'bar', marker:{color:'#0ea5e9'} }
+      { x: patients.map(p => p.name), y: patients.map(p => p.current), name: currMonth, type: 'bar', marker:{color:'#0ea5e9'} }
     ], {
-      barmode: 'group', margin:{ t:20, b:100, l:60, r:20 }, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
-      xaxis:{ tickangle:-45 }, yaxis:{ title: varUnit }, font: FONT, showlegend: true
+      barmode: 'group', margin:{ t:40, b:100, l:60, r:20 }, xaxis:{ tickangle:-45 }, yaxis:{ title: varUnit, rangemode: 'tozero' }, font: FONT, showlegend: true,
+      title: { text: `Comparison: ${prevMonth} vs ${currMonth}`, font: { size: 14 } }
     }, { displayModeBar:false, responsive:true });
 
     tbody.innerHTML = patients.map(p => {
       const isUp = p.delta > 0;
       const arrow = p.delta === null ? '' : (isUp ? '↑' : '↓');
       const isGood = p.delta === null ? null : (vdef?.alert_direction === 'high' ? !isUp : isUp);
-      const color = isGood === null ? 'var(--ink)' : (isGood ? 'var(--green)' : 'var(--red)');
-      
       return `<tr>
         <td class="patient-name-cell">${p.name}</td>
         <td style="font-family:monospace">${p.current ?? '—'}</td>
         <td style="font-family:monospace">${p.previous ?? '—'}</td>
-        <td style="color:${color};font-weight:600">
+        <td style="color:${isGood === null ? 'var(--ink)' : (isGood ? 'var(--green)' : 'var(--red)')};font-weight:600">
           ${arrow} ${p.delta !== null ? Math.abs(p.delta).toFixed(1) : ''}
           ${p.delta !== null ? (isGood ? ' (Improv)' : ' (Worsen)') : ''}
         </td>
@@ -899,111 +926,192 @@ async function loadVariableChart() {
   } else if (viewType === 'dumbbell') {
     const patients = data.trajectory || [];
     patients.sort((a, b) => b.curr - a.curr);
-
-    const traces = [];
-    patients.forEach(p => {
+    const traces = patients.map(p => {
       const isUp = p.curr > p.prev;
       const isGood = vdef?.alert_direction === 'high' ? !isUp : isUp;
-      traces.push({
+      return {
         x: [p.prev, p.curr], y: [p.name, p.name], mode: 'lines+markers',
         marker: { size: 10, color: [isGood ? '#10b981' : '#ef4444', '#0ea5e9'] },
         line: { color: '#cbd5e1', width: 2 }, showlegend: false,
         hoverinfo: 'text', text: `${p.name}: ${p.prev} → ${p.curr}`
-      });
+      };
     });
-
     Plotly.newPlot('viewChart', traces, {
       margin: { t: 20, b: 50, l: 150, r: 20 }, xaxis: { title: varUnit }, font: FONT,
       height: Math.max(350, patients.length * 30)
     }, { displayModeBar: false, responsive: true });
 
-    tbody.innerHTML = patients.map(p => {
-      const isUp = p.curr > p.prev;
-      const isGood = vdef?.alert_direction === 'high' ? !isUp : isUp;
-      return `<tr>
-        <td class="patient-name-cell">${p.name}</td>
-        <td style="font-family:monospace">${p.prev}</td>
-        <td style="font-family:monospace">${p.curr}</td>
-        <td style="font-weight:600; color:${isGood ? 'var(--green)' : 'var(--red)'}">
-          ${isUp ? '↑' : '↓'} ${Math.abs(p.curr - p.prev).toFixed(1)}
-        </td>
-      </tr>`;
-    }).join('');
-
   } else if (viewType === 'heatmap') {
     const allMonths = Array.from(new Set(Object.values(data.all_data).flatMap(m => Object.keys(m)))).sort();
-    const patients = data.patients.filter(p => data.all_data[p.id]);
-    const zData = patients.map(p => allMonths.map(m => data.all_data[p.id]?.[m] ?? null));
-
-    Plotly.newPlot('viewChart', [{
-      z: zData, x: allMonths, y: patients.map(p => p.name), type: 'heatmap', colorscale: 'YlGnBu',
-      hovertemplate: '%{y}<br>%{x}: <b>%{z}</b><extra></extra>'
-    }], {
-      margin:{ t:20, b:50, l:120, r:20 }, font: FONT
-    }, { displayModeBar:false, responsive:true });
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px">Heatmap view active.</td></tr>';
+    const patients = data.patients.filter(p => data.all_data[String(p.id)]);
+    const zData = patients.map(p => allMonths.map(m => data.all_data[String(p.id)]?.[m] ?? null));
+    Plotly.newPlot('viewChart', [{ z: zData, x: allMonths, y: patients.map(p => p.name), type: 'heatmap', colorscale: 'YlGnBu' }], { margin:{ t:20, b:50, l:120, r:20 }, font: FONT }, { displayModeBar:false, responsive:true });
 
   } else if (viewType === 'percentile' || viewType === 'violin') {
     const allValues = Object.values(data.all_data).flatMap(m => Object.values(m)).filter(v => v !== null);
-    const trace = {
-      y: allValues, type: viewType === 'percentile' ? 'box' : 'violin', name: varName, marker: { color: '#0ea5e9' }
-    };
-    if (viewType === 'violin') {
-      trace.box = { visible: true }; trace.meanline = { visible: true }; trace.fillcolor = 'rgba(14, 165, 233, 0.4)';
-    }
-    Plotly.newPlot('viewChart', [trace], {
-      margin: { t: 20, b: 50, l: 60, r: 20 }, paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-      yaxis: { title: varUnit }, font: FONT
-    }, { displayModeBar: false, responsive: true });
+    const trace = { y: allValues, type: viewType === 'percentile' ? 'box' : 'violin', name: varName, marker: { color: '#0ea5e9' } };
+    if (viewType === 'violin') { trace.box = { visible: true }; trace.meanline = { visible: true }; trace.fillcolor = 'rgba(14, 165, 233, 0.4)'; }
+    Plotly.newPlot('viewChart', [trace], { margin: { t: 20, b: 50, l: 60, r: 20 }, yaxis: { title: varUnit }, font: FONT }, { displayModeBar: false, responsive: true });
 
   } else if (viewType === 'histogram') {
     const allValues = Object.values(data.all_data).flatMap(m => Object.values(m)).filter(v => v !== null);
-    Plotly.newPlot('viewChart', [{
-      x: allValues, type: 'histogram', marker: { color: '#0ea5e9' },
-      hovertemplate: 'Range: %{x}<br>Count: %{y}<extra></extra>'
-    }], {
-      margin: { t: 20, b: 50, l: 60, r: 20 }, xaxis: { title: varUnit }, yaxis: { title: 'Patient Count' }, font: FONT
-    }, { displayModeBar: false, responsive: true });
+    Plotly.newPlot('viewChart', [{ x: allValues, type: 'histogram', marker: { color: '#0ea5e9' } }], { margin: { t: 20, b: 50, l: 60, r: 20 }, xaxis: { title: varUnit }, yaxis: { title: 'Patient Count' }, font: FONT }, { displayModeBar: false, responsive: true });
 
-  } else if (viewType === 'target_rate') {
-    const months = Array.from(new Set(Object.values(data.all_data).flatMap(m => Object.keys(m)))).sort();
-    const rates = months.map(m => {
-      const vals = Object.values(data.all_data).map(p => p[m]).filter(v => v !== undefined && v !== null);
-      if (vals.length === 0) return 0;
-      const ok = vals.filter(v => !isAlert(v)).length;
-      return (ok / vals.length) * 100;
+  } else if (viewType === 'correlation' || viewType === 'bubble') {
+    const v2 = data.var2; if (!v2) return;
+    const v3 = data.var3;
+    const x = [], y = [], size = [], text = [];
+    data.patients.forEach(p => {
+      const v1val = p.latest_value;
+      const v2m = v2.all_data[p.id] || {};
+      const v2val = v2m[max(Object.keys(v2m))] ?? null;
+      if (v1val !== null && v2val !== null) {
+        x.push(v1val); y.push(v2val); text.push(p.name);
+        if (viewType === 'bubble' && v3) {
+          const v3m = v3.all_data[p.id] || {};
+          size.push(v3m[max(Object.keys(v3m))] ?? 10);
+        } else { size.push(10); }
+      }
     });
-
-    Plotly.newPlot('viewChart', [{ x: months, y: rates, type:'scatter', mode:'lines+markers', line:{color:'#10b981', width:3} }], {
-      margin:{ t:20, b:50, l:60, r:20 }, yaxis:{ title: 'Achievement %', range:[0,105] }, font: FONT
+    Plotly.newPlot('viewChart', [{ x, y, mode:'markers', text, marker: { size, sizemode:'area', color:'#0ea5e9', opacity:0.6 } }], {
+      margin:{ t:20, b:50, l:60, r:20 }, xaxis:{ title: varName }, yaxis:{ title: v2.name }, font: FONT
     }, { displayModeBar:false, responsive:true });
 
-  } else if (viewType === 'correlation') {
-    const var2Name = data.var2 ? data.var2.name : 'Variable 2';
-    const data2All = data.var2 ? data.var2.all_data : {};
-    
-    const xVals = [], yVals = [], text = [];
+  } else if (viewType === 'quadrant') {
+    const v2 = data.var2; if (!v2) return;
+    const midX = (thresholds.low || thresholds.high || 10);
+    const midY = (v2.thresholds.low || v2.thresholds.high || 10);
+    const x = [], y = [], text = [], colors = [];
     data.patients.forEach(p => {
-      if (p.latest_value !== null) {
-        const p2Months = data2All[p.id] || {};
-        const p2Latest = p2Months[max(Object.keys(p2Months))] ?? null;
-        if (p2Latest !== null) {
-           xVals.push(p.latest_value);
-           yVals.push(p2Latest);
-           text.push(p.name);
-        }
+      const v1val = p.latest_value;
+      const v2m = v2.all_data[p.id] || {};
+      const v2val = v2m[max(Object.keys(v2m))] ?? null;
+      if (v1val !== null && v2val !== null) {
+        x.push(v1val); y.push(v2val); text.push(p.name);
+        if (v1val > midX && v2val > midY) colors.push('#ef4444'); // High/High
+        else if (v1val <= midX && v2val <= midY) colors.push('#10b981'); // Low/Low
+        else colors.push('#f59e0b');
+      }
+    });
+    Plotly.newPlot('viewChart', [
+      { x, y, mode:'markers+text', text, textposition:'top center', marker:{ size:12, color:colors } }
+    ], {
+      margin:{ t:20, b:50, l:60, r:20 }, xaxis:{ title: varName, zeroline:false }, yaxis:{ title: v2.name, zeroline:false },
+      shapes: [
+        { type:'line', x0:midX, x1:midX, y0:Math.min(...y), y1:Math.max(...y), line:{dash:'dash', color:'#ccc'} },
+        { type:'line', y0:midY, y1:midY, x0:Math.min(...x), x1:Math.max(...x), line:{dash:'dash', color:'#ccc'} }
+      ], font: FONT
+    }, { displayModeBar:false, responsive:true });
+
+  } else if (viewType === 'bland_altman') {
+    const v2 = data.var2; if (!v2) return;
+    const x = [], y = [], text = [];
+    data.patients.forEach(p => {
+      const v1val = p.latest_value;
+      const v2m = v2.all_data[String(p.id)] || {};
+      const v2val = v2m[max(Object.keys(v2m))] ?? null;
+      if (v1val !== null && v2val !== null) {
+        x.push((v1val + v2val) / 2);
+        y.push(v1val - v2val);
+        text.push(p.name);
       }
     });
 
+    if (y.length === 0) {
+      chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">No paired data found for Bland-Altman plot.</div>';
+      return;
+    }
+
+    const bias = y.reduce((a,b) => a+b, 0) / y.length;
+    const std = Math.sqrt(y.map(v => Math.pow(v - bias, 2)).reduce((a,b) => a+b, 0) / y.length);
+    const loaUpper = bias + 1.96 * std;
+    const loaLower = bias - 1.96 * std;
+
     Plotly.newPlot('viewChart', [{
-      x: xVals, y: yVals, mode: 'markers', text: text,
-      marker: { size: 10, color: '#0ea5e9', opacity: 0.7 },
-      hovertemplate: '<b>%{text}</b><br>' + varName + ': %{x}<br>' + var2Name + ': %{y}<extra></extra>'
+      x, y, mode:'markers', text, name:'Differences', marker:{ size:10, color:'#0ea5e9', opacity:0.6 },
+      hovertemplate: '<b>%{text}</b><br>Mean: %{x}<br>Diff: %{y}<extra></extra>'
     }], {
-      margin:{ t:20, b:50, l:60, r:20 }, xaxis:{ title: varName }, yaxis:{ title: var2Name }, font: FONT
+      margin:{ t:40, b:50, l:60, r:20 }, xaxis:{ title: `Mean of ${varName} and ${v2.name}` }, yaxis:{ title: `${varName} - ${v2.name}` },
+      shapes: [
+        { type:'line', y0:bias, y1:bias, x0:Math.min(...x), x1:Math.max(...x), line:{ color:'#ef4444', width:2 }, name: 'Bias' },
+        { type:'line', y0:loaUpper, y1:loaUpper, x0:Math.min(...x), x1:Math.max(...x), line:{ color:'#f59e0b', dash:'dash' } },
+        { type:'line', y0:loaLower, y1:loaLower, x0:Math.min(...x), x1:Math.max(...x), line:{ color:'#f59e0b', dash:'dash' } }
+      ],
+      annotations: [
+        { x:Math.max(...x), y:bias, text:`Bias: ${bias.toFixed(2)}`, showarrow:false, xanchor:'right', yanchor:'bottom' },
+        { x:Math.max(...x), y:loaUpper, text:`+1.96 SD: ${loaUpper.toFixed(2)}`, showarrow:false, xanchor:'right', yanchor:'bottom' },
+        { x:Math.max(...x), y:loaLower, text:`-1.96 SD: ${loaLower.toFixed(2)}`, showarrow:false, xanchor:'right', yanchor:'top' }
+      ], font: FONT
     }, { displayModeBar:false, responsive:true });
+
+  } else if (viewType === 'target_rate') {
+    const monthStats = [];
+    const months = Array.from(new Set(Object.values(data.all_data).flatMap(m => Object.keys(m)))).sort();
+    months.forEach(m => {
+      let inTarget = 0, total = 0;
+      data.patients.forEach(p => {
+        const val = data.all_data[String(p.id)]?.[m];
+        if (val !== undefined && val !== null) {
+          total++;
+          if (!isAlert(val)) inTarget++;
+        }
+      });
+      if (total > 0) monthStats.push({ month: m, rate: (inTarget / total) * 100 });
+    });
+
+    Plotly.newPlot('viewChart', [{
+      type: 'scatter', x: monthStats.map(s => s.month), y: monthStats.map(s => s.rate),
+      mode: 'lines+markers', marker: { color: '#10b981' }, line: { color: '#10b981', width: 3 },
+      fill: 'tozeroy', fillcolor: 'rgba(16, 185, 129, 0.1)'
+    }], {
+      margin: { t: 20, b: 50, l: 60, r: 20 }, yaxis: { title: 'Patients in Target (%)', range: [0, 100] }, font: FONT
+    }, { displayModeBar: false, responsive: true });
+
+    tbody.innerHTML = monthStats.reverse().map(s => `<tr>
+      <td>${s.month}</td><td>—</td><td style="font-family:monospace">${s.rate.toFixed(1)}%</td><td>${s.rate >= 90 ? '✓ Excellent' : (s.rate >= 70 ? '○ Good' : '⚠ Action Needed')}</td>
+    </tr>`).join('');
+
+  } else if (viewType === 'target_gauge') {
+    const latest = data.patients.filter(p => p.latest_value !== null).map(p => p.latest_value);
+    const inTarget = data.patients.filter(p => p.latest_value !== null && !isAlert(p.latest_value)).length;
+    const pct = latest.length > 0 ? (inTarget / latest.length) * 100 : 0;
+    
+    Plotly.newPlot('viewChart', [{
+      type: "indicator", mode: "gauge+number", value: pct, title: { text: "Unit Target Achievement %" },
+      number: { suffix: "%" },
+      gauge: { axis: { range: [0, 100] }, bar: { color: "#10b981" }, steps: [{ range: [0, 70], color: "#fee2e2" }, { range: [70, 90], color: "#fef3c7" }, { range: [90, 100], color: "#dcfce7" }] }
+    }], { margin: { t: 50, b: 20, l: 30, r: 30 }, font: FONT }, { displayModeBar: false, responsive: true });
+
+  } else if (viewType === 'treemap') {
+    const labels = ["Cohort", "Male", "Female", "AVF", "Non-AVF", "Morning", "Afternoon", "Evening"];
+    const parents = ["", "Cohort", "Cohort", "Cohort", "Cohort", "Cohort", "Cohort", "Cohort"];
+    const values = labels.map(l => data.patients.filter(p => p.gender === l || p.access_type === l || p.shift === l).length);
+    values[0] = data.patients.length;
+    Plotly.newPlot('viewChart', [{ type: "treemap", labels, parents, values, textinfo: "label+value+percent parent" }], { margin: { t: 0, b: 0, l: 0, r: 0 }, font: FONT }, { displayModeBar: false, responsive: true });
+
+  } else if (viewType === 'pyramid') {
+    const bins = ["0-20", "21-40", "41-60", "61-80", "81+"];
+    const male = bins.map(b => data.patients.filter(p => p.gender === 'Male' && checkAge(p.age, b)).length);
+    const female = bins.map(b => data.patients.filter(p => p.gender === 'Female' && checkAge(p.age, b)).length).map(v => -v);
+    function checkAge(age, bin) {
+      if (bin === "81+") return age > 80;
+      const [lo, hi] = bin.split('-').map(Number);
+      return age >= lo && age <= hi;
+    }
+    Plotly.newPlot('viewChart', [
+      { x: male, y: bins, name: 'Male', type: 'bar', orientation: 'h', marker: { color: '#0ea5e9' } },
+      { x: female, y: bins, name: 'Female', type: 'bar', orientation: 'h', marker: { color: '#ec4899' } }
+    ], { barmode: 'relative', margin: { t: 20, b: 50, l: 60, r: 20 }, xaxis: { title: 'Patient Count' }, font: FONT }, { displayModeBar: false, responsive: true });
+  }
+
+  } catch (e) {
+    console.error(e);
+    showToast(e.message, true);
+    chartDiv.innerHTML = `<div style="text-align:center;padding:40px;color:var(--red)"><i class="material-icons" style="font-size:24px;display:block;margin-bottom:8px">error_outline</i>Failed to load chart: ${e.message}</div>`;
   }
 }
+
+function max(arr) { return arr.length ? arr.sort().reverse()[0] : null; }
 </script>
 </body>
 </html>

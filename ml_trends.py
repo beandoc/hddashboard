@@ -1,0 +1,569 @@
+"""
+ml_trends.py
+============
+Clinical Trend Analysis Engine — Kalman Filter and OLS-based predictions
+for Hb, Albumin, Iron Status, and ML Readiness assessment.
+"""
+import logging
+from datetime import datetime
+from typing import List, Dict, Optional
+
+import numpy as np
+
+try:
+    import statsmodels.api as sm
+    _STATSMODELS_AVAILABLE = True
+except ImportError:
+    _STATSMODELS_AVAILABLE = False
+
+try:
+    from scipy.stats import t as t_dist, norm as _norm
+    _SCIPY_AVAILABLE = True
+except ImportError:
+    _SCIPY_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+
+def _month_to_ordinal(month_str: str) -> int:
+    """Convert YYYY-MM to integer (months since epoch) for regression x-axis."""
+    try:
+        dt = datetime.strptime(month_str, "%Y-%m")
+        return dt.year * 12 + dt.month
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid month format: {month_str!r}")
+
+
+def compute_ml_readiness(df: List[Dict], param: str) -> dict:
+    """
+    Assess whether there is enough data to make a robust prediction for param.
+    confidence: 'high' (8+), 'moderate' (5–7), 'low' (2–4), 'insufficient' (<2)
+    """
+    if not df:
+        return {
+            "ready": False, "n_points": 0, "completeness": 0,
+            "confidence": "insufficient",
+            "recommendation": "No historical data. Start entering monthly records.",
+        }
+
+    values = [r[param] for r in df if r.get(param) is not None]
+    n = len(values)
+    completeness = round((n / len(df)) * 100)
+
+    if n < 2:
+        return {
+            "ready": False, "n_points": n, "completeness": completeness,
+            "confidence": "insufficient",
+            "recommendation": f"Only {n} {param} value(s). Need at least 2 to detect trends.",
+        }
+    if n <= 4:
+        return {
+            "ready": True, "n_points": n, "completeness": completeness,
+            "confidence": "low",
+            "recommendation": f"{n} data points recorded. Add more months for better confidence.",
+        }
+    if n <= 7:
+        return {
+            "ready": True, "n_points": n, "completeness": completeness,
+            "confidence": "moderate",
+            "recommendation": f"{n} months of {param} data. Predictions moderately reliable — collect {8 - n} more for high confidence.",
+        }
+    return {
+        "ready": True, "n_points": n, "completeness": completeness,
+        "confidence": "high",
+        "recommendation": f"{n} months of {param} data. Predictions are robust.",
+    }
+
+
+def _linear_trend_with_ci(x: list, y: list, confidence_level: float = 0.95) -> dict:
+    """
+    Fit OLS linear regression and return:
+      - next_predicted  : point estimate for the next time step
+      - pi_lower/upper  : 95% Prediction Interval
+      - slope           : trend direction per month
+      - r_squared       : OLS R²
+      - adj_r_squared   : Adjusted R²
+      - p_value         : F-test p-value
+      - durbin_watson   : Autocorrelation statistic
+    """
+    pairs = [(float(xi), float(yi)) for xi, yi in zip(x, y) if yi is not None]
+    n = len(pairs)
+
+    _null = {
+        "slope": None, "next_predicted": None,
+        "pi_lower": None, "pi_upper": None, "n_points": n,
+        "r_squared": None, "adj_r_squared": None,
+        "p_value": None, "durbin_watson": None,
+    }
+    if n < 2:
+        return _null
+
+    pairs.sort()  # Ensure chronological order
+    x_min = pairs[0][0]
+    xs = [p[0] - x_min for p in pairs]  # zero-indexed for numerical stability
+    ys = [p[1] for p in pairs]
+
+    # ── statsmodels path (full diagnostics) ───────────────────────────────────
+    if _STATSMODELS_AVAILABLE and n >= 3:
+        try:
+            # BUG 1 FIX: import durbin_watson inside the statsmodels block
+            from statsmodels.stats.stattools import durbin_watson
+
+            X = sm.add_constant(np.array(xs, dtype=float))
+            Y = np.array(ys, dtype=float)
+            model = sm.OLS(Y, X).fit()
+
+            slope     = float(model.params[1])
+            intercept = float(model.params[0])
+            next_x    = max(xs) + 1
+            predicted = slope * next_x + intercept
+
+            # 95% Prediction Interval at next_x
+            x_pred = np.array([[1.0, next_x]])
+            pred_result = model.get_prediction(x_pred)
+            pi = pred_result.summary_frame(alpha=1 - confidence_level)
+            pi_lower = float(pi["obs_ci_lower"].iloc[0])
+            pi_upper = float(pi["obs_ci_upper"].iloc[0])
+
+            # DW statistic on residuals
+            dw = float(durbin_watson(model.resid))
+
+            return {
+                "slope":         round(slope, 4),
+                "next_predicted": round(predicted, 2),
+                "pi_lower":      round(pi_lower, 2),
+                "pi_upper":      round(pi_upper, 2),
+                "n_points":      n,
+                "r_squared":     round(float(model.rsquared), 4),
+                "adj_r_squared": round(float(model.rsquared_adj), 4),
+                "p_value":       round(float(model.f_pvalue), 4),
+                "durbin_watson": round(dw, 3),
+            }
+        except Exception as e:
+            logger.warning("statsmodels OLS failed, falling back to manual OLS: %s", e)
+
+    # ── Manual OLS fallback ───────────────────────────────────────────────────
+    x_mean = sum(xs) / n
+    y_mean = sum(ys) / n
+    sxy = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n))
+    sxx = sum((xs[i] - x_mean) ** 2 for i in range(n))
+
+    if sxx == 0:
+        return {**_null, "slope": 0.0, "next_predicted": round(y_mean, 2)}
+
+    slope     = sxy / sxx
+    intercept = y_mean - slope * x_mean
+    next_x    = max(xs) + 1
+    predicted = slope * next_x + intercept
+
+    if not _SCIPY_AVAILABLE or n <= 2:
+        return {**_null, "slope": round(slope, 4), "next_predicted": round(predicted, 2)}
+
+    y_hat = [slope * xs[i] + intercept for i in range(n)]
+    rss   = sum((ys[i] - y_hat[i]) ** 2 for i in range(n))
+    rse   = (rss / (n - 2)) ** 0.5
+    t_crit = t_dist.ppf((1 + confidence_level) / 2, df=n - 2)
+    margin = t_crit * rse * (1 + 1 / n + (next_x - x_mean) ** 2 / sxx) ** 0.5
+
+    # Manual R² for the fallback path
+    ss_tot = sum((yi - y_mean) ** 2 for yi in ys)
+    r2 = round(1 - rss / ss_tot, 4) if ss_tot > 0 else None
+
+    return {
+        "slope":          round(slope, 4),
+        "next_predicted": round(predicted, 2),
+        "pi_lower":       round(predicted - margin, 2),
+        "pi_upper":       round(predicted + margin, 2),
+        "n_points":       n,
+        "r_squared":      r2,
+        "adj_r_squared":  None,  # not computed in fallback
+        "p_value":        None,
+        "durbin_watson":  None,
+    }
+
+
+def _kalman_trend(
+    xs: list,
+    ys: list,
+    prior_level: float,
+    prior_slope: float   = 0.0,
+    P_level: float       = 4.0,
+    P_slope: float       = 0.25,
+    q_level: float       = 0.04,
+    q_slope: float       = 0.001,
+    r_obs: float         = 0.25,
+    confidence_level: float = 0.95,
+) -> dict:
+    """
+    Constant-velocity Kalman filter returning a next-step prediction with
+    a 95% predictive interval.
+    """
+    # BUG 2 FIX: removed the `if not _STATSMODELS_AVAILABLE: return {}` guard
+    # Kalman uses only numpy, which is always available.
+
+    pairs = sorted(
+        [(float(xi), float(yi)) for xi, yi in zip(xs, ys) if yi is not None]
+    )
+    n = len(pairs)
+    if n < 1:
+        return {}
+
+    ts  = [p[0] for p in pairs]
+    obs = [p[1] for p in pairs]
+
+    # State and covariance
+    x = np.array([prior_level, prior_slope], dtype=float)
+    P = np.diag([P_level, P_slope])
+    H = np.array([[1.0, 0.0]])
+    Q_unit = np.diag([q_level, q_slope])   # per-month process noise
+
+    for i, (t, y) in enumerate(zip(ts, obs)):
+        dt = float(t - ts[i - 1]) if i > 0 else 1.0
+        dt = max(dt, 1.0)
+
+        F = np.array([[1.0, dt], [0.0, 1.0]])
+        Q = Q_unit * dt
+
+        # Predict
+        x_p = F @ x
+        P_p = F @ P @ F.T + Q
+
+        # Update (innovation)
+        S   = max(float(np.squeeze(H @ P_p @ H.T)) + r_obs, 1e-6)
+        K   = (P_p @ H.T) / S
+        x   = x_p + K.flatten() * (y - float(np.squeeze(H @ x_p)))
+        P   = (np.eye(2) - np.outer(K.flatten(), H)) @ P_p
+
+    # One-step-ahead prediction
+    F1      = np.array([[1.0, 1.0], [0.0, 1.0]])
+    x_next  = F1 @ x
+    P_next  = F1 @ P @ F1.T + Q_unit
+
+    # Predictive std = state uncertainty + measurement noise
+    pred_var = float(P_next[0, 0]) + r_obs
+    pred_std = pred_var ** 0.5
+
+    z = _norm.ppf((1.0 + confidence_level) / 2.0) if _SCIPY_AVAILABLE else 1.96
+
+    return {
+        "method":          "Kalman",
+        "slope":           round(float(x[1]), 4),
+        "filtered_level":  round(float(x[0]), 2),
+        "next_predicted":  round(float(x_next[0]), 2),
+        "pi_lower":        round(float(x_next[0]) - z * pred_std, 2),
+        "pi_upper":        round(float(x_next[0]) + z * pred_std, 2),
+        "posterior_std":   round(pred_std, 3),
+        "n_points":        n,
+    }
+
+
+def _hb_endo(hb: float, transfusion_units: int) -> float:
+    """
+    Estimate endogenous Hb by subtracting expected transfusion contribution.
+    Assumption: 1 PRBC unit raises Hb by ~1 g/dL.
+    Floored at 5.0 g/dL to avoid physiologically impossible values.
+    """
+    return max(hb - float(transfusion_units), 5.0)
+
+
+def _hb_kalman(xs: list, ys: list) -> dict:
+    """Kalman filter with Hb-specific KDOQI priors."""
+    return _kalman_trend(
+        xs, ys,
+        prior_level = 11.0,   # KDOQI Hb target centre (g/dL)
+        prior_slope = 0.0,
+        P_level     = 4.0,    # ±2 g/dL initial level uncertainty (2σ)
+        P_slope     = 0.25,   # ±0.5 g/dL/month initial slope uncertainty
+        q_level     = 0.04,   # ~0.2 g/dL random walk per month
+        q_slope     = 0.001,  # slope evolves slowly
+        r_obs       = 0.25,   # ±0.5 g/dL lab measurement noise (1σ)
+    )
+
+
+def _albumin_kalman(xs: list, ys: list) -> dict:
+    """Kalman filter with Albumin-specific clinical priors."""
+    return _kalman_trend(
+        xs, ys,
+        prior_level = 3.8,    # centre of normal HD albumin range (g/dL)
+        prior_slope = 0.0,
+        P_level     = 0.36,   # ±0.6 g/dL initial level uncertainty
+        P_slope     = 0.04,   # ±0.2 g/dL/month initial slope uncertainty
+        q_level     = 0.01,   # albumin changes slowly (~0.1 g/dL/month)
+        q_slope     = 0.0005,
+        r_obs       = 0.04,   # ±0.2 g/dL lab measurement noise (1σ)
+    )
+
+
+def _hb_trajectory_severity(current: Optional[float]) -> str:
+    """Classify Hb severity based on current level."""
+    if current is None: return "unknown"
+    if current > 13.0:  return "critical_high"  # Risk: Stroke, Thrombosis
+    if current < 7.0:   return "critical"
+    if current < 9.0:   return "high"
+    if current < 10.0:  return "watch"
+    if 10.0 <= current <= 12.0: return "optimal"
+    return "stable"
+
+
+def _hb_trajectory_message(
+    severity: str, current: float, predicted: float,
+    prev_hb: float, has_transfusion: bool, transfusion_months: list
+) -> str:
+    """Generate human-readable clinical message for Hb trajectory."""
+    transfusion_note = (
+        f" (trajectory based on endogenous Hb — transfusions in {', '.join(transfusion_months)} excluded)"
+        if has_transfusion else ""
+    )
+
+    predicting_improvement = (predicted is not None and current is not None and predicted > current)
+    alert_predicted = predicted is not None and predicted < 10.0
+
+    if severity == "critical_high":
+        return f"🚨 HIGH RISK: Hb {current} g/dL exceeds 13.0 g/dL. Risk of thrombosis/stroke. Reduce/hold ESA dosage immediately."
+
+    if severity == "critical":
+        if predicting_improvement:
+            return (
+                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
+                f"Model projects partial recovery to {predicted:.1f} g/dL next month, but current level demands urgent action.{transfusion_note}"
+                if predicted is not None else
+                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required.{transfusion_note}"
+            )
+        return (
+            f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
+            f"Predicted to remain critically low at {predicted:.1f} g/dL.{transfusion_note}"
+            if predicted is not None else
+            f"CRITICAL: Current Hb {current} g/dL — immediate intervention required.{transfusion_note}"
+        )
+
+    if severity in ("high", "watch") and alert_predicted:
+        if predicting_improvement:
+            return (
+                f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
+                if predicted is not None else
+                f"Hb low at {current} g/dL — predicted to remain low. Monitor closely.{transfusion_note}"
+            )
+        return (
+            f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
+            if predicted is not None else
+            f"Hb low at {current} g/dL — predicted to decline. Escalate urgently.{transfusion_note}"
+        )
+
+    if alert_predicted:
+        # current >= 10 but predicted to fall below
+        return (
+            f"Predicted to drop below 10 g/dL (→ {predicted:.1f} g/dL) — review urgently.{transfusion_note}"
+            if predicted is not None else
+            f"Predicted to drop below 10 g/dL — review urgently.{transfusion_note}"
+        )
+
+    if current is not None and prev_hb is not None and current < prev_hb and prev_hb > 13.0 and current >= 10.0:
+        return f"✅ Favorable Trend: Controlled downtitration from {prev_hb} to {current} g/dL (Target 10-12 g/dL).{transfusion_note}"
+
+    if severity == "optimal":
+        return f"✅ Optimal: Hb {current} g/dL is within the target range (10-12 g/dL).{transfusion_note}"
+
+    return f"Hb trajectory acceptable.{transfusion_note}"
+
+
+def predict_hb_trajectory(df: List[Dict]) -> Dict:
+    # T1-4: Defensive sort descending
+    df = sorted(df, key=lambda x: x.get("month", ""), reverse=True)
+    readiness = compute_ml_readiness(df, "hb")
+    current = next((r["hb"] for r in df if r.get("hb") is not None), None)
+    prev_hb = df[1]["hb"] if len(df) > 1 and df[1].get("hb") is not None else None
+
+    # Identify months where a blood transfusion was given
+    transfusion_months = [
+        r["month"] for r in df
+        if r.get("transfusion_units") and r.get("month")
+    ]
+    has_transfusion = bool(transfusion_months)
+    _severity = _hb_trajectory_severity(current)
+
+    base = {
+        "current": current,
+        "confidence": readiness["confidence"],
+        "n_points": readiness["n_points"],
+        "completeness": readiness["completeness"],
+        "recommendation": readiness["recommendation"],
+        "alert": current is not None and current < 10.0,
+        "severity": _severity,
+        "transfusion_months": transfusion_months,
+        "has_transfusion_confounding": has_transfusion,
+    }
+
+    if not readiness["ready"]:
+        return {
+            "available": False,
+            "error":     readiness["recommendation"],
+            "data": {
+                **base,
+                "ready_for_prediction": False,
+                "predicted": None, "next_predicted": None,
+                "pi_lower": None, "pi_upper": None,
+                "r_squared": None, "adj_r_squared": None,
+                "p_value": None, "durbin_watson": None,
+                "alert_predicted_low": False,
+                "message": readiness["recommendation"],
+            }
+        }
+
+    # Use endogenous (transfusion-corrected) Hb for trajectory fitting.
+    pairs = [
+        (
+            _month_to_ordinal(r["month"]),
+            _hb_endo(r["hb"], r.get("transfusion_units") or 0),
+        )
+        for r in df
+        if r.get("hb") is not None and r.get("month")
+    ]
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+
+    kal   = _hb_kalman(xs, ys)
+    ols   = _linear_trend_with_ci(xs, ys)
+
+    predicted = kal.get("next_predicted") or ols.get("next_predicted")
+    message = _hb_trajectory_message(_severity, current, predicted, prev_hb, has_transfusion, transfusion_months)
+
+    return {
+        "available": True,
+        "error":     None,
+        "data": {
+            **base,
+            "ready_for_prediction": True,
+            "predicted":       predicted,
+            "next_predicted":  predicted,
+            "slope":           kal.get("slope") or ols.get("slope"),
+            "filtered_level":  kal.get("filtered_level"),
+            "pi_lower":        kal.get("pi_lower"),
+            "pi_upper":        kal.get("pi_upper"),
+            "posterior_std":   kal.get("posterior_std"),
+            "method":          kal.get("method", "OLS"),
+            "r_squared":       ols.get("r_squared"),
+            "adj_r_squared":   ols.get("adj_r_squared"),
+            "p_value":         ols.get("p_value"),
+            "durbin_watson":   ols.get("durbin_watson"),
+            "n_points":        kal.get("n_points") or ols.get("n_points"),
+            "alert_predicted_low": bool(predicted is not None and predicted < 10.0),
+            "message": message,
+        }
+    }
+
+
+def assess_albumin_decline(df: List[Dict]) -> Dict:
+    readiness = compute_ml_readiness(df, "albumin")
+    current = next((r["albumin"] for r in df if r.get("albumin") is not None), None)
+
+    base = {
+        "current": current,
+        "risk": current is not None and current < 3.5,
+        "confidence": readiness["confidence"],
+        "n_points": readiness["n_points"],
+        "message": readiness["recommendation"],
+    }
+
+    if not readiness["ready"]:
+        return {
+            "available": False,
+            "error":     readiness["recommendation"],
+            "data": {
+                **base,
+                "trend": "→", "direction": "→",
+                "predicted": None, "predicted_2m": None,
+                "pi_lower": None, "pi_upper": None,
+                "r_squared": None, "adj_r_squared": None,
+                "p_value": None, "durbin_watson": None,
+                "risk_crossing_35": base["risk"],
+                "inputs_missing": [f"Albumin ({2 - readiness['n_points']} more required)"]
+            }
+        }
+
+    pairs = [
+        (_month_to_ordinal(r["month"]), r["albumin"])
+        for r in df
+        if r.get("albumin") is not None and r.get("month")
+    ]
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+
+    kal   = _albumin_kalman(xs, ys)
+    ols   = _linear_trend_with_ci(xs, ys)
+
+    slope     = kal.get("slope") or ols.get("slope") or 0
+    predicted = kal.get("next_predicted") or ols.get("next_predicted")
+    direction = "↑" if slope > 0.05 else "↓" if slope < -0.05 else "→"
+    risk = base["risk"] or (predicted is not None and predicted < 2.5)
+
+    return {
+        "available": True,
+        "error":     None,
+        "data": {
+            **base,
+            "risk": risk,
+            "trend": direction,
+            "direction": direction,
+            "predicted": predicted,
+            "predicted_2m": predicted,
+            "filtered_level":  kal.get("filtered_level"),
+            "pi_lower":        kal.get("pi_lower"),
+            "pi_upper":        kal.get("pi_upper"),
+            "posterior_std":   kal.get("posterior_std"),
+            "method":          kal.get("method", "OLS"),
+            "r_squared":       ols.get("r_squared"),
+            "adj_r_squared":   ols.get("adj_r_squared"),
+            "p_value":         ols.get("p_value"),
+            "durbin_watson":   ols.get("durbin_watson"),
+            "n_points":        kal.get("n_points") or ols.get("n_points", readiness["n_points"]),
+            "risk_crossing_35": risk,
+        }
+    }
+
+
+def classify_iron_status(latest: Dict, staleness: Dict = None) -> Dict:
+    staleness = staleness or {}
+    fer, tsat = latest.get("serum_ferritin"), latest.get("tsat")
+    if fer is None or tsat is None:
+        missing = []
+        if fer is None: missing.append("Ferritin")
+        if tsat is None: missing.append("TSAT")
+        return {
+            "available": False,
+            "error":     "Incomplete labs (Ferritin/TSAT).",
+            "data": {
+                "status": "Unknown",
+                "class": "warning",
+                "message": "Incomplete labs — enter Ferritin + TSAT",
+                "inputs_missing": missing
+            }
+        }
+
+    if (tsat or 0) < 20:
+        status, rec = "Absolute Iron Deficiency", "Initiate IV Iron Loading (KDIGO 3.4.2)"
+    elif (tsat or 0) < 30 and (fer or 0) < 500:
+        status, rec = "Functional Iron Deficiency", "IV Iron recommended (TSAT < 30%, Ferritin < 500)"
+    elif (fer or 0) > 800:
+        status, rec = "Iron Overload Risk", "Hold IV Iron — recheck in 3 months"
+    elif (fer or 0) > 500:
+        status, rec = "Iron Replete", "Hold Iron — monitor TSAT"
+    else:
+        status, rec = "Adequate Iron Stores", "Maintenance dose"
+
+    # Staleness check
+    stale_months = max(staleness.get("serum_ferritin", 0), staleness.get("tsat", 0))
+    stale_warning = f" (⚠ Data is {stale_months} months old)" if stale_months > 3 else ""
+
+    return {
+        "available": True,
+        "error":     None,
+        "data": {
+            "status": status,
+            "recommendation": rec,
+            "message": rec + stale_warning,
+            "class": "danger" if "Deficiency" in status
+                     else "warning" if ("Overload" in status or "Replete" in status)
+                     else "success",
+            "inputs_missing": []
+        }
+    }

@@ -9,43 +9,204 @@
     <style>
         :root {
             --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
             --radius: 16px;
-            --bg-main: #f5f7ff;
+            --bg-main: #f8fafc;
+            --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
-        header { background: #1e1b4b; color: white; padding: 20px 32px; display: flex; align-items: center; gap: 16px; }
-        header h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 2rem; }
         
-        .container { max-width: 1000px; margin: -30px auto 60px; padding: 0 20px; }
-        
-        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-bottom: 30px; }
-        .stat-card { background: white; padding: 30px; border-radius: var(--radius); box-shadow: 0 4px 20px rgba(0,0,0,0.06); text-align: center; position: relative; overflow: hidden; }
-        
-        .stat-val { font-size: 1.8rem; font-weight: 800; font-family: 'Outfit'; z-index: 2; margin-top: 10px; }
-        .stat-lbl { color: #64748b; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
-        .target-lbl { font-size: 0.75rem; color: #94a3b8; margin-top: 5px; }
+        body { 
+            background: var(--bg-main); 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            color: #1e293b;
+            line-height: 1.5;
+        }
 
-        .card { background: white; border-radius: var(--radius); padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-        .card h3 { font-family: 'Outfit', sans-serif; margin-top: 0; display: flex; align-items: center; gap: 10px; color: #1e1b4b; }
+        header { 
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); 
+            color: white; 
+            padding: 60px 32px 100px; 
+            text-align: center;
+        }
         
-        .watchlist-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .watchlist-table th { text-align: left; padding: 12px 15px; background: #f8fafc; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
-        .watchlist-table td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
-        
-        .badge-urgent { background: #fee2e2; color: #b91c1c; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
-        
-        .indicator-bar { height: 8px; background: #f1f5f9; border-radius: 4px; margin-top: 15px; position: relative; overflow: hidden; }
-        .indicator-fill { height: 100%; transition: width 0.5s; }
+        header h1 { 
+            font-family: 'Outfit', sans-serif; 
+            margin: 0; 
+            font-size: 2.5rem; 
+            letter-spacing: -0.02em;
+        }
 
-        .status-ok { color: #10b981; }
-        .status-warning { color: #f59e0b; }
-        .status-danger { color: #ef4444; }
+        .container { 
+            max-width: 1100px; 
+            margin: -60px auto 60px; 
+            padding: 0 24px; 
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Stats Row Improvements */
+        .stats-row { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 24px; 
+            margin-bottom: 40px; 
+        }
+
+        @media (max-width: 900px) {
+            .stats-row { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 600px) {
+            .stats-row { grid-template-columns: 1fr; }
+        }
+
+        .stat-card { 
+            background: white; 
+            padding: 32px; 
+            border-radius: var(--radius); 
+            box-shadow: var(--card-shadow); 
+            text-align: center; 
+            transition: transform 0.2s ease;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .stat-lbl { 
+            color: var(--secondary); 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.1em; 
+            font-weight: 700; 
+            margin-bottom: 12px;
+        }
+
+        .stat-val { 
+            font-size: 2.5rem; 
+            font-weight: 800; 
+            font-family: 'Outfit'; 
+            margin: 8px 0;
+        }
+
+        .target-lbl { 
+            font-size: 0.85rem; 
+            color: #94a3b8; 
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        .card { 
+            background: white; 
+            border-radius: var(--radius); 
+            padding: 32px; 
+            margin-bottom: 32px; 
+            box-shadow: var(--card-shadow); 
+            border: 1px solid #f1f5f9;
+        }
+
+        .card h3 { 
+            font-family: 'Outfit', sans-serif; 
+            margin-top: 0; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            color: #1e1b4b; 
+            font-size: 1.4rem;
+        }
+
+        .watchlist-table { 
+            width: 100%; 
+            border-collapse: separate; 
+            border-spacing: 0;
+            margin-top: 24px; 
+        }
+
+        .watchlist-table th { 
+            text-align: left; 
+            padding: 16px; 
+            background: #f8fafc; 
+            color: var(--secondary); 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            font-weight: 700;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .watchlist-table td { 
+            padding: 16px; 
+            border-bottom: 1px solid #f1f5f9; 
+            font-size: 0.95rem; 
+            color: #334155;
+        }
+
+        .watchlist-table tr:hover td {
+            background-color: #fcfdfe;
+        }
+
+        .badge-urgent { 
+            background: #fee2e2; 
+            color: #b91c1c; 
+            padding: 6px 12px; 
+            border-radius: 8px; 
+            font-size: 0.75rem; 
+            font-weight: 700; 
+            display: inline-block;
+        }
+
+        .indicator-bar { 
+            height: 10px; 
+            background: #f1f5f9; 
+            border-radius: 5px; 
+            margin-top: 20px; 
+            overflow: hidden; 
+        }
+        
+        .indicator-fill { 
+            height: 100%; 
+            border-radius: 5px;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+
+        .status-ok { color: var(--success); }
+        .status-warning { color: var(--warning); }
+        .status-danger { color: var(--danger); }
+
+        .info-footer {
+            background: #f1f5f9; 
+            border: 1px solid #e2e8f0; 
+            padding: 24px; 
+            border-radius: 12px; 
+            font-size: 0.9rem; 
+            color: #475569; 
+            line-height: 1.6;
+        }
+
+        .nav-breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            background: rgba(30, 27, 75, 0.95);
+            color: rgba(255,255,255,0.7);
+            font-size: 0.85rem;
+        }
+        .nav-breadcrumb a { color: white; text-decoration: none; font-weight: 500; }
+        .nav-breadcrumb .bc-current { color: #a5b4fc; font-weight: 600; }
+        .bc-sep { opacity: 0.4; }
     </style>
 </head>
 <body>
 
 {% include "_nav.html" %}
-<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+
+<nav class="nav-breadcrumb">
   <a href="/">Dashboard</a>
   <span class="bc-sep">/</span>
   <a href="/analytics">Analytics Hub</a>
@@ -53,10 +214,9 @@
   <span class="bc-current">Access Quality</span>
 </nav>
 
-
 <header>
-    <h1>Vascular Access Quality Dashboard</h1>
-    <p style="opacity:0.8; margin-top:5px;">Adherence to Fistula-First clinical recommendations</p>
+    <h1>Vascular Access Quality</h1>
+    <p style="opacity:0.9; margin-top:10px; font-size:1.1rem; font-weight:300;">Adherence to Fistula-First clinical recommendations</p>
 </header>
 
 <div class="container">
@@ -69,7 +229,7 @@
             </div>
             <div class="target-lbl">Target: &ge;{{ metrics.target_prevalent }}%</div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ metrics.prevalent_rate }}%; background: {{ '#10b981' if metrics.prevalent_rate >= metrics.target_prevalent else '#f59e0b' }}"></div>
+                <div class="indicator-fill" style="width: {{ metrics.prevalent_rate }}%; background: {{ 'var(--success)' if metrics.prevalent_rate >= metrics.target_prevalent else 'var(--warning)' }}"></div>
             </div>
         </div>
 
@@ -81,7 +241,7 @@
             </div>
             <div class="target-lbl">Surgery > 6w, No cannulation</div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ [metrics.maturation_failure_count / 5 * 100, 100] | min }}%; background: #ef4444"></div>
+                <div class="indicator-fill" style="width: {{ [metrics.maturation_failure_count / 5 * 100, 100] | min }}%; background: var(--danger)"></div>
             </div>
         </div>
 
@@ -93,15 +253,15 @@
             </div>
             <div class="target-lbl">BFR < 250 or Recirc > 10%</div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ [metrics.functional_alert_count / 5 * 100, 100] | min }}%; background: #f59e0b"></div>
+                <div class="indicator-fill" style="width: {{ [metrics.functional_alert_count / 5 * 100, 100] | min }}%; background: var(--warning)"></div>
             </div>
         </div>
     </div>
 
-    <!-- 1. AVF MATURATION WATCHLIST (Surgery done, not matured) -->
+    <!-- 1. AVF MATURATION WATCHLIST -->
     <div class="card">
-        <h3><i class="material-icons" style="color:#ef4444">timer</i> AVF Maturation Watchlist</h3>
-        <p style="color:#64748b; font-size:0.9rem; margin-top:5px;">Patients with AVF surgery performed > 4-6 weeks ago who are still dependent on temporary catheters/Permacaths.</p>
+        <h3><i class="material-icons" style="color:var(--danger)">timer</i> AVF Maturation Watchlist</h3>
+        <p style="color:var(--secondary); font-size:0.95rem; margin-top:8px;">Patients with AVF surgery performed > 4-6 weeks ago who are still dependent on temporary catheters/Permacaths.</p>
         
         {% if maturation_watchlist %}
         <div style="overflow-x: auto;">
@@ -129,7 +289,7 @@
                             </ul>
                         </td>
                         <td>
-                            <a href="/analytics/patients/{{ item.patient.id }}" class="btn-analyze" style="font-size:0.8rem; text-decoration:none; color:var(--primary); font-weight:600;">View Cascade</a>
+                            <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.85rem; text-decoration:none; color:var(--primary); font-weight:600;">View Cascade</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -137,17 +297,18 @@
             </table>
         </div>
         {% else %}
-        <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.9rem;">
-            <i class="material-icons" style="font-size:2rem; opacity:0.3;">check_circle</i>
-            <p>No maturation failures detected. All current surgeries are either < 6 weeks old or already matured.</p>
+        <div style="text-align:center; padding:48px; color:#94a3b8;">
+            <i class="material-icons" style="font-size:3rem; opacity:0.2; margin-bottom:12px;">check_circle</i>
+            <p style="font-size:1.1rem;">No maturation failures detected.</p>
+            <p style="font-size:0.9rem; margin-top:4px;">All current surgeries are either < 6 weeks old or already matured.</p>
         </div>
         {% endif %}
     </div>
 
-    <!-- 2. FUNCTIONAL & RECIRCULATION ALERTS (Cannulated but poor performance) -->
+    <!-- 2. FUNCTIONAL & RECIRCULATION ALERTS -->
     <div class="card">
-        <h3><i class="material-icons" style="color:#f59e0b">speed</i> Functional & Recirculation Monitoring</h3>
-        <p style="color:#64748b; font-size:0.9rem; margin-top:5px;">Real-time intelligence monitoring BFR < 250 ml/min or Access Recirculation > 10% (Urea two-needle method).</p>
+        <h3><i class="material-icons" style="color:var(--warning)">speed</i> Functional & Recirculation Monitoring</h3>
+        <p style="color:var(--secondary); font-size:0.95rem; margin-top:8px;">Real-time intelligence monitoring BFR < 250 ml/min or Access Recirculation > 10% (Urea two-needle method).</p>
         
         {% if functional_watchlist %}
         <div style="overflow-x: auto;">
@@ -169,21 +330,21 @@
                         <td>
                             {% for alert in item.status.alerts %}
                                 {% if 'Suboptimal' in alert or 'Recirculation' in alert %}
-                                    <div style="color:#92400e; font-size:0.85rem; margin-bottom:2px;">
-                                        <i class="material-icons" style="font-size:0.9rem; vertical-align:middle;">warning</i> {{ alert }}
+                                    <div style="color:#92400e; font-size:0.85rem; margin-bottom:2px; display:flex; align-items:center; gap:4px;">
+                                        <i class="material-icons" style="font-size:1rem;">warning</i> {{ alert }}
                                     </div>
                                 {% endif %}
                             {% endfor %}
                         </td>
                         <td>
                             {% if item.status.high_recirculation %}
-                                <span style="color:#ef4444; font-weight:700;">Significant (>10%)</span>
+                                <span style="color:var(--danger); font-weight:700;">Significant (>10%)</span>
                             {% else %}
-                                <span style="color:#10b981;">Normal</span>
+                                <span style="color:var(--success); font-weight:600;">Normal</span>
                             {% endif %}
                         </td>
                         <td>
-                            <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.8rem; text-decoration:none; color:var(--primary); font-weight:600;">Analyze Sessions</a>
+                            <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.85rem; text-decoration:none; color:var(--primary); font-weight:600;">Analyze Sessions</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -191,16 +352,17 @@
             </table>
         </div>
         {% else %}
-        <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.9rem;">
-            <i class="material-icons" style="font-size:2rem; opacity:0.3;">verified</i>
-            <p>All active permanent accesses are maintaining BFR &ge; 250 ml/min with no recirculation detected.</p>
+        <div style="text-align:center; padding:48px; color:#94a3b8;">
+            <i class="material-icons" style="font-size:3rem; opacity:0.2; margin-bottom:12px;">verified</i>
+            <p style="font-size:1.1rem;">All accesses performing optimally.</p>
+            <p style="font-size:0.9rem; margin-top:4px;">Maintaining BFR &ge; 250 ml/min with no recirculation detected.</p>
         </div>
         {% endif %}
     </div>
 
     <!-- 3. LATE CONVERSION WATCHLIST -->
     <div class="card">
-        <h3><i class="material-icons" style="color:#6366f1">history_toggle_off</i> Non-AVF Access > 90 Days (Prevalent Catheter Use)</h3>
+        <h3><i class="material-icons" style="color:var(--primary)">history_toggle_off</i> Non-AVF Access > 90 Days</h3>
         {% if watchlist %}
         <div style="overflow-x: auto;">
             <table class="watchlist-table">
@@ -218,7 +380,7 @@
                     <tr>
                         <td><strong>{{ item.patient.name }}</strong></td>
                         <td>{{ item.days }} Days</td>
-                        <td><span style="color:#ef4444; font-weight:600;">{{ item.patient.access_type }}</span></td>
+                        <td><span style="color:var(--danger); font-weight:600;">{{ item.patient.access_type }}</span></td>
                         <td>{{ item.vintage }}</td>
                         <td><span class="badge-urgent">Late Referral/Failure</span></td>
                     </tr>
@@ -227,21 +389,17 @@
             </table>
         </div>
         {% else %}
-        <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.9rem;">
+        <div style="text-align:center; padding:32px; color:var(--secondary);">
             <p>No prevalent catheters > 90 days detected.</p>
         </div>
         {% endif %}
     </div>
 
-    <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:20px; border-radius:12px; font-size:0.85rem; color:#475569; line-height:1.6;">
+    <div class="info-footer">
         <strong>Access Recirculation (Two-Needle Urea Method):</strong>
         Calculated as R = [(S - A) / (S - V)] &times; 100. 
         <br/>Normal: < 5% | Significant: > 10%. Recirculation indicates inadequate blood flow or reversed needles, leading to dialysis of already cleaned blood and significant reduction in Kt/V.
     </div>
-</div>
-
-</body>
-</html>
 </div>
 
 </body>

@@ -1,0 +1,992 @@
+"""
+ml_cascade.py
+=============
+Clinical Cascade Analysis for hemodialysis patients:
+  - MIA Syndrome (Malnutrition-Inflammation-Atherosclerosis)
+  - Cardiorenal Cascade
+  - AVF Maturation Monitoring
+  - Post-Dialysis Syndrome (PDS)
+  - Blood Flow Rate (BFR) Trend Analysis
+  - Occult Volume Overload Detection
+"""
+import logging
+from typing import List, Dict, Optional
+
+from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
+
+# ── Shared GNRI helper ────────────────────────────────────────────────────────
+
+def _compute_gnri(alb_val: float, weight_val: float, height: float, sex: str) -> Optional[float]:
+    """
+    Compute Geriatric Nutritional Risk Index (GNRI).
+    Returns None if any required value is missing/invalid.
+    Formula: 14.89 * Albumin (g/dL) + 41.7 * (Weight / IDW)
+    IDW: height - 100 - ((height - 150) / 4) for Male
+         height - 100 - ((height - 150) / 2.5) for Female
+    """
+    if alb_val is None or weight_val is None or height is None:
+        return None
+    h_diff = height - 150
+    if sex == "Male":
+        idw = height - 100 - (h_diff / 4)
+    else:
+        idw = height - 100 - (h_diff / 2.5)
+    if idw <= 0:
+        return None
+    w_ratio = min(1.0, weight_val / idw) if weight_val > idw else (weight_val / idw)
+    return (14.89 * alb_val) + (41.7 * w_ratio)
+
+
+def compute_mia_score(db: Session, patient_id: int) -> Dict:
+    """
+    Calculate Malnutrition, Inflammation, Atherosclerosis (MIA) Syndrome components.
+    Based on Geriatric Nutritional Risk Index (GNRI) and clinical history.
+    """
+    from database import MonthlyRecord, Patient, SessionRecord
+
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        return {}
+
+    # 1. Atherosclerosis Component
+    athero = False
+    if patient.cad_status or patient.history_of_stroke or patient.history_of_pvd:
+        athero = True
+
+    # 2. Inflammation Component (CRP > 0.3 mg/dL)
+    recent_rec = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.crp.isnot(None)
+    ).order_by(MonthlyRecord.record_month.desc()).first()
+
+    crp_val = recent_rec.crp if recent_rec else None
+
+    if crp_val is None:
+        from database import InterimLabRecord
+        recent_crp_interim = db.query(InterimLabRecord).filter(
+            InterimLabRecord.patient_id == patient_id,
+            InterimLabRecord.parameter == 'crp'
+        ).order_by(InterimLabRecord.lab_date.desc()).first()
+        crp_val = recent_crp_interim.value if recent_crp_interim else None
+
+    inflam = False
+    if crp_val is not None and crp_val > 0.3:
+        inflam = True
+
+    # 3. Malnutrition Component (GNRI < 92)
+    recent_rec_alb = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.albumin.isnot(None)
+    ).order_by(MonthlyRecord.record_month.desc()).first()
+
+    alb_val = recent_rec_alb.albumin if recent_rec_alb else None
+
+    recent_session = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == patient_id
+    ).order_by(SessionRecord.session_date.desc()).first()
+
+    weight_val = recent_session.weight_pre if recent_session else None
+    height = patient.height
+    sex = patient.sex
+
+    malnut = False
+    gnri = None
+    risk_grade = "N/A"
+
+    if alb_val and weight_val and height:
+        gnri = _compute_gnri(alb_val, weight_val, height, sex)
+        if gnri is not None:
+            if gnri < 82: risk_grade = "Major Risk"
+            elif gnri < 92: risk_grade = "Moderate Risk"
+            elif gnri < 98: risk_grade = "Low Risk"
+            else: risk_grade = "No Risk"
+
+            if gnri < 92:
+                malnut = True
+
+    # Sensitivity analysis: Albumin < 3.5
+    malnut_sensitivity = False
+    if alb_val is not None and alb_val < 3.5:
+        malnut_sensitivity = True
+
+    # BUG 3 FIX: all three are bools, not None; compute directly without None check
+    score = int(athero) + int(inflam) + int(malnut)
+
+    available = gnri is not None
+    missing_inputs = []
+    if alb_val is None: missing_inputs.append("Albumin")
+    if weight_val is None: missing_inputs.append("Weight")
+    if height is None: missing_inputs.append("Height")
+    if crp_val is None: missing_inputs.append("CRP")
+
+    return {
+        "available": available,
+        "error": None if available else "Insufficient data for full MIA scoring.",
+        "data": {
+            "score": score,
+            "components": {
+                "malnutrition": malnut,
+                "inflammation": inflam,
+                "atherosclerosis": athero
+            },
+            "metrics": {
+                "gnri": round(gnri, 2) if gnri is not None else None,
+                "risk_grade": risk_grade,
+                "crp": crp_val,
+                "albumin": alb_val,
+                "weight": weight_val,
+                "malnut_sensitivity": malnut_sensitivity
+            },
+            "inputs_missing": missing_inputs
+        }
+    }
+
+
+def analyze_mia_cascade(db, patient_id: int) -> dict:
+    """
+    Malnutrition–Inflammation–Atherosclerosis (MIA) Early Warning Dashboard.
+    Updated to align with GNRI-based definitions and CRP > 0.3 thresholds.
+    """
+    from database import MonthlyRecord, Patient, SessionRecord
+
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p: return {"available": False}
+
+    records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id
+    ).order_by(MonthlyRecord.record_month.asc()).all()
+
+    if not records:
+        return {"available": False}
+
+    records = records[-9:]
+
+    # Calculate IDW once using shared helper
+    height = p.height
+    sex = p.sex
+
+    timeline = []
+
+    # Static Atherosclerosis (History based)
+    has_athero_history = bool(p.cad_status or p.history_of_stroke or p.history_of_pvd)
+
+    for rec in records:
+        m = rec.record_month
+        scores       = {}
+        data_available = {}
+        missing_fields = {}
+        values       = {}
+        events       = []
+
+        # ── 1. NUTRITION (GNRI based) ─────────────────────────────────────────
+        nut_score   = 0
+        alb = rec.albumin
+
+        # Get weight from Monthly if available, else fallback
+        weight = rec.target_dry_weight
+        if weight is None:
+            sess = db.query(SessionRecord).filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.record_month == m
+            ).first()
+            if sess: weight = sess.weight_pre
+
+        if alb is not None and weight is not None and height:
+            gnri = _compute_gnri(alb, weight, height, sex)
+            if gnri is not None:
+                values["nutrition"] = {"GNRI": round(gnri, 1), "albumin": alb, "weight": weight}
+
+                if gnri < 82:
+                    nut_score = 2
+                    events.append({"icon": "🥩", "color": "#ef4444", "text": f"Major Malnutrition Risk (GNRI {gnri:.1f})"})
+                elif gnri < 92:
+                    nut_score = 2
+                    events.append({"icon": "🥩", "color": "#f59e0b", "text": f"Moderate Malnutrition Risk (GNRI {gnri:.1f})"})
+                elif gnri < 98:
+                    nut_score = 1
+
+                # Sensitivity check: Albumin < 3.5
+                if alb < 3.5:
+                    events.append({"icon": "🧪", "color": "#f59e0b", "text": f"Low Albumin (<3.5 g/dL): {alb:.1f}"})
+
+        scores["nutrition"] = nut_score
+        data_available["nutrition"] = (alb is not None)
+        missing_fields["nutrition"] = ["albumin"] if alb is None else []
+
+        # ── 2. INFLAMMATION (CRP > 0.3) ───────────────────────────────────────
+        inflam_score = 0
+        crp = getattr(rec, "crp", None)
+
+        # Fallback: look back up to 6 months if current month missing CRP
+        if crp is None:
+            prev_crps = [getattr(r, "crp", None) for r in records if r.record_month < rec.record_month]
+            valid_prev = [v for v in prev_crps if v is not None]
+            if valid_prev:
+                crp = valid_prev[-1]  # use latest available
+
+        if crp is not None:
+            values["inflammation"] = {"CRP": crp}
+            if crp > 0.3:
+                inflam_score = 2
+                events.append({"icon": "🔥", "color": "#ef4444", "text": f"High Inflammation (CRP {crp:.2f} > 0.3)"})
+            elif crp > 0.1:
+                inflam_score = 1
+
+        scores["inflammation"] = inflam_score
+        data_available["inflammation"] = (crp is not None)
+        missing_fields["inflammation"] = ["CRP"] if crp is None else []
+
+        # ── 3. ATHEROSCLEROSIS ────────────────────────────────────────────────
+        athero_score = 0
+        if has_athero_history:
+            athero_score = 2
+            values["atherosclerosis"] = {"status": "History+"}
+        else:
+            bp_sys = getattr(rec, "bp_sys", None)
+            if bp_sys and bp_sys > 160:
+                athero_score = 1
+                values["atherosclerosis"] = {"SBP": bp_sys}
+
+        scores["atherosclerosis"] = athero_score
+        data_available["atherosclerosis"] = True
+        missing_fields["atherosclerosis"] = []
+
+        # ── 4. DIALYSIS & EVENTS ──────────────────────────────────────────────
+        dial_score = 0
+        ktv = rec.single_pool_ktv
+        if ktv and ktv < 1.2: dial_score = 1
+        scores["dialysis"] = dial_score
+        data_available["dialysis"] = (ktv is not None)
+        missing_fields["dialysis"] = ["Kt/V"] if ktv is None else []
+
+        hosp_score = 0
+        if rec.hospitalization_this_month:
+            hosp_score = 2
+            events.append({"icon": "🏥", "color": "#6366f1", "text": "Hospitalization recorded"})
+        scores["events"] = hosp_score
+        data_available["events"] = True
+        missing_fields["events"] = []
+
+        # Completeness per month
+        m_total = sum(1 for d in data_available.values() if d)
+        scored_domains = [k for k in ("nutrition", "inflammation", "atherosclerosis", "dialysis") if data_available.get(k)]
+        entry_total = sum(scores.get(k, 0) for k in scored_domains)
+        timeline.append({
+            "label": m,
+            "scores": scores,
+            "data_available": data_available,
+            "missing_fields": missing_fields,
+            "values": values,
+            "events": events,
+            "completeness_pct": round((m_total / 5) * 100),
+            "total": entry_total,
+            "domains_with_data": len(scored_domains),
+        })
+
+    # Summary Stats
+    total_data_points = sum(1 for t in timeline for d in t["data_available"].values() if d)
+    completeness = (total_data_points / (len(timeline) * 5)) * 100 if timeline else 0
+
+    alert = any(t["total"] >= 4 for t in timeline[-2:]) if timeline else False
+    if alert:
+        worst = max(timeline[-2:], key=lambda t: t["total"])
+        high_domains = [k for k in ("nutrition", "inflammation", "atherosclerosis", "dialysis") if worst["scores"].get(k, 0) >= 2]
+        cascade_reason = f"Persistent multi-domain risk: {', '.join(high_domains)} scoring high in recent months."
+    else:
+        cascade_reason = ""
+
+    last_month = timeline[-1] if timeline else None
+    inputs_missing = []
+    if last_month:
+        for dom_missing in last_month["missing_fields"].values():
+            inputs_missing.extend(dom_missing)
+
+    return {
+        "available": True,
+        "timeline": timeline,
+        "data_completeness": round(completeness, 1),
+        "months_of_data": len(timeline),
+        "alert_triggered": alert,
+        "cascade_reason": cascade_reason,
+        "inputs_missing": list(set(inputs_missing)),
+    }
+
+
+def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
+    """
+    Cardiorenal / Fluid Overload Cascade.
+    """
+    from database import Patient, MonthlyRecord, DryWeightAssessment
+
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        return {"available": False}
+
+    records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id
+    ).order_by(MonthlyRecord.record_month.asc()).all()
+
+    if not records:
+        return {"available": False}
+
+    records = records[-6:]
+
+    events       = []
+    risk_score   = 0
+    inputs_found = []
+    inputs_missing = []
+
+    # ── 1. CARDIAC STATUS (from patient profile) ──────────────────────────────
+    ef = p.ejection_fraction
+    dd = p.diastolic_dysfunction
+
+    if ef is not None:
+        inputs_found.append(f"EF {ef:.0f}%")
+        if ef < 40:
+            risk_score += 3
+            events.append({"type": "cardiac",
+                "text": f"Severe LV systolic dysfunction — EF {ef:.0f}% (high filling pressures, fluid retention risk)"})
+        elif ef < 50:
+            risk_score += 2
+            events.append({"type": "cardiac",
+                "text": f"Mild–moderate LV systolic dysfunction — EF {ef:.0f}%"})
+    else:
+        inputs_missing.append("Ejection fraction (echo)")
+
+    if dd and dd.lower() not in ("none", ""):
+        inputs_found.append(f"DD {dd}")
+        if "grade iii" in dd.lower() or "grade 3" in dd.lower():
+            risk_score += 3
+            events.append({"type": "cardiac",
+                "text": f"Severe diastolic dysfunction ({dd}) — markedly raised filling pressures"})
+        elif "grade ii" in dd.lower() or "grade 2" in dd.lower():
+            risk_score += 2
+            events.append({"type": "cardiac",
+                "text": f"Moderate diastolic dysfunction ({dd})"})
+        elif "grade i" in dd.lower() or "grade 1" in dd.lower():
+            risk_score += 1
+            events.append({"type": "cardiac",
+                "text": f"Mild diastolic dysfunction ({dd})"})
+    else:
+        inputs_missing.append("Diastolic dysfunction grade (echo)")
+
+    # ── 2. NT-proBNP ──────────────────────────────────────────────────────────
+    nt_vals = [(r.record_month, r.nt_probnp) for r in records if r.nt_probnp is not None]
+    if nt_vals:
+        latest_nt = nt_vals[-1][1]
+        inputs_found.append(f"NT-proBNP {latest_nt:.0f} pg/mL")
+        if latest_nt > 5000:
+            risk_score += 3
+            events.append({"type": "biomarker",
+                "text": f"NT-proBNP severely elevated: {latest_nt:.0f} pg/mL (>5000 — strong fluid overload signal in HD)"})
+        elif latest_nt > 2000:
+            risk_score += 2
+            events.append({"type": "biomarker",
+                "text": f"NT-proBNP markedly elevated: {latest_nt:.0f} pg/mL (>2000 — significant volume excess)"})
+        elif latest_nt > 1000:
+            risk_score += 1
+            events.append({"type": "biomarker",
+                "text": f"NT-proBNP elevated: {latest_nt:.0f} pg/mL (>1000 — monitor closely)"})
+        if len(nt_vals) >= 3:
+            vals = [v for _, v in nt_vals[-3:]]
+            if vals[-1] > vals[-2] > vals[-3]:
+                risk_score += 1
+                events.append({"type": "biomarker",
+                    "text": f"NT-proBNP rising trend: {vals[-3]:.0f} → {vals[-2]:.0f} → {vals[-1]:.0f} pg/mL over 3 months"})
+    else:
+        inputs_missing.append("NT-proBNP (monthly record)")
+
+    # ── 3. BIA FLUID STATUS ───────────────────────────────────────────────────
+    latest_bia = (
+        db.query(DryWeightAssessment)
+        .filter(DryWeightAssessment.patient_id == patient_id,
+                DryWeightAssessment.bia_fluid_overload_litres != None)
+        .order_by(DryWeightAssessment.assessment_date.desc())
+        .first()
+    )
+    if latest_bia:
+        fo = latest_bia.bia_fluid_overload_litres
+        oh = latest_bia.bia_overhydration_percent
+        inputs_found.append(f"BIA fluid overload {fo:+.1f} L")
+        if fo > 2.5:
+            risk_score += 2
+            events.append({"type": "fluid",
+                "text": f"BIA: severe fluid overload {fo:.1f} L above target (>{2.5} L threshold)"})
+        elif fo > 1.0:
+            risk_score += 1
+            events.append({"type": "fluid",
+                "text": f"BIA: fluid overload {fo:.1f} L above target — moderate volume excess"})
+        if oh is not None and oh > 15:
+            risk_score += 1
+            events.append({"type": "fluid",
+                "text": f"BIA: overhydration {oh:.1f}% body water — exceeds 15% threshold"})
+    else:
+        inputs_missing.append("BIA fluid overload (dry-weight assessment)")
+
+    # ── 4. INTERDIALYTIC WEIGHT GAIN ──────────────────────────────────────────
+    idwgs = [(r.record_month, r.idwg) for r in records if r.idwg is not None]
+    if idwgs:
+        latest_idwg = idwgs[-1][1]
+        avg_idwg    = sum(v for _, v in idwgs) / len(idwgs)
+        inputs_found.append(f"IDWG {latest_idwg:.1f} kg")
+        if latest_idwg > 3.5 or avg_idwg > 3.0:
+            risk_score += 2
+            events.append({"type": "fluid",
+                "text": f"High interdialytic weight gain: latest {latest_idwg:.1f} kg, avg {avg_idwg:.1f} kg — volume loading risk"})
+        elif latest_idwg > 2.5:
+            risk_score += 1
+            events.append({"type": "fluid",
+                "text": f"Elevated IDWG: {latest_idwg:.1f} kg (target <2.5 kg)"})
+    else:
+        inputs_missing.append("IDWG (monthly record)")
+
+    # ── 5. RESIDUAL URINE OUTPUT ──────────────────────────────────────────────
+    urine_vals = [(r.record_month, r.residual_urine_output) for r in records if r.residual_urine_output is not None]
+    if urine_vals:
+        latest_uo = urine_vals[-1][1]
+        inputs_found.append(f"Urine output {latest_uo:.0f} mL/day")
+        if latest_uo < 200:
+            risk_score += 2
+            events.append({"type": "renal",
+                "text": f"Oliguria/anuria: urine output {latest_uo:.0f} mL/day — minimal fluid buffering capacity"})
+        elif latest_uo < 500:
+            risk_score += 1
+            events.append({"type": "renal",
+                "text": f"Low residual urine output: {latest_uo:.0f} mL/day — limited salt and water excretion"})
+        if len(urine_vals) >= 2:
+            first_uo = urine_vals[0][1]
+            if first_uo - latest_uo > 200:
+                risk_score += 1
+                events.append({"type": "renal",
+                    "text": f"Declining urine output: {first_uo:.0f} → {latest_uo:.0f} mL/day over {len(urine_vals)} months"})
+    else:
+        inputs_missing.append("Residual urine output (monthly record)")
+
+    # ── 6. FLUID-RELATED HOSPITALISATIONS ─────────────────────────────────────
+    fluid_keywords = {"fluid", "j81", "i50", "oedema", "edema", "pulmonary", "overload"}
+    recent_hosps = [r for r in records if r.hospitalization_this_month]
+    fluid_hosps  = [r for r in recent_hosps if r.hospitalization_icd_code and
+                    any(kw in r.hospitalization_icd_code.lower() for kw in fluid_keywords)]
+
+    if fluid_hosps:
+        risk_score += 4
+        events.append({"type": "outcome",
+            "text": f"{len(fluid_hosps)} hospitalization(s) linked to fluid overload / pulmonary oedema in last {len(records)} months"})
+    elif recent_hosps:
+        events.append({"type": "outcome",
+            "text": f"{len(recent_hosps)} hospitalization(s) in last {len(records)} months (ICD codes not fluid-specific)"})
+
+    # ── Data sufficiency ──────────────────────────────────────────────────────
+    total_inputs   = len(inputs_found) + len(inputs_missing)
+    completeness   = round(len(inputs_found) / total_inputs * 100) if total_inputs else 0
+    reliable       = len(inputs_found) >= 3
+    cascade_detected = risk_score >= 5 and reliable
+
+    if not reliable:
+        status_label = "UNKNOWN"
+        message = (f"Insufficient data to assess risk reliably — "
+                   f"only {len(inputs_found)} of {total_inputs} expected inputs recorded.")
+    elif cascade_detected:
+        status_label = "HIGH RISK"
+        message = "Cardiorenal / fluid overload cascade detected — multiple concurrent risk factors."
+    elif risk_score >= 3:
+        status_label = "MODERATE RISK"
+        message = "Moderate cardiorenal risk — monitor fluid balance closely."
+    else:
+        status_label = "LOW RISK"
+        message = "No active cardiorenal fluid cascade — current data within acceptable range."
+
+    return {
+        "available":        True,
+        "cascade_detected": cascade_detected,
+        "risk_score":       risk_score,
+        "status_label":     status_label,
+        "reliable":         reliable,
+        "data_completeness": completeness,
+        "inputs_found":     inputs_found,
+        "inputs_missing":   inputs_missing,
+        "events":           events,
+        "months_assessed":  len(records),
+        "message":          message,
+    }
+
+
+def analyze_avf_maturation(db, patient_id: int) -> dict:
+    """
+    Vascular Access Quality Intelligence: AVF Maturation Monitoring.
+    """
+    from database import Patient, SessionRecord
+    from datetime import date, datetime
+
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        return {"available": False}
+
+    access_type_clean = (p.access_type or "").strip().lower()
+    is_catheter = any(k in access_type_clean for k in ("cath", "tcc", "permacath", "p/cath"))
+    is_avf_or_graft = any(k in access_type_clean for k in ("avf", "graft")) or (not is_catheter and access_type_clean)
+
+    events = []
+    alerts = []
+    risk_score = 0
+    today = date.today()
+    delay_days = None
+    has_access_data = bool(p.access_date or p.date_first_cannulation)
+
+    # ── 1. Maturation Monitoring (AVF/Graft only) ─────────────────────────────
+    if is_avf_or_graft:
+        def _to_date(val):
+            if val is None: return None
+            if isinstance(val, (date, datetime)): return val
+            try:
+                return datetime.strptime(val.split(" ")[0], "%Y-%m-%d").date()
+            except:
+                return None
+
+        access_date = _to_date(p.access_date)
+        hd_wef_date = _to_date(p.hd_wef_date)
+
+        if access_date and not p.date_first_cannulation:
+            days_since_surgery = (today - access_date).days
+
+            if not hd_wef_date:
+                # Scenario B (Pre-emptive, HD not yet started)
+                delay_days = days_since_surgery
+                events.append({
+                    "text": (
+                        f"Pre-emptive AVF created {days_since_surgery} days ago. "
+                        "Patient is not yet on dialysis — cannulation pending HD initiation. "
+                        "No maturation failure concern at this stage."
+                    )
+                })
+
+            elif hd_wef_date > access_date:
+                # Scenario B variant (HD started after AVF creation)
+                pre_hd_wait_days = (hd_wef_date - access_date).days
+                days_since_hd_start = (today - hd_wef_date).days
+                delay_days = days_since_hd_start
+                events.append({
+                    "text": (
+                        f"AVF created {pre_hd_wait_days} days before HD initiation "
+                        f"({hd_wef_date.strftime('%d %b %Y') if hd_wef_date else 'N/A'}). "
+                        f"Maturation clock starts from HD start date: "
+                        f"{days_since_hd_start} days elapsed without cannulation."
+                    )
+                })
+                if days_since_hd_start > 42:
+                    alerts.append(
+                        f"AVF Cannulation Overdue: {days_since_hd_start} days since HD initiation "
+                        f"without first cannulation — KDOQI recommends cannulation within 6 weeks "
+                        f"of HD start when fistula is clinically mature."
+                    )
+                    risk_score += 3
+                elif days_since_hd_start > 28:
+                    events.append({
+                        "text": (
+                            f"Approaching 6-week cannulation threshold since HD start "
+                            f"({days_since_hd_start} days). Assess fistula thrill/bruit; "
+                            "consider Doppler if maturation is in doubt."
+                        )
+                    })
+
+            else:
+                # Scenario A (Bridge phase)
+                delay_days = days_since_surgery
+                events.append({
+                    "text": (
+                        f"AVF created {days_since_surgery} days ago "
+                        f"(HD via catheter since {hd_wef_date.strftime('%d %b %Y') if hd_wef_date else 'N/A'}). "
+                        "First cannulation date not yet recorded."
+                    )
+                })
+                if days_since_surgery > 42:
+                    alerts.append(
+                        f"AVF Maturation Failure Risk: {days_since_surgery} days since surgery "
+                        "without cannulation — KDOQI 6-week threshold exceeded. "
+                        "Assess fistula maturity; consider Doppler ultrasound."
+                    )
+                    risk_score += 3
+                elif days_since_surgery > 28:
+                    events.append({
+                        "text": (
+                            "Approaching 4-week mark since AVF surgery. "
+                            "Assess thrill and bruit; schedule Doppler if maturation is uncertain."
+                        )
+                    })
+
+        elif p.access_date and p.date_first_cannulation:
+            # Scenario C (Historic — cannulation already done)
+            if p.hd_wef_date and p.hd_wef_date > p.access_date:
+                cannulation_vs_hd_start = (p.date_first_cannulation - p.hd_wef_date).days
+                cannulation_vs_surgery  = (p.date_first_cannulation - p.access_date).days
+                delay_days = cannulation_vs_hd_start
+                events.append({
+                    "text": (
+                        f"AVF created {cannulation_vs_surgery} days before first cannulation "
+                        f"({(p.hd_wef_date - p.access_date).days} days of which preceded HD initiation). "
+                        f"First cannulation occurred {cannulation_vs_hd_start} days after HD start."
+                    )
+                })
+                if cannulation_vs_hd_start > 45:
+                    risk_score += 1
+                    events.append({"text": "Delayed cannulation after HD initiation (> 6 weeks) — prolonged catheter dependency recorded."})
+            else:
+                delay_days = (p.date_first_cannulation - p.access_date).days
+                if delay_days >= 0:
+                    events.append({"text": f"AVF matured and first cannulated in {delay_days} days from surgery."})
+                    if delay_days > 45:
+                        risk_score += 2
+                        events.append({"text": "Delayed AVF maturation (> 6 weeks) recorded in history."})
+
+        elif not p.access_date and p.date_first_cannulation:
+            events.append({"text": f"First cannulation recorded on {p.date_first_cannulation}; surgery date not entered."})
+
+    elif is_catheter:
+        events.append({"text": f"Patient on catheter access ({p.access_type.strip()}). AVF maturation monitoring not applicable."})
+
+    # ── 2. Functional Monitoring (Recent Sessions) ────────────────────────────
+    recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
+
+    low_bfr_count = 0
+    high_recirc_count = 0
+    qa_alerts = []
+
+    for s in recent_sessions:
+        bfr = s.actual_blood_flow_rate or s.blood_flow_rate
+        if bfr and bfr < 250:
+            low_bfr_count += 1
+
+        qa = s.access_flow_qa
+        if qa:
+            if qa < 300:
+                qa_alerts.append(f"Impending Failure (Qa {qa} < 300): Not usable for effective HD.")
+            elif qa < 400:
+                qa_alerts.append(f"High Non-Maturation Risk (Qa {qa} < 400).")
+            elif qa < 500:
+                qa_alerts.append(f"Poor Maturation/Failure (Qa {qa} < 500).")
+            elif qa < 600:
+                qa_alerts.append(f"Sub-optimal performance (Qa {qa} < 600): High risk for stenosis/thrombosis (KDOQI).")
+
+        if s.access_recirculation_percent and s.access_recirculation_percent > 10:
+            high_recirc_count += 1
+        elif s.urea_peripheral_s and s.urea_arterial_a and s.urea_venous_v:
+            try:
+                s_val, a_val, v_val = s.urea_peripheral_s, s.urea_arterial_a, s.urea_venous_v
+                if abs(s_val - v_val) > 0.1:
+                    recirc = ((s_val - a_val) / (s_val - v_val)) * 100
+                    if recirc > 10: high_recirc_count += 1
+            except: pass
+
+    if low_bfr_count >= 2:
+        alerts.append(f"Suboptimal Pump Flow: BFR < 250 ml/min in {low_bfr_count}/5 recent sessions.")
+        risk_score += 2
+
+    if qa_alerts:
+        unique_qa = list(dict.fromkeys(qa_alerts))
+        alerts.extend(unique_qa[:2])
+        risk_score += 3
+
+    if high_recirc_count >= 1:
+        alerts.append("Significant Access Recirculation (>10%) detected.")
+        risk_score += 3
+
+    # ── 3. Correlation with Demographics ──────────────────────────────────────
+    if p.age and p.age >= 65:
+        risk_score += 1
+        events.append({"text": f"Age {p.age} yrs correlates with impaired vascular remodeling."})
+
+    if p.dm_status and p.dm_status.strip().lower() not in ("none", ""):
+        risk_score += 2
+        events.append({"text": f"DM ({p.dm_status}) increases risk of intimal hyperplasia."})
+
+    if p.handgrip_strength and p.handgrip_strength < 20:
+        risk_score += 2
+        events.append({"text": f"Sarcopenia (Handgrip {p.handgrip_strength} kg) linked to fistula failure."})
+
+    maturation_failure = any("Maturation Failure" in a for a in alerts)
+    cascade_detected = risk_score >= 3 or maturation_failure
+
+    default_message = "Vascular access functioning within parameters." if has_access_data else "Access dates not recorded — enter surgery and first cannulation dates in the patient profile."
+
+    return {
+        "available": True,
+        "error":     None,
+        "data": {
+            "cascade_detected": cascade_detected,
+            "maturation_failure": maturation_failure,
+            "suboptimal_flow": low_bfr_count >= 2,
+            "high_recirculation": high_recirc_count >= 1,
+            "alerts": alerts,
+            "risk_score": risk_score,
+            "delay_days": delay_days,
+            "has_access_data": has_access_data,
+            "is_catheter": is_catheter,
+            "events": events,
+            "message": alerts[0] if alerts else default_message,
+        }
+    }
+
+
+def analyze_pds(db: Session, patient_id: int) -> Dict:
+    """
+    Correlates PatientSymptomReports (specifically DRT) with recent SessionRecords
+    to identify clinical drivers of PDS.
+    """
+    from database import PatientSymptomReport, SessionRecord, MonthlyRecord
+    from datetime import timedelta
+
+    reports = db.query(PatientSymptomReport).filter(
+        PatientSymptomReport.patient_id == patient_id,
+        PatientSymptomReport.dialysis_recovery_time_mins != None
+    ).order_by(PatientSymptomReport.reported_at.desc()).limit(10).all()
+
+    if not reports:
+        return {"available": False, "message": "No PDS symptom logs available."}
+
+    recent_sessions = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == patient_id
+    ).order_by(SessionRecord.session_date.desc()).limit(20).all()
+
+    correlated_events = []
+    for rep in reports:
+        sess = None
+        if rep.session_id:
+            sess = next((s for s in recent_sessions if s.id == rep.session_id), None)
+        else:
+            rep_date = rep.reported_at.date()
+            sess = next((s for s in recent_sessions if s.session_date == rep_date or s.session_date == rep_date - timedelta(days=1)), None)
+
+        if sess:
+            ufr = None
+            duration = (sess.duration_hours or 0) + (sess.duration_minutes or 0) / 60
+            if sess.weight_pre and sess.weight_post and duration > 0:
+                ufr = round(((sess.weight_pre - sess.weight_post) * 1000) / duration, 1)
+
+            correlated_events.append({
+                "date": str(rep.reported_at.date()),
+                "drt_mins": rep.dialysis_recovery_time_mins,
+                "tiredness": rep.tiredness_score,
+                "mood": rep.post_hd_mood,
+                "ufr": ufr,
+                "idh": sess.idh_episode,
+                "temp": sess.dialysate_temperature,
+                "exercise": sess.intradialytic_exercise_mins
+            })
+
+    if not correlated_events:
+        return {"available": False, "message": "Symptom logs found but no matching sessions could be correlated."}
+
+    avg_drt = sum(e["drt_mins"] for e in correlated_events) / len(correlated_events)
+
+    flags = []
+    interventions = []
+    risk_level = "low"
+
+    if avg_drt > 360:  # > 6 hours
+        risk_level = "high"
+        flags.append(f"Prolonged average recovery time: {round(avg_drt/60, 1)} hours.")
+
+        high_ufr_events = [e for e in correlated_events if e["ufr"] and e["ufr"] > 10.0 and e["drt_mins"] > 360]
+        if high_ufr_events:
+            flags.append("Prolonged DRT correlates with high Ultrafiltration Rate.")
+            interventions.append("Review fluid allowance and target dry weight.")
+
+        idh_events = [e for e in correlated_events if e["idh"] and e["drt_mins"] > 360]
+        if idh_events:
+            flags.append("Prolonged DRT correlates with Intradialytic Hypotension.")
+            interventions.append("Consider cool dialysate or adjusting dialysate sodium.")
+
+        latest_monthly = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+        if latest_monthly and latest_monthly.albumin and latest_monthly.albumin < 3.5:
+            flags.append("Prolonged DRT in setting of hypoalbuminemia.")
+            interventions.append("Evaluate for protein-energy wasting; encourage intradialytic meals if appropriate.")
+
+    return {
+        "available": True,
+        "avg_drt_mins": round(avg_drt),
+        "avg_drt_hours": round(avg_drt / 60, 1),
+        "risk_level": risk_level,
+        "css_class": "danger" if risk_level == "high" else "success",
+        "flags": flags,
+        "interventions": interventions,
+        "events": correlated_events
+    }
+
+
+def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
+    """
+    Analyse blood flow rate trend across per-session records for vascular
+    access monitoring.
+    """
+    _null = {
+        "available": False,
+        "alert_level": "unknown",
+        "message": "No session records found. Log sessions to enable BFR monitoring.",
+        "n_sessions": 0,
+    }
+    if not sessions:
+        return _null
+
+    # Filter to sessions that have at least one BFR value
+    bfr_sessions = [
+        s for s in sessions
+        if s.get("actual_blood_flow_rate") is not None
+        or s.get("blood_flow_rate") is not None
+    ]
+    if not bfr_sessions:
+        return {**_null, "available": False,
+                "message": "Sessions exist but no BFR values entered yet."}
+
+    # Sort oldest → newest for trend calculation
+    bfr_sessions = sorted(bfr_sessions, key=lambda s: s.get("session_date") or "")
+
+    latest      = bfr_sessions[-1]
+    latest_abfr = latest.get("actual_blood_flow_rate")
+    latest_pbfr = latest.get("blood_flow_rate")
+
+    bfr_deficit = None
+    if latest_abfr is not None and latest_pbfr is not None:
+        bfr_deficit = round(latest_pbfr - latest_abfr, 1)
+
+    # ── Trend slope ───────────────────────────────────────────────────────────
+    actual_series = [
+        (i, s["actual_blood_flow_rate"])
+        for i, s in enumerate(bfr_sessions)
+        if s.get("actual_blood_flow_rate") is not None
+    ]
+    slope = None
+    if len(actual_series) >= 3:
+        xs = [p[0] for p in actual_series]
+        ys = [p[1] for p in actual_series]
+        x_mean = sum(xs) / len(xs)
+        y_mean = sum(ys) / len(ys)
+        sxx = sum((x - x_mean) ** 2 for x in xs)
+        sxy = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(len(xs)))
+        slope = round(sxy / sxx, 2) if sxx else 0.0
+
+    # ── Consecutive decline counter ───────────────────────────────────────────
+    consecutive_decline = 0
+    abfr_vals = [s["actual_blood_flow_rate"] for s in bfr_sessions
+                 if s.get("actual_blood_flow_rate") is not None]
+    for i in range(len(abfr_vals) - 1, 0, -1):
+        if abfr_vals[i] < abfr_vals[i - 1]:
+            consecutive_decline += 1
+        else:
+            break
+
+    # ── Access condition summary (last 5 sessions) ────────────────────────────
+    recent_conditions = [
+        s.get("access_condition") for s in bfr_sessions[-5:]
+        if s.get("access_condition")
+    ]
+    poor_or_infected = any(
+        c in ("Poor", "Infected") for c in recent_conditions
+    )
+
+    # ── Alert classification ──────────────────────────────────────────────────
+    alert_level = "ok"
+    alert_reasons = []
+
+    if latest_abfr is not None:
+        if latest_abfr < 200:
+            alert_level = "critical"
+            alert_reasons.append(f"BFR {latest_abfr:.0f} mL/min — critically low (target ≥ 250)")
+        elif latest_abfr < 250:
+            alert_level = "warning" if alert_level != "critical" else alert_level
+            alert_reasons.append(f"BFR {latest_abfr:.0f} mL/min — below target (250–400)")
+
+    if bfr_deficit is not None and bfr_deficit > 50:
+        alert_level = "warning" if alert_level == "ok" else alert_level
+        alert_reasons.append(f"BFR deficit {bfr_deficit:.0f} mL/min (prescribed {latest_pbfr:.0f}, achieved {latest_abfr:.0f})")
+
+    if consecutive_decline >= 3:
+        alert_level = "warning" if alert_level == "ok" else alert_level
+        alert_reasons.append(f"{consecutive_decline} consecutive sessions with declining BFR — early dysfunction signal")
+
+    if poor_or_infected:
+        alert_level = "critical"
+        alert_reasons.append("Access condition flagged as Poor / Infected in recent sessions")
+
+    # ── Build message ─────────────────────────────────────────────────────────
+    if alert_level == "critical":
+        message = "⚠ Access at risk: " + "; ".join(alert_reasons) + ". Urgent review / fistulogram."
+    elif alert_level == "warning":
+        message = "BFR concern: " + "; ".join(alert_reasons) + ". Monitor closely."
+    else:
+        bfr_txt = f"{latest_abfr:.0f} mL/min" if latest_abfr else "not recorded"
+        message = f"Access functioning well. Latest BFR {bfr_txt}."
+        if slope is not None and slope < -5:
+            message += f" Mild downward trend ({slope:+.1f} mL/min per session) — watch."
+
+    return {
+        "available":            True,
+        "alert_level":          alert_level,
+        "css_class":            "danger" if alert_level == "critical" else
+                                "warning" if alert_level == "warning" else "success",
+        "latest_actual_bfr":   latest_abfr,
+        "latest_prescribed_bfr": latest_pbfr,
+        "bfr_deficit":         bfr_deficit,
+        "slope":               slope,
+        "consecutive_decline": consecutive_decline,
+        "access_conditions":   recent_conditions,
+        "poor_or_infected":    poor_or_infected,
+        "n_sessions":          len(bfr_sessions),
+        "alert_reasons":       alert_reasons,
+        "message":             message,
+    }
+
+
+def detect_occult_overload(db: Session, patient_id: int):
+    """
+    Identifies 'Sarcopenia-Masked Occult Volume Overload'.
+    Logic: Stable/Rising weight + Falling Albumin + High IDWG + Respiratory symptoms.
+    """
+    from database import Patient, MonthlyRecord, SessionRecord
+
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient: return None
+
+    first_record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.asc()).first()
+    dw_drop = 0
+    if first_record and first_record.target_dry_weight and patient.dry_weight:
+        dw_drop = first_record.target_dry_weight - patient.dry_weight
+
+    recent_records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.albumin.isnot(None)
+    ).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
+    alb_decline = False
+    if len(recent_records) >= 2:
+        alb_decline = recent_records[0].albumin < recent_records[-1].albumin
+
+    recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(10).all()
+    breathless = any([(s.pre_hd_dyspnea_likert and s.pre_hd_dyspnea_likert >= 3) or
+                      (s.post_hd_dyspnea_likert and s.post_hd_dyspnea_likert >= 3) for s in recent_sessions])
+
+    emergency_sessions = [s for s in recent_sessions if s.is_emergency and s.reason_emergency in ["Fluid Overload", "Pulmonary Oedema", "Severe Dyspnea"]]
+    freq_emergency = len(emergency_sessions) >= 1
+
+    if (dw_drop > 3 and alb_decline) or (breathless and alb_decline) or (freq_emergency):
+        reason = f"Significant DW drop ({round(dw_drop,1)}kg) with declining Albumin and persistent dyspnea."
+        if freq_emergency:
+            reason = f"Emergency session required due to {emergency_sessions[0].reason_emergency}. " + reason
+
+        return {
+            "available": True,
+            "error":     None,
+            "data": {
+                "type": "Occult Overload Suspected",
+                "reason": reason,
+                "recommendation": "Perform BIA, IVC Diameter check, and Lung USG. Review dry weight and consider upgrading to 3x/week schedule.",
+                "severity": "High"
+            }
+        }
+
+    return {
+        "available": False,
+        "error":     "No occult overload detected.",
+        "data":      {}
+    }

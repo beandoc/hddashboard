@@ -5,7 +5,7 @@ from typing import Optional
 import logging
 from datetime import datetime
 
-from database import get_db, SustainabilityRecord, MonthlyRecord
+from database import get_db, SustainabilityRecord, MonthlyRecord, Patient
 from config import templates
 from dependencies import get_user
 from dashboard_logic import get_current_month_str, get_month_label

@@ -31,11 +31,11 @@
 }
 .app-nav .nav-links {
   display: flex;
-  gap: 1px;
+  gap: 2px;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
 }
-.app-nav .nav-links a {
+.app-nav .nav-links > a {
   color: rgba(255,255,255,0.6);
   text-decoration: none;
   font-size: 0.8rem;
@@ -47,69 +47,20 @@
   font-family: 'Inter', sans-serif;
   letter-spacing: 0.01em;
 }
-.app-nav .nav-links a:hover {
+.app-nav .nav-links > a:hover {
   color: #fff;
   background: rgba(255,255,255,0.1);
 }
-.app-nav .nav-links a.active {
+.app-nav .nav-links > a.active {
   color: #7dd3fc;
   background: rgba(14, 165, 233, 0.16);
-}
-
-/* Admin-only group: slight visual separation */
-.nav-divider {
-  width: 1px;
-  height: 18px;
-  background: rgba(255,255,255,0.14);
-  margin: 0 6px;
-  flex-shrink: 0;
-  align-self: center;
-}
-.app-nav .nav-links .nav-admin-item {
-  color: rgba(255,255,255,0.45);
-  font-size: 0.75rem;
-}
-.app-nav .nav-links .nav-admin-item:hover {
-  color: #c4b5fd;
-  background: rgba(167,139,250,0.12);
-}
-.app-nav .nav-links .nav-admin-item.active {
-  color: #c4b5fd;
-  background: rgba(167,139,250,0.15);
-}
-
-/* High-priority highlights (Review Queue) */
-.nav-highlight-item {
-  color: #c4b5fd !important;
-}
-.nav-highlight-item:hover {
-  background: rgba(196,181,253,0.1) !important;
-}
-.nav-highlight-item.active {
-  background: rgba(196,181,253,0.18) !important;
-  color: #c4b5fd !important;
-}
-
-/* Secondary Tier — muted, smaller items for secondary workflows */
-.nav-secondary {
-  color: rgba(255,255,255,0.4) !important;
-  font-size: 0.72rem !important;
-  font-weight: 400 !important;
-}
-.nav-secondary:hover {
-  color: rgba(255,255,255,0.7) !important;
-  background: rgba(255,255,255,0.05) !important;
-}
-.nav-secondary.active {
-  color: #fff !important;
-  background: rgba(255,255,255,0.1) !important;
 }
 
 /* Logout — ghost treatment */
 .app-nav .nav-logout {
   color: rgba(255,255,255,0.35) !important;
   border: 1px solid rgba(255,255,255,0.1) !important;
-  margin-left: 6px !important;
+  margin-left: 4px !important;
   background: transparent !important;
 }
 .app-nav .nav-logout:hover {
@@ -117,9 +68,151 @@
   border-color: rgba(255,255,255,0.25) !important;
   background: rgba(255,255,255,0.06) !important;
 }
-.app-nav .nav-logout.active {
-  color: rgba(255,255,255,0.35) !important;
-  background: transparent !important;
+
+/* ── Dropdown group ── */
+.nav-group {
+  position: relative;
+}
+.nav-group-btn {
+  color: rgba(255,255,255,0.6);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 7px;
+  transition: all 0.18s;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.01em;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+  height: 32px;
+}
+.nav-group-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}
+.nav-group-btn.active-group {
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.16);
+}
+.nav-group-btn.admin-group-btn {
+  color: rgba(196,181,253,0.75);
+}
+.nav-group-btn.admin-group-btn:hover,
+.nav-group-btn.admin-group-btn.active-group {
+  color: #c4b5fd;
+  background: rgba(167,139,250,0.14);
+}
+.nav-group-btn .chevron {
+  font-size: 14px;
+  opacity: 0.6;
+  transition: transform 0.2s;
+  font-family: 'Material Icons';
+  line-height: 1;
+}
+.nav-group:hover .nav-group-btn .chevron,
+.nav-group.open .nav-group-btn .chevron {
+  transform: rotate(180deg);
+  opacity: 0.9;
+}
+
+/* Dropdown panel */
+.nav-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: rgba(10, 15, 30, 0.99);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 176px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* pointer/caret */
+.nav-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 6px;
+  background: rgba(10,15,30,0.99);
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  border-left: 1px solid rgba(255,255,255,0.1);
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.nav-group:hover .nav-dropdown,
+.nav-group.open .nav-dropdown {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.nav-dropdown a {
+  color: rgba(255,255,255,0.72);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+  text-decoration: none;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.15s;
+}
+.nav-dropdown a:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.09);
+}
+.nav-dropdown a.active {
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.16);
+}
+.nav-dropdown a i.material-icons {
+  font-size: 15px;
+  opacity: 0.6;
+}
+.nav-dropdown .dd-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+  margin: 3px 0;
+}
+/* Review Queue highlight inside dropdown */
+.nav-dropdown .dd-highlight {
+  color: #c4b5fd !important;
+}
+.nav-dropdown .dd-highlight:hover { background: rgba(196,181,253,0.1) !important; }
+.nav-dropdown .dd-highlight.active { background: rgba(196,181,253,0.18) !important; }
+/* Admin links inside dropdown */
+.nav-dropdown .dd-admin {
+  color: rgba(196,181,253,0.75) !important;
+}
+.nav-dropdown .dd-admin:hover {
+  color: #c4b5fd !important;
+  background: rgba(167,139,250,0.12) !important;
+}
+.nav-dropdown .dd-admin.active {
+  color: #c4b5fd !important;
+  background: rgba(167,139,250,0.16) !important;
 }
 
 /* Mobile menu button */
@@ -137,7 +230,7 @@
 }
 .mobile-menu-btn:hover { background: rgba(255,255,255,0.18); }
 
-/* Mobile full-screen drawer */
+/* ── Mobile full-screen drawer ── */
 .mobile-drawer {
   position: fixed;
   inset: 0;
@@ -167,17 +260,65 @@
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+
+/* Accordion section */
+.drawer-section {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 2px;
+}
+.drawer-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: rgba(255,255,255,0.04);
+  border: none;
+  cursor: pointer;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.38);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+.drawer-section-toggle:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.55); }
+.drawer-section-toggle.active-section { color: #7dd3fc; }
+.drawer-section-toggle.admin-section { color: rgba(196,181,253,0.5); }
+.drawer-section-toggle.admin-section.active-section { color: #c4b5fd; }
+.drawer-section-toggle i.chevron {
+  font-size: 16px;
+  opacity: 0.5;
+  transition: transform 0.2s;
+}
+.drawer-section.open .drawer-section-toggle i.chevron { transform: rotate(180deg); }
+.drawer-section-body {
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 6px 6px;
+  background: rgba(0,0,0,0.15);
+}
+.drawer-section.open .drawer-section-body { display: flex; }
+
 .mobile-drawer a {
   color: rgba(255,255,255,0.82);
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   text-decoration: none;
-  padding: 13px 16px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-  font-weight: 600;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.035);
+  font-weight: 500;
   font-family: 'Inter', sans-serif;
-  transition: all 0.16s;
+  transition: all 0.15s;
   border: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
 }
 .mobile-drawer a:hover,
 .mobile-drawer a.active {
@@ -185,41 +326,41 @@
   color: #7dd3fc;
   border-color: rgba(14, 165, 233, 0.18);
 }
-.mobile-drawer .drawer-section-label {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.25);
-  padding: 10px 16px 4px;
-  font-family: 'Inter', sans-serif;
+.mobile-drawer a i.material-icons { font-size: 1.2rem; opacity: 0.7; }
+.mobile-drawer .drawer-admin-link {
+  color: rgba(196,181,253,0.75) !important;
+  background: rgba(167,139,250,0.05) !important;
+  border-color: rgba(167,139,250,0.08) !important;
 }
-.mobile-drawer .drawer-admin-item {
-  color: rgba(255,255,255,0.5);
-  font-size: 0.88rem;
-  background: rgba(167,139,250,0.05);
-  border-color: rgba(167,139,250,0.08);
+.mobile-drawer .drawer-admin-link:hover,
+.mobile-drawer .drawer-admin-link.active {
+  background: rgba(167,139,250,0.14) !important;
+  color: #c4b5fd !important;
+  border-color: rgba(167,139,250,0.2) !important;
 }
-.mobile-drawer .drawer-admin-item:hover,
-.mobile-drawer .drawer-admin-item.active {
-  background: rgba(167,139,250,0.14);
-  color: #c4b5fd;
-  border-color: rgba(167,139,250,0.2);
+.mobile-drawer .drawer-highlight-link {
+  color: #c4b5fd !important;
 }
-.mobile-drawer .drawer-divider {
-  height: 1px;
-  background: rgba(255,255,255,0.06);
-  margin: 6px 0;
+.mobile-drawer .drawer-highlight-link:hover,
+.mobile-drawer .drawer-highlight-link.active {
+  background: rgba(196,181,253,0.12) !important;
+  border-color: rgba(196,181,253,0.18) !important;
 }
 .mobile-drawer .drawer-logout {
   color: rgba(255,255,255,0.32) !important;
   background: transparent !important;
   border-color: rgba(255,255,255,0.06) !important;
-  font-size: 0.85rem;
-  margin-top: 4px;
+  font-size: 0.88rem;
+  margin-top: 6px;
+  min-height: 44px;
 }
 .mobile-drawer .drawer-logout:hover {
   color: rgba(255,255,255,0.7) !important;
   background: rgba(255,255,255,0.04) !important;
+}
+/* Standalone links (not inside section) */
+.mobile-drawer > a {
+  margin-bottom: 2px;
 }
 
 /* ── Breadcrumb strip ── */
@@ -305,9 +446,7 @@
   background: rgba(14, 165, 233, 0.3);
   border-color: rgba(14, 165, 233, 0.4);
 }
-.hero-btn.primary:hover {
-  background: rgba(14, 165, 233, 0.45);
-}
+.hero-btn.primary:hover { background: rgba(14, 165, 233, 0.45); }
 
 /* Responsive */
 @media (max-width: 1024px) {
@@ -325,88 +464,194 @@
   .page-hero-right { width: 100%; justify-content: flex-start; gap: 8px; }
   .hero-btn { flex: 1; justify-content: center; min-height: 44px; font-size: 0.85rem; }
 }
-
-/* Enhanced Mobile Drawer */
-.mobile-drawer .drawer-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.mobile-drawer a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 52px; /* Premium touch target */
-}
-.mobile-drawer a i {
-  font-size: 1.25rem;
-  opacity: 0.7;
-}
 </style>
 
 {% set _cur_role = user.role if user else '' %}
+{% set _path = request.url.path %}
+
+{# ── Active-state helpers ── #}
+{% set _clinical_active = (
+  '/review' in _path or
+  ('/patients' in _path and '/analytics' not in _path) or
+  '/events' in _path
+) %}
+{% set _analytics_active = '/analytics' in _path or '/research' in _path %}
+{% set _ops_active = '/schedule' in _path or '/entry' in _path or '/alerts' in _path %}
+{% set _admin_active = '/admin' in _path or '/variables/manager' in _path %}
 
 <div class="app-nav">
   <a href="/" class="brand">CH(SC) · Nephrology Unit</a>
 
   <div class="nav-links">
+
+    {# ─── DOCTOR ─── #}
     {% if _cur_role == 'doctor' %}
-      {# --- DOCTOR PRIMARY --- #}
-      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
-      <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}">Review Queue</a>
-      <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}">Patients</a>
-      <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}">Analytics</a>
-      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
-      
-      <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
-      
-      <span class="nav-divider"></span>
-      
-      {# --- DOCTOR SECONDARY --- #}
-      <a href="/schedule" class="nav-secondary {{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
-      <a href="/entry" class="nav-secondary {{ 'active' if '/entry' in request.url.path }}">Data Entry</a>
-      <a href="/events" class="nav-secondary {{ 'active' if '/events' in request.url.path }}">Clinical Events</a>
+      <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
 
+      <div class="nav-group" id="ng-clinical">
+        <button class="nav-group-btn {{ 'active-group' if _clinical_active }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+          Clinical <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/review" class="dd-highlight {{ 'active' if '/review' in _path }}">
+            <i class="material-icons">fact_check</i> Review Queue
+          </a>
+          <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
+            <i class="material-icons">people</i> Patients
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/events" class="{{ 'active' if '/events' in _path }}">
+            <i class="material-icons">notification_important</i> Clinical Events
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group" id="ng-analytics">
+        <button class="nav-group-btn {{ 'active-group' if _analytics_active }}" onclick="toggleGroup('ng-analytics', event)" aria-haspopup="true">
+          Analytics <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/analytics" class="{{ 'active' if '/analytics' in _path and '/research' not in _path }}">
+            <i class="material-icons">analytics</i> Analytics Hub
+          </a>
+          <a href="/research" class="{{ 'active' if '/research' in _path }}">
+            <i class="material-icons">science</i> Research Hub
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group" id="ng-ops">
+        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true">
+          Operations <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
+            <i class="material-icons">event</i> Schedule
+          </a>
+          <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
+            <i class="material-icons">edit_note</i> Data Entry
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
+            <i class="material-icons">warning</i> Alerts
+          </a>
+        </div>
+      </div>
+
+    {# ─── STAFF ─── #}
     {% elif _cur_role == 'staff' %}
-      {# --- STAFF PRIMARY --- #}
-      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
-      <a href="/entry" class="{{ 'active' if '/entry' in request.url.path }}">Data Entry</a>
-      <a href="/patients" class="{{ 'active' if '/patients' in request.url.path }}">Patients</a>
-      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
-      <a href="/schedule" class="{{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
-      
-      <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
+      <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
 
-      <span class="nav-divider"></span>
-      
-      {# --- STAFF SECONDARY --- #}
-      <a href="/events" class="nav-secondary {{ 'active' if '/events' in request.url.path }}">Clinical Events</a>
+      <div class="nav-group" id="ng-clinical">
+        <button class="nav-group-btn {{ 'active-group' if ('/patients' in _path or '/events' in _path) }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+          Clinical <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/patients" class="{{ 'active' if '/patients' in _path }}">
+            <i class="material-icons">people</i> Patients
+          </a>
+          <a href="/events" class="{{ 'active' if '/events' in _path }}">
+            <i class="material-icons">notification_important</i> Clinical Events
+          </a>
+        </div>
+      </div>
 
+      <div class="nav-group" id="ng-ops">
+        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true">
+          Operations <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
+            <i class="material-icons">edit_note</i> Data Entry
+          </a>
+          <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
+            <i class="material-icons">event</i> Schedule
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
+            <i class="material-icons">warning</i> Alerts
+          </a>
+        </div>
+      </div>
+
+      <a href="/research" class="{{ 'active' if '/research' in _path }}">Research Hub</a>
+      {# Research Hub kept as a lightweight standalone — staff may contribute records but it is not a primary workflow #}
+
+    {# ─── ADMIN ─── #}
     {% elif _cur_role == 'admin' %}
-      {# --- ADMIN (FULL ACCESS, GROUPED) --- #}
-      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Dashboard</a>
-      <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}">Review Queue</a>
-      <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}">Patients</a>
-      <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}">Analytics</a>
-      <a href="/research" class="{{ 'active' if '/research' in request.url.path }}">Research Hub</a>
-      <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}">Alerts</a>
-      
-      <span class="nav-divider"></span>
-      
-      <a href="/admin/users" class="nav-admin-item {{ 'active' if '/admin/users' in request.url.path }}">Users</a>
-      <a href="/admin/backup" class="nav-admin-item {{ 'active' if '/admin/backup' in request.url.path }}">Database</a>
-      <a href="/variables/manager" class="nav-admin-item {{ 'active' if '/variables/manager' in request.url.path }}">Lab Config</a>
-      
-      <span class="nav-divider"></span>
-      
-      <a href="/schedule" class="nav-secondary {{ 'active' if '/schedule' in request.url.path }}">Schedule</a>
-      <a href="/entry" class="nav-secondary {{ 'active' if '/entry' in request.url.path }}">Entry</a>
-      <a href="/events" class="nav-secondary {{ 'active' if '/events' in request.url.path }}">Clinical Events</a>
+      <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
+
+      <div class="nav-group" id="ng-clinical">
+        <button class="nav-group-btn {{ 'active-group' if _clinical_active }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+          Clinical <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/review" class="dd-highlight {{ 'active' if '/review' in _path }}">
+            <i class="material-icons">fact_check</i> Review Queue
+          </a>
+          <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
+            <i class="material-icons">people</i> Patients
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/events" class="{{ 'active' if '/events' in _path }}">
+            <i class="material-icons">notification_important</i> Clinical Events
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group" id="ng-analytics">
+        <button class="nav-group-btn {{ 'active-group' if _analytics_active }}" onclick="toggleGroup('ng-analytics', event)" aria-haspopup="true">
+          Analytics <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/analytics" class="{{ 'active' if '/analytics' in _path and '/research' not in _path }}">
+            <i class="material-icons">analytics</i> Analytics Hub
+          </a>
+          <a href="/research" class="{{ 'active' if '/research' in _path }}">
+            <i class="material-icons">science</i> Research Hub
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group" id="ng-ops">
+        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true">
+          Operations <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
+            <i class="material-icons">event</i> Schedule
+          </a>
+          <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
+            <i class="material-icons">edit_note</i> Entry
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
+            <i class="material-icons">warning</i> Alerts
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-group" id="ng-admin">
+        <button class="nav-group-btn admin-group-btn {{ 'active-group' if _admin_active }}" onclick="toggleGroup('ng-admin', event)" aria-haspopup="true">
+          Admin <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/admin/users" class="dd-admin {{ 'active' if '/admin/users' in _path }}">
+            <i class="material-icons">manage_accounts</i> Users
+          </a>
+          <a href="/admin/backup" class="dd-admin {{ 'active' if '/admin/backup' in _path }}">
+            <i class="material-icons">storage</i> Database
+          </a>
+          <a href="/variables/manager" class="dd-admin {{ 'active' if '/variables/manager' in _path }}">
+            <i class="material-icons">settings_input_component</i> Lab Config
+          </a>
+        </div>
+      </div>
     {% endif %}
 
-    {# --- PATIENT --- #}
+    {# ─── PATIENT ─── #}
     {% if _cur_role == 'patient' %}
-      <a href="/patient/dashboard">My Portal</a>
+      <a href="/patient/dashboard" class="{{ 'active' if '/patient' in _path }}">My Portal</a>
     {% endif %}
 
     {% if user %}
@@ -421,7 +666,7 @@
   </button>
 </div>
 
-<!-- Mobile Full-Screen Drawer -->
+<!-- ═══════════════ Mobile Full-Screen Drawer ═══════════════ -->
 <div class="mobile-drawer" id="mobileDrawer">
   <div class="drawer-header">
     <span class="drawer-brand">CH(SC) · Nephrology Unit</span>
@@ -430,61 +675,159 @@
     </button>
   </div>
 
-  <div class="drawer-content">
-    {% if _cur_role in ['staff', 'admin', 'doctor'] %}
-      
-      {# --- CLINICAL SECTION --- #}
-      {% if _cur_role in ['doctor', 'admin'] %}
-        <span class="drawer-section-label">Clinical Intelligence</span>
-        <a href="/" class="{{ 'active' if request.url.path == '/' }}"><i class="material-icons">dashboard</i> Dashboard</a>
-        <a href="/review" class="nav-highlight-item {{ 'active' if '/review' in request.url.path }}"><i class="material-icons">fact_check</i> Review Queue</a>
-        <a href="/patients" class="{{ 'active' if '/patients' in request.url.path and not '/analytics' in request.url.path }}"><i class="material-icons">people</i> Patients</a>
-        <a href="/analytics" class="{{ 'active' if '/analytics' in request.url.path }}"><i class="material-icons">analytics</i> Analytics</a>
-        <a href="/research" class="{{ 'active' if '/research' in request.url.path }}"><i class="material-icons">science</i> Research Hub</a>
-        <div class="drawer-divider"></div>
-      {% endif %}
+  {% if _cur_role in ['doctor', 'admin', 'staff'] %}
 
-      {# --- OPERATIONS SECTION --- #}
-      <span class="drawer-section-label">Operations & Data</span>
-      {% if _cur_role == 'staff' %}
-        <a href="/" class="{{ 'active' if request.url.path == '/' }}"><i class="material-icons">dashboard</i> Dashboard</a>
-        <a href="/patients" class="{{ 'active' if '/patients' in request.url.path }}"><i class="material-icons">people</i> Patients</a>
-      {% endif %}
-      <a href="/schedule" class="{{ 'active' if '/schedule' in request.url.path }}"><i class="material-icons">event</i> Schedule</a>
-      <a href="/entry" class="{{ 'active' if '/entry' in request.url.path }}"><i class="material-icons">edit_note</i> Data Entry</a>
-      <a href="/events" class="{{ 'active' if '/events' in request.url.path }}"><i class="material-icons">notification_important</i> Clinical Events</a>
-      <a href="/alerts" class="{{ 'active' if '/alerts' in request.url.path }}"><i class="material-icons">warning</i> Alerts</a>
+    {# Dashboard standalone #}
+    <a href="/" class="{{ 'active' if _path == '/' }}">
+      <i class="material-icons">dashboard</i> Dashboard
+    </a>
 
-    {% endif %}
-
-    {# --- ADMIN SECTION --- #}
-    {% if _cur_role == 'admin' %}
-      <div class="drawer-divider"></div>
-      <span class="drawer-section-label">Administration</span>
-      <a href="/admin/users" class="drawer-admin-item {{ 'active' if '/admin/users' in request.url.path }}"><i class="material-icons">manage_accounts</i> User Management</a>
-      <a href="/admin/backup" class="drawer-admin-item {{ 'active' if '/admin/backup' in request.url.path }}"><i class="material-icons">storage</i> Database Backup</a>
-      <a href="/variables/manager" class="drawer-admin-item {{ 'active' if '/variables/manager' in request.url.path }}"><i class="material-icons">settings_input_component</i> Lab Config</a>
-    {% endif %}
-
-    {% if _cur_role == 'patient' %}
-      <a href="/patient/dashboard"><i class="material-icons">person</i> My Portal</a>
-    {% endif %}
-
-    <div class="drawer-divider"></div>
-    {% if user %}
-      <a href="/logout" class="nav-logout"><i class="material-icons">logout</i> Logout</a>
+    {# ── Clinical section ── #}
+    {% if _cur_role in ['doctor', 'admin'] %}
+    <div class="drawer-section {{ 'open' if _clinical_active }}" id="ds-clinical">
+      <button class="drawer-section-toggle {{ 'active-section' if _clinical_active }}" onclick="toggleDrawerSection('ds-clinical')">
+        <span>Clinical</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/review" class="drawer-highlight-link {{ 'active' if '/review' in _path }}">
+          <i class="material-icons">fact_check</i> Review Queue
+        </a>
+        <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
+          <i class="material-icons">people</i> Patients
+        </a>
+        <a href="/events" class="{{ 'active' if '/events' in _path }}">
+          <i class="material-icons">notification_important</i> Clinical Events
+        </a>
+      </div>
+    </div>
     {% else %}
-      <a href="/login"><i class="material-icons">login</i> Login</a>
+    <div class="drawer-section {{ 'open' if '/patients' in _path or '/events' in _path }}" id="ds-clinical">
+      <button class="drawer-section-toggle {{ 'active-section' if '/patients' in _path or '/events' in _path }}" onclick="toggleDrawerSection('ds-clinical')">
+        <span>Clinical</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/patients" class="{{ 'active' if '/patients' in _path }}">
+          <i class="material-icons">people</i> Patients
+        </a>
+        <a href="/events" class="{{ 'active' if '/events' in _path }}">
+          <i class="material-icons">notification_important</i> Clinical Events
+        </a>
+      </div>
+    </div>
     {% endif %}
-  </div>
+
+    {# ── Analytics section (doctor + admin only) ── #}
+    {% if _cur_role in ['doctor', 'admin'] %}
+    <div class="drawer-section {{ 'open' if _analytics_active }}" id="ds-analytics">
+      <button class="drawer-section-toggle {{ 'active-section' if _analytics_active }}" onclick="toggleDrawerSection('ds-analytics')">
+        <span>Analytics</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/analytics" class="{{ 'active' if '/analytics' in _path and '/research' not in _path }}">
+          <i class="material-icons">analytics</i> Analytics Hub
+        </a>
+        <a href="/research" class="{{ 'active' if '/research' in _path }}">
+          <i class="material-icons">science</i> Research Hub
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Operations section ── #}
+    <div class="drawer-section {{ 'open' if _ops_active }}" id="ds-ops">
+      <button class="drawer-section-toggle {{ 'active-section' if _ops_active }}" onclick="toggleDrawerSection('ds-ops')">
+        <span>Operations</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
+          <i class="material-icons">edit_note</i> Data Entry
+        </a>
+        <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
+          <i class="material-icons">event</i> Schedule
+        </a>
+        <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
+          <i class="material-icons">warning</i> Alerts
+        </a>
+      </div>
+    </div>
+
+    {# ── Research Hub standalone (staff only — after Operations) ── #}
+    {% if _cur_role == 'staff' %}
+    <a href="/research" class="{{ 'active' if '/research' in _path }}">
+      <i class="material-icons">science</i> Research Hub
+    </a>
+    {% endif %}
+
+    {# ── Admin section (admin only) ── #}
+    {% if _cur_role == 'admin' %}
+    <div class="drawer-section {{ 'open' if _admin_active }}" id="ds-admin">
+      <button class="drawer-section-toggle admin-section {{ 'active-section' if _admin_active }}" onclick="toggleDrawerSection('ds-admin')">
+        <span>Administration</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/admin/users" class="drawer-admin-link {{ 'active' if '/admin/users' in _path }}">
+          <i class="material-icons">manage_accounts</i> Users
+        </a>
+        <a href="/admin/backup" class="drawer-admin-link {{ 'active' if '/admin/backup' in _path }}">
+          <i class="material-icons">storage</i> Database
+        </a>
+        <a href="/variables/manager" class="drawer-admin-link {{ 'active' if '/variables/manager' in _path }}">
+          <i class="material-icons">settings_input_component</i> Lab Config
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+  {% elif _cur_role == 'patient' %}
+    <a href="/patient/dashboard" class="{{ 'active' if '/patient' in _path }}">
+      <i class="material-icons">person</i> My Portal
+    </a>
+  {% endif %}
+
+  {% if user %}
+    <a href="/logout" class="drawer-logout">
+      <i class="material-icons">logout</i> Logout
+    </a>
+  {% else %}
+    <a href="/login">
+      <i class="material-icons">login</i> Login
+    </a>
+  {% endif %}
 </div>
 
 <script>
+  /* ── Mobile drawer toggle ── */
   function toggleDrawer() {
     document.getElementById('mobileDrawer').classList.toggle('open');
   }
 
-  /* Auto-mark active nav link based on current URL path */
+  /* ── Desktop dropdown click-toggle (for touch/keyboard) ── */
+  function toggleGroup(id, e) {
+    e.stopPropagation();
+    var el = document.getElementById(id);
+    var wasOpen = el.classList.contains('open');
+    /* close all others first */
+    document.querySelectorAll('.nav-group.open').forEach(function(g) { g.classList.remove('open'); });
+    if (!wasOpen) el.classList.add('open');
+  }
+
+  /* Close dropdown on outside click */
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.nav-group.open').forEach(function(g) { g.classList.remove('open'); });
+  });
+
+  /* ── Mobile drawer section accordion ── */
+  function toggleDrawerSection(id) {
+    var el = document.getElementById(id);
+    el.classList.toggle('open');
+  }
+
+  /* ── Auto-mark active nav links based on current URL ── */
   (function () {
     var path = window.location.pathname;
     var links = document.querySelectorAll('.app-nav .nav-links a, .mobile-drawer a');

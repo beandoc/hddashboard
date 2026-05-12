@@ -14,6 +14,8 @@
     :root {
       --primary: #0ea5e9;
       --primary-dark: #0284c7;
+      --secondary: #10b981;
+      --secondary-dark: #059669;
       --bg-main: #f8fafc;
       --bg-card: #ffffff;
       --text-main: #1e293b;
@@ -244,6 +246,35 @@
       opacity: 1;
       bottom: 110%;
     }
+
+    /* Global Button Styles */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-decoration: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-primary {
+      background: var(--secondary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    }
+    .btn-primary:hover {
+      background: var(--secondary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);
+    }
+    .btn i { font-size: 1.1rem; }
 
     /* Action bar */
     .action-bar { 
@@ -657,11 +688,14 @@
       <span id="liveIndicator" style="font-size:0.75em;opacity:0.7;font-family:monospace;margin-left:6px;">● Live</span>
     </div>
     {% if user and user.role in ['staff', 'admin'] %}
-      <a href="/entry?month={{ month_str }}" class="btn btn-primary" style="background:var(--secondary); border:none; display:flex; align-items:center; gap:8px;">
-        <i class="material-icons" style="font-size:1.1rem;">add</i>
+      <a href="/entry?month={{ month_str }}" class="btn btn-primary">
+        <i class="material-icons">add</i>
         Enter Data
       </a>
-    <a href="/patients/new" class="hero-btn"><i class="material-icons" style="font-size:0.95rem;">person_add</i> New Patient</a>
+      <a href="/patients/new" class="hero-btn">
+        <i class="material-icons" style="font-size:0.95rem;">person_add</i> 
+        New Patient
+      </a>
     {% endif %}
   </div>
 </header>
