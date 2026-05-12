@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Record {{ test_type }} - Research Hub</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -11,7 +12,7 @@
             --border: #e2e8f0; --text-dark: #0f172a; --text-muted: #64748b;
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-dark); margin: 0; padding-bottom: 60px; }
-        header { background: white; padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        header { background: white; padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 20px; }
         .back-link { color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 0.9rem; }
         .back-link:hover { color: var(--primary); }
         
@@ -33,6 +34,16 @@
         
         .dynamic-fields-container { background: #fffcf0; padding: 20px; border-radius: 8px; border: 1px solid #fde68a; margin-top: 10px; margin-bottom: 20px; }
         .dynamic-fields-container h3 { margin-top: 0; color: #b45309; font-family: 'Outfit'; display: flex; align-items: center; gap: 8px; font-size: 1.1rem; }
+
+        @media (max-width: 768px) {
+            header { padding: 16px 20px; flex-direction: column; align-items: flex-start; }
+            header h1 { font-size: 1.4rem !important; }
+            .container { margin: 20px auto; padding: 0 16px; }
+            .card { padding: 20px; }
+            .form-grid { grid-template-columns: 1fr; gap: 16px; }
+            .patient-info { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .dynamic-fields-container { padding: 16px; }
+        }
     </style>
 </head>
 <body>

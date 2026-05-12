@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ project.title }} - Research Hub</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -11,14 +12,14 @@
             --border: #e2e8f0; --text-dark: #0f172a; --text-muted: #64748b;
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-dark); margin: 0; }
-        header { background: white; padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        header { background: white; padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 20px; }
         .back-link { color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 0.9rem; }
         .back-link:hover { color: var(--primary); }
         
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--bg-card); border-radius: 12px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid var(--border); margin-bottom: 24px; }
         
-        .btn-primary { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
         
         .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         .table th { text-align: left; padding: 12px; background: #f1f5f9; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
@@ -27,11 +28,31 @@
         .data-chip { display: inline-block; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; margin: 2px; font-family: monospace; border: 1px solid #cbd5e1; }
         
         /* Modal */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 500px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; }
-        .form-group select, .form-group input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: 'Inter'; }
+        .form-group select, .form-group input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: 'Inter'; box-sizing: border-box; }
+
+        @media (max-width: 768px) {
+            header { padding: 16px 20px; flex-direction: column; align-items: flex-start; }
+            header h1 { font-size: 1.4rem !important; }
+            .btn-primary { width: 100%; justify-content: center; padding: 12px; }
+            
+            .container { margin: 20px auto; padding: 0 16px; }
+            .card { padding: 16px; }
+            
+            /* Responsive Table -> Cards */
+            .table, thead, tbody, th, td, tr { display: block; }
+            thead tr { position: absolute; top: -9999px; left: -9999px; }
+            tbody tr { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; padding: 12px; background: #fcfdfe; }
+            tbody td { border-bottom: 1px solid #f1f5f9; padding: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+            tbody td:last-child { border-bottom: none; flex-direction: row; justify-content: space-between; align-items: center; }
+            tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+            
+            .data-chip { margin: 4px 4px 0 0; }
+            .modal-content { padding: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -68,17 +89,17 @@
                     <tbody>
                         {% for r in records %}
                         <tr>
-                            <td style="white-space: nowrap; color: var(--text-muted);">{{ r.record.test_date }}</td>
-                            <td><strong>{{ r.patient.name }}</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">HID: {{ r.patient.hid_no }}</span></td>
-                            <td><span style="background:#e0e7ff; color:#3730a3; padding:4px 8px; border-radius:20px; font-size:0.8rem; font-weight:700;">{{ r.record.test_type }}</span></td>
-                            <td>
+                            <td data-label="Date" style="white-space: nowrap; color: var(--text-muted);">{{ r.record.test_date }}</td>
+                            <td data-label="Patient"><strong>{{ r.patient.name }}</strong><br><span style="font-size:0.8rem; color:var(--text-muted);">HID: {{ r.patient.hid_no }}</span></td>
+                            <td data-label="Test Type"><span style="background:#e0e7ff; color:#3730a3; padding:4px 8px; border-radius:20px; font-size:0.8rem; font-weight:700;">{{ r.record.test_type }}</span></td>
+                            <td data-label="Metrics">
                                 {% for key, val in r.parsed_data.items() %}
                                     <span class="data-chip"><strong>{{ key }}:</strong> {{ val }}</span>
                                 {% endfor %}
                             </td>
-                            <td style="font-size:0.85rem; color:var(--text-muted);">{{ r.record.notes }}</td>
-                            <td style="font-size:0.85rem;">{{ r.record.entered_by }}</td>
-                            <td>
+                            <td data-label="Notes" style="font-size:0.85rem; color:var(--text-muted);">{{ r.record.notes }}</td>
+                            <td data-label="Logged By" style="font-size:0.85rem;">{{ r.record.entered_by }}</td>
+                            <td data-label="Actions">
                                 <form method="POST" action="/research/projects/{{ project.id }}/records/{{ r.record.id }}/delete" onsubmit="return confirm('Delete this test record?');" style="margin:0;">
                                     <button type="submit" style="background:none; border:none; color:#ef4444; cursor:pointer;" title="Delete Record">
                                         <i class="material-icons" style="font-size:1.1rem;">delete_outline</i>
