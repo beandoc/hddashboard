@@ -741,13 +741,20 @@ function toggleSubOptions() {
 async function loadVariableChart() {
   const varId = document.getElementById('viewVarSelect').value;
   const viewType = document.getElementById('viewType').value;
+  const var2Id = document.getElementById('viewVar2Select').value;
   if (!varId) return;
 
   const opt = document.getElementById('viewVarSelect').selectedOptions[0];
   const varName = opt.dataset.name;
   const varUnit = opt.dataset.unit;
 
-  const res = await fetch(`/variables/${varId}/summary`);
+  // Optimize: Pass var2Id if we are in correlation view
+  let url = `/variables/${varId}/summary`;
+  if (viewType === 'correlation' && var2Id) {
+    url += `?var2_id=${var2Id}`;
+  }
+
+  const res = await fetch(url);
   if (!res.ok) return;
   const data = await res.json();
 
@@ -861,7 +868,6 @@ async function loadVariableChart() {
     }).filter(p => p.current !== null || p.previous !== null);
 
     if (viewType === 'improvement') {
-       // Sort by delta (significant changes first)
        patients.sort((a,b) => Math.abs(b.delta || 0) - Math.abs(a.delta || 0));
     }
 
@@ -876,8 +882,6 @@ async function loadVariableChart() {
     tbody.innerHTML = patients.map(p => {
       const isUp = p.delta > 0;
       const arrow = p.delta === null ? '' : (isUp ? '↑' : '↓');
-      // For some vars, UP is good (Hb), for others DOWN is good (CRP)
-      // If alert_direction is 'high', then UP is bad.
       const isGood = p.delta === null ? null : (vdef?.alert_direction === 'high' ? !isUp : isUp);
       const color = isGood === null ? 'var(--ink)' : (isGood ? 'var(--green)' : 'var(--red)');
       
@@ -893,25 +897,18 @@ async function loadVariableChart() {
     }).join('');
 
   } else if (viewType === 'dumbbell') {
-    const currentMonth = generateMonthRange('2020-01', '2030-12').reverse().find(m => m <= new Date().toISOString().slice(0, 7));
-    const prevMonth = generateMonthRange('2020-01', currentMonth).slice(-2)[0];
-    let patients = data.patients.map(p => {
-      const cur = data.all_data[p.id]?.[currentMonth] ?? null;
-      const pre = data.all_data[p.id]?.[prevMonth] ?? null;
-      return { ...p, current: cur, previous: pre };
-    }).filter(p => p.current !== null && p.previous !== null);
-
-    patients.sort((a, b) => b.current - a.current);
+    const patients = data.trajectory || [];
+    patients.sort((a, b) => b.curr - a.curr);
 
     const traces = [];
     patients.forEach(p => {
-      const isUp = p.current > p.previous;
+      const isUp = p.curr > p.prev;
       const isGood = vdef?.alert_direction === 'high' ? !isUp : isUp;
       traces.push({
-        x: [p.previous, p.current], y: [p.name, p.name], mode: 'lines+markers',
+        x: [p.prev, p.curr], y: [p.name, p.name], mode: 'lines+markers',
         marker: { size: 10, color: [isGood ? '#10b981' : '#ef4444', '#0ea5e9'] },
         line: { color: '#cbd5e1', width: 2 }, showlegend: false,
-        hoverinfo: 'text', text: `${p.name}: ${p.previous} → ${p.current}`
+        hoverinfo: 'text', text: `${p.name}: ${p.prev} → ${p.curr}`
       });
     });
 
@@ -921,14 +918,14 @@ async function loadVariableChart() {
     }, { displayModeBar: false, responsive: true });
 
     tbody.innerHTML = patients.map(p => {
-      const isUp = p.current > p.previous;
+      const isUp = p.curr > p.prev;
       const isGood = vdef?.alert_direction === 'high' ? !isUp : isUp;
       return `<tr>
         <td class="patient-name-cell">${p.name}</td>
-        <td style="font-family:monospace">${p.previous}</td>
-        <td style="font-family:monospace">${p.current}</td>
+        <td style="font-family:monospace">${p.prev}</td>
+        <td style="font-family:monospace">${p.curr}</td>
         <td style="font-weight:600; color:${isGood ? 'var(--green)' : 'var(--red)'}">
-          ${isUp ? '↑' : '↓'} ${Math.abs(p.current - p.previous).toFixed(1)}
+          ${isUp ? '↑' : '↓'} ${Math.abs(p.curr - p.prev).toFixed(1)}
         </td>
       </tr>`;
     }).join('');
@@ -949,15 +946,10 @@ async function loadVariableChart() {
   } else if (viewType === 'percentile' || viewType === 'violin') {
     const allValues = Object.values(data.all_data).flatMap(m => Object.values(m)).filter(v => v !== null);
     const trace = {
-      y: allValues,
-      type: viewType === 'percentile' ? 'box' : 'violin',
-      name: varName,
-      marker: { color: '#0ea5e9' }
+      y: allValues, type: viewType === 'percentile' ? 'box' : 'violin', name: varName, marker: { color: '#0ea5e9' }
     };
     if (viewType === 'violin') {
-      trace.box = { visible: true };
-      trace.meanline = { visible: true };
-      trace.fillcolor = 'rgba(14, 165, 233, 0.4)';
+      trace.box = { visible: true }; trace.meanline = { visible: true }; trace.fillcolor = 'rgba(14, 165, 233, 0.4)';
     }
     Plotly.newPlot('viewChart', [trace], {
       margin: { t: 20, b: 50, l: 60, r: 20 }, paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
@@ -987,21 +979,19 @@ async function loadVariableChart() {
     }, { displayModeBar:false, responsive:true });
 
   } else if (viewType === 'correlation') {
-    const var2Id = document.getElementById('viewVar2Select').value;
-    if (!var2Id) {
-      chartDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa">Please select a second variable to correlate.</div>';
-      return;
-    }
-    const res2 = await fetch(`/variables/${var2Id}/summary`);
-    const data2 = await res2.json();
-    const var2Name = ALL_VARS.find(x => x.id === parseInt(var2Id)).display_name;
-
+    const var2Name = data.var2 ? data.var2.name : 'Variable 2';
+    const data2All = data.var2 ? data.var2.all_data : {};
+    
     const xVals = [], yVals = [], text = [];
     data.patients.forEach(p => {
-      if (p.latest_value !== null && data2.patients.find(p2 => p2.id === p.id)?.latest_value !== null) {
-        xVals.push(p.latest_value);
-        yVals.push(data2.patients.find(p2 => p2.id === p.id).latest_value);
-        text.push(p.name);
+      if (p.latest_value !== null) {
+        const p2Months = data2All[p.id] || {};
+        const p2Latest = p2Months[max(Object.keys(p2Months))] ?? null;
+        if (p2Latest !== null) {
+           xVals.push(p.latest_value);
+           yVals.push(p2Latest);
+           text.push(p.name);
+        }
       }
     });
 

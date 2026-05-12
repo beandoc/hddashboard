@@ -261,16 +261,18 @@ async def api_upsert_value(payload: dict, db: Session = Depends(get_db)):
 
     return {"ok": True}
 
-@router.get("/{var_id}/summary")
-async def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
+def _get_var_data(db: Session, var_id: int):
+    """Internal helper to fetch all data for a variable (core or dynamic)."""
     vdef = None
     var_name = ""
     thresholds = {"low": None, "high": None, "target_low": None, "target_high": None}
+    unit = ""
 
     if var_id > 0:
         vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
-        if not vdef: raise HTTPException(status_code=404, detail="Variable not found")
+        if not vdef: return None, None, None, None
         var_name = vdef.name
+        unit = vdef.unit
         thresholds = {
             "low": vdef.threshold_low,
             "high": vdef.threshold_high,
@@ -280,13 +282,15 @@ async def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
     else:
         idx = abs(var_id) - 1
         core_list = list(VAR_TO_MONTHLY.keys())
-        if idx >= len(core_list): raise HTTPException(status_code=404, detail="Core variable not found")
+        if idx >= len(core_list): return None, None, None, None
         var_name = core_list[idx]
+        # Core variables don't have stored units/thresholds in VariableDefinition yet
+        # (Could be added to a system_defaults table later)
 
-    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
     pid_list = [p.id for p in patients]
-
     all_data: dict = {}
+
     if var_id > 0:
         rows = db.query(VariableValue).filter(VariableValue.variable_id == var_id, VariableValue.patient_id.in_(pid_list)).all()
         for r in rows: all_data.setdefault(r.patient_id, {})[r.record_month] = r.value_num
@@ -296,13 +300,23 @@ async def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
         bridged = _monthly_field_values(db, monthly_field, pid_list, "2020-01", get_current_month_str())
         for pid, months in bridged.items():
             for month, val in months.items(): all_data.setdefault(pid, {}).setdefault(month, val)
+    
+    return all_data, thresholds, var_name, unit
 
+@router.get("/{var_id}/summary")
+async def api_variable_summary(var_id: int, var2_id: Optional[int] = None, db: Session = Depends(get_db)):
+    all_data, thresholds, var_name, unit = _get_var_data(db, var_id)
+    if all_data is None: raise HTTPException(status_code=404, detail="Variable not found")
+
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    
     patient_rows = []
     for p in patients:
         months = all_data.get(p.id, {})
         latest = months[max(months)] if months else None
         patient_rows.append({"id": p.id, "name": p.name, "hid": p.hid_no, "latest_value": latest})
 
+    # Statistical Trend (Median, Percentiles)
     month_buckets: dict = {}
     for pid, months in all_data.items():
         for m, v in months.items():
@@ -328,9 +342,45 @@ async def api_variable_summary(var_id: int, db: Session = Depends(get_db)):
             "p75":    round(p75, 2)    if p75 is not None else None,
         })
 
-    return {
+    # Prepare Response
+    res = {
+        "var_name": var_name,
+        "unit": unit,
         "patients": patient_rows, 
         "trend": trend,
         "all_data": all_data,
         "thresholds": thresholds
     }
+
+    # Handle Optional Correlation Data
+    if var2_id:
+        v2_all_data, v2_thresholds, v2_name, v2_unit = _get_var_data(db, var2_id)
+        if v2_all_data is not None:
+            res["var2"] = {
+                "name": v2_name,
+                "unit": v2_unit,
+                "all_data": v2_all_data,
+                "thresholds": v2_thresholds
+            }
+
+    # Pre-calculate Trajectory (Dumbbell) data for convenience
+    months_with_data = sorted(month_buckets.keys(), reverse=True)
+    if len(months_with_data) >= 2:
+        curr_m = months_with_data[0]
+        prev_m = months_with_data[1]
+        trajectory = []
+        for p in patient_rows:
+            p_months = all_data.get(p["id"], {})
+            c_val = p_months.get(curr_m)
+            p_val = p_months.get(prev_m)
+            if c_val is not None and p_val is not None:
+                trajectory.append({
+                    "name": p["name"],
+                    "prev": p_val,
+                    "curr": c_val,
+                    "month_prev": prev_m,
+                    "month_curr": curr_m
+                })
+        res["trajectory"] = trajectory
+
+    return res
