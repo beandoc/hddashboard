@@ -51,8 +51,18 @@ async def adherence_report(request: Request, month: Optional[str] = None, db: Se
     patient_rows = data.get("patient_rows", [])
     at_risk = [r for r in patient_rows if r.get("adherence_flags")]
     at_risk.sort(key=lambda x: len(x["adherence_flags"]), reverse=True)
+
+    # Calculate stats for the dashboard summary
+    skipped_count = sum(1 for r in at_risk if "Skipped Sessions" in r.get("adherence_flags", []))
+    shortened_count = sum(1 for r in at_risk if "Shortened Sessions" in r.get("adherence_flags", []))
+
     return templates.TemplateResponse("adherence_report.html", {
-        "request": request, "month_str": month_str, "at_risk": at_risk, "user": get_user(request)
+        "request": request, 
+        "month_str": month_str, 
+        "at_risk": at_risk, 
+        "skipped_count": skipped_count,
+        "shortened_count": shortened_count,
+        "user": get_user(request)
     })
 
 @router.get("/census", response_class=HTMLResponse)

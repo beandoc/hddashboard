@@ -35,6 +35,7 @@ from datetime import datetime
 from typing import List, Dict, Optional, Any
 import pickle
 import os
+import warnings
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import json
@@ -722,20 +723,36 @@ def _hb_trajectory_message(
             return (
                 f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
                 f"Model projects partial recovery to {predicted:.1f} g/dL next month, but current level demands urgent action.{transfusion_note}"
+                if predicted is not None else
+                f"CRITICAL: Current Hb {current} g/dL — immediate intervention required.{transfusion_note}"
             )
         return (
             f"CRITICAL: Current Hb {current} g/dL — immediate intervention required. "
             f"Predicted to remain critically low at {predicted:.1f} g/dL.{transfusion_note}"
+            if predicted is not None else
+            f"CRITICAL: Current Hb {current} g/dL — immediate intervention required.{transfusion_note}"
         )
         
     if severity in ("high", "watch") and alert_predicted:
         if predicting_improvement:
-            return f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
-        return f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
+            return (
+                f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
+                if predicted is not None else
+                f"Hb low at {current} g/dL — predicted to remain low. Monitor closely.{transfusion_note}"
+            )
+        return (
+            f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
+            if predicted is not None else
+            f"Hb low at {current} g/dL — predicted to decline. Escalate urgently.{transfusion_note}"
+        )
         
     if alert_predicted:
         # current >= 10 but predicted to fall below
-        return f"Predicted to drop below 10 g/dL (→ {predicted:.1f} g/dL) — review urgently.{transfusion_note}"
+        return (
+            f"Predicted to drop below 10 g/dL (→ {predicted:.1f} g/dL) — review urgently.{transfusion_note}"
+            if predicted is not None else
+            f"Predicted to drop below 10 g/dL — review urgently.{transfusion_note}"
+        )
         
     if current is not None and prev_hb is not None and current < prev_hb and prev_hb > 13.0 and current >= 10.0:
         return f"✅ Favorable Trend: Controlled downtitration from {prev_hb} to {current} g/dL (Target 10-12 g/dL).{transfusion_note}"
@@ -1715,13 +1732,13 @@ def _load_xgb_models() -> dict:
         return _XGB_MODELS
     try:
         import joblib
-        model_dir = _os.path.join(_os.path.dirname(__file__), "models")
-        with _warnings.catch_warnings():
-            _warnings.simplefilter("ignore")
+        model_dir = os.path.join(os.path.dirname(__file__), "models")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
             _XGB_MODELS = {
-                "1yr": joblib.load(_os.path.join(model_dir, "Xgbc_clf_final_round_oneyearAI.pkl")),
-                "4yr": joblib.load(_os.path.join(model_dir, "Xgbc_clf_final_round.pkl")),
-                "7yr": joblib.load(_os.path.join(model_dir, "Xgbc_clf_final_round_sevenyearAI.pkl")),
+                "1yr": joblib.load(os.path.join(model_dir, "Xgbc_clf_final_round_oneyearAI.pkl")),
+                "4yr": joblib.load(os.path.join(model_dir, "Xgbc_clf_final_round.pkl")),
+                "7yr": joblib.load(os.path.join(model_dir, "Xgbc_clf_final_round_sevenyearAI.pkl")),
             }
     except Exception as e:
         _XGB_MODELS = {}
@@ -1935,8 +1952,8 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
                 [[idh, age, albumin_gl, neutrophil, ef]],
                 columns=["IDH", "Age", "Albumin", "N109L", "EF"]
             )
-            with _warnings.catch_warnings():
-                _warnings.simplefilter("ignore")
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
                 prob_1yr = round(float(models["1yr"].predict_proba(x)[0, 1]), 3)
                 prob_4yr = round(float(models["4yr"].predict_proba(x)[0, 1]), 3)
                 prob_7yr = round(float(models["7yr"].predict_proba(x)[0, 1]), 3)
@@ -1974,8 +1991,8 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
                 [[idh_x, age_x, albumin_x, neut_x, ef_x]],
                 columns=["IDH", "Age", "Albumin", "N109L", "EF"]
             )
-            with _warnings.catch_warnings():
-                _warnings.simplefilter("ignore")
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
                 prob_1yr = round(float(models["1yr"].predict_proba(x)[0, 1]), 3)
                 prob_4yr = round(float(models["4yr"].predict_proba(x)[0, 1]), 3)
                 prob_7yr = round(float(models["7yr"].predict_proba(x)[0, 1]), 3)
@@ -2525,19 +2542,35 @@ def run_patient_analytics(db: Session, patient_id: int, prefetched_records: Opti
 
     from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
 
-    hb_traj    = predict_hb_trajectory(df)
-    epo_resp   = detect_epo_hyporesponse(df, hb_traj)
-    alb_risk   = assess_albumin_decline(df)
-    
-    # Now these functions will naturally see the carry-forward values in df[0]
-    iron_stat  = classify_iron_status(df[0], lab_staleness)
-    target_sc  = compute_target_score(df)
-    det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
-    mort_risk  = predict_mortality_risk(df, patient_info)
-    mia_status = compute_mia_score(db, patient_id)
-    bay_profile = compute_bayesian_alert_profile(df, patient_info)
-    mort_risk   = augment_mortality_risk(mort_risk, bay_profile)
-    davies      = compute_davies_score(patient_info, df[0])
+    try:
+        hb_traj    = predict_hb_trajectory(df)
+        epo_resp   = detect_epo_hyporesponse(df, hb_traj)
+        alb_risk   = assess_albumin_decline(df)
+        
+        # Now these functions will naturally see the carry-forward values in df[0]
+        iron_stat  = classify_iron_status(df[0], lab_staleness)
+        target_sc  = compute_target_score(df)
+        det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
+        mort_risk  = predict_mortality_risk(df, patient_info)
+        mia_status = compute_mia_score(db, patient_id)
+        bay_profile = compute_bayesian_alert_profile(df, patient_info)
+        mort_risk   = augment_mortality_risk(mort_risk, bay_profile)
+        davies      = compute_davies_score(patient_info, df[0])
+    except Exception as e:
+        logger.error(f"Error in patient analytics sub-components: {e}", exc_info=True)
+        # Return a safe partial object if possible, or re-raise if critical
+        # Here we choose to re-raise but ensure we've logged it. 
+        # Actually, let's try to provide defaults for the missing pieces.
+        hb_traj = hb_traj if 'hb_traj' in locals() else {"available": False, "data": {}}
+        epo_resp = epo_resp if 'epo_resp' in locals() else {"available": False, "data": {}}
+        alb_risk = alb_risk if 'alb_risk' in locals() else {"available": False, "data": {}}
+        iron_stat = iron_stat if 'iron_stat' in locals() else {"available": False, "data": {}}
+        target_sc = target_sc if 'target_sc' in locals() else {"available": False, "data": {}}
+        det_risk = det_risk if 'det_risk' in locals() else {"available": False, "data": {}}
+        mort_risk = mort_risk if 'mort_risk' in locals() else {"available": False, "data": {}}
+        mia_status = mia_status if 'mia_status' in locals() else {"available": False, "data": {}}
+        bay_profile = bay_profile if 'bay_profile' in locals() else {"available": False, "data": {}}
+        davies = davies if 'davies' in locals() else {"available": False, "data": {}}
 
     return {
         "status": "ok",
@@ -3272,56 +3305,69 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
     #     Maturation clock should start from hd_wef_date, not surgery date.
     #   - Scenario C (Historic): Both dates are recorded — compute actual maturation lag.
     if is_avf_or_graft:
-        if p.access_date and not p.date_first_cannulation:
-            days_since_surgery = (today - p.access_date).days
+    # Helper to parse dates from SQLite/SQLAlchemy which might be strings
+    def _to_date(val):
+        if val is None: return None
+        if isinstance(val, (date, datetime)): return val
+        try:
+            # Handle string dates from SQLite
+            return datetime.strptime(val.split(" ")[0], "%Y-%m-%d").date()
+        except:
+            return None
 
-            if not p.hd_wef_date:
-                # ── Scenario B (Pre-emptive, HD not yet started) ──────────────
-                # AVF was created ahead of anticipated dialysis need.
-                # Suppress maturation failure alert — cannulation has not yet
-                # occurred simply because dialysis has not been initiated.
-                delay_days = days_since_surgery
+    access_date = _to_date(p.access_date)
+    hd_wef_date = _to_date(p.hd_wef_date)
+
+    if access_date:
+        days_since_surgery = (today - access_date).days
+
+        if not hd_wef_date:
+            # ── Scenario B (Pre-emptive, HD not yet started) ──────────────
+            # AVF was created ahead of anticipated dialysis need.
+            # Suppress maturation failure alert — cannulation has not yet
+            # occurred simply because dialysis has not been initiated.
+            delay_days = days_since_surgery
+            events.append({
+                "text": (
+                    f"Pre-emptive AVF created {days_since_surgery} days ago. "
+                    "Patient is not yet on dialysis — cannulation pending HD initiation. "
+                    "No maturation failure concern at this stage."
+                )
+            })
+            # No risk_score increment — this is an expected clinical state.
+
+        elif hd_wef_date > access_date:
+            # ── Scenario B variant (HD started after AVF creation) ────────
+            # The fistula was surgically created in anticipation of HD.
+            # The clinically meaningful maturation window begins from the
+            # date HD was initiated (i.e., when cannulation became relevant),
+            # not from the surgery date.
+            pre_hd_wait_days = (hd_wef_date - access_date).days
+            days_since_hd_start = (today - hd_wef_date).days
+            delay_days = days_since_hd_start   # expose the clinically relevant counter
+            events.append({
+                "text": (
+                    f"AVF created {pre_hd_wait_days} days before HD initiation "
+                    f"({hd_wef_date.strftime('%d %b %Y') if hd_wef_date else 'N/A'}). "
+                    f"Maturation clock starts from HD start date: "
+                    f"{days_since_hd_start} days elapsed without cannulation."
+                )
+            })
+            if days_since_hd_start > 42:
+                alerts.append(
+                    f"AVF Cannulation Overdue: {days_since_hd_start} days since HD initiation "
+                    f"without first cannulation — KDOQI recommends cannulation within 6 weeks "
+                    f"of HD start when fistula is clinically mature."
+                )
+                risk_score += 3
+            elif days_since_hd_start > 28:
                 events.append({
                     "text": (
-                        f"Pre-emptive AVF created {days_since_surgery} days ago. "
-                        "Patient is not yet on dialysis — cannulation pending HD initiation. "
-                        "No maturation failure concern at this stage."
+                        f"Approaching 6-week cannulation threshold since HD start "
+                        f"({days_since_hd_start} days). Assess fistula thrill/bruit; "
+                        "consider Doppler if maturation is in doubt."
                     )
                 })
-                # No risk_score increment — this is an expected clinical state.
-
-            elif p.hd_wef_date > p.access_date:
-                # ── Scenario B variant (HD started after AVF creation) ────────
-                # The fistula was surgically created in anticipation of HD.
-                # The clinically meaningful maturation window begins from the
-                # date HD was initiated (i.e., when cannulation became relevant),
-                # not from the surgery date.
-                pre_hd_wait_days = (p.hd_wef_date - p.access_date).days
-                days_since_hd_start = (today - p.hd_wef_date).days
-                delay_days = days_since_hd_start   # expose the clinically relevant counter
-                events.append({
-                    "text": (
-                        f"AVF created {pre_hd_wait_days} days before HD initiation "
-                        f"({p.hd_wef_date.strftime('%d %b %Y')}). "
-                        f"Maturation clock starts from HD start date: "
-                        f"{days_since_hd_start} days elapsed without cannulation."
-                    )
-                })
-                if days_since_hd_start > 42:
-                    alerts.append(
-                        f"AVF Cannulation Overdue: {days_since_hd_start} days since HD initiation "
-                        f"without first cannulation — KDOQI recommends cannulation within 6 weeks "
-                        f"of HD start when fistula is clinically mature."
-                    )
-                    risk_score += 3
-                elif days_since_hd_start > 28:
-                    events.append({
-                        "text": (
-                            f"Approaching 6-week cannulation threshold since HD start "
-                            f"({days_since_hd_start} days). Assess fistula thrill/bruit; "
-                            "consider Doppler if maturation is in doubt."
-                        )
-                    })
 
             else:
                 # ── Scenario A (Bridge phase) ─────────────────────────────────
@@ -3332,7 +3378,7 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
                 events.append({
                     "text": (
                         f"AVF created {days_since_surgery} days ago "
-                        f"(HD via catheter since {p.hd_wef_date.strftime('%d %b %Y')}). "
+                        f"(HD via catheter since {hd_wef_date.strftime('%d %b %Y') if hd_wef_date else 'N/A'}). "
                         "First cannulation date not yet recorded."
                     )
                 })

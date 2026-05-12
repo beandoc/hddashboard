@@ -101,13 +101,13 @@
         </div>
         <div class="stat-card">
             <div class="stat-val" style="color: #ea580c;">
-                {{ at_risk|selectattr('adherence_flags', 'containing', 'Skipped Sessions')|list|length }}
+                {{ skipped_count }}
             </div>
             <div class="stat-label">Skipped Treatment</div>
         </div>
         <div class="stat-card">
             <div class="stat-val" style="color: #f59e0b;">
-                {{ at_risk|selectattr('adherence_flags', 'containing', 'Shortened Sessions')|list|length }}
+                {{ shortened_count }}
             </div>
             <div class="stat-label">Shortened Sessions</div>
         </div>
