@@ -112,7 +112,6 @@
             .form-row[style*="grid-template-columns: 1fr 1fr 1fr"] { grid-template-columns: 1fr !important; gap: 20px !important; }
             .form-row[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; gap: 16px !important; }
         }
-    </style>
         .idwg-ok { color: #16a34a; }
         .idwg-warn { color: #d97706; }
         .idwg-bad { color: #dc2626; }
@@ -222,7 +221,7 @@
         <h1>{{ patient.name }}</h1>
         <div class="hero-badges">
             <span class="hero-badge"><i class="material-icons" style="font-size:14px;">badge</i> HID {{ patient.hid_no }}</span>
-            <span class="hero-badge"><i class="material-icons" style="font-size:14px;">monitor_weight</i> {{ patient.dry_weight if patient.dry_weight else '—' }} kg dry wt</span>
+            <span class="hero-badge"><i class="material-icons" style="font-size:14px;">monitor_weight</i> {{ effective_dry_weight if effective_dry_weight else (patient.dry_weight if patient.dry_weight else '—') }} kg dry wt</span>
             {% if patient.blood_group %}<span class="hero-badge"><i class="material-icons" style="font-size:14px;">bloodtype</i> {{ patient.blood_group }}</span>{% endif %}
             {% if vax_reminders %}<span class="hero-badge alert"><i class="material-icons" style="font-size:14px;">warning</i> {{ vax_reminders|length }} health alert{{ 's' if vax_reminders|length > 1 else '' }}</span>{% endif %}
         </div>
@@ -327,6 +326,9 @@
                     {% else %}
                         <div class="fluid-stat-value idwg-bad">+{{ idwg }} kg</div>
                         <div class="fluid-stat-unit" style="color:#dc2626; font-weight:700;">High — contact your team today</div>
+                    {% endif %}
+                    {% if not last_session %}
+                    <div style="font-size:0.7rem; color:#94a3b8; margin-top:4px;">Based on last monthly record</div>
                     {% endif %}
                 {% else %}
                     <div class="fluid-stat-value" style="color:var(--muted); font-size:1.4rem;">—</div>
@@ -446,11 +448,11 @@
     <!-- MEDICATIONS -->
     <h2 class="section-title"><i class="material-icons">medication</i> My Medications</h2>
     <div class="card">
-        {% set has_any_med = (latest_monthly and (latest_monthly.esa_type or latest_monthly.phosphate_binder_type)) or anti_meds %}
-        {% if latest_monthly and latest_monthly.esa_type %}
+        {% set has_any_med = epo_label or (latest_monthly and latest_monthly.phosphate_binder_type) or anti_meds %}
+        {% if epo_label %}
         <div class="med-item">
             <div>
-                <div class="med-name">{{ latest_monthly.esa_type }}</div>
+                <div class="med-name">{{ epo_label }}</div>
                 <div class="med-category">Erythropoiesis-stimulating agent</div>
             </div>
             <span class="med-dose">{{ latest_monthly.epo_mircera_dose or latest_monthly.epo_weekly_units or '—' }} units</span>

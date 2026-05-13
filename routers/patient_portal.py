@@ -87,21 +87,67 @@ async def patient_dashboard(request: Request, db: Session = Depends(get_db)):
         except: pass
 
     last_session = db.query(SessionRecord).filter(SessionRecord.patient_id == p.id).order_by(SessionRecord.session_date.desc()).first()
+
+    # Calculate IDWG: prefer live session data (pre-HD weight − dry weight);
+    # fall back to the monthly record IDWG field when no sessions have been logged yet.
     idwg = None
     if last_session and last_session.weight_pre is not None and p.dry_weight is not None:
         idwg = round(last_session.weight_pre - p.dry_weight, 2)
+    elif latest_monthly and latest_monthly.idwg is not None:
+        idwg = latest_monthly.idwg  # monthly aggregate / last-known value
 
+    # Effective dry weight: prefer monthly target, fall back to patient baseline
+    effective_dry_weight = (
+        (latest_monthly.target_dry_weight if latest_monthly and latest_monthly.target_dry_weight else None)
+        or p.dry_weight
+        or 60
+    )
+
+    # Fluid allowance = 500 mL base + residual urine output (mL/day)
     ruo = latest_monthly.residual_urine_output if (latest_monthly and latest_monthly.residual_urine_output) else 0
     fluid_allowance_ml = 500 + int(ruo)
+
+    # Resolve ESA label for medication display — handles both structured esa_type
+    # and legacy free-text epo_mircera_dose strings (e.g. "MIRCERA 75")
+    epo_label = None
+    if latest_monthly:
+        if latest_monthly.esa_type:
+            epo_label = latest_monthly.esa_type
+        elif latest_monthly.epo_mircera_dose:
+            # Normalise common variants → human-readable name
+            raw = (latest_monthly.epo_mircera_dose or "").upper()
+            if "MIRCERA" in raw:
+                epo_label = "Mircera (CERA)"
+            elif "DESIDUSTAT" in raw or "OXEMIA" in raw:
+                epo_label = "Desidustat (Oxemia)"
+            elif "DARBEPOETIN" in raw or "ARANESP" in raw:
+                epo_label = "Darbepoetin Alfa"
+            elif "EPO" in raw or "ERYTHROPOETIN" in raw or "ERYPEG" in raw:
+                epo_label = "Epoetin Alfa"
+            else:
+                epo_label = latest_monthly.epo_mircera_dose
 
     recent_symptoms = db.query(PatientSymptomReport).filter(PatientSymptomReport.patient_id == p.id).order_by(PatientSymptomReport.reported_at.desc()).limit(5).all()
 
     return templates.TemplateResponse("patient_view.html", {
-        "request": request, "patient": p, "latest_monthly": latest_monthly, "anti_meds": anti_meds,
-        "meals_by_day": meals_by_day, "today_stats": today_stats, "nutrition_targets": nutrition_targets,
-        "trends": trends, "vax_reminders": vax_reminders, "last_session": last_session, "idwg": idwg,
-        "fluid_allowance_ml": fluid_allowance_ml, "recent_symptoms": recent_symptoms, "user": u,
-        "next_session": next_session, "today": today
+        "request": request,
+        "patient": p,
+        "latest_monthly": latest_monthly,
+        "anti_meds": anti_meds,
+        "meals_by_day": meals_by_day,
+        "today_stats": today_stats,
+        "nutrition_targets": nutrition_targets,
+        "trends": trends,
+        "vax_reminders": vax_reminders,
+        "last_session": last_session,
+        "idwg": idwg,
+        "fluid_allowance_ml": fluid_allowance_ml,
+        "effective_dry_weight": effective_dry_weight,
+        "epo_label": epo_label,
+        "recent_symptoms": recent_symptoms,
+        "user": u,
+        "next_session": next_session,
+        "today": today,
     })
 
 @router.post("/meals")
