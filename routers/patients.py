@@ -505,22 +505,36 @@ async def update_patient(
 async def deactivate_patient(patient_id: int, request: Request, db: Session = Depends(get_db)):
     """Deactivates a patient record. Restricted to admin/doctor roles."""
     user = get_user(request)
-    if not user or getattr(user, "role", None) not in ["admin", "doctor"]:
-        # Also check if user is a dict (from auth_middleware)
-        role = user.get("role") if isinstance(user, dict) else getattr(user, "role", None)
-        if role not in ["admin", "doctor"]:
-            logger.warning(f"Unauthorized deactivation attempt for patient {patient_id} by user {getattr(user, 'username', 'unknown')}")
-            raise HTTPException(status_code=403, detail="Only doctors or admins can deactivate patients.")
+
+    # Unified role resolution — user can be an ORM object or a dict (auth_middleware)
+    if isinstance(user, dict):
+        role = user.get("role")
+        username = user.get("username", "unknown")
+    else:
+        role = getattr(user, "role", None)
+        username = getattr(user, "username", "unknown")
+
+    if not user or role not in ["admin", "doctor"]:
+        logger.warning(f"Unauthorized deactivation attempt for patient {patient_id} by '{username}' (role={role})")
+        raise HTTPException(status_code=403, detail="Only doctors or admins can deactivate patients.")
 
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
-    
+
+    if not p.is_active:
+        # Idempotent: already deactivated — redirect cleanly without another write
+        logger.info(f"Patient {patient_id} ({p.name}) was already inactive. No-op by '{username}'")
+        return RedirectResponse(url="/patients", status_code=303)
+
     try:
         p.is_active = False
-        p.updated_at = datetime.utcnow()
+        # NOTE: Do NOT manually set p.updated_at here.
+        # SQLAlchemy's onupdate=datetime.utcnow fires automatically on db.commit().
+        # Manually setting it on a recycled/stale Neon PostgreSQL connection causes
+        # intermittent StaleDataError / InvalidRequestError → 500.
         db.commit()
-        logger.info(f"Patient {patient_id} ({p.name}) deactivated by {getattr(user, 'username', 'unknown') if not isinstance(user, dict) else user.get('username')}")
+        logger.info(f"Patient {patient_id} ({p.name}) deactivated by '{username}'")
     except Exception as e:
         db.rollback()
         logger.error(f"CRITICAL: Failed to deactivate patient {patient_id}: {e}", exc_info=True)
