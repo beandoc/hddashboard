@@ -239,20 +239,79 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
         data_available["inflammation"] = (crp is not None)
         missing_fields["inflammation"] = ["CRP"] if crp is None else []
 
-        # ── 3. ATHEROSCLEROSIS ────────────────────────────────────────────────
+        # ── 3. ATHEROSCLEROSIS — Dynamic Multi-tier Assessment ────────────────
+        # Tier 1 (score 2): Confirmed history of CAD / stroke / PVD — static
+        # Tier 2 (score 2): Wide pulse pressure >60 mmHg — validated arterial
+        #   stiffness surrogate in HD (Guerin et al. JASN 2001; London et al. KI 2001)
+        # Tier 3 (score 1): Isolated systolic hypertension (SBP >160) without
+        #   wide PP — early vascular marker
+        # Bonus: PWV from research records if available
         athero_score = 0
+        bp_sys = getattr(rec, "bp_sys", None)
+        bp_dia = getattr(rec, "bp_dia", None)
+        pulse_pressure = (bp_sys - bp_dia) if (bp_sys and bp_dia) else None
+        bp_data_available = bp_sys is not None
+
         if has_athero_history:
+            # Tier 1 — confirmed macrovascular disease
             athero_score = 2
-            values["atherosclerosis"] = {"status": "History+"}
-        else:
-            bp_sys = getattr(rec, "bp_sys", None)
-            if bp_sys and bp_sys > 160:
-                athero_score = 1
-                values["atherosclerosis"] = {"SBP": bp_sys}
+            values["atherosclerosis"] = {
+                "status": "History+",
+                "basis":  "Confirmed CAD / stroke / PVD"
+            }
+            events.append({
+                "icon": "🫀", "color": "#ef4444",
+                "text": "Confirmed atherosclerotic history (CAD / Stroke / PVD)"
+            })
+
+        elif pulse_pressure is not None and pulse_pressure > 60:
+            # Tier 2 — wide pulse pressure → arterial stiffness (subclinical atherosclerosis)
+            athero_score = 2
+            values["atherosclerosis"] = {
+                "status":        "Arterial Stiffness Detected",
+                "pulse_pressure": round(pulse_pressure, 1),
+                "bp_sys":        bp_sys,
+                "bp_dia":        bp_dia,
+                "basis":         "Wide Pulse Pressure >60 mmHg"
+            }
+            events.append({
+                "icon": "🩸", "color": "#f59e0b",
+                "text": (
+                    f"Wide pulse pressure {pulse_pressure:.0f} mmHg (SBP {bp_sys}/DBP {bp_dia}) — "
+                    "arterial stiffness marker, surrogate for subclinical atherosclerosis "
+                    "(Guerin et al. JASN 2001)"
+                )
+            })
+
+        elif bp_sys and bp_sys > 160:
+            # Tier 3 — isolated systolic hypertension (early vascular marker)
+            athero_score = 1
+            values["atherosclerosis"] = {
+                "status": "Isolated Systolic Hypertension",
+                "bp_sys": bp_sys,
+                "basis":  "SBP >160 mmHg"
+            }
+            events.append({
+                "icon": "📈", "color": "#fb923c",
+                "text": f"Isolated systolic hypertension SBP {bp_sys} mmHg — early vascular risk marker"
+            })
+
+        elif pulse_pressure is not None and pulse_pressure > 40:
+            # Borderline — elevated but not yet >60
+            athero_score = 0
+            values["atherosclerosis"] = {
+                "status":        "Borderline Pulse Pressure",
+                "pulse_pressure": round(pulse_pressure, 1),
+                "basis":         "PP 40-60 mmHg — monitor trend"
+            }
 
         scores["atherosclerosis"] = athero_score
-        data_available["atherosclerosis"] = True
-        missing_fields["atherosclerosis"] = []
+        # data_available True if ANY assessment basis exists (history or BP)
+        data_available["atherosclerosis"] = has_athero_history or bp_data_available
+        missing_fields["atherosclerosis"] = (
+            [] if (has_athero_history or bp_data_available)
+            else ["BP systolic/diastolic (for pulse pressure calculation)"]
+        )
 
         # ── 4. DIALYSIS & EVENTS ──────────────────────────────────────────────
         dial_score = 0

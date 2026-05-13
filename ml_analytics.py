@@ -427,33 +427,49 @@ def run_cohort_analytics(db: Session) -> Dict:
         "latest_month": months[-1] if months else None,
     }
 
+    # N_IQR_RELIABLE: minimum patients per month required to display a meaningful IQR.
+    # Below this, p25/p75 are set to None so charts suppress the IQR band entirely,
+    # preventing false clinical confidence from small-cohort box plots.
+    N_IQR_RELIABLE = 10
+
     for p in params:
         stats_list = []
         for m in months:
             vals = trends[m][p]
             if not vals:
-                stats_list.append({"median": 0, "p25": 0, "p75": 0})
-                continue
-
-            med = statistics.median(vals)
-            sv = sorted(vals)
-            n = len(sv)
-            if n < 3:
-                warning = "n < 3, percentiles unreliable" if n > 0 else "No data"
                 stats_list.append({
-                    "median": round(med, 2),
-                    "p25": round(sv[0], 2) if n > 0 else 0,
-                    "p75": round(sv[-1], 2) if n > 0 else 0,
-                    "n": n,
-                    "warning": warning
+                    "median": None, "p25": None, "p75": None,
+                    "n": 0, "reliable": False, "warning": "No data this month"
                 })
                 continue
 
+            med = statistics.median(vals)
+            sv  = sorted(vals)
+            n   = len(sv)
+
+            if n < N_IQR_RELIABLE:
+                # Suppress IQR — show only median and warn
+                stats_list.append({
+                    "median":   round(med, 2),
+                    "p25":      None,   # None signals chart to hide IQR band
+                    "p75":      None,
+                    "n":        n,
+                    "reliable": False,
+                    "warning":  (
+                        f"n={n} — IQR hidden (need ≥{N_IQR_RELIABLE} patients for reliable percentiles). "
+                        "Median shown only."
+                    )
+                })
+                continue
+
+            # Sufficient N — show full statistics
             stats_list.append({
-                "median": round(med, 2),
-                "p25": round(float(np.percentile(sv, 25)), 2),
-                "p75": round(float(np.percentile(sv, 75)), 2),
-                "n": n
+                "median":   round(med, 2),
+                "p25":      round(float(np.percentile(sv, 25)), 2),
+                "p75":      round(float(np.percentile(sv, 75)), 2),
+                "n":        n,
+                "reliable": True,
+                "warning":  None
             })
         result[p] = stats_list
 

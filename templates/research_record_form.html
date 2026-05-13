@@ -255,20 +255,45 @@
                 { name: "kdqol_q28", label: "28. Problems with your access (HD) or catheter (PD) site? / डायलिसिस साइट की समस्या?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
 
                 { name: "effects_header", label: "VI. Effects on Daily Life / दैनिक जीवन पर प्रभाव / दैनंदिन जीवनावर परिणाम", type: "header" },
-                { name: "kdqol_q29", label: "29. Fluid restriction? / पानी का प्रतिबंध? / पाणी पिण्यावर मर्यादा?", type: "select", options: [
-                    {value: "1", label: "1 - Not at all bothered / बिल्कुल नहीं / अजिबात नाही"},
-                    {value: "2", label: "2 - Somewhat bothered / थोड़ा बहुत / थोडासा"},
-                    {value: "3", label: "3 - Moderately bothered / मध्यम / मध्यम"},
-                    {value: "4", label: "4 - Very much bothered / बहुत अधिक / बरेच"},
-                    {value: "5", label: "5 - Extremely bothered / अत्यंत / अत्यंत"}
-                ], fullWidth: true },
+                { name: "kdqol_q29", label: "29. Fluid restriction? / पानी का प्रतिबंध? / पाणी पिण्यावर मर्यादा?", type: "select", options: [{value: "1", label: "1 - Not at all bothered"}, {value: "2", label: "2 - Somewhat bothered"}, {value: "3", label: "3 - Moderately bothered"}, {value: "4", label: "4 - Very much bothered"}, {value: "5", label: "5 - Extremely bothered"}], fullWidth: true },
                 { name: "kdqol_q30", label: "30. Dietary restriction? / आहार प्रतिबंध? / खाण्यावर मर्यादा?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
                 { name: "kdqol_q31", label: "31. Ability to work around the house? / घर का काम? / घरकाम करण्याची क्षमता?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
                 { name: "kdqol_q32", label: "32. Ability to travel? / यात्रा करने की क्षमता? / प्रवास करण्याची क्षमता?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
                 { name: "kdqol_q33", label: "33. Dependence on doctors and staff? / डॉक्टर और स्टाफ पर निर्भरता?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
                 { name: "kdqol_q34", label: "34. Stress or worries? / तनाव या चिंता? / आजारामुळे ताण किंवा चिंता?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
                 { name: "kdqol_q35", label: "35. Your sex life? / आपका यौन जीवन? / तुमचे लैंगिक जीवन?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true },
-                { name: "kdqol_q36", label: "36. Your personal appearance? / आपका रूप-रंग? / तुमचे व्यक्तिमत्व/दिसणे?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value:                 { name: "physical_probs_header", label: "III. PHYSICAL HEALTH PROBLEMS (Past 4 weeks):", type: "header" },
+                { name: "kdqol_q36", label: "36. Your personal appearance? / आपका रूप-रंग? / तुमचे व्यक्तिमत्व/दिसणे?", type: "select", options: [{value: "1", label: "1 - Not at all"}, {value: "2", label: "2 - Somewhat"}, {value: "3", label: "3 - Moderately"}, {value: "4", label: "4 - Very much"}, {value: "5", label: "5 - Extremely"}], fullWidth: true }
+            ],
+            "SF_36": [
+                { name: "sf36_header", label: "I. GENERAL HEALTH / सामान्य आरोग्य", type: "header" },
+                { name: "sf36_q1", label: "1. In general, would you say your health is: / साधारणपणे, तुमचे आरोग्य कसे आहे?", type: "select", options: [
+                    {value: "1", label: "1 - Excellent"},
+                    {value: "2", label: "2 - Very Good"},
+                    {value: "3", label: "3 - Good"},
+                    {value: "4", label: "4 - Fair"},
+                    {value: "5", label: "5 - Poor"}
+                ], fullWidth: true },
+                { name: "sf36_q2", label: "2. Compared to one year ago, how would you rate your health in general now? / एका वर्षापूर्वीच्या तुलनेत आता तुमचे आरोग्य कसे आहे?", type: "select", options: [
+                    {value: "1", label: "1 - Much better now"},
+                    {value: "2", label: "2 - Somewhat better now"},
+                    {value: "3", label: "3 - About the same"},
+                    {value: "4", label: "4 - Somewhat worse now"},
+                    {value: "5", label: "5 - Much worse now"}
+                ], fullWidth: true },
+                
+                { name: "physical_activities_header", label: "II. PHYSICAL ACTIVITIES (Does your health now limit these activities?):", type: "header" },
+                { name: "sf36_q3", label: "3. Vigorous activities (running, heavy lifting, sports)", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q4", label: "4. Moderate activities (moving a table, vacuuming, bowling)", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q5", label: "5. Lifting or carrying groceries", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q6", label: "6. Climbing several flights of stairs", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q7", label: "7. Climbing one flight of stairs", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q8", label: "8. Bending, kneeling, or stooping", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q9", label: "9. Walking more than a mile", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q10", label: "10. Walking several blocks", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q11", label: "11. Walking one block", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                { name: "sf36_q12", label: "12. Bathing or dressing yourself", type: "select", options: [{value: "1", label: "1 - Yes, limited a lot"}, {value: "2", label: "2 - Yes, limited a little"}, {value: "3", label: "3 - No, not limited at all"}], fullWidth: true },
+                
+                { name: "physical_probs_header", label: "III. PHYSICAL HEALTH PROBLEMS (Past 4 weeks):", type: "header" },
                 { name: "sf36_q13", label: "13. Cut down amount of time spent on work? / कामासाठी दिलेला वेळ कमी केला का?", type: "select", options: [{value: "1", label: "1 - Yes / होय"}, {value: "2", label: "2 - No / नाही"}], fullWidth: true },
                 { name: "sf36_q14", label: "14. Accomplished less than you would like? / इच्छेपेक्षा कमी काम झाले का?", type: "select", options: [{value: "1", label: "1 - Yes / होय"}, {value: "2", label: "2 - No / नाही"}], fullWidth: true },
                 { name: "sf36_q15", label: "15. Were limited in kind of work? / कामाच्या प्रकारात मर्यादा आली का?", type: "select", options: [{value: "1", label: "1 - Yes / होय"}, {value: "2", label: "2 - No / नाही"}], fullWidth: true },
@@ -409,84 +434,6 @@
                 { name: "sf36_score_sf", label: "Social Functioning", type: "number", readonly: true },
                 { name: "sf36_score_bp", label: "Bodily Pain", type: "number", readonly: true },
                 { name: "sf36_score_gh", label: "General Health", type: "number", readonly: true }
-            ],              ], fullWidth: true },
-                { name: "sf36_q25", label: "25. Have you felt so down in the dumps? / तुम्हाला खूप निराश वाटले का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-                { name: "sf36_q26", label: "26. Have you felt calm and peaceful? / तुम्हाला शांत आणि समाधानी वाटले का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-                { name: "sf36_q27", label: "27. Did you have a lot of energy? / तुमच्यात खूप ऊर्जा होती का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-                { name: "sf36_q28", label: "28. Have you felt downhearted and blue? / तुम्हाला निराश किंवा दुःखी वाटले का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-                { name: "sf36_q29", label: "29. Did you feel worn out? / तुम्हाला खूप थकल्यासारखे वाटले का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-                { name: "sf36_q30", label: "30. Have you been a happy person? / तुम्ही आनंदी होतात का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-                { name: "sf36_q31", label: "31. Did you feel tired? / तुम्हाला थकवा जाणवला का?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time / सतत"},
-                    {value: "2", label: "2 - Most of the time / बहुतेक वेळ"},
-                    {value: "3", label: "3 - A good Bit of the Time / बराच वेळ"},
-                    {value: "4", label: "4 - Some of the time / काही वेळ"},
-                    {value: "5", label: "5 - A little bit of the time / थोडा वेळ"},
-                    {value: "6", label: "6 - None of the Time / कधीच नाही"}
-                ], fullWidth: true },
-
-                { name: "social_time_header", label: "VIII. SOCIAL ACTIVITIES (Time Interference):", type: "header" },
-                { name: "sf36_q32", label: "32. How much of the time has health interfered with social activities? / तब्येतीमुळे सामाजिक कार्यात किती वेळ अडथळा आला?", type: "select", options: [
-                    {value: "1", label: "1 - All of the time"},
-                    {value: "2", label: "2 - Most of the time"},
-                    {value: "3", label: "3 - Some of the time"},
-                    {value: "4", label: "4 - A little bit of the time"},
-                    {value: "5", label: "5 - None of the Time"}
-                ], fullWidth: true },
-
-                { name: "general_health_statements_header", label: "IX. GENERAL HEALTH STATEMENTS / आरोग्य विधाने", type: "header" },
-                { name: "sf36_q33", label: "33. I seem to get sick a little easier than other people / मी इतरांपेक्षा लवकर आजारी पडतो", type: "select", options: [
-                    {value: "1", label: "1 - Definitely true"},
-                    {value: "2", label: "2 - Mostly true"},
-                    {value: "3", label: "3 - Don't know"},
-                    {value: "4", label: "4 - Mostly false"},
-                    {value: "5", label: "5 - Definitely false"}
-                ], fullWidth: true },
-                { name: "sf36_q34", label: "34. I am as healthy as anybody I know / मी इतरांसारखाच निरोगी आहे", type: "select", options: [{value: "1", label: "1 - Definitely true"}, {value: "2", label: "2 - Mostly true"}, {value: "3", label: "3 - Don't know"}, {value: "4", label: "4 - Mostly false"}, {value: "5", label: "5 - Definitely false"}], fullWidth: true },
-                { name: "sf36_q35", label: "35. I expect my health to get worse / माझे आरोग्य बिघडण्याची मला भीती वाटते", type: "select", options: [{value: "1", label: "1 - Definitely true"}, {value: "2", label: "2 - Mostly true"}, {value: "3", label: "3 - Don't know"}, {value: "4", label: "4 - Mostly false"}, {value: "5", label: "5 - Definitely false"}], fullWidth: true },
-                { name: "sf36_q36", label: "36. My health is excellent / माझे आरोग्य उत्तम आहे", type: "select", options: [{value: "1", label: "1 - Definitely true"}, {value: "2", label: "2 - Mostly true"}, {value: "3", label: "3 - Don't know"}, {value: "4", label: "4 - Mostly false"}, {value: "5", label: "5 - Definitely false"}], fullWidth: true }
             ],
             "CGMS_METRICS": [
                 { name: "cgms_header", label: "CGMS Analysis Metrics / CGMS विश्लेषण मापदंड", type: "header" },
@@ -540,12 +487,7 @@
                 { name: "m3ms_second_recall", label: "Second Recall (Max 9)", type: "number", min: 0, max: 9 },
                 { name: "m3ms_total", label: "Total 3MS Score (Max 100)", type: "number", readOnly: true, highlight: true }
             ],
-            "VASCULAR_STIFFNESS": [
-                { name: "vs_header", label: "Vascular Stiffness Measurements / संवहनी जकड़न माप", type: "header" },
-                { name: "pwv_ms", label: "Pulse Wave Velocity (m/s) / पल्स वेव वेग", type: "number", step: "0.1" },
-                { name: "aix_percent", label: "Augmentation Index (%) / ऑग्मेंटेशन इंडेक्स", type: "number", step: "0.1" },
-                { name: "brachial_bp", label: "Brachial BP (mmHg) / ब्रेकियल बीपी", type: "text", placeholder: "e.g. 130/80" }
-            ],
+
             "FALL_RISK": [
                 { name: "history_of_falls", label: "History of Falls (Past Year)", type: "select", options: ["No", "Yes"] },
                 { name: "tug_test_seconds", label: "Timed Up and Go (Seconds)", type: "number", step: "0.1" },

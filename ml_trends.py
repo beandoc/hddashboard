@@ -522,6 +522,14 @@ def assess_albumin_decline(df: List[Dict]) -> Dict:
 
 
 def classify_iron_status(latest: Dict, staleness: Dict = None) -> Dict:
+    """
+    Classify iron status per KDIGO 2012 §3.4, conditioned on ESA therapy status.
+
+    KDIGO 2012 key distinctions:
+      - ESA-treated : target TSAT ≥ 30%, Ferritin ≥ 500 µg/L
+      - ESA-naive   : supplement iron before starting ESA (TSAT < 20% or Ferritin < 100)
+      - High Ferritin + Low TSAT → likely inflammation-driven sequestration (not iron overload)
+    """
     staleness = staleness or {}
     fer, tsat = latest.get("serum_ferritin"), latest.get("tsat")
     if fer is None or tsat is None:
@@ -539,31 +547,125 @@ def classify_iron_status(latest: Dict, staleness: Dict = None) -> Dict:
             }
         }
 
-    if (tsat or 0) < 20:
-        status, rec = "Absolute Iron Deficiency", "Initiate IV Iron Loading (KDIGO 3.4.2)"
-    elif (tsat or 0) < 30 and (fer or 0) < 500:
-        status, rec = "Functional Iron Deficiency", "IV Iron recommended (TSAT < 30%, Ferritin < 500)"
-    elif (fer or 0) > 800:
-        status, rec = "Iron Overload Risk", "Hold IV Iron — recheck in 3 months"
-    elif (fer or 0) > 500:
-        status, rec = "Iron Replete", "Hold Iron — monitor TSAT"
-    else:
-        status, rec = "Adequate Iron Stores", "Maintenance dose"
+    # ── ESA therapy status detection ─────────────────────────────────────────
+    epo_active = bool(
+        latest.get("epo_weekly_units") or
+        latest.get("epo_mircera_dose") or
+        latest.get("desidustat_dose")
+    )
 
-    # Staleness check
+    # ── KDIGO 2012 §3.4 Iron Status Classification ───────────────────────────
+    # Pattern 1: Inflammation-driven sequestration (high Ferritin + low TSAT)
+    # Ferritin is an acute-phase reactant → elevated Ferritin with low TSAT
+    # does NOT mean iron overload; it means iron is trapped in RES
+    inflam_sequestration = (fer or 0) > 500 and (tsat or 0) < 20
+
+    if inflam_sequestration:
+        status = "Inflammation-driven Iron Sequestration"
+        rec = (
+            "High Ferritin with low TSAT — iron trapped in RES due to inflammation. "
+            "Address CRP/inflammation before IV iron. Check WBC, CRP trend. "
+            "Do NOT interpret as iron overload (KDIGO 2012 §3.4.3)."
+        )
+        css = "warning"
+
+    elif (tsat or 0) < 20:
+        # Absolute deficiency — same threshold regardless of ESA status
+        status = "Absolute Iron Deficiency"
+        if epo_active:
+            rec = (
+                "Initiate IV Iron loading — TSAT <20% in ESA-treated patient. "
+                "Target: TSAT ≥30%, Ferritin ≥500 µg/L (KDIGO 2012 §3.4.2). "
+                "Hold ESA dose escalation until iron replete."
+            )
+        else:
+            rec = (
+                "Initiate IV Iron before starting ESA — TSAT <20%. "
+                "Target: TSAT ≥20%, Ferritin ≥100 µg/L before ESA initiation (KDIGO 2012 §3.4.1)."
+            )
+        css = "danger"
+
+    elif (tsat or 0) < 30 and (fer or 0) < 500 and epo_active:
+        # Functional deficiency — only meaningful in ESA-treated patients
+        status = "Functional Iron Deficiency (ESA-treated)"
+        rec = (
+            "IV Iron recommended — TSAT <30% and Ferritin <500 µg/L in ESA-treated patient. "
+            "Functional deficiency: insufficient iron mobilisation for erythropoiesis despite "
+            "adequate stores. Target TSAT ≥30% (KDIGO 2012 §3.4.2)."
+        )
+        css = "danger"
+
+    elif (tsat or 0) < 30 and (fer or 0) < 500 and not epo_active:
+        # Iron insufficient in non-ESA patient — different recommendation
+        status = "Iron Insufficient (Pre-ESA)"
+        rec = (
+            "Iron supplementation recommended before ESA initiation. "
+            "TSAT <30% and Ferritin <500 µg/L — replenish iron stores first. "
+            "Recheck labs in 4-6 weeks (KDIGO 2012 §3.4.1)."
+        )
+        css = "warning"
+
+    elif (fer or 0) > 800:
+        # Possible overload — but rule out inflammation first
+        status = "Iron Overload Risk"
+        rec = (
+            "Hold IV Iron — Ferritin >800 µg/L. "
+            "Rule out infection/inflammation (CRP) as cause of ferritin elevation. "
+            "Recheck TSAT + Ferritin in 3 months (KDIGO 2012 §3.4.3)."
+        )
+        css = "warning"
+
+    elif (fer or 0) > 500 and epo_active:
+        # Replete in ESA-treated context
+        status = "Iron Replete (ESA-treated)"
+        rec = (
+            "Iron stores adequate — Ferritin >500 µg/L and TSAT ≥30%. "
+            "Continue maintenance IV iron dosing. No iron loading required (KDIGO 2012 §3.4.2)."
+        )
+        css = "success"
+
+    elif (fer or 0) > 200:
+        status = "Adequate Iron Stores"
+        rec = (
+            "Iron stores adequate for current ESA regime. "
+            "Continue monitoring TSAT and Ferritin monthly."
+        )
+        css = "success"
+
+    else:
+        # Borderline — Ferritin 100–200
+        status = "Borderline Iron Stores"
+        rec = (
+            "Ferritin 100–200 µg/L — borderline adequate. "
+            "Consider oral or low-dose IV iron supplementation. "
+            "Recheck in 4–6 weeks."
+        )
+        css = "warning"
+
+    # ── Staleness warning ────────────────────────────────────────────────────
     stale_months = max(staleness.get("serum_ferritin", 0), staleness.get("tsat", 0))
-    stale_warning = f" (⚠ Data is {stale_months} months old)" if stale_months > 3 else ""
+    stale_warning = f" (⚠ Data is {stale_months} months old — recheck recommended)" if stale_months > 3 else ""
+
+    # ── ESA context note ─────────────────────────────────────────────────────
+    esa_context = (
+        "ESA therapy active — applying KDIGO 2012 §3.4.2 targets (TSAT ≥30%, Ferritin ≥500)."
+        if epo_active else
+        "No active ESA detected — applying KDIGO 2012 §3.4.1 pre-ESA targets (TSAT ≥20%, Ferritin ≥100)."
+    )
 
     return {
         "available": True,
         "error":     None,
         "data": {
-            "status": status,
-            "recommendation": rec,
-            "message": rec + stale_warning,
-            "class": "danger" if "Deficiency" in status
-                     else "warning" if ("Overload" in status or "Replete" in status)
-                     else "success",
-            "inputs_missing": []
+            "status":           status,
+            "recommendation":   rec,
+            "message":          rec + stale_warning,
+            "esa_context":      esa_context,
+            "esa_active":       epo_active,
+            "inflam_pattern":   inflam_sequestration,
+            "class":            css,
+            "ferritin":         fer,
+            "tsat":             tsat,
+            "inputs_missing":   []
         }
     }
