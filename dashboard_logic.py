@@ -154,9 +154,10 @@ def compute_dashboard(db: Session, month: str = None):
         'albumin_low': {'count': 0, 'names': []},
         'calcium_low': {'count': 0, 'names': []},
         'phos_high': {'count': 0, 'names': []},
-        'epo_hypo':    {'count': 0, 'names': []},   # HypoR1: ERI ≥ 2 g/L or dose ≥ 450 IU/kg/wk
-        'epo_hypo_r2': {'count': 0, 'names': []},   # HypoR2: ERI ≥ 1.5 g/L
-        'epo_hypo_r3': {'count': 0, 'names': [], 'cutoff': None},  # HypoR3: top 20th %ile dose
+        'epo_hypo':    {'count': 0, 'names': []},   # HypoR1: ERI ≥ 2.0 WITH Hb < 11.0 g/dL (KDIGO)
+        'epo_hypo_r2': {'count': 0, 'names': []},   # HypoR2: ERI ≥ 1.5 WITH Hb < 11.0 g/dL
+        'epo_hypo_r3': {'count': 0, 'names': [], 'cutoff': None},  # HypoR3: top 10th %ile dose WITH Hb < 11.0
+        'esa_de_escalation': {'count': 0, 'names': []},  # Hb at/above target but dose still high — consider weaning
         'iv_iron_rec': {'count': 0, 'names': []},
         'hb_high': {'count': 0, 'names': []},
         'hb_variability_high': {'count': 0, 'names': []}, # Range > 2.5 g/dL (High risk)
@@ -499,25 +500,45 @@ def compute_dashboard(db: Session, month: str = None):
                 })
                 row["alerts"].append("High Phos")
 
-            # 6. ESA Hyporesponsiveness — SC route (all patients SC at this centre)
-            # ERI = dose (IU/week) / weight (kg) / Hb (g/L)
-            # Hb stored in g/dL → multiply by 10 to get g/L for ERI calculation
-            # HypoR1: ERI ≥ 2.0 IU/kg/wk/g/L  OR  dose/kg ≥ 450 IU/kg/wk
-            # HypoR2: ERI ≥ 1.5 IU/kg/wk/g/L
-            # HypoR3: dose (IU/wk) in top 20th percentile of this month's cohort
+            # ── 6. ESA Response Classification (KDIGO 2012) ─────────────────
+            # ERI = (dose_IU/wk ÷ weight_kg) ÷ (Hb_g/dL × 10)
+            #
+            # CRITICAL GATE: HypoR is only clinically valid when Hb is BELOW
+            # target (< 11.0 g/dL). When Hb is at/above target the correct
+            # interpretation is NOT hyporesponsiveness but rather a dose that
+            # has not been weaned — flag for de-escalation instead.
+            #
+            # Hb < 11.0  AND high ERI/dose  →  HypoR1 / HypoR2 / HypoR3
+            # Hb 11–13    AND dose_kg ≥ 150  →  ESA De-escalation Due
+            # Hb > 13.0   AND any dose       →  ESA Over-dosing Risk
+            # (threshold 150 IU/kg/wk ≈ Mircera 100 mcg/month on 60 kg)
             _epo_sc = _resolve_epo_dose(r)
 
             if _epo_sc:
                 _weight = r.target_dry_weight or p.dry_weight or 60.0
                 _dose_kg = _epo_sc / _weight
-                _eri = (_dose_kg / (r.hb * 10)) if r.hb and r.hb > 0 else None
+                # Use row["hb"] so interim lab overrides are respected
+                _hb_eff = row["hb"]
+                _eri = (_dose_kg / (_hb_eff * 10)) if _hb_eff and _hb_eff > 0 else None
 
-                hypo_r1 = bool(_eri and (_eri >= 2.0 or _dose_kg >= 450))
-                hypo_r2 = bool(_eri and _eri >= 1.5)
-                hypo_r3 = bool(_hypo_r3_cutoff and _epo_sc > _hypo_r3_cutoff)
+                # Hb status relative to target
+                _hb_below_target  = (_hb_eff is None) or (_hb_eff < 11.0)
+                _hb_at_target     = _hb_eff is not None and 11.0 <= _hb_eff <= 13.0
+                _hb_above_safe    = _hb_eff is not None and _hb_eff > 13.0
+
+                # True hyporesponsiveness — Hb-gated per KDIGO 2012
+                hypo_r1 = bool(_hb_below_target and _eri and (_eri >= 2.0 or _dose_kg >= 450))
+                hypo_r2 = bool(_hb_below_target and _eri and _eri >= 1.5)
+                hypo_r3 = bool(_hb_below_target and _hypo_r3_cutoff and _epo_sc > _hypo_r3_cutoff)
+
+                # De-escalation: Hb on-target but dose not yet weaned
+                _de_escalation = bool(
+                    (_hb_at_target and _dose_kg >= 150) or
+                    (_hb_above_safe and _dose_kg >= 50)   # any meaningful dose when Hb is supratherapeutic
+                )
 
                 _any_hypo = hypo_r1 or hypo_r2 or hypo_r3
-                _causes = _esa_hypo_causes(r) if _any_hypo else []
+                _causes   = _esa_hypo_causes(r) if _any_hypo else []
 
                 if hypo_r1:
                     metrics['epo_hypo']['count'] += 1
@@ -534,9 +555,18 @@ def compute_dashboard(db: Session, month: str = None):
                     if not hypo_r1 and not hypo_r2:
                         row["alerts"].append("HypoR3")
 
-                row["eri"] = round(_eri, 2) if _eri else None
-                row["dose_kg"] = round(_dose_kg, 1)
+                if _de_escalation and not _any_hypo:
+                    metrics['esa_de_escalation']['count'] += 1
+                    metrics['esa_de_escalation']['names'].append(name)
+                    if _hb_above_safe:
+                        row["alerts"].append("ESA Over-dosing Risk")
+                    else:
+                        row["alerts"].append("ESA De-escalation Due")
+
+                row["eri"]             = round(_eri, 2) if _eri else None
+                row["dose_kg"]         = round(_dose_kg, 1)
                 row["epo_hypo_causes"] = _causes
+                row["esa_de_escalation"] = _de_escalation
 
             # 7. IV Iron Recommended: Hb < 10 AND (Ferritin < 500 OR TSAT < 30%)
             if (r.hb and r.hb < 10 and
@@ -604,13 +634,19 @@ def get_patients_needing_alerts(db: Session, month: str = None):
             alerts.append("High Phos")
         _epo_sc = _resolve_epo_dose(r)
         if _epo_sc and r.hb:
-            _weight = r.target_dry_weight or p.dry_weight or 60.0
-            _dose_kg = _epo_sc / _weight
-            _eri = _dose_kg / (r.hb * 10)
-            if _eri >= 2.0 or _dose_kg >= 450:
+            _weight   = r.target_dry_weight or p.dry_weight or 60.0
+            _dose_kg  = _epo_sc / _weight
+            _eri      = _dose_kg / (r.hb * 10)
+            _hb_below = r.hb < 11.0
+            _hb_above_safe = r.hb > 13.0
+            if _hb_below and (_eri >= 2.0 or _dose_kg >= 450):
                 alerts.append("HypoR1")
-            elif _eri >= 1.5:
+            elif _hb_below and _eri >= 1.5:
                 alerts.append("HypoR2")
+            elif _hb_above_safe and _dose_kg >= 50:
+                alerts.append("ESA Over-dosing Risk")
+            elif not _hb_below and _dose_kg >= 150:
+                alerts.append("ESA De-escalation Due")
         if alerts:
             result.append({
                 "patient": p,
