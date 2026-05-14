@@ -583,7 +583,37 @@
         <div class="form-field">
             <input type="text" id="deact_confirm_input" placeholder="Enter HID to confirm" oninput="checkDeactivateInput()" autocomplete="off">
         </div>
+
+        <!-- Death capture -->
+        <div style="margin:14px 0; padding:12px 14px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.875rem; font-weight:600; color:#991b1b;">
+                <input type="checkbox" id="deact_is_death" onchange="toggleDeathFields()" style="width:16px;height:16px;accent-color:#dc2626;">
+                Patient deceased (death as reason for deactivation)
+            </label>
+            <div id="deathFields" style="display:none; margin-top:12px; display:none; flex-direction:column; gap:10px;">
+                <div>
+                    <label style="font-size:0.78rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.04em;">Date of Death</label>
+                    <input type="date" id="deact_date_of_death" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.875rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.78rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.04em;">Primary Cause of Death</label>
+                    <select id="deact_cause_of_death" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.875rem;background:white;">
+                        <option value="">— Select cause —</option>
+                        <option value="Cardiac">Cardiac</option>
+                        <option value="Infection">Infection / Sepsis</option>
+                        <option value="Vascular">Vascular / Stroke</option>
+                        <option value="Withdrawal">Withdrawal from Dialysis</option>
+                        <option value="Malignancy">Malignancy</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <form id="deactivateForm" method="POST" style="display:flex; gap:10px; margin-top:8px;">
+            <input type="hidden" name="is_death" id="deact_is_death_hidden" value="0">
+            <input type="hidden" name="date_of_death" id="deact_dod_hidden" value="">
+            <input type="hidden" name="cause_of_death" id="deact_cause_hidden" value="">
             <button type="button" class="btn-secondary" onclick="closeDeactivateModal()" style="flex:1;">Cancel</button>
             <button type="submit" id="deact_submit_btn" class="btn-danger" disabled style="flex:1;">Confirm Deactivate</button>
         </form>
@@ -815,6 +845,13 @@
         document.getElementById('deact_hid_display').textContent = hid;
         document.getElementById('deact_confirm_input').value = '';
         document.getElementById('deact_submit_btn').disabled = true;
+        document.getElementById('deact_is_death').checked = false;
+        document.getElementById('deathFields').style.display = 'none';
+        document.getElementById('deact_date_of_death').value = '';
+        document.getElementById('deact_cause_of_death').value = '';
+        document.getElementById('deact_is_death_hidden').value = '0';
+        document.getElementById('deact_dod_hidden').value = '';
+        document.getElementById('deact_cause_hidden').value = '';
         document.getElementById('deactivateForm').action = '/patients/' + pid + '/deactivate';
         document.getElementById('deactivateModal').classList.add('open');
         setTimeout(() => document.getElementById('deact_confirm_input').focus(), 100);
@@ -825,6 +862,24 @@
     function checkDeactivateInput() {
         const val = document.getElementById('deact_confirm_input').value.trim();
         document.getElementById('deact_submit_btn').disabled = (val !== _deactHid);
+    }
+    function toggleDeathFields() {
+        const checked = document.getElementById('deact_is_death').checked;
+        document.getElementById('deathFields').style.display = checked ? 'flex' : 'none';
+        document.getElementById('deact_is_death_hidden').value = checked ? '1' : '0';
+        if (!checked) {
+            document.getElementById('deact_date_of_death').value = '';
+            document.getElementById('deact_cause_of_death').value = '';
+            document.getElementById('deact_dod_hidden').value = '';
+            document.getElementById('deact_cause_hidden').value = '';
+        } else {
+            document.getElementById('deact_date_of_death').oninput = function() {
+                document.getElementById('deact_dod_hidden').value = this.value;
+            };
+            document.getElementById('deact_cause_of_death').onchange = function() {
+                document.getElementById('deact_cause_hidden').value = this.value;
+            };
+        }
     }
 
     // ── CLINICAL REMINDER MODAL ──────────────────────────────────────────

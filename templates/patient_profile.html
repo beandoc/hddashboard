@@ -564,6 +564,97 @@
                 </div>
             </div>
 
+            <!-- HOSPITALISATION EVENT LOG -->
+            <div class="card">
+                <h2 class="section-title" style="font-size: 1rem; display:flex; align-items:center; justify-content:space-between;">
+                    <span><i class="material-icons" aria-hidden="true" style="vertical-align:middle;">local_hospital</i> Hospitalisation Event Log</span>
+                    <button type="button" onclick="document.getElementById('hospAddForm').style.display = document.getElementById('hospAddForm').style.display === 'none' ? 'block' : 'none'" style="background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; padding:4px 10px; font-size:0.75rem; font-weight:700; color:#475569; cursor:pointer;">+ Add</button>
+                </h2>
+
+                <!-- Inline add form -->
+                <form id="hospAddForm" action="/patients/{{ patient.id }}/hospitalisations" method="post" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px; margin-bottom:14px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+                        <div>
+                            <label style="font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:3px;">Admission Date *</label>
+                            <input type="date" name="admission_date" required style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.8rem;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:3px;">Discharge Date</label>
+                            <input type="date" name="discharge_date" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.8rem;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:3px;">ICD-10 Code</label>
+                            <input type="text" name="primary_icd" placeholder="e.g. A41.9" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.8rem;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:3px;">Cause Category</label>
+                            <select name="cause_category" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.8rem;">
+                                <option value="">— Select —</option>
+                                <option>Cardiac</option>
+                                <option>Infection</option>
+                                <option>Vascular</option>
+                                <option>Access-related</option>
+                                <option>Fluid overload</option>
+                                <option>Metabolic</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:3px;">Primary Diagnosis</label>
+                        <input type="text" name="primary_diagnosis" placeholder="e.g. Gram-negative sepsis" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.8rem;">
+                    </div>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:3px;">Notes</label>
+                        <input type="text" name="notes" placeholder="Optional clinical notes" style="width:100%; padding:6px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.8rem;">
+                    </div>
+                    <button type="submit" style="background:var(--primary); color:#fff; border:none; border-radius:6px; padding:7px 16px; font-size:0.78rem; font-weight:700; cursor:pointer;">Save Event</button>
+                </form>
+
+                {% if hospitalisations %}
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9; color:#64748b; text-transform:uppercase; font-size:0.68rem; font-weight:700;">
+                                <th style="padding:7px 8px; text-align:left;">Admitted</th>
+                                <th style="padding:7px 8px; text-align:left;">Discharged</th>
+                                <th style="padding:7px 8px; text-align:center;">LOS</th>
+                                <th style="padding:7px 8px; text-align:left;">ICD</th>
+                                <th style="padding:7px 8px; text-align:left;">Diagnosis</th>
+                                <th style="padding:7px 8px; text-align:left;">Category</th>
+                                <th style="padding:7px 8px; text-align:center;">30d</th>
+                                <th style="padding:7px 8px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for h in hospitalisations %}
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:6px 8px;">{{ h.admission_date.strftime('%d %b %Y') }}</td>
+                                <td style="padding:6px 8px;">{{ h.discharge_date.strftime('%d %b %Y') if h.discharge_date else '<span style="color:#94a3b8;">Ongoing</span>' | safe }}</td>
+                                <td style="padding:6px 8px; text-align:center;">{{ (h.los_days | string + 'd') if h.los_days is not none else '—' }}</td>
+                                <td style="padding:6px 8px; font-family:monospace;">{{ h.primary_icd or '—' }}</td>
+                                <td style="padding:6px 8px;">{{ h.primary_diagnosis or '—' }}</td>
+                                <td style="padding:6px 8px;">{{ h.cause_category or '—' }}</td>
+                                <td style="padding:6px 8px; text-align:center;">
+                                    {% if h.readmission_within_30d %}
+                                    <span style="background:#fee2e2; color:#dc2626; border-radius:4px; padding:2px 6px; font-size:0.65rem; font-weight:700;">30d</span>
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td style="padding:6px 8px;">
+                                    <form action="/patients/{{ patient.id }}/hospitalisations/{{ h.id }}/delete" method="post" onsubmit="return confirm('Delete this event?')">
+                                        <button type="submit" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1rem;" title="Delete">×</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:16px 0; margin:0;">No hospitalisation events recorded for this patient.</p>
+                {% endif %}
+            </div>
+
             <!-- CLINICAL BACKGROUND (POMR) -->
             <div class="card">
                 <h2 class="section-title" style="font-size: 1rem;">

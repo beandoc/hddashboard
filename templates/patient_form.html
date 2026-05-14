@@ -647,7 +647,12 @@
                     </div>
                     <div class="form-group">
                         <label>Primary Cause of Death</label>
-                        <input type="text" name="primary_cause_of_death" id="primary_cause_of_death" value="{{ patient.primary_cause_of_death if patient and patient.primary_cause_of_death else '' }}" placeholder="e.g. Cardiac arrest, Sepsis">
+                        <select name="primary_cause_of_death" id="primary_cause_of_death">
+                            <option value="">— Select —</option>
+                            {% for cod in ["Cardiac-sudden","Cardiac-HF","Infection-sepsis","Infection-access","Withdrawal","Vascular","Other"] %}
+                            <option value="{{ cod }}" {{ 'selected' if patient and patient.primary_cause_of_death == cod }}>{{ cod }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Date of Facility Transfer</label>

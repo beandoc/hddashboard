@@ -71,6 +71,59 @@
         </div>
         {% endif %}
 
+        <!-- Deactivated Patients Card -->
+        <div class="card">
+            <h3><i class="material-icons" style="color:#dc2626;">person_off</i> Deactivated Patients</h3>
+            {% if inactive_patients %}
+            <p style="color:var(--text-muted); font-size:0.88em; margin:0 0 16px;">
+                {{ inactive_patients|length }} patient{{ 's' if inactive_patients|length != 1 else '' }} deactivated.
+                Patients marked as deceased are included in Kaplan-Meier survival analysis.
+            </p>
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.875em;">
+                    <thead>
+                        <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                            <th style="text-align:left;padding:9px 12px;color:var(--text-muted);font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;">Name</th>
+                            <th style="text-align:left;padding:9px 12px;color:var(--text-muted);font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;">HID</th>
+                            <th style="text-align:left;padding:9px 12px;color:var(--text-muted);font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;">HD Start</th>
+                            <th style="text-align:left;padding:9px 12px;color:var(--text-muted);font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;">Date of Death</th>
+                            <th style="text-align:left;padding:9px 12px;color:var(--text-muted);font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;">Cause</th>
+                            <th style="text-align:center;padding:9px 12px;color:var(--text-muted);font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in inactive_patients %}
+                        <tr style="border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:10px 12px;font-weight:600;">
+                                <a href="/patients/{{ p.id }}/profile" style="color:var(--text-main);text-decoration:none;">{{ p.name }}</a>
+                            </td>
+                            <td style="padding:10px 12px;font-family:monospace;color:var(--text-muted);">{{ p.hid or '—' }}</td>
+                            <td style="padding:10px 12px;color:var(--text-muted);">{{ p.hd_wef_date.strftime('%b %Y') if p.hd_wef_date else '—' }}</td>
+                            <td style="padding:10px 12px;">
+                                {% if p.date_of_death %}
+                                <span style="color:#dc2626;font-weight:600;">{{ p.date_of_death.strftime('%d %b %Y') }}</span>
+                                {% else %}
+                                <span style="color:#94a3b8;">—</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding:10px 12px;color:var(--text-muted);">{{ p.primary_cause_of_death or '—' }}</td>
+                            <td style="padding:10px 12px;text-align:center;">
+                                {% if p.date_of_death %}
+                                <span style="background:#fef2f2;color:#dc2626;padding:2px 10px;border-radius:20px;font-size:0.78em;font-weight:600;">Deceased</span>
+                                {% else %}
+                                <span style="background:#f1f5f9;color:#64748b;padding:2px 10px;border-radius:20px;font-size:0.78em;font-weight:600;">Inactive</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color:var(--text-muted); font-size:0.88em; margin:0;">No deactivated patients on record.</p>
+            {% endif %}
+        </div>
+
         <!-- Backup Card -->
         <div class="card">
             <h3><i class="material-icons">cloud_download</i> Download Backup</h3>

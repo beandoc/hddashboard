@@ -179,6 +179,7 @@ class Patient(Base):
     dry_weight_assessments = relationship("DryWeightAssessment", back_populates="patient", cascade="all, delete-orphan")
     events = relationship("ClinicalEvent", back_populates="patient", cascade="all, delete-orphan")
     research_records = relationship("ResearchRecord", back_populates="patient", cascade="all, delete-orphan")
+    hospitalisations = relationship("HospitalisationEvent", back_populates="patient", cascade="all, delete-orphan")
 
 class PatientReminder(Base):
     __tablename__ = "patient_reminders"
@@ -666,6 +667,30 @@ class ResearchRecord(Base):
 
     project = relationship("ResearchProject", back_populates="records")
     patient = relationship("Patient", back_populates="research_records")
+
+
+class HospitalisationEvent(Base):
+    """Structured longitudinal hospitalisation record — one row per admission episode.
+    Replaces the JSON hospitalization_details field on MonthlyRecord for research analytics.
+    readmission_within_30d is auto-computed on creation."""
+    __tablename__ = "hospitalisation_events"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    patient_id      = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    admission_date  = Column(Date, nullable=False)
+    discharge_date  = Column(Date)                    # NULL = currently admitted
+    los_days        = Column(Integer)                 # length-of-stay, stored for analytics
+    primary_icd     = Column(String)                  # ICD-10 code e.g. "A41.9"
+    primary_diagnosis = Column(String)                # Human-readable label
+    # Cardiac / Infection / Vascular / Access-related / Fluid-overload / Metabolic / Other
+    cause_category  = Column(String)
+    readmission_within_30d = Column(Boolean, default=False)  # auto-computed on save
+    notes           = Column(Text)
+    entered_by      = Column(String)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+    patient = relationship("Patient", back_populates="hospitalisations")
+
 
 def to_dict(obj):
     """Serialize SQLAlchemy model to dictionary, skipping internal state and relationships."""

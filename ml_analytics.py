@@ -451,6 +451,12 @@ def run_cohort_analytics(db: Session) -> Dict:
                 # Suppress IQR — show only median and warn
                 stats_list.append({
                     "median":   round(med, 2),
+                    "mean":     None,
+                    "std":      None,
+                    "cv_percent": None,
+                    "is_normal": False,
+                    "shapiro_p": None,
+                    "outliers": [],
                     "p25":      None,   # None signals chart to hide IQR band
                     "p75":      None,
                     "n":        n,
@@ -463,8 +469,41 @@ def run_cohort_analytics(db: Session) -> Dict:
                 continue
 
             # Sufficient N — show full statistics
+            mean_val = statistics.mean(vals)
+            std_val = statistics.stdev(vals) if n > 1 else 0.0
+            cv_percent = round((std_val / mean_val * 100), 1) if mean_val != 0 else 0.0
+
+            # Shapiro-Wilk Test for Normality
+            is_normal = False
+            shapiro_p = None
+            if n >= 3:
+                try:
+                    from scipy.stats import shapiro
+                    stat, p_val = shapiro(vals)
+                    shapiro_p = round(p_val, 4)
+                    is_normal = p_val >= 0.05
+                except ImportError:
+                    pass
+                except Exception:
+                    pass
+
+            # Outlier Detection using Robust Z-Score (MAD-based)
+            mad = statistics.median([abs(x - med) for x in vals])
+            outliers = []
+            if mad > 0:
+                for x in vals:
+                    robust_z = abs(x - med) / (1.4826 * mad)
+                    if robust_z > 3.0: # threshold for outlier
+                        outliers.append(x)
+            
             stats_list.append({
                 "median":   round(med, 2),
+                "mean":     round(mean_val, 2),
+                "std":      round(std_val, 2),
+                "cv_percent": cv_percent,
+                "is_normal": is_normal,
+                "shapiro_p": shapiro_p,
+                "outliers": list(set(outliers)),
                 "p25":      round(float(np.percentile(sv, 25)), 2),
                 "p75":      round(float(np.percentile(sv, 75)), 2),
                 "n":        n,
@@ -583,3 +622,646 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
         "patients": results,
         "parameter": parameter
     }
+
+# ── Group Comparison Analytics ────────────────────────────────────────────────
+
+def run_group_comparison(groups: Dict[str, List[float]], test_type: str = "mann-whitney") -> Dict:
+    """
+    Perform statistical group comparisons.
+    `groups` format for continuous data: {"Diabetic": [12.1, 10.5, ...], "Non-Diabetic": [11.2, 11.5, ...]}
+    `groups` format for categorical data (Chi-Square): {"High-Flux": [10, 50], "Low-Flux": [25, 40]}
+       where lists are counts [Events, Non-Events].
+    `test_type`: "mann-whitney", "kruskal-wallis", "chi-square"
+    """
+    result = {
+        "test_type": test_type,
+        "available": False,
+        "p_value": None,
+        "statistic": None,
+        "significant": False,
+        "message": ""
+    }
+
+    try:
+        from scipy import stats
+    except ImportError:
+        result["message"] = "scipy is required for advanced statistical tests."
+        return result
+
+    if test_type == "mann-whitney":
+        keys = list(groups.keys())
+        if len(keys) != 2:
+            result["message"] = "Mann-Whitney requires exactly 2 groups."
+            return result
+        
+        g1, g2 = groups[keys[0]], groups[keys[1]]
+        # Filter Nones
+        g1 = [x for x in g1 if x is not None]
+        g2 = [x for x in g2 if x is not None]
+        
+        if len(g1) < 3 or len(g2) < 3:
+            result["message"] = "Insufficient data points (minimum 3 per group required)."
+            return result
+            
+        stat, p_val = stats.mannwhitneyu(g1, g2, alternative='two-sided')
+        result.update({
+            "available": True,
+            "p_value": round(p_val, 4),
+            "statistic": round(stat, 2),
+            "significant": p_val < 0.05,
+            "message": f"Mann-Whitney U Test: {'Significant' if p_val < 0.05 else 'No significant'} difference between {keys[0]} and {keys[1]} (p={p_val:.4f})."
+        })
+
+    elif test_type == "kruskal-wallis":
+        valid_groups = []
+        group_names = []
+        for name, vals in groups.items():
+            clean_vals = [x for x in vals if x is not None]
+            if len(clean_vals) >= 3:
+                valid_groups.append(clean_vals)
+                group_names.append(name)
+                
+        if len(valid_groups) < 2:
+            result["message"] = "Kruskal-Wallis requires at least 2 valid groups with >= 3 data points each."
+            return result
+            
+        stat, p_val = stats.kruskal(*valid_groups)
+        result.update({
+            "available": True,
+            "p_value": round(p_val, 4),
+            "statistic": round(stat, 2),
+            "significant": p_val < 0.05,
+            "message": f"Kruskal-Wallis H-Test: {'Significant' if p_val < 0.05 else 'No significant'} variance across groups ({', '.join(group_names)}) (p={p_val:.4f})."
+        })
+
+    elif test_type == "chi-square":
+        # expects a contingency table format: [[a,b], [c,d]]
+        table = []
+        keys = list(groups.keys())
+        for k in keys:
+            table.append(groups[k])
+            
+        # table must be 2D and have at least 2 rows and 2 columns
+        if len(table) < 2 or not all(isinstance(row, list) and len(row) >= 2 for row in table):
+            result["message"] = "Chi-Square requires a valid contingency table (e.g., counts of Event vs Non-Event for >= 2 groups)."
+            return result
+            
+        stat, p_val, dof, expected = stats.chi2_contingency(table)
+        result.update({
+            "available": True,
+            "p_value": round(p_val, 4),
+            "statistic": round(stat, 2),
+            "significant": p_val < 0.05,
+            "message": f"Chi-Square Test of Independence: {'Significant' if p_val < 0.05 else 'No significant'} association found (p={p_val:.4f})."
+        })
+        
+    else:
+        result["message"] = f"Unknown test type: {test_type}"
+
+    return result
+
+# ── Correlation Analytics ─────────────────────────────────────────────────────
+
+def run_correlation_analysis(x: List[float], y: List[float], z: List[float] = None, method: str = "spearman") -> Dict:
+    """
+    Perform correlation analysis between two variables, optionally controlling for a third.
+    method: "spearman" (default for clinical/biological data) or "pearson".
+    If z is provided, performs Partial Correlation.
+    """
+    result = {
+        "method": method,
+        "is_partial": z is not None,
+        "available": False,
+        "r": None,
+        "p_value": None,
+        "significant": False,
+        "message": ""
+    }
+
+    try:
+        from scipy import stats
+        import numpy as np
+    except ImportError:
+        result["message"] = "scipy/numpy required for correlation analysis."
+        return result
+
+    # Alignment and cleaning
+    data = []
+    if z is not None:
+        for xi, yi, zi in zip(x, y, z):
+            if xi is not None and yi is not None and zi is not None:
+                data.append((float(xi), float(yi), float(zi)))
+    else:
+        for xi, yi in zip(x, y):
+            if xi is not None and yi is not None:
+                data.append((float(xi), float(yi)))
+
+    if len(data) < 5:
+        result["message"] = "Insufficient data points (minimum 5 required for correlation)."
+        return result
+
+    arr = np.array(data)
+    
+    if z is None:
+        # Standard Correlation
+        if method == "spearman":
+            r, p = stats.spearmanr(arr[:, 0], arr[:, 1])
+        else:
+            r, p = stats.pearsonr(arr[:, 0], arr[:, 1])
+    else:
+        # Partial Correlation using residuals
+        # Correlation between residuals of (x ~ z) and (y ~ z)
+        def _get_residuals(a, b):
+            slope, intercept, r_val, p_val, std_err = stats.linregress(b, a)
+            return a - (slope * b + intercept)
+
+        res_x = _get_residuals(arr[:, 0], arr[:, 2])
+        res_y = _get_residuals(arr[:, 1], arr[:, 2])
+        
+        if method == "spearman":
+            r, p = stats.spearmanr(res_x, res_y)
+        else:
+            r, p = stats.pearsonr(res_x, res_y)
+
+    result.update({
+        "available": True,
+        "r": round(float(r), 4),
+        "p_value": round(float(p), 4),
+        "significant": p < 0.05,
+        "message": f"{'Partial ' if z is not None else ''}{method.capitalize()} Correlation: r={r:.3f}, p={p:.4f} ({'Significant' if p < 0.05 else 'Not significant'})."
+    })
+    
+    return result
+
+# ── Survival / Event Analysis ────────────────────────────────────────────────
+
+def run_survival_analysis(durations: List[float], events: List[int]) -> Dict:
+    """
+    Compute Kaplan-Meier survival curve.
+    durations: time until event or censoring.
+    events: 1 if event occurred, 0 if censored.
+    """
+    result = {"available": False, "timeline": [], "message": ""}
+    
+    if not durations or len(durations) != len(events):
+        result["message"] = "Invalid survival data."
+        return result
+
+    try:
+        import numpy as np
+    except ImportError:
+        result["message"] = "numpy required for survival analysis."
+        return result
+
+    # Sort by duration
+    data = sorted(zip(durations, events))
+    unique_times = sorted(list(set([d for d, e in data])))
+    
+    survival_prob = 1.0
+    n_at_risk = len(data)
+    timeline = [{"time": 0, "survival": 1.0, "at_risk": n_at_risk}]
+    
+    for t in unique_times:
+        d_t = sum(1 for dur, ev in data if dur == t and ev == 1) # events at time t
+        c_t = sum(1 for dur, ev in data if dur == t and ev == 0) # censored at time t
+        
+        if n_at_risk > 0:
+            survival_prob *= (1 - d_t / n_at_risk)
+            n_at_risk -= (d_t + c_t)
+            timeline.append({
+                "time": float(t),
+                "survival": round(float(survival_prob), 4),
+                "at_risk": int(n_at_risk),
+                "events": int(d_t)
+            })
+
+    result.update({
+        "available": True,
+        "timeline": timeline,
+        "median_survival": next((t["time"] for t in timeline if t["survival"] <= 0.5), None)
+    })
+    return result
+
+
+def run_logrank_test(durations_a: List[float], events_a: List[int], 
+                     durations_b: List[float], events_b: List[int]) -> Dict:
+    """
+    Compare survival curves of two groups using the Log-Rank test.
+    """
+    result = {"available": False, "p_value": None, "significant": False, "message": ""}
+    
+    try:
+        import numpy as np
+        from scipy import stats
+    except ImportError:
+        result["message"] = "numpy/scipy required for Log-Rank test."
+        return result
+
+    # Aggregate all unique event times
+    all_times = sorted(list(set(durations_a + durations_b)))
+    
+    observed_a = 0
+    expected_a = 0
+    variance_a = 0
+    
+    for t in all_times:
+        # Group A stats at time t
+        n_a = sum(1 for d in durations_a if d >= t)
+        d_a = sum(1 for d, e in zip(durations_a, events_a) if d == t and e == 1)
+        
+        # Group B stats at time t
+        n_b = sum(1 for d in durations_b if d >= t)
+        d_b = sum(1 for d, e in zip(durations_b, events_b) if d == t and e == 1)
+        
+        n_total = n_a + n_b
+        d_total = d_a + d_b
+        
+        if n_total > 1:
+            observed_a += d_a
+            expected_a += d_a + d_b * (n_a / n_total) if n_total > 0 else 0 # actually: d_total * (n_a / n_total)
+            # Correct formula for expected:
+            e_a = d_total * (n_a / n_total)
+            expected_a = observed_a - d_a + e_a # just adding to running sum
+            
+            # Variance calculation for Log-Rank
+            if n_total > 1:
+                var = (d_total * (n_a / n_total) * (n_b / n_total) * (n_total - d_total) / (n_total - 1))
+                variance_a += var
+
+    # Final log-rank statistic (Chi-square distributed with df=1)
+    # Re-computing clean sums for clarity in final step
+    # Resetting for a clean logic pass
+    obs_a, exp_a, var_a = 0, 0, 0
+    for t in all_times:
+        na = sum(1 for d in durations_a if d >= t)
+        nb = sum(1 for d in durations_b if d >= t)
+        da = sum(1 for d, e in zip(durations_a, events_a) if d == t and e == 1)
+        db = sum(1 for d, e in zip(durations_b, events_b) if d == t and e == 1)
+        nt, dt = na+nb, da+db
+        if nt > 0:
+            obs_a += da
+            ea = dt * (na / nt)
+            exp_a += ea
+            if nt > 1:
+                var_a += (dt * (na / nt) * (nb / nt) * (nt - dt) / (nt - 1))
+
+    if var_a > 0:
+        stat = ((obs_a - exp_a)**2) / var_a
+        p_val = 1 - stats.chi2.cdf(stat, df=1)
+        
+        result.update({
+            "available": True,
+            "statistic": round(float(stat), 4),
+            "p_value": round(float(p_val), 4),
+            "significant": p_val < 0.05,
+            "message": f"Log-Rank Test: p={p_val:.4f} ({'Significant' if p_val < 0.05 else 'Not significant'})."
+        })
+    else:
+        result["message"] = "Insufficient event data for Log-Rank test."
+
+    return result
+
+
+def run_cox_ph(
+    durations: List[float],
+    events: List[int],
+    X: List[List[float]],
+    covariate_names: List[str],
+) -> Dict:
+    """
+    Cox Proportional Hazards via Breslow partial likelihood (Newton-Raphson).
+    Returns HR, 95% CI, p-values, C-index.
+    """
+    result: Dict[str, Any] = {"available": False, "covariates": [], "message": ""}
+
+    try:
+        from scipy import stats as sp_stats
+    except ImportError:
+        result["message"] = "scipy required for Cox PH model."
+        return result
+
+    dur = np.array(durations, dtype=float)
+    ev = np.array(events, dtype=int)
+    Xm = np.array(X, dtype=float)
+    n, p = Xm.shape
+
+    if n < p + 5:
+        result["message"] = f"Too few subjects ({n}) for {p} covariates (need n ≥ p+5)."
+        return result
+    if int(ev.sum()) < 3:
+        result["message"] = "Too few events for Cox model (need ≥3 deaths)."
+        return result
+
+    # Standardize covariates for numerical stability; HRs back-transformed later
+    X_mean = Xm.mean(axis=0)
+    X_std = Xm.std(axis=0)
+    X_std[X_std == 0] = 1.0
+    Xs = (Xm - X_mean) / X_std
+
+    # Sort by time ascending
+    order = np.argsort(dur)
+    t_s = dur[order]
+    e_s = ev[order]
+    Xs_s = Xs[order]
+
+    # Newton-Raphson on partial log-likelihood (Breslow for ties)
+    beta = np.zeros(p)
+    converged = False
+
+    for _ in range(100):
+        eta = Xs_s @ beta
+        eta -= eta.max()  # centre for exp stability
+        exp_eta = np.exp(eta)
+
+        score = np.zeros(p)
+        info = np.zeros((p, p))
+
+        unique_event_times = np.unique(t_s[e_s == 1])
+        for t_ev in unique_event_times:
+            ev_mask = (t_s == t_ev) & (e_s == 1)
+            risk_mask = t_s >= t_ev
+
+            X_ev = Xs_s[ev_mask]
+            X_risk = Xs_s[risk_mask]
+            exp_risk = exp_eta[risk_mask]
+            n_ev = int(ev_mask.sum())
+
+            sum_exp = exp_risk.sum()
+            if sum_exp == 0:
+                continue
+            w = exp_risk / sum_exp
+            mu = (X_risk * w[:, None]).sum(axis=0)
+
+            score += X_ev.sum(axis=0) - n_ev * mu
+            sigma2 = (X_risk * w[:, None]).T @ X_risk - np.outer(mu, mu)
+            info += n_ev * sigma2
+
+        if np.linalg.matrix_rank(info) < p:
+            break
+        try:
+            delta = np.linalg.solve(info, score)
+        except np.linalg.LinAlgError:
+            break
+
+        beta_new = beta + delta
+        if np.max(np.abs(delta)) < 1e-8:
+            beta = beta_new
+            converged = True
+            break
+        beta = beta_new
+
+    # Back-transform to original covariate scale
+    beta_orig = beta / X_std
+
+    try:
+        var_cov_s = np.linalg.inv(info)
+        se_orig = np.sqrt(np.diag(var_cov_s)) / X_std
+    except np.linalg.LinAlgError:
+        se_orig = np.full(p, np.nan)
+
+    z_scores = beta_orig / se_orig
+    p_vals = 2 * (1 - sp_stats.norm.cdf(np.abs(z_scores)))
+    hr = np.exp(beta_orig)
+    hr_lo = np.exp(beta_orig - 1.96 * se_orig)
+    hr_hi = np.exp(beta_orig + 1.96 * se_orig)
+
+    # Harrell's C-index
+    lp = Xm @ beta_orig
+    pairs = concordant = 0.0
+    for i in range(n):
+        if ev[i] == 0:
+            continue
+        for j in range(n):
+            if i == j or dur[j] < dur[i]:
+                continue
+            pairs += 1
+            if lp[i] > lp[j]:
+                concordant += 1
+            elif lp[i] == lp[j]:
+                concordant += 0.5
+    c_index = concordant / pairs if pairs > 0 else 0.5
+
+    cov_out = []
+    for k in range(p):
+        cov_out.append({
+            "name": covariate_names[k],
+            "coef": round(float(beta_orig[k]), 4),
+            "hr": round(float(hr[k]), 3),
+            "hr_lower": round(float(hr_lo[k]), 3),
+            "hr_upper": round(float(hr_hi[k]), 3),
+            "se": round(float(se_orig[k]), 4),
+            "z": round(float(z_scores[k]), 3),
+            "p_value": round(float(p_vals[k]), 4),
+            "significant": bool(p_vals[k] < 0.05),
+        })
+
+    result.update({
+        "available": True,
+        "n": int(n),
+        "n_events": int(ev.sum()),
+        "covariates": cov_out,
+        "c_index": round(float(c_index), 3),
+        "converged": converged,
+        "message": (
+            f"Cox PH model fitted on {n} patients, {int(ev.sum())} events. "
+            f"C-index: {c_index:.3f}. "
+            f"{'Converged.' if converged else 'Warning: algorithm may not have converged.'}"
+        ),
+    })
+    return result
+
+
+def run_bayesian_multilevel(
+    y: List[float],
+    X_fixed: List[List[float]],
+    patient_ids: List[int],
+    predictor_names: List[str],
+    n_warmup: int = 500,
+    n_samples: int = 1000,
+) -> Dict:
+    """
+    Bayesian linear mixed model (random intercept) via Gibbs sampling.
+
+    Model: y_ij = mu + alpha_j + X_ij @ beta + eps_ij
+      alpha_j ~ N(0, sigma2_a)    [patient random intercept]
+      eps_ij  ~ N(0, sigma2_e)    [observation noise]
+
+    Priors:
+      mu     ~ N(0, 1000)
+      beta_k ~ N(0, 100)
+      sigma2_a ~ InvGamma(1, 1)
+      sigma2_e ~ InvGamma(1, 1)
+
+    Returns posterior means, 95% credible intervals, ICC.
+    """
+    result: Dict[str, Any] = {"available": False, "fixed_effects": [], "message": ""}
+
+    y_arr = np.array(y, dtype=float)
+    X_arr = np.array(X_fixed, dtype=float)
+    pids = np.array(patient_ids, dtype=int)
+
+    N = len(y_arr)
+    p = X_arr.shape[1] if X_arr.ndim == 2 else 0
+    unique_pids = np.unique(pids)
+    J = len(unique_pids)
+    pid_map = {pid: idx for idx, pid in enumerate(unique_pids)}
+    j_idx = np.array([pid_map[pid] for pid in pids])
+
+    if N < 10:
+        result["message"] = "Too few observations (need ≥10)."
+        return result
+    if J < 3:
+        result["message"] = "Too few patients (need ≥3) for multilevel model."
+        return result
+
+    # Centre outcome and predictors for faster mixing
+    y_mean = y_arr.mean()
+    y_c = y_arr - y_mean
+
+    # Pre-compute per-patient observation indices
+    patient_obs = [np.where(j_idx == j)[0] for j in range(J)]
+    nj = np.array([len(obs) for obs in patient_obs])
+
+    # ── Initialise parameters ────────────────────────────────────────────────
+    mu = 0.0
+    beta = np.zeros(p)
+    alpha = np.zeros(J)
+    sigma2_e = 1.0
+    sigma2_a = 1.0
+
+    # Prior hyperparameters
+    tau2_mu = 1000.0
+    tau2_beta = 100.0
+    a_e = b_e = a_a = b_a = 1.0  # InvGamma(1,1) priors
+
+    # Storage
+    mu_samps = np.empty(n_warmup + n_samples)
+    beta_samps = np.empty((n_warmup + n_samples, p))
+    sigma2_e_samps = np.empty(n_warmup + n_samples)
+    sigma2_a_samps = np.empty(n_warmup + n_samples)
+    alpha_samps = np.empty((n_warmup + n_samples, J))
+
+    rng = np.random.default_rng(42)
+
+    def _inv_gamma_sample(a_post, b_post):
+        # InvGamma(a, b): sample via 1/Gamma(a, 1/b)
+        return 1.0 / rng.gamma(shape=a_post, scale=1.0 / b_post)
+
+    # ── Gibbs sampler ────────────────────────────────────────────────────────
+    for it in range(n_warmup + n_samples):
+        resid_no_mu = y_c - (X_arr @ beta if p > 0 else 0.0) - alpha[j_idx]
+
+        # --- sample mu (global intercept, conjugate normal) ---
+        prec_mu = 1.0 / tau2_mu + N / sigma2_e
+        mean_mu = (resid_no_mu.sum() / sigma2_e) / prec_mu
+        mu = rng.normal(mean_mu, np.sqrt(1.0 / prec_mu))
+
+        # --- sample beta_k (fixed effects, conjugate normal per covariate) ---
+        for k in range(p):
+            resid_k = y_c - mu - alpha[j_idx] - (
+                X_arr @ beta - X_arr[:, k] * beta[k]
+            )
+            prec_k = 1.0 / tau2_beta + np.sum(X_arr[:, k] ** 2) / sigma2_e
+            mean_k = (np.dot(X_arr[:, k], resid_k) / sigma2_e) / prec_k
+            beta[k] = rng.normal(mean_k, np.sqrt(1.0 / prec_k))
+
+        # --- sample alpha_j (patient random intercepts, conjugate normal) ---
+        resid_no_alpha2 = y_c - mu - (X_arr @ beta if p > 0 else 0.0)
+        for j in range(J):
+            obs_j = patient_obs[j]
+            prec_j = 1.0 / sigma2_a + nj[j] / sigma2_e
+            mean_j = resid_no_alpha2[obs_j].sum() / sigma2_e / prec_j
+            alpha[j] = rng.normal(mean_j, np.sqrt(1.0 / prec_j))
+        # Centre random effects to maintain identifiability with mu
+        alpha -= alpha.mean()
+
+        # --- sample sigma2_e (residual variance, InvGamma) ---
+        full_resid = y_c - mu - alpha[j_idx] - (X_arr @ beta if p > 0 else 0.0)
+        a_e_post = a_e + N / 2.0
+        b_e_post = b_e + np.dot(full_resid, full_resid) / 2.0
+        sigma2_e = _inv_gamma_sample(a_e_post, b_e_post)
+        sigma2_e = max(sigma2_e, 1e-6)
+
+        # --- sample sigma2_a (between-patient variance, InvGamma) ---
+        a_a_post = a_a + J / 2.0
+        b_a_post = b_a + np.dot(alpha, alpha) / 2.0
+        sigma2_a = _inv_gamma_sample(a_a_post, b_a_post)
+        sigma2_a = max(sigma2_a, 1e-6)
+
+        # Store
+        mu_samps[it] = mu
+        beta_samps[it] = beta.copy()
+        sigma2_e_samps[it] = sigma2_e
+        sigma2_a_samps[it] = sigma2_a
+        alpha_samps[it] = alpha.copy()
+
+    # ── Post-warmup summaries ───────────────────────────────────────────────
+    def _summarise(samps_1d):
+        s = samps_1d[n_warmup:]
+        mn = float(np.mean(s))
+        sd = float(np.std(s))
+        lo, hi = float(np.percentile(s, 2.5)), float(np.percentile(s, 97.5))
+        # Effective sample size (simple autocorrelation-based)
+        s_c = s - mn
+        acf1 = float(np.corrcoef(s_c[:-1], s_c[1:])[0, 1]) if len(s) > 2 else 0.0
+        ess = int(n_samples * (1 - acf1) / (1 + acf1)) if acf1 < 1.0 else 1
+        return {"mean": round(mn, 4), "sd": round(sd, 4),
+                "ci_lower": round(lo, 4), "ci_upper": round(hi, 4),
+                "ess": max(ess, 1)}
+
+    mu_summary = _summarise(mu_samps)
+    beta_summaries = [_summarise(beta_samps[:, k]) for k in range(p)]
+
+    sigma2_e_summ = _summarise(sigma2_e_samps)
+    sigma2_a_summ = _summarise(sigma2_a_samps)
+
+    # ICC = sigma2_a / (sigma2_a + sigma2_e) sampled pointwise
+    icc_samps = sigma2_a_samps[n_warmup:] / (
+        sigma2_a_samps[n_warmup:] + sigma2_e_samps[n_warmup:]
+    )
+    icc_summary = {
+        "mean": round(float(np.mean(icc_samps)), 3),
+        "ci_lower": round(float(np.percentile(icc_samps, 2.5)), 3),
+        "ci_upper": round(float(np.percentile(icc_samps, 97.5)), 3),
+    }
+
+    # Random effects posterior (per patient) — report sorted
+    alpha_post_mean = alpha_samps[n_warmup:].mean(axis=0)
+    alpha_post_lo = np.percentile(alpha_samps[n_warmup:], 2.5, axis=0)
+    alpha_post_hi = np.percentile(alpha_samps[n_warmup:], 97.5, axis=0)
+
+    random_effects = []
+    for j in range(J):
+        random_effects.append({
+            "patient_id": int(unique_pids[j]),
+            "mean": round(float(alpha_post_mean[j]), 4),
+            "ci_lower": round(float(alpha_post_lo[j]), 4),
+            "ci_upper": round(float(alpha_post_hi[j]), 4),
+            "n_obs": int(nj[j]),
+        })
+    random_effects.sort(key=lambda x: x["mean"])
+
+    fixed_effects = [{"name": "Intercept (global mean)", **mu_summary}]
+    for k, name in enumerate(predictor_names):
+        fixed_effects.append({"name": name, **beta_summaries[k]})
+
+    result.update({
+        "available": True,
+        "n_obs": N,
+        "n_patients": J,
+        "n_predictors": p,
+        "fixed_effects": fixed_effects,
+        "sigma2_e": sigma2_e_summ,
+        "sigma2_a": sigma2_a_summ,
+        "icc": icc_summary,
+        "random_effects": random_effects,
+        "n_samples": n_samples,
+        "n_warmup": n_warmup,
+        "message": (
+            f"Bayesian MLM fitted: {N} observations, {J} patients, "
+            f"{p} predictor(s). ICC={icc_summary['mean']:.3f} "
+            f"[{icc_summary['ci_lower']:.3f}, {icc_summary['ci_upper']:.3f}]. "
+            f"{n_samples} posterior samples (after {n_warmup} warmup)."
+        ),
+    })
+    return result

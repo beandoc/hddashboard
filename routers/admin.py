@@ -146,9 +146,19 @@ async def reset_password(user_id: int, request: Request, new_password: str = For
     return RedirectResponse(url="/admin/users", status_code=303)
 
 @router.get("/backup", response_class=HTMLResponse)
-async def backup_page(request: Request):
+async def backup_page(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
-    return templates.TemplateResponse("admin_db.html", {"request": request, "user": get_user(request)})
+    inactive_patients = (
+        db.query(Patient)
+        .filter(Patient.is_active == False)
+        .order_by(Patient.name)
+        .all()
+    )
+    return templates.TemplateResponse("admin_db.html", {
+        "request": request,
+        "user": get_user(request),
+        "inactive_patients": inactive_patients,
+    })
 
 @router.get("/db/export")
 async def download_backup(request: Request, db: Session = Depends(get_db)):

@@ -219,6 +219,18 @@
                 <button class="test-tab" data-type="trend" onclick="selectTest('trend')">
                     <i class="material-icons">trending_up</i> Trend Analysis
                 </button>
+                <button class="test-tab" data-type="survival" onclick="selectTest('survival')">
+                    <i class="material-icons">monitor_heart</i> Survival (KM)
+                </button>
+                <button class="test-tab" data-type="logrank" onclick="selectTest('logrank')">
+                    <i class="material-icons">compare_arrows</i> Log-Rank Test
+                </button>
+                <button class="test-tab" data-type="cox" onclick="selectTest('cox')">
+                    <i class="material-icons">health_and_safety</i> Cox PH
+                </button>
+                <button class="test-tab" data-type="bayes_mlm" onclick="selectTest('bayes_mlm')">
+                    <i class="material-icons">science</i> Bayesian MLM
+                </button>
             </div>
 
             <div class="config-grid">
@@ -250,6 +262,18 @@
                         <option value="{{ key }}">{{ label }}</option>
                         {% endfor %}
                     </select>
+                </div>
+
+                <!-- Covariates (Cox PH / Bayesian MLM) -->
+                <div class="form-group" id="covariatesGroup" style="display:none; grid-column: 1 / -1;">
+                    <label>Covariates <span style="font-weight:400; color:#64748b;">(select all that apply)</span></label>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+                        {% for field, (label, hint) in cox_covariates.items() %}
+                        <label style="display:flex; align-items:center; gap:5px; font-weight:400; cursor:pointer; font-size:0.85rem; background:#f1f5f9; border-radius:6px; padding:4px 10px;">
+                            <input type="checkbox" class="cov-checkbox" value="{{ field }}" checked style="accent-color:#6366f1;"> {{ label }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
 
                 <!-- Date range -->
@@ -304,11 +328,29 @@
             document.querySelectorAll('.test-tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`[data-type="${type}"]`).classList.add('active');
 
+            const needsVar = !['survival', 'logrank', 'cox'].includes(type);
+            document.getElementById('varSelect').closest('.form-group').style.display = needsVar ? '' : 'none';
             document.getElementById('var2Group').style.display = type === 'correlation' ? '' : 'none';
-            document.getElementById('groupByGroup').style.display = type === 'group_comparison' ? '' : 'none';
+            document.getElementById('groupByGroup').style.display = ['group_comparison', 'logrank'].includes(type) ? '' : 'none';
+            document.getElementById('covariatesGroup').style.display = ['cox', 'bayes_mlm'].includes(type) ? '' : 'none';
 
+            if (type === 'correlation') syncCorrelationVars();
             hideResults();
         }
+
+        function syncCorrelationVars() {
+            const v1 = document.getElementById('varSelect').value;
+            const v2 = document.getElementById('var2Select');
+            if (v2.value === v1) {
+                for (const opt of v2.options) {
+                    if (opt.value !== v1) { v2.value = opt.value; break; }
+                }
+            }
+        }
+
+        document.getElementById('varSelect').addEventListener('change', () => {
+            if (currentTest === 'correlation') syncCorrelationVars();
+        });
 
         function hideResults() {
             document.getElementById('resultsPanel').classList.remove('visible');
@@ -321,6 +363,7 @@
             hideResults();
             document.getElementById('spinnerWrap').classList.add('visible');
 
+            const selectedCovs = Array.from(document.querySelectorAll('.cov-checkbox:checked')).map(cb => cb.value);
             const payload = {
                 test_type: currentTest,
                 variable: document.getElementById('varSelect').value,
@@ -328,6 +371,7 @@
                 group_by: document.getElementById('groupBySelect').value,
                 date_from: document.getElementById('dateFrom').value,
                 date_to: document.getElementById('dateTo').value,
+                covariates: selectedCovs,
             };
 
             try {
@@ -390,14 +434,22 @@
                                     <tr><td class="label-cell">Median</td><td class="value-cell">${s.median}${unit}</td></tr>
                                     <tr><td class="label-cell">IQR (Q1–Q3)</td><td class="value-cell">${s.q1}–${s.q3}${unit}</td></tr>
                                     <tr><td class="label-cell">Range</td><td class="value-cell">${s.min}–${s.max}${unit}</td></tr>
-                                    ${s.shapiro_p !== undefined ? `<tr><td class="label-cell">Shapiro-Wilk W</td><td class="value-cell">${s.shapiro_w}</td></tr>
-                                    <tr><td class="label-cell">Shapiro-Wilk p</td><td class="value-cell">${fmtP(s.shapiro_p)}</td></tr>` : ''}
+                                    <tr><td class="label-cell">CV% (Stability)</td><td class="value-cell">${s.cv_percent}%</td></tr>
+                                    ${s.shapiro_p !== undefined ? `<tr><td class="label-cell">Normality (p)</td><td class="value-cell">${fmtP(s.shapiro_p)}</td></tr>` : ''}
                                 </tbody>
                             </table>
                             <div class="interpretation info" style="margin-top:16px;">
                                 <i class="material-icons">info</i>
                                 <span>${normText}</span>
                             </div>
+                            ${s.outliers && s.outliers.length > 0 ? `
+                             <div class="interpretation not-significant" style="margin-top:12px; background:#fff1f2; border-color:#fecaca; color:#9f1239;">
+                                 <i class="material-icons">report_problem</i>
+                                 <span>
+                                     <strong>Outliers Detected:</strong> ${s.outliers.join(', ')}${unit}. 
+                                     Values flagged via robust MAD-based Z-score (>3.0).
+                                 </span>
+                             </div>` : ''}
                         </div>
                         <div class="chart-container" id="chart1"></div>
                     </div>`;
@@ -481,6 +533,10 @@
                         <span>${interpText}</span>
                     </div>`;
 
+                const fillColors = [
+                    'rgba(79,70,229,0.15)','rgba(14,165,233,0.15)','rgba(22,163,74,0.15)',
+                    'rgba(217,119,6,0.15)','rgba(220,38,38,0.15)','rgba(147,51,234,0.15)',
+                ];
                 // Violin + box traces per group
                 const traces = groups.map((g, i) => ({
                     type: 'violin',
@@ -493,7 +549,7 @@
                     pointpos: -1.5,
                     marker: { color: colors[i % colors.length], size: 5, opacity: 0.6 },
                     line: { color: colors[i % colors.length] },
-                    fillcolor: colors[i % colors.length].replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', 'rgba(').replace(/([0-9a-f]{2})/gi, (m, h) => parseInt(h, 16) + ','),
+                    fillcolor: fillColors[i % fillColors.length],
                 }));
 
                 Plotly.newPlot('chart1', traces, {
@@ -511,7 +567,7 @@
                 const unitX = d.unit ? ` (${d.unit})` : '';
                 const unitY = d.unit2 ? ` (${d.unit2})` : '';
                 title.textContent = `Correlation: ${d.variable} vs ${d.variable2}`;
-                subtitle.textContent = `${d.n} patients with paired values`;
+                subtitle.textContent = `${d.n} patient${d.n === 1 ? '' : 's'} with paired values${d.low_n_warning ? ' — exploratory (n < 5)' : ''}`;
 
                 const pearsonSig = d.pearson_p < 0.05 ? 'p-sig' : 'p-ns';
                 const spearmanSig = d.spearman_p < 0.05 ? 'p-sig' : 'p-ns';
@@ -547,6 +603,10 @@
                                     <div class="sub">Paired observations</div>
                                 </div>
                             </div>
+                            ${d.low_n_warning ? `<div class="interpretation info" style="margin-bottom:10px;">
+                                <i class="material-icons">warning</i>
+                                <span><strong>Exploratory result</strong> — only ${d.n} patients have both variables recorded. Interpret with caution; enter more monthly values to reach the recommended minimum of 5.</span>
+                            </div>` : ''}
                             <div class="interpretation ${interpClass}">
                                 <i class="material-icons">${interpIcon}</i>
                                 <span>
@@ -676,6 +736,253 @@
                     paper_bgcolor: 'transparent',
                     plot_bgcolor: '#f8fafc',
                     font: { family: 'Inter' },
+                }, { responsive: true });
+
+            } else if (d.test_type === 'survival') {
+                title.textContent = 'Kaplan-Meier Survival Analysis';
+                subtitle.textContent = `${d.n} patients · ${d.n_events} deaths · ${d.n_censored} censored`;
+
+                const medText = d.median_survival !== null ? `${d.median_survival} mo` : 'Not reached';
+                body.innerHTML = `
+                    <div style="margin-bottom:16px; display:flex; gap:16px; flex-wrap:wrap;">
+                        <div class="corr-card" style="min-width:130px;">
+                            <div class="label">Patients</div>
+                            <div class="value" style="font-size:1.3rem;">${d.n}</div>
+                            <div class="sub">with HD start date</div>
+                        </div>
+                        <div class="corr-card" style="min-width:130px;">
+                            <div class="label">Deaths (events)</div>
+                            <div class="value" style="font-size:1.3rem; color:var(--danger)">${d.n_events}</div>
+                            <div class="sub">${Math.round(d.n_events/d.n*100)}% of cohort</div>
+                        </div>
+                        <div class="corr-card" style="min-width:130px;">
+                            <div class="label">Censored</div>
+                            <div class="value" style="font-size:1.3rem; color:var(--text-muted)">${d.n_censored}</div>
+                            <div class="sub">still on dialysis</div>
+                        </div>
+                        <div class="corr-card" style="min-width:130px;">
+                            <div class="label">Median Survival</div>
+                            <div class="value" style="font-size:1.3rem; color:var(--primary)">${medText}</div>
+                            <div class="sub">from HD initiation</div>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="chart1"></div>
+                    <div class="interpretation info" style="margin-top:16px;">
+                        <i class="material-icons">info</i>
+                        <span>Kaplan-Meier estimate of patient survival from HD initiation (all-cause mortality endpoint). Patients still on dialysis are censored at the observation end date.</span>
+                    </div>`;
+
+                const kmTrace = {
+                    x: d.timeline.map(t => t.time),
+                    y: d.timeline.map(t => t.survival),
+                    type: 'scatter', mode: 'lines', name: 'Overall Survival',
+                    line: { color: '#4f46e5', width: 2.5, shape: 'hv' },
+                    hovertemplate: '%{x} mo<br>S(t): %{y:.1%}<extra></extra>',
+                };
+                const traces = [kmTrace];
+                if (d.median_survival !== null) {
+                    traces.push({
+                        x: [0, d.median_survival, d.median_survival],
+                        y: [0.5, 0.5, 0],
+                        type: 'scatter', mode: 'lines',
+                        name: `Median (${d.median_survival} mo)`,
+                        line: { color: '#ef4444', width: 1.5, dash: 'dot' },
+                        hoverinfo: 'skip',
+                    });
+                }
+                Plotly.newPlot('chart1', traces, {
+                    title: { text: 'Kaplan-Meier Survival Curve', font: { family: 'Outfit', size: 15 } },
+                    xaxis: { title: 'Time on Dialysis (months)', rangemode: 'tozero' },
+                    yaxis: { title: 'Survival Probability', range: [0, 1.05], tickformat: '.0%' },
+                    showlegend: true, legend: { orientation: 'h', y: -0.2 },
+                    margin: { t: 50, r: 20, l: 60, b: 80 },
+                    paper_bgcolor: 'transparent', plot_bgcolor: '#f8fafc', font: { family: 'Inter' },
+                }, { responsive: true });
+
+            } else if (d.test_type === 'logrank') {
+                const lr = d.logrank;
+                title.textContent = `Survival by ${d.group_by}`;
+                subtitle.textContent = `${d.group_names.length} groups · Log-Rank comparison`;
+
+                const pText = lr ? (lr.p_value < 0.001 ? '< 0.001' : `= ${lr.p_value}`) : 'N/A';
+                const sigClass = lr && lr.significant ? 'significant' : 'not-significant';
+                const sigIcon = lr && lr.significant ? 'check_circle' : 'warning';
+                const sigText = lr
+                    ? (lr.significant
+                        ? `Statistically significant difference in survival between groups (Log-Rank p ${pText}).`
+                        : `No significant difference in survival between groups (Log-Rank p ${pText}).`)
+                    : `${d.group_names.length} groups detected — pairwise log-rank shown only for 2-group comparisons.`;
+
+                const groupRows = d.group_names.map(g => {
+                    const c = d.curves[g];
+                    const med = c.median_survival !== null ? `${c.median_survival} mo` : 'NR';
+                    return `<tr><td>${g}</td><td>${c.n}</td><td>${c.n_events}</td><td>${c.n - c.n_events}</td><td>${med}</td></tr>`;
+                }).join('');
+
+                body.innerHTML = `
+                    <div class="group-table-wrap" style="margin-bottom:24px;">
+                        <table class="group-table">
+                            <thead><tr><th>Group</th><th>N</th><th>Deaths</th><th>Censored</th><th>Median Survival</th></tr></thead>
+                            <tbody>
+                                ${groupRows}
+                                ${lr ? `<tr class="sig-row"><td colspan="5" style="padding:10px 14px;">
+                                    <strong>Log-Rank Test</strong> — χ² = ${lr.statistic},
+                                    <span class="${lr.significant ? 'p-sig' : 'p-ns'}">p ${pText}</span>
+                                </td></tr>` : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="chart-container" id="chart1"></div>
+                    <div class="interpretation ${sigClass}" style="margin-top:16px;">
+                        <i class="material-icons">${sigIcon}</i>
+                        <span>${sigText}</span>
+                    </div>`;
+
+                const colors = ['#4f46e5','#ef4444','#16a34a','#d97706','#0ea5e9','#9333ea'];
+                const kmTraces = d.group_names.map((g, i) => ({
+                    x: d.curves[g].timeline.map(t => t.time),
+                    y: d.curves[g].timeline.map(t => t.survival),
+                    type: 'scatter', mode: 'lines', name: g,
+                    line: { color: colors[i % colors.length], width: 2.5, shape: 'hv' },
+                    hovertemplate: `${g}<br>%{x} mo · S(t): %{y:.1%}<extra></extra>`,
+                }));
+                Plotly.newPlot('chart1', kmTraces, {
+                    title: { text: `Survival by ${d.group_by}`, font: { family: 'Outfit', size: 15 } },
+                    xaxis: { title: 'Time on Dialysis (months)', rangemode: 'tozero' },
+                    yaxis: { title: 'Survival Probability', range: [0, 1.05], tickformat: '.0%' },
+                    showlegend: true, legend: { orientation: 'h', y: -0.2 },
+                    margin: { t: 50, r: 20, l: 60, b: 80 },
+                    paper_bgcolor: 'transparent', plot_bgcolor: '#f8fafc', font: { family: 'Inter' },
+                }, { responsive: true });
+
+            // ── Cox Proportional Hazards ──────────────────────────────────
+            } else if (d.test_type === 'cox') {
+                title.textContent = 'Cox Proportional Hazards Model';
+                subtitle.textContent = `${d.n} patients · ${d.n_events} events · C-index: ${d.c_index.toFixed(3)}`;
+
+                const cIdx = d.c_index;
+                const cLabel = cIdx >= 0.75 ? 'Excellent' : cIdx >= 0.65 ? 'Good' : cIdx >= 0.55 ? 'Acceptable' : 'Poor';
+                body.innerHTML = `
+                  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px;">
+                    <div class="stat-card"><div class="stat-value">${d.n}</div><div class="label">Patients</div></div>
+                    <div class="stat-card"><div class="stat-value">${d.n_events}</div><div class="label">Events (Deaths)</div></div>
+                    <div class="stat-card"><div class="stat-value">${cIdx.toFixed(3)} <span style="font-size:.7rem;color:#64748b">(${cLabel})</span></div><div class="label">C-index (discrimination)</div></div>
+                  </div>
+                  <div id="coxForest" style="width:100%;min-height:280px;"></div>
+                  <table class="stats-table" style="margin-top:16px;">
+                    <thead><tr><th>Covariate</th><th>HR</th><th>95% CI</th><th>Z-score</th><th>p-value</th><th>Sig.</th></tr></thead>
+                    <tbody>
+                    ${d.covariates.map(c => `<tr style="${c.significant ? 'font-weight:600;' : ''}">
+                      <td>${c.name}</td>
+                      <td>${c.hr.toFixed(3)}</td>
+                      <td>${c.hr_lower.toFixed(3)} – ${c.hr_upper.toFixed(3)}</td>
+                      <td>${c.z.toFixed(2)}</td>
+                      <td>${fmtP(c.p_value)}</td>
+                      <td>${c.significant ? '<span style="color:#16a34a;">✓</span>' : '—'}</td>
+                    </tr>`).join('')}
+                    </tbody>
+                  </table>
+                  <p style="font-size:0.8rem;color:#64748b;margin-top:10px;">HR > 1 = higher hazard (worse survival); HR < 1 = protective. Reference: 0 value for each binary covariate. ${d.converged ? '' : '<b>Warning:</b> optimizer may not have converged — interpret with caution.'}</p>
+                `;
+
+                // Forest plot
+                const covs = d.covariates;
+                const y_labels = covs.map(c => c.name);
+                const hr_vals = covs.map(c => c.hr);
+                const err_lo = covs.map(c => c.hr - c.hr_lower);
+                const err_hi = covs.map(c => c.hr_upper - c.hr);
+                const colors_cox = covs.map(c => c.significant ? '#6366f1' : '#94a3b8');
+
+                Plotly.newPlot('coxForest', [{
+                    type: 'scatter', mode: 'markers',
+                    x: hr_vals, y: y_labels,
+                    error_x: { type: 'data', symmetric: false, array: err_hi, arrayminus: err_lo, color: '#94a3b8', thickness: 2 },
+                    marker: { color: colors_cox, size: 10, symbol: 'diamond' },
+                    hovertemplate: '<b>%{y}</b><br>HR: %{x:.3f}<extra></extra>',
+                }, {
+                    type: 'scatter', mode: 'lines',
+                    x: [1, 1], y: [-0.5, y_labels.length - 0.5],
+                    line: { color: '#e11d48', dash: 'dash', width: 1.5 },
+                    showlegend: false, hoverinfo: 'skip',
+                }], {
+                    title: { text: 'Forest Plot — Hazard Ratios (95% CI)', font: { family: 'Outfit', size: 14 } },
+                    xaxis: { title: 'Hazard Ratio (log scale)', type: 'log', rangemode: 'tozero', zeroline: false },
+                    yaxis: { automargin: true, tickfont: { size: 12 } },
+                    margin: { t: 50, r: 30, l: 170, b: 60 },
+                    paper_bgcolor: 'transparent', plot_bgcolor: '#f8fafc', font: { family: 'Inter' },
+                }, { responsive: true });
+
+            // ── Bayesian Multilevel Model ─────────────────────────────────
+            } else if (d.test_type === 'bayes_mlm') {
+                const unit = d.unit ? ` (${d.unit})` : '';
+                title.textContent = `Bayesian Multilevel Model — ${d.variable}`;
+                subtitle.textContent = `${d.n_obs} observations · ${d.n_patients} patients · ${d.n_samples} posterior samples`;
+
+                const icc = d.icc;
+                const iccPct = (icc.mean * 100).toFixed(1);
+                const iccLo = (icc.ci_lower * 100).toFixed(1);
+                const iccHi = (icc.ci_upper * 100).toFixed(1);
+                const iccInterp = icc.mean > 0.5 ? 'Most variability is between patients (strong clustering).'
+                    : icc.mean > 0.2 ? 'Moderate between-patient variability.'
+                    : 'Most variability is within patients over time.';
+
+                body.innerHTML = `
+                  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px;">
+                    <div class="stat-card"><div class="stat-value">${d.n_obs}</div><div class="label">Observations</div></div>
+                    <div class="stat-card"><div class="stat-value">${d.n_patients}</div><div class="label">Patients (clusters)</div></div>
+                    <div class="stat-card"><div class="stat-value">${iccPct}% <span style="font-size:.7rem;color:#64748b;">[${iccLo}%–${iccHi}%]</span></div><div class="label">ICC (between-patient variance)</div></div>
+                  </div>
+                  <p style="font-size:0.83rem;color:#475569;margin-bottom:16px;">${iccInterp}</p>
+
+                  <h4 style="margin:0 0 8px; font-size:0.95rem; color:#1e293b;">Fixed Effects (Posterior Estimates)</h4>
+                  <table class="stats-table">
+                    <thead><tr><th>Predictor</th><th>Posterior Mean</th><th>SD</th><th>95% Credible Interval</th><th>ESS</th></tr></thead>
+                    <tbody>
+                    ${d.fixed_effects.map(fe => {
+                        const sig = (fe.ci_lower > 0 && fe.ci_upper > 0) || (fe.ci_lower < 0 && fe.ci_upper < 0);
+                        return `<tr style="${sig ? 'font-weight:600;' : ''}">
+                          <td>${fe.name}</td>
+                          <td>${fe.mean.toFixed(3)}${unit}</td>
+                          <td>${fe.sd.toFixed(3)}</td>
+                          <td>[${fe.ci_lower.toFixed(3)}, ${fe.ci_upper.toFixed(3)}]</td>
+                          <td>${fe.ess}</td>
+                        </tr>`;
+                    }).join('')}
+                    </tbody>
+                  </table>
+                  <p style="font-size:0.78rem;color:#64748b;margin:6px 0 18px;">Bold rows: 95% credible interval excludes zero (credible non-null effect). ESS = effective sample size.</p>
+
+                  <h4 style="margin:0 0 8px; font-size:0.95rem; color:#1e293b;">Patient Random Intercepts (Caterpillar Plot)</h4>
+                  <div id="bayesCaterpillar" style="width:100%;min-height:320px;"></div>
+                  <p style="font-size:0.78rem;color:#64748b;margin-top:8px;">Each point is a patient's posterior mean deviation from the global mean${unit}. Wider intervals = fewer observations for that patient.</p>
+                `;
+
+                // Caterpillar plot of random effects
+                const re = d.random_effects;
+                const reMeans = re.map(r => r.mean);
+                const reErrLo = re.map(r => r.mean - r.ci_lower);
+                const reErrHi = re.map(r => r.ci_upper - r.mean);
+                const reX = re.map((_, i) => i);
+                const reCols = reMeans.map(m => m > 0 ? '#6366f1' : '#f59e0b');
+
+                Plotly.newPlot('bayesCaterpillar', [{
+                    type: 'scatter', mode: 'markers',
+                    x: reX, y: reMeans,
+                    error_y: { type: 'data', symmetric: false, array: reErrHi, arrayminus: reErrLo, color: '#94a3b8', thickness: 1.5 },
+                    marker: { color: reCols, size: 7, opacity: 0.85 },
+                    hovertemplate: 'Patient %{text}<br>α: %{y:.3f}<extra></extra>',
+                    text: re.map(r => r.patient_id),
+                }, {
+                    type: 'scatter', mode: 'lines',
+                    x: [-0.5, re.length - 0.5], y: [0, 0],
+                    line: { color: '#475569', dash: 'dash', width: 1 },
+                    showlegend: false, hoverinfo: 'skip',
+                }], {
+                    title: { text: 'Patient-Level Random Intercepts (sorted by posterior mean)', font: { family: 'Outfit', size: 14 } },
+                    xaxis: { title: 'Patients (sorted)', showticklabels: false, zeroline: false },
+                    yaxis: { title: `Deviation from global mean${unit}`, zeroline: false },
+                    margin: { t: 50, r: 20, l: 80, b: 50 },
+                    paper_bgcolor: 'transparent', plot_bgcolor: '#f8fafc', font: { family: 'Inter' },
                 }, { responsive: true });
             }
 

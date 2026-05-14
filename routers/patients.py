@@ -7,7 +7,7 @@ import logging
 import re
 from datetime import datetime
 
-from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord
+from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, HospitalisationEvent
 from config import templates, _csrf_signer
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month, _resolve_epo_dose
@@ -352,6 +352,13 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     from alerts import build_individual_whatsapp_link
     wa_link = build_individual_whatsapp_link(p, latest_monthly, get_month_label(latest_monthly.record_month) if latest_monthly else "")
 
+    hospitalisations = (
+        db.query(HospitalisationEvent)
+        .filter(HospitalisationEvent.patient_id == patient_id)
+        .order_by(HospitalisationEvent.admission_date.desc())
+        .all()
+    )
+
     return templates.TemplateResponse("patient_profile.html", {
         "request": request,
         "patient": p,
@@ -378,6 +385,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "success_msg": msg,
         "user": get_user(request),
         "whatsapp_link": wa_link,
+        "hospitalisations": hospitalisations,
     })
 
 @router.get("/{patient_id}/summary", response_class=HTMLResponse)
@@ -554,11 +562,17 @@ async def update_patient(
     return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
 
 @router.post("/{patient_id}/deactivate")
-async def deactivate_patient(patient_id: int, request: Request, db: Session = Depends(get_db)):
+async def deactivate_patient(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    is_death: str = Form("0"),
+    date_of_death: str = Form(""),
+    cause_of_death: str = Form(""),
+):
     """Deactivates a patient record. Restricted to admin/doctor roles."""
     user = get_user(request)
 
-    # Unified role resolution — user can be an ORM object or a dict (auth_middleware)
     if isinstance(user, dict):
         role = user.get("role")
         username = user.get("username", "unknown")
@@ -575,22 +589,121 @@ async def deactivate_patient(patient_id: int, request: Request, db: Session = De
         raise HTTPException(status_code=404, detail="Patient not found")
 
     if not p.is_active:
-        # Idempotent: already deactivated — redirect cleanly without another write
         logger.info(f"Patient {patient_id} ({p.name}) was already inactive. No-op by '{username}'")
         return RedirectResponse(url="/patients", status_code=303)
 
     try:
-        # Raw SQL UPDATE bypasses all ORM session tracking, avoiding StaleDataError
-        # and synchronize_session conflicts on Neon serverless PostgreSQL.
-        db.execute(
-            text("UPDATE patients SET is_active = false, updated_at = :now WHERE id = :pid"),
-            {"now": datetime.utcnow(), "pid": patient_id}
-        )
+        params: dict = {"now": datetime.utcnow(), "pid": patient_id}
+        if is_death == "1" and date_of_death:
+            try:
+                dod = datetime.strptime(date_of_death, "%Y-%m-%d").date()
+            except ValueError:
+                dod = None
+            params["dod"] = dod
+            params["cause"] = cause_of_death or None
+            db.execute(
+                text(
+                    "UPDATE patients SET is_active = false, updated_at = :now, "
+                    "date_of_death = :dod, primary_cause_of_death = :cause WHERE id = :pid"
+                ),
+                params,
+            )
+            logger.info(f"Patient {patient_id} ({p.name}) deactivated (deceased) by '{username}'")
+        else:
+            db.execute(
+                text("UPDATE patients SET is_active = false, updated_at = :now WHERE id = :pid"),
+                params,
+            )
+            logger.info(f"Patient {patient_id} ({p.name}) deactivated by '{username}'")
         db.commit()
-        logger.info(f"Patient {patient_id} ({p.name}) deactivated by '{username}'")
     except Exception as e:
         db.rollback()
         logger.error(f"CRITICAL: Failed to deactivate patient {patient_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error during deactivation. Error: {str(e)}")
 
     return RedirectResponse(url="/patients", status_code=303)
+
+
+# ── Hospitalisation Event Log ─────────────────────────────────────────────────
+
+@router.post("/{patient_id}/hospitalisations")
+async def add_hospitalisation(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admission_date: str = Form(...),
+    discharge_date: Optional[str] = Form(None),
+    primary_icd: str = Form(""),
+    primary_diagnosis: str = Form(""),
+    cause_category: str = Form(""),
+    notes: str = Form(""),
+):
+    user = get_user(request)
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
+
+    try:
+        adm = datetime.strptime(admission_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid admission_date")
+
+    dis = None
+    los = None
+    if discharge_date:
+        try:
+            dis = datetime.strptime(discharge_date, "%Y-%m-%d").date()
+            los = max((dis - adm).days, 0)
+        except ValueError:
+            pass
+
+    from datetime import timedelta
+    prior = (
+        db.query(HospitalisationEvent)
+        .filter(
+            HospitalisationEvent.patient_id == patient_id,
+            HospitalisationEvent.discharge_date != None,
+            HospitalisationEvent.discharge_date >= adm - timedelta(days=30),
+            HospitalisationEvent.discharge_date < adm,
+        )
+        .first()
+    )
+
+    username = (user.get("username") if isinstance(user, dict) else getattr(user, "username", "")) if user else ""
+    ev = HospitalisationEvent(
+        patient_id=patient_id,
+        admission_date=adm,
+        discharge_date=dis,
+        los_days=los,
+        primary_icd=primary_icd or None,
+        primary_diagnosis=primary_diagnosis or None,
+        cause_category=cause_category or None,
+        readmission_within_30d=bool(prior),
+        notes=notes or None,
+        entered_by=username,
+    )
+    db.add(ev)
+    db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}?msg=Hospitalisation+event+saved", status_code=303)
+
+
+@router.post("/{patient_id}/hospitalisations/{event_id}/delete")
+async def delete_hospitalisation(
+    patient_id: int,
+    event_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = get_user(request)
+    role = (user.get("role") if isinstance(user, dict) else getattr(user, "role", "")) if user else ""
+    if role not in ("admin", "doctor"):
+        raise HTTPException(status_code=403)
+    ev = db.query(HospitalisationEvent).filter(
+        HospitalisationEvent.id == event_id,
+        HospitalisationEvent.patient_id == patient_id,
+    ).first()
+    if not ev:
+        raise HTTPException(status_code=404)
+    db.delete(ev)
+    db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}", status_code=303)
