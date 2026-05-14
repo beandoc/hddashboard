@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import Optional
 import logging
 import re
@@ -579,13 +580,12 @@ async def deactivate_patient(patient_id: int, request: Request, db: Session = De
         return RedirectResponse(url="/patients", status_code=303)
 
     try:
-        # Use an atomic update query to bypass SQLAlchemy object state tracking.
-        # This resolves intermittent StaleDataError on Neon PostgreSQL when the
-        # object's updated_at timestamp in memory differs from the database.
-        db.query(Patient).filter(Patient.id == patient_id).update({
-            "is_active": False,
-            "updated_at": datetime.utcnow()
-        })
+        # Raw SQL UPDATE bypasses all ORM session tracking, avoiding StaleDataError
+        # and synchronize_session conflicts on Neon serverless PostgreSQL.
+        db.execute(
+            text("UPDATE patients SET is_active = false, updated_at = :now WHERE id = :pid"),
+            {"now": datetime.utcnow(), "pid": patient_id}
+        )
         db.commit()
         logger.info(f"Patient {patient_id} ({p.name}) deactivated by '{username}'")
     except Exception as e:
