@@ -318,10 +318,36 @@
                         <label>ESA Brand & Prescribed Schedule (Description)</label>
                         <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="e.g. Mircera 75mcg once a month" value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}">
                     </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>Oxemia (Desidustat) Dose</label>
-                        <input type="text" name="desidustat_dose" value="{{ record.desidustat_dose if record else (prior_record.desidustat_dose if prior_record else '') }}" placeholder="e.g. 100mg thrice a week" style="margin-bottom: 4px;">
-                        <div id="conversionHint" style="font-size: 0.85em; margin-top: 8px; display: none; line-height: 1.4;"></div>
+                    {# ── Desidustat (HIF-PHI) section — shown ONLY when ESA type is Desidustat ── #}
+                    <div class="form-group" id="desidustat_group" style="grid-column: 1 / -1; display:none;">
+                        <div style="background:#f0f9ff; border:1px solid #7dd3fc; border-radius:12px; padding:14px 16px;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                                <i class="material-icons" style="color:#0284c7; font-size:1.1rem;">medication</i>
+                                <span style="font-weight:700; color:#0284c7; font-size:0.88rem;">Desidustat (Oxemia) — HIF Prolyl Hydroxylase Inhibitor</span>
+                                <span style="background:#dbeafe; color:#1e40af; font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:20px; text-transform:uppercase;">Oral HIF-PHI</span>
+                            </div>
+                            <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:0.8rem; color:#9a3412; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="material-icons" style="font-size:1rem; flex-shrink:0; margin-top:1px;">warning</i>
+                                <span><strong>Analytics note:</strong> ERI and EPO responsiveness calculations are <strong>not applicable</strong> for HIF-PHI agents. The system will flag this patient as <em>"HIF-PHI — ERI excluded"</em> in cohort analytics. Enter dose below for treatment record only.</span>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                <div>
+                                    <label style="font-size:0.75rem; color:#0369a1;">Dose (mg)</label>
+                                    <input type="number" step="25" min="50" max="300" id="desidustat_mg" placeholder="e.g. 100" oninput="syncDesidustatDose()" style="width:100%; padding:10px; border:1px solid #bae6fd; border-radius:8px; background:#fff;">
+                                </div>
+                                <div>
+                                    <label style="font-size:0.75rem; color:#0369a1;">Frequency</label>
+                                    <select id="desidustat_freq" onchange="syncDesidustatDose()" style="width:100%; padding:10px; border:1px solid #bae6fd; border-radius:8px; background:#fff;">
+                                        <option value="">-- Select --</option>
+                                        <option value="Twice a week (BD)">Twice a week</option>
+                                        <option value="Thrice a week (TIW)">Thrice a week</option>
+                                        <option value="Once daily (OD)">Once daily</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <input type="hidden" name="desidustat_dose" id="desidustat_dose" value="{{ record.desidustat_dose if record else (prior_record.desidustat_dose if prior_record else '') }}">
+                            <div id="desidustat_preview" style="margin-top:10px; font-size:0.8rem; font-weight:600; color:#0284c7;"></div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>TLC / WBC Count (×10³/µL)</label>
@@ -867,24 +893,87 @@
         function toggleESACalculator() {
             if (!esaTypeSelect || !mcgInputGroup || !epoUnitsInput) return;
             const type = esaTypeSelect.value;
-            
+            const desidustatGroup = document.getElementById('desidustat_group');
+            const conversionHint  = document.getElementById('conversionHint');
+
             if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
+                // Long-acting ESAs measured in mcg
                 mcgInputGroup.style.display = 'block';
                 epoUnitsInput.readOnly = true;
                 epoUnitsInput.style.background = '#f1f5f9';
                 epoUnitsInput.placeholder = 'Calculated from mcg...';
+                if (desidustatGroup) desidustatGroup.style.display = 'none';
+                if (conversionHint) conversionHint.style.display = 'none';
                 calculateWeeklyUnits();
+
             } else if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
+                // Short-acting EPO — direct IU entry
                 mcgInputGroup.style.display = 'none';
                 epoUnitsInput.readOnly = false;
                 epoUnitsInput.style.background = '#ffffff';
                 epoUnitsInput.placeholder = 'e.g. 4000';
-            } else {
+                if (desidustatGroup) desidustatGroup.style.display = 'none';
+                if (conversionHint) conversionHint.style.display = 'none';
+
+            } else if (type === 'Desidustat') {
+                // HIF-PHI oral agent — NOT measured in IU, ERI not applicable
+                // CRITICAL: clear epo_weekly_units so old EPO doses don't corrupt ERI
                 mcgInputGroup.style.display = 'none';
                 epoUnitsInput.readOnly = true;
                 epoUnitsInput.style.background = '#f1f5f9';
-                epoUnitsInput.value = (type === 'None') ? '0' : epoUnitsInput.value;
+                epoUnitsInput.value = '';          // ← clear any stale EPO IU value
+                epoUnitsInput.placeholder = 'N/A (HIF-PHI — ERI not computed)';
+                if (desidustatGroup) {
+                    desidustatGroup.style.display = 'block';
+                    restoreDesidustatFields();     // parse existing saved value into UI selectors
+                }
+                if (conversionHint) conversionHint.style.display = 'none'; // no conversion needed
+
+            } else {
+                // "None" or unknown
+                mcgInputGroup.style.display = 'none';
+                epoUnitsInput.readOnly = true;
+                epoUnitsInput.style.background = '#f1f5f9';
+                epoUnitsInput.value = '0';
+                if (desidustatGroup) desidustatGroup.style.display = 'none';
+                if (conversionHint) conversionHint.style.display = 'none';
             }
+        }
+
+        // Sync Desidustat UI selectors → hidden text input
+        function syncDesidustatDose() {
+            const mg   = document.getElementById('desidustat_mg')?.value;
+            const freq = document.getElementById('desidustat_freq')?.value;
+            const hidden  = document.getElementById('desidustat_dose');
+            const preview = document.getElementById('desidustat_preview');
+            if (!hidden) return;
+            if (mg && freq) {
+                const val = `${mg}mg ${freq}`;
+                hidden.value = val;
+                if (preview) preview.textContent = `📋 Saving: "${val}"`;
+            } else {
+                if (preview) preview.textContent = '';
+            }
+        }
+
+        // On page load: if an existing desidustat_dose value is stored, parse it back into the UI selectors
+        function restoreDesidustatFields() {
+            const stored = document.getElementById('desidustat_dose')?.value || '';
+            if (!stored) return;
+            // Try to parse e.g. "100mg Thrice a week (TIW)"
+            const mgMatch = stored.match(/(\d+)\s*mg/);
+            if (mgMatch) {
+                const mgEl = document.getElementById('desidustat_mg');
+                if (mgEl) mgEl.value = mgMatch[1];
+            }
+            const freqEl = document.getElementById('desidustat_freq');
+            if (freqEl) {
+                if (/thrice|TIW/i.test(stored)) freqEl.value = 'Thrice a week (TIW)';
+                else if (/twice|BD/i.test(stored)) freqEl.value = 'Twice a week (BD)';
+                else if (/daily|OD/i.test(stored)) freqEl.value = 'Once daily (OD)';
+            }
+            const preview = document.getElementById('desidustat_preview');
+            if (preview && stored) preview.textContent = `📋 Current: "${stored}"`;
         }
 
         function calculateWeeklyUnits() {

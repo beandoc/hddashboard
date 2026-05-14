@@ -19,7 +19,17 @@ _CACHE_EXPIRY_SECONDS = 60
 
 
 def _resolve_epo_dose(r):
-    """Return weekly SC IU dose from MonthlyRecord, or None if not determinable."""
+    """Return weekly SC IU dose from MonthlyRecord, or None if not determinable.
+
+    Returns None for HIF-PHI agents (Desidustat / Roxadustat) — ERI and EPO
+    responsiveness metrics are mechanistically inapplicable for oral HIF-PHI
+    therapy and must NOT be computed from EPO IU equivalents.
+    """
+    # ── Guard: HIF-PHI agents are NOT dosed in IU; exclude from ERI pipeline ──
+    _esa = (r.esa_type or "").strip().lower()
+    if _esa in ("desidustat", "roxadustat", "daprodustat", "vadadustat"):
+        return None  # ERI/EPO responsiveness not applicable
+
     if r.epo_weekly_units:
         return r.epo_weekly_units
     if r.epo_mircera_dose:
