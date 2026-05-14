@@ -28,7 +28,8 @@ def _init_db_with_retry(max_attempts: int = 5, delay: int = 5):
                 raise
             time.sleep(delay)
 
-_init_db_with_retry()
+# We will wrap the DB initialization in a background thread later.
+# _init_db_with_retry()
 
 # Auto-migrate: sync DB schema with SQLAlchemy models on every startup
 def _run_startup_migrations():
@@ -76,7 +77,7 @@ def _run_startup_migrations():
                     # Log the error but continue (usually means column exists)
                     logging.debug(f"Migration skip: {col.name} in {table_name} (%s)", e)
 
-_run_startup_migrations()
+# _run_startup_migrations()
 
 
 def _seed_default_users():
@@ -101,7 +102,19 @@ def _seed_default_users():
     finally:
         db.close()
 
-_seed_default_users()
+# _seed_default_users()
+
+import threading
+def _startup_db_tasks():
+    try:
+        _init_db_with_retry()
+        _run_startup_migrations()
+        _seed_default_users()
+        logging.info("Background DB startup tasks completed successfully.")
+    except Exception as e:
+        logging.error(f"Background DB startup tasks failed: {e}")
+
+threading.Thread(target=_startup_db_tasks, daemon=True).start()
 
 app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0")
 
