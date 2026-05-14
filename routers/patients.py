@@ -181,12 +181,14 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     # iPTH, Ferritin, TSAT, CRP, Calcium are NOT measured monthly.
     # We search up to 6 months back to find the last recorded value.
     # This is used in the template to show a "last known" badge instead of "—".
+    # Quarterly / intermittent labs — NOT measured every month by default.
+    # Calcium and Phosphorus ARE monthly — excluded here.
     QUARTERLY_FIELDS = {
-        "ipth":           {"label": "iPTH",    "unit": "pg/mL"},
-        "serum_ferritin": {"label": "Ferritin", "unit": "ng/mL"},
-        "tsat":           {"label": "TSAT",     "unit": "%"},
-        "crp":            {"label": "CRP",      "unit": "mg/L"},
-        "calcium":        {"label": "Calcium",  "unit": "mg/dL"},
+        "ipth":           {"label": "iPTH",      "unit": "pg/mL"},
+        "serum_ferritin": {"label": "Ferritin",  "unit": "ng/mL"},
+        "tsat":           {"label": "TSAT",       "unit": "%"},
+        "serum_iron":     {"label": "Serum Iron", "unit": "µg/dL"},
+        "vit_d":          {"label": "Vit D",      "unit": "ng/mL"},
     }
 
     # Load up to 6 months of records for look-back (already fetched above)

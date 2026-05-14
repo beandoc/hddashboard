@@ -182,15 +182,16 @@
                     {{ lab_box('Albumin', latest_monthly.albumin, 'g/dL', prior_monthly.albumin if prior_monthly else None, low=3.5) }}
                     {{ lab_box('Phosphorus', latest_monthly.phosphorus, 'mg/dL', prior_monthly.phosphorus if prior_monthly else None, high=5.5) }}
                     {{ lab_box('Potassium', latest_monthly.serum_potassium, 'mEq/L', prior_monthly.serum_potassium if prior_monthly else None, high=5.5) }}
+                    {{ lab_box('Corr. Calcium', latest_monthly.calcium, 'mg/dL', prior_monthly.calcium if prior_monthly else None, high=10.2) }}
                 </div>
 
-                {# Quarterly / Iron Panel — measured every 3 months, look-back up to 6 months #}
+                {# Quarterly / Intermittent Panel — NOT measured monthly: iPTH, Ferritin, TSAT, Serum Iron, Vit D #}
                 <div style="border-top:1px solid #f1f5f9; margin:18px 0 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; margin:0; white-space:nowrap;">Quarterly / Iron Panel</p>
+                    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; margin:0; white-space:nowrap;">Quarterly / Iron &amp; Bone Panel</p>
                     <span style="font-size:0.65rem; color:#cbd5e1; font-style:italic;">Not measured monthly — last known value shown with source date</span>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(115px,1fr)); gap:12px;">
-                    {% for field, ql in quarterly_labs.items() if field in ['calcium','ipth','serum_ferritin','tsat'] %}
+                    {% for field, ql in quarterly_labs.items() if field in ['ipth','serum_ferritin','tsat','serum_iron','vit_d'] %}
                     <div style="
                         background:{% if not ql.value %}#f8fafc{% elif ql.is_current %}#f0fdf4{% else %}#fffbeb{% endif %};
                         border:1px solid {% if not ql.value %}#e2e8f0{% elif ql.is_current %}#86efac{% else %}#fde68a{% endif %};
