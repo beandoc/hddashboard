@@ -189,13 +189,26 @@
       </div>
     </div>
 
+    {% if mode == "new" %}
+    <div id="duplicate-date-banner" style="display:none; background:#fef3c7; border:1.5px solid #f59e0b; border-radius:12px; padding:14px 18px; margin-bottom:16px; align-items:center; gap:12px;">
+      <i class="material-icons" style="color:#d97706; flex-shrink:0;">warning_amber</i>
+      <div style="flex:1;">
+        <div style="font-weight:700; color:#92400e; font-size:0.9rem;">Session already exists for this date</div>
+        <div style="font-size:0.82rem; color:#78350f; margin-top:2px;">A session record was found for the selected date. Open it to view or update — creating a new one will cause a duplicate.</div>
+      </div>
+      <a id="duplicate-edit-link" href="#" style="flex-shrink:0; background:#d97706; color:#fff; padding:8px 14px; border-radius:8px; font-size:0.82rem; font-weight:600; text-decoration:none; white-space:nowrap;">
+        Open Existing Session →
+      </a>
+    </div>
+    {% endif %}
+
     <!-- ── Session Identity ── -->
     <div class="card">
       <div class="card-title"><i class="material-icons">event</i> Session Details</div>
       <div class="grid">
         <div>
           <label>Session Date</label>
-          <input type="date" name="session_date" required
+          <input type="date" name="session_date" id="session-date-input" required
             value="{{ session.session_date.strftime('%Y-%m-%d') if session and session.session_date else '' }}">
         </div>
         <div style="display: flex; align-items: flex-end; gap: 10px;">
@@ -652,6 +665,33 @@
   }
   qaInput.addEventListener('input', updateQaStatus);
   updateQaStatus();
+
+  // Duplicate-date detection (new session mode only)
+  (function() {
+    var dateInput = document.getElementById('session-date-input');
+    var banner = document.getElementById('duplicate-date-banner');
+    var editLink = document.getElementById('duplicate-edit-link');
+    if (!dateInput || !banner) return;
+    var patientId = {{ patient.id }};
+
+    function checkDate(val) {
+      if (!val) { banner.style.display = 'none'; return; }
+      fetch('/patients/' + patientId + '/sessions/check-date?date=' + val)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.session_id) {
+            editLink.href = '/sessions/' + data.session_id + '/edit';
+            banner.style.display = 'flex';
+          } else {
+            banner.style.display = 'none';
+          }
+        })
+        .catch(function() { banner.style.display = 'none'; });
+    }
+
+    dateInput.addEventListener('change', function() { checkDate(this.value); });
+    if (dateInput.value) checkDate(dateInput.value);
+  })();
 
   // Session Progress Tracker
   const sectionMap = [

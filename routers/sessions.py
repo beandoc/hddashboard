@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import date, datetime
@@ -15,6 +15,18 @@ from services import session_service
 
 router = APIRouter(prefix="/patients", tags=["sessions"])
 session_router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+@router.get("/{patient_id}/sessions/check-date", response_class=JSONResponse)
+async def check_session_date(patient_id: int, date: str, db: Session = Depends(get_db)):
+    try:
+        d = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return JSONResponse({"session_id": None})
+    sess = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == patient_id,
+        SessionRecord.session_date == d
+    ).first()
+    return JSONResponse({"session_id": sess.id if sess else None})
 
 @router.get("/{patient_id}/sessions/new", response_class=HTMLResponse)
 async def new_session_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
@@ -75,10 +87,10 @@ async def create_session(
     access_flow_qa: Optional[float] = Form(None),
 ):
     try:
-        session_service.create_session_record(db, patient_id, locals())
+        rec = session_service.create_session_record(db, patient_id, locals())
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return RedirectResponse(url=f"/analytics/patients/{patient_id}", status_code=303)
+    return RedirectResponse(url=f"/sessions/{rec.id}/edit", status_code=303)
 
 @session_router.get("/{session_id}/edit", response_class=HTMLResponse)
 async def edit_session_form(session_id: int, request: Request, db: Session = Depends(get_db)):
