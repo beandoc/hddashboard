@@ -294,7 +294,7 @@
                         <select name="esa_type" id="esa_type" onchange="toggleESACalculator()">
                             <option value="">-- Select --</option>
                             {% set esa_cur = record.esa_type if record else (prior_record.esa_type if prior_record else '') %}
-                            {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","Desidustat","None"] %}
+                            {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","None"] %}
                             <option value="{{ t }}" {{ 'selected' if esa_cur == t }}>{{ t }}</option>
                             {% endfor %}
                         </select>
@@ -318,7 +318,14 @@
                         <label>ESA Brand & Prescribed Schedule (Description)</label>
                         <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="e.g. Mircera 75mcg once a month" value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}">
                     </div>
-                    {# ── Desidustat (HIF-PHI) section — shown ONLY when ESA type is Desidustat ── #}
+                    {# ── Desidustat (HIF-PHI) section — Standalone ── #}
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Is Patient Taking Desidustat (Oxemia)?</label>
+                        <select id="desidustat_toggle" onchange="toggleDesidustatSection()" style="margin-bottom: 12px;">
+                            <option value="No">No</option>
+                            <option value="Yes" {{ 'selected' if record and record.desidustat_dose else (prior_record and prior_record.desidustat_dose and 'selected' or '') }}>Yes</option>
+                        </select>
+                    </div>
                     <div class="form-group" id="desidustat_group" style="grid-column: 1 / -1; display:none;">
                         <div style="background:#f0f9ff; border:1px solid #7dd3fc; border-radius:12px; padding:14px 16px;">
                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
@@ -902,7 +909,6 @@
                 epoUnitsInput.readOnly = true;
                 epoUnitsInput.style.background = '#f1f5f9';
                 epoUnitsInput.placeholder = 'Calculated from mcg...';
-                if (desidustatGroup) desidustatGroup.style.display = 'none';
                 if (conversionHint) conversionHint.style.display = 'none';
                 calculateWeeklyUnits();
 
@@ -912,22 +918,7 @@
                 epoUnitsInput.readOnly = false;
                 epoUnitsInput.style.background = '#ffffff';
                 epoUnitsInput.placeholder = 'e.g. 4000';
-                if (desidustatGroup) desidustatGroup.style.display = 'none';
                 if (conversionHint) conversionHint.style.display = 'none';
-
-            } else if (type === 'Desidustat') {
-                // HIF-PHI oral agent — NOT measured in IU, ERI not applicable
-                // CRITICAL: clear epo_weekly_units so old EPO doses don't corrupt ERI
-                mcgInputGroup.style.display = 'none';
-                epoUnitsInput.readOnly = true;
-                epoUnitsInput.style.background = '#f1f5f9';
-                epoUnitsInput.value = '';          // ← clear any stale EPO IU value
-                epoUnitsInput.placeholder = 'N/A (HIF-PHI — ERI not computed)';
-                if (desidustatGroup) {
-                    desidustatGroup.style.display = 'block';
-                    restoreDesidustatFields();     // parse existing saved value into UI selectors
-                }
-                if (conversionHint) conversionHint.style.display = 'none'; // no conversion needed
 
             } else {
                 // "None" or unknown
@@ -935,8 +926,23 @@
                 epoUnitsInput.readOnly = true;
                 epoUnitsInput.style.background = '#f1f5f9';
                 epoUnitsInput.value = '0';
-                if (desidustatGroup) desidustatGroup.style.display = 'none';
                 if (conversionHint) conversionHint.style.display = 'none';
+            }
+        }
+
+        function toggleDesidustatSection() {
+            const val = document.getElementById('desidustat_toggle').value;
+            const group = document.getElementById('desidustat_group');
+            if (val === 'Yes') {
+                if (group) group.style.display = 'block';
+                restoreDesidustatFields();
+            } else {
+                if (group) group.style.display = 'none';
+                const mgEl = document.getElementById('desidustat_mg');
+                const freqEl = document.getElementById('desidustat_freq');
+                if (mgEl) mgEl.value = '';
+                if (freqEl) freqEl.value = '';
+                syncDesidustatDose();
             }
         }
 
@@ -975,6 +981,14 @@
             const preview = document.getElementById('desidustat_preview');
             if (preview && stored) preview.textContent = `📋 Current: "${stored}"`;
         }
+
+        // Initialize Desidustat section visibility on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const desidToggle = document.getElementById('desidustat_toggle');
+            if (desidToggle && desidToggle.value === 'Yes') {
+                toggleDesidustatSection();
+            }
+        });
 
         function calculateWeeklyUnits() {
             if (!esaTypeSelect || !esaMcgInput || !esaFreqSelect || !epoUnitsInput) return;
