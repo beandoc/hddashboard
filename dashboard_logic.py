@@ -431,6 +431,10 @@ def compute_dashboard(db: Session, month: str = None):
                 row["ipth"] = p_interim["ipth"]["value"]
                 row["is_interim"] = True
                 row["interim_details"]["ipth"] = p_interim["ipth"]
+            if "vit_d" in p_interim:
+                row["vit_d"] = p_interim["vit_d"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["vit_d"] = p_interim["vit_d"]
         
         # 1. Non-AVF Access — always evaluated from patient baseline, not gated on monthly record
         name = p.name
