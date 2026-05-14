@@ -167,32 +167,67 @@
                 </div>
             </div>
 
-            <!-- 2. LABS SUMMARY (Monthly Snapshot) -->
+            <!-- 2. LABS SUMMARY (Monthly Snapshot + Quarterly Look-back) -->
             <section class="card" aria-labelledby="labs-heading">
                 <h2 class="section-title" id="labs-heading">
                     <i class="material-icons" aria-hidden="true">biotech</i>
-                    Monthly Lab Snapshot ({{ latest_monthly.record_month if latest_monthly else 'No Data' }})
+                    Lab Snapshot ({{ latest_monthly.record_month if latest_monthly else 'No Data' }})
                 </h2>
                 {% if latest_monthly %}
+
+                {# Monthly labs — measured every cycle #}
+                <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; margin:0 0 10px;">Monthly Labs</p>
                 <div class="labs-summary">
                     {{ lab_box('Hemoglobin', latest_monthly.hb, 'g/dL', prior_monthly.hb if prior_monthly else None, low=10, high=12) }}
                     {{ lab_box('Albumin', latest_monthly.albumin, 'g/dL', prior_monthly.albumin if prior_monthly else None, low=3.5) }}
                     {{ lab_box('Phosphorus', latest_monthly.phosphorus, 'mg/dL', prior_monthly.phosphorus if prior_monthly else None, high=5.5) }}
                     {{ lab_box('Potassium', latest_monthly.serum_potassium, 'mEq/L', prior_monthly.serum_potassium if prior_monthly else None, high=5.5) }}
-                    {{ lab_box('Corr. Calcium', latest_monthly.calcium, 'mg/dL', high=10.2) }}
-                    {{ lab_box('iPTH', latest_monthly.ipth, 'pg/mL', high=300) }}
-                    {{ lab_box('Ferritin', latest_monthly.serum_ferritin, 'ng/mL', high=800) }}
-                    {{ lab_box('TSAT', latest_monthly.tsat, '%', low=20) }}
                 </div>
+
+                {# Quarterly / Iron Panel — measured every 3 months, look-back up to 6 months #}
+                <div style="border-top:1px solid #f1f5f9; margin:18px 0 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <p style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; margin:0; white-space:nowrap;">Quarterly / Iron Panel</p>
+                    <span style="font-size:0.65rem; color:#cbd5e1; font-style:italic;">Not measured monthly — last known value shown with source date</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(115px,1fr)); gap:12px;">
+                    {% for field, ql in quarterly_labs.items() if field in ['calcium','ipth','serum_ferritin','tsat'] %}
+                    <div style="
+                        background:{% if not ql.value %}#f8fafc{% elif ql.is_current %}#f0fdf4{% else %}#fffbeb{% endif %};
+                        border:1px solid {% if not ql.value %}#e2e8f0{% elif ql.is_current %}#86efac{% else %}#fde68a{% endif %};
+                        border-radius:12px; padding:12px 10px; text-align:center; position:relative;
+                    " title="{{ ql.label }}: {% if ql.value %}{{ ql.value }} {{ ql.unit }} from {{ ql.month }}{% else %}No data in last 6 months{% endif %}">
+
+                        {% if ql.value %}
+                            {% if ql.is_current %}
+                            <span style="position:absolute;top:5px;right:6px;background:#22c55e;color:#fff;font-size:0.48rem;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:0.04em;">NOW</span>
+                            {% elif ql.months_ago is not none %}
+                            <span style="position:absolute;top:5px;right:6px;background:#f59e0b;color:#fff;font-size:0.48rem;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:0.04em;">{{ ql.months_ago }}mo ago</span>
+                            {% endif %}
+                        {% endif %}
+
+                        <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;margin-bottom:6px;margin-top:4px;">{{ ql.label }}</div>
+
+                        {% if ql.value %}
+                        <div style="font-size:1.45rem;font-weight:800;color:{% if ql.is_current %}#15803d{% else %}#92400e{% endif %};font-family:'Outfit',sans-serif;line-height:1.1;">
+                            {{ ql.value | round(1) }}
+                        </div>
+                        <div style="font-size:0.65rem;color:#94a3b8;margin-top:2px;font-weight:600;">{{ ql.unit }}</div>
+                        {% if not ql.is_current and ql.month %}
+                        <div style="font-size:0.6rem;color:#b45309;margin-top:5px;font-weight:700;">{{ ql.month }}</div>
+                        {% endif %}
+                        {% else %}
+                        <div style="font-size:1.1rem;font-weight:700;color:#cbd5e1;margin:4px 0;">—</div>
+                        <div style="font-size:0.6rem;color:#cbd5e1;margin-top:2px;">Not tested (6 mo)</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
                 {% else %}
-                <div style="text-align: center; padding: 32px 16px; color: #94a3b8; font-family: 'Inter', sans-serif; background: #f8fafc; border-radius: 12px; border: 1px dashed #e2e8f0;">
-                    <i class="material-icons" style="font-size: 2rem; display:block; margin-bottom:8px; opacity:0.4;">biotech</i>
-                    <p style="font-size: 0.85rem; margin: 0 0 12px;">No monthly lab records found.</p>
-                    <a href="/entry/{{ patient.id }}" style="
-                        display: inline-block; padding: 7px 16px;
-                        background: #0ea5e9; color: #fff; border-radius: 8px;
-                        font-size: 0.78rem; font-weight: 600; text-decoration: none;
-                    ">Add First Record</a>
+                <div style="text-align:center; padding:32px 16px; color:#94a3b8; font-family:'Inter',sans-serif; background:#f8fafc; border-radius:12px; border:1px dashed #e2e8f0;">
+                    <i class="material-icons" style="font-size:2rem; display:block; margin-bottom:8px; opacity:0.4;">biotech</i>
+                    <p style="font-size:0.85rem; margin:0 0 12px;">No monthly lab records found.</p>
+                    <a href="/entry/{{ patient.id }}" style="display:inline-block; padding:7px 16px; background:#0ea5e9; color:#fff; border-radius:8px; font-size:0.78rem; font-weight:600; text-decoration:none;">Add First Record</a>
                 </div>
                 {% endif %}
             </section>

@@ -177,6 +177,54 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     latest_monthly = monthly_records[0] if len(monthly_records) > 0 else None
     prior_monthly = monthly_records[1] if len(monthly_records) > 1 else None
 
+    # ── Look-back for quarterly/infrequent labs ───────────────────────────────
+    # iPTH, Ferritin, TSAT, CRP, Calcium are NOT measured monthly.
+    # We search up to 6 months back to find the last recorded value.
+    # This is used in the template to show a "last known" badge instead of "—".
+    QUARTERLY_FIELDS = {
+        "ipth":           {"label": "iPTH",    "unit": "pg/mL"},
+        "serum_ferritin": {"label": "Ferritin", "unit": "ng/mL"},
+        "tsat":           {"label": "TSAT",     "unit": "%"},
+        "crp":            {"label": "CRP",      "unit": "mg/L"},
+        "calcium":        {"label": "Calcium",  "unit": "mg/dL"},
+    }
+
+    # Load up to 6 months of records for look-back (already fetched above)
+    lookback_records = monthly_records  # already desc order, last 6 months
+
+    quarterly_labs = {}
+    latest_month_str = latest_monthly.record_month if latest_monthly else None
+
+    for field, meta in QUARTERLY_FIELDS.items():
+        found_val = None
+        found_month = None
+        months_ago = None
+
+        for r in lookback_records:
+            val = getattr(r, field, None)
+            if val is not None:
+                found_val = val
+                found_month = r.record_month
+                # Calculate how many months ago this was
+                if latest_month_str and found_month:
+                    try:
+                        ly, lm = int(latest_month_str[:4]), int(latest_month_str[5:7])
+                        fy, fm = int(found_month[:4]),      int(found_month[5:7])
+                        months_ago = (ly * 12 + lm) - (fy * 12 + fm)
+                    except Exception:
+                        months_ago = None
+                break  # stop at first found (most recent)
+
+        quarterly_labs[field] = {
+            "label":      meta["label"],
+            "unit":       meta["unit"],
+            "value":      found_val,
+            "month":      found_month,
+            "months_ago": months_ago,
+            # current = value is in the latest monthly record itself
+            "is_current": (found_month == latest_month_str) if found_month else False,
+        }
+
     # Real trend data (chronological) for chart
     trend_records = list(reversed(monthly_records))
     hb_trend_labels = [r.record_month for r in trend_records]
@@ -306,6 +354,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         "patient": p,
         "latest_monthly": latest_monthly,
         "prior_monthly": prior_monthly,
+        "quarterly_labs": quarterly_labs,
         "anti_meds": anti_meds,
         "sessions": sessions,
         "interims": interims,
