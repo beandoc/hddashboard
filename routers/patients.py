@@ -579,16 +579,18 @@ async def deactivate_patient(patient_id: int, request: Request, db: Session = De
         return RedirectResponse(url="/patients", status_code=303)
 
     try:
-        p.is_active = False
-        # NOTE: Do NOT manually set p.updated_at here.
-        # SQLAlchemy's onupdate=datetime.utcnow fires automatically on db.commit().
-        # Manually setting it on a recycled/stale Neon PostgreSQL connection causes
-        # intermittent StaleDataError / InvalidRequestError → 500.
+        # Use an atomic update query to bypass SQLAlchemy object state tracking.
+        # This resolves intermittent StaleDataError on Neon PostgreSQL when the
+        # object's updated_at timestamp in memory differs from the database.
+        db.query(Patient).filter(Patient.id == patient_id).update({
+            "is_active": False,
+            "updated_at": datetime.utcnow()
+        })
         db.commit()
         logger.info(f"Patient {patient_id} ({p.name}) deactivated by '{username}'")
     except Exception as e:
         db.rollback()
         logger.error(f"CRITICAL: Failed to deactivate patient {patient_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error during deactivation. Clinical data integrity preserved.")
+        raise HTTPException(status_code=500, detail=f"Internal server error during deactivation. Error: {str(e)}")
 
     return RedirectResponse(url="/patients", status_code=303)
