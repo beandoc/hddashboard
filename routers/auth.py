@@ -61,6 +61,63 @@ async def logout():
     response.delete_cookie("hd_session")
     return response
 
+@router.get("/change-password", response_class=HTMLResponse)
+async def change_password_form(request: Request):
+    from dependencies import get_user
+    user = get_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": None})
+
+@router.post("/change-password")
+async def change_password(
+    request: Request,
+    current_pw: str = Form(...),
+    new_pw: str = Form(...),
+    confirm_pw: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    from config import pwd_context, serializer
+    from dependencies import get_user
+    user = get_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    error = None
+
+    # ── Validate new password ─────────────────────────────────────────────────
+    if new_pw != confirm_pw:
+        error = "New passwords do not match."
+    elif len(new_pw) < 6:
+        error = "New password must be at least 6 characters."
+    else:
+        # Staff user
+        if hasattr(user, "username"):
+            db_user = db.query(User).filter(User.username == user.username).first()
+            if not db_user or not pwd_context.verify(current_pw, db_user.hashed_password):
+                error = "Current password is incorrect."
+            else:
+                db_user.hashed_password = pwd_context.hash(new_pw)
+                db.commit()
+                return RedirectResponse(url="/?msg=password_changed", status_code=303)
+        # Patient user
+        elif isinstance(user, dict) and user.get("role") == "patient":
+            p = db.query(Patient).filter(Patient.id == user["id"]).first()
+            if not p or not pwd_context.verify(current_pw, p.hashed_password):
+                error = "Current password is incorrect."
+            else:
+                p.hashed_password = pwd_context.hash(new_pw)
+                db.commit()
+                return RedirectResponse(url="/patient/dashboard?msg=password_changed", status_code=303)
+        else:
+            error = "Unknown user type. Please log in again."
+
+    return templates.TemplateResponse("change_password.html", {
+        "request": request,
+        "user": user,
+        "error": error
+    })
+
 @router.get("/api/me")
 async def get_current_user_api(request: Request):
     # This still refers to main.py's get_user. 

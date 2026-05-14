@@ -655,6 +655,9 @@
     {% endif %}
 
     {% if user %}
+      <a href="/change-password" class="nav-logout {{ 'active' if '/change-password' in _path }}" style="margin-right:4px" title="Change Password">
+        <i class="material-icons" style="font-size:15px;vertical-align:middle">lock</i>
+      </a>
       <a href="/logout" class="nav-logout">Logout</a>
     {% else %}
       <a href="/login">Login</a>
@@ -790,6 +793,9 @@
   {% endif %}
 
   {% if user %}
+    <a href="/change-password" class="{{ 'active' if '/change-password' in _path }}" style="font-size:0.88rem">
+      <i class="material-icons">lock</i> Change Password
+    </a>
     <a href="/logout" class="drawer-logout">
       <i class="material-icons">logout</i> Logout
     </a>
