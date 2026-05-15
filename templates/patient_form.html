@@ -158,6 +158,10 @@
                         <label>Height (cm)</label>
                         <input type="number" step="0.1" name="height" value="{{ patient.height if patient and patient.height else '' }}" placeholder="e.g. 165" inputmode="decimal">
                     </div>
+                    <div class="form-group">
+                        <label>Handgrip Strength (kg)</label>
+                        <input type="number" step="0.1" min="0" max="80" name="handgrip_strength" inputmode="decimal" placeholder="e.g. 22.5" value="{{ patient.handgrip_strength if patient and patient.handgrip_strength else '' }}">
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -635,17 +639,19 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Current Survival Status</label>
-                        <select name="current_survival_status" id="current_survival_status" onchange="toggleDeathFields(); toggleWithdrawalFields();">
+                        <select name="current_survival_status" id="current_survival_status" onchange="toggleOutcomeFields(); toggleWithdrawalFields();">
                             {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
                             <option value="{{ s }}" {{ 'selected' if (patient and patient.current_survival_status == s) or (not patient and s == 'Active') }}>{{ s }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="form-group">
+
+                    <!-- Deceased fields -->
+                    <div class="form-group" id="outcome_death_date_group">
                         <label>Date of Death</label>
                         <input type="date" name="date_of_death" id="date_of_death" value="{{ patient.date_of_death if patient and patient.date_of_death else '' }}">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" id="outcome_cod_group">
                         <label>Primary Cause of Death</label>
                         <select name="primary_cause_of_death" id="primary_cause_of_death">
                             <option value="">— Select —</option>
@@ -654,9 +660,17 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="form-group">
+
+                    <!-- Transplanted field -->
+                    <div class="form-group" id="outcome_transplant_date_group">
+                        <label>Date of Transplant</label>
+                        <input type="date" name="date_of_transplant" id="date_of_transplant" value="{{ patient.date_of_transplant if patient and patient.date_of_transplant else '' }}">
+                    </div>
+
+                    <!-- Transferred field -->
+                    <div class="form-group" id="outcome_transfer_date_group">
                         <label>Date of Facility Transfer</label>
-                        <input type="date" name="date_facility_transfer" value="{{ patient.date_facility_transfer if patient and patient.date_facility_transfer else '' }}">
+                        <input type="date" name="date_facility_transfer" id="date_facility_transfer" value="{{ patient.date_facility_transfer if patient and patient.date_facility_transfer else '' }}">
                     </div>
                 </div>
 
@@ -709,29 +723,34 @@
             if (el && el.value) el.dispatchEvent(new Event("input"));
         });
 
-        function toggleDeathFields() {
+
+        function toggleOutcomeFields() {
             const status = document.getElementById('current_survival_status').value;
-            const dod = document.getElementById('date_of_death');
-            const cod = document.getElementById('primary_cause_of_death');
-            
-            const isAlive = (status === 'Active' || status === '' || status === 'Withdrawn'); // Withdrawal handled separately
-            dod.disabled = isAlive;
-            cod.disabled = isAlive;
-            
-            if (isAlive) {
-                if (status !== 'Withdrawn') {
-                    dod.value = "";
-                    cod.value = "";
-                }
-                dod.style.opacity = "0.5";
-                cod.style.opacity = "0.5";
-                dod.style.background = "#e2e8f0";
-                cod.style.background = "#e2e8f0";
-            } else {
-                dod.style.opacity = "1";
-                cod.style.opacity = "1";
-                dod.style.background = "#f8fafc";
-                cod.style.background = "#f8fafc";
+
+            const deathGroup     = document.getElementById('outcome_death_date_group');
+            const codGroup       = document.getElementById('outcome_cod_group');
+            const transplantGroup = document.getElementById('outcome_transplant_date_group');
+            const transferGroup  = document.getElementById('outcome_transfer_date_group');
+
+            const showDeath      = status === 'Deceased';
+            const showTransplant = status === 'Transplanted';
+            const showTransfer   = status === 'Transferred';
+
+            deathGroup.style.display      = showDeath      ? '' : 'none';
+            codGroup.style.display        = showDeath      ? '' : 'none';
+            transplantGroup.style.display = showTransplant ? '' : 'none';
+            transferGroup.style.display   = showTransfer   ? '' : 'none';
+
+            // Clear fields that are now hidden to avoid stale data being submitted
+            if (!showDeath) {
+                document.getElementById('date_of_death').value = '';
+                document.getElementById('primary_cause_of_death').value = '';
+            }
+            if (!showTransplant) {
+                document.getElementById('date_of_transplant').value = '';
+            }
+            if (!showTransfer) {
+                document.getElementById('date_facility_transfer').value = '';
             }
         }
 
@@ -861,7 +880,7 @@
         }
         
         document.addEventListener("DOMContentLoaded", () => {
-            toggleDeathFields();
+            toggleOutcomeFields();
             toggleWithdrawalFields();
             toggleBiopsyFields();
             

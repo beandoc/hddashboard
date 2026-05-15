@@ -66,6 +66,34 @@
                         Transplant Prospect: {{ patient.transplant_prospect }}
                     </span>
                     {% endif %}
+                    {% if patient.current_survival_status == 'Deceased' and patient.date_of_death %}
+                    <div style="margin-top: 10px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                        <i class="material-icons" style="color: #dc2626; font-size: 1.2rem;">sentiment_very_dissatisfied</i>
+                        <div style="font-size: 0.8rem; color: #7f1d1d;">
+                            <strong style="display: block; margin-bottom: 2px;">Deceased</strong>
+                            Date of Death: {{ patient.date_of_death.strftime('%d %b %Y') }} <br>
+                            {% if patient.primary_cause_of_death %}Cause: {{ patient.primary_cause_of_death }}{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if patient.current_survival_status == 'Transplanted' %}
+                    <div style="margin-top: 10px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                        <i class="material-icons" style="color: #16a34a; font-size: 1.2rem;">volunteer_activism</i>
+                        <div style="font-size: 0.8rem; color: #14532d;">
+                            <strong style="display: block; margin-bottom: 2px;">Transplanted</strong>
+                            Date: {{ patient.date_of_transplant.strftime('%d %b %Y') if patient.date_of_transplant else 'Not recorded' }}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if patient.current_survival_status == 'Transferred' and patient.date_facility_transfer %}
+                    <div style="margin-top: 10px; padding: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                        <i class="material-icons" style="color: #2563eb; font-size: 1.2rem;">transfer_within_a_station</i>
+                        <div style="font-size: 0.8rem; color: #1e3a8a;">
+                            <strong style="display: block; margin-bottom: 2px;">Transferred</strong>
+                            Date: {{ patient.date_facility_transfer.strftime('%d %b %Y') }}
+                        </div>
+                    </div>
+                    {% endif %}
                     {% if patient.current_survival_status == 'Withdrawn' %}
                     <div style="margin-top: 10px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
                         <i class="material-icons" style="color: #ea580c; font-size: 1.2rem;">warning</i>

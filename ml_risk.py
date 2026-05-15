@@ -1072,7 +1072,7 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
                 "tsat": r.tsat, "ipth": r.ipth, "bp_sys": r.bp_sys,
                 "epo_weekly_units": r.epo_weekly_units,
                 "epo_mircera_dose": r.epo_mircera_dose,
-                "wbc_count": r.wbc_count, "crp": r.crp,
+                "wbc_count": r.wbc_count, "neutrophil_count": r.neutrophil_count, "crp": r.crp,
                 "hospitalization_this_month": r.hospitalization_this_month,
                 "weight": r.target_dry_weight or p.dry_weight,
                 "iv_iron_dose":          r.iv_iron_dose,

@@ -260,6 +260,10 @@
                         <input type="number" step="1" name="bp_sys" min="60" max="260" inputmode="numeric" placeholder="e.g. 140" value="{{ record.bp_sys if record and record.bp_sys else '' }}">
                     </div>
                     <div class="form-group">
+                        <label>Diastolic BP (mmHg)</label>
+                        <input type="number" step="1" name="bp_dia" min="30" max="160" inputmode="numeric" placeholder="e.g. 80" value="{{ record.bp_dia if record and record.bp_dia else '' }}">
+                    </div>
+                    <div class="form-group">
                         <label>Last Pre-HD Weight (kg)</label>
                         <input type="number" step="0.01" name="last_prehd_weight" inputmode="decimal" placeholder="e.g. 65.4" value="{{ record.last_prehd_weight if record and record.last_prehd_weight else '' }}">
                     </div>
@@ -359,6 +363,10 @@
                     <div class="form-group">
                         <label>TLC / WBC Count (×10³/µL)</label>
                         <input type="number" step="0.01" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Neutrophil Count (×10³/µL)</label>
+                        <input type="number" step="0.01" name="neutrophil_count" inputmode="decimal" placeholder="e.g. 4.2" value="{{ record.neutrophil_count if record and record.neutrophil_count else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Platelet Count (×10³/µL)</label>
@@ -500,6 +508,27 @@
                     <div class="form-group">
                         <label>Albumin (g/dL)</label>
                         <input type="number" step="0.01" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Prealbumin / Transthyretin (mg/dL)</label>
+                        <input type="number" step="0.1" name="prealbumin" inputmode="decimal" placeholder="e.g. 20" value="{{ record.prealbumin if record and record.prealbumin else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>nPCR (g/kg/day)</label>
+                        <input type="number" step="0.01" name="npcr" inputmode="decimal" placeholder="e.g. 1.1" value="{{ record.npcr if record and record.npcr else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>SGA Score</label>
+                        <select name="sga_score">
+                            <option value="">— Select —</option>
+                            {% for s in ["A - Well Nourished","B - Mild/Moderate Malnutrition","C - Severe Malnutrition"] %}
+                            <option value="{{ s }}" {{ 'selected' if record and record.sga_score == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>MIS Score (0–30)</label>
+                        <input type="number" step="1" min="0" max="30" name="mis_score" inputmode="numeric" placeholder="e.g. 5" value="{{ record.mis_score if record and record.mis_score is not none else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Protein Intake (g/kg/d)</label>
@@ -1094,7 +1123,13 @@
             hb: { lo: 4.0, hi: 18.0, msg: "Expected 4.0-18.0 g/dL" },
             phosphorus: { lo: 1.0, hi: 12.0, msg: "Expected 1.0-12.0 mg/dL" },
             serum_ferritin: { lo: 5, hi: 5000, msg: "Expected 5-5000 ng/mL" },
-            wbc_count: { lo: 1.0, hi: 30.0, msg: "Expected 1.0-30.0 ×10³/µL" }
+            wbc_count: { lo: 1.0, hi: 30.0, msg: "Expected 1.0-30.0 ×10³/µL" },
+            neutrophil_count: { lo: 0.5, hi: 20.0, msg: "Expected 0.5-20.0 ×10³/µL" },
+            bp_sys: { lo: 60, hi: 260, msg: "Expected 60-260 mmHg" },
+            bp_dia: { lo: 30, hi: 160, msg: "Expected 30-160 mmHg" },
+            prealbumin: { lo: 5, hi: 50, msg: "Expected 5-50 mg/dL" },
+            npcr: { lo: 0.4, hi: 2.5, msg: "Expected 0.4-2.5 g/kg/day" },
+            mis_score: { lo: 0, hi: 30, msg: "Expected 0-30" }
         };
 
         function validate(field) {

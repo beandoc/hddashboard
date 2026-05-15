@@ -29,6 +29,7 @@ def create_patient_record(db: Session, data: dict) -> Patient:
         diagnosis=data.get("diagnosis", ""),
         hd_wef_date=_d(data.get("hd_wef_date")),
         height=data.get("height"),
+        handgrip_strength=data.get("handgrip_strength"),
         education_level=data.get("education_level", ""),
         healthcare_facility=data.get("healthcare_facility", ""),
         primary_renal_disease=data.get("primary_renal_disease", ""),
@@ -119,6 +120,7 @@ def create_patient_record(db: Session, data: dict) -> Patient:
         current_survival_status=data.get("current_survival_status", ""),
         date_of_death=_d(data.get("date_of_death")),
         primary_cause_of_death=data.get("primary_cause_of_death", ""),
+        date_of_transplant=_d(data.get("date_of_transplant")),
         withdrawal_from_dialysis=data.get("withdrawal_from_dialysis", False),
         withdrawal_date=_d(data.get("withdrawal_date")),
         withdrawal_reason=data.get("withdrawal_reason", ""),
@@ -148,6 +150,7 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     p.diagnosis = data.get("diagnosis", "")
     p.hd_wef_date = _d(data.get("hd_wef_date"))
     p.height = data.get("height")
+    p.handgrip_strength = data.get("handgrip_strength")
     p.education_level = data.get("education_level", "")
     p.healthcare_facility = data.get("healthcare_facility", "")
     p.primary_renal_disease = data.get("primary_renal_disease", "")
@@ -238,6 +241,7 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     p.current_survival_status = data.get("current_survival_status", "")
     p.date_of_death = _d(data.get("date_of_death"))
     p.primary_cause_of_death = data.get("primary_cause_of_death", "")
+    p.date_of_transplant = _d(data.get("date_of_transplant"))
     p.withdrawal_from_dialysis = data.get("withdrawal_from_dialysis", False)
     p.withdrawal_date = _d(data.get("withdrawal_date"))
     p.withdrawal_reason = data.get("withdrawal_reason", "")

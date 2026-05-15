@@ -21,6 +21,28 @@ from ml_analytics import (
     run_bayesian_multilevel,
 )
 
+
+def _survival_endpoint(p, study_end):
+    """Return (event_date, event_flag) with proper cause-specific censoring.
+
+    Competing events (transplant, transfer, withdrawal) are censored at the date
+    they occurred rather than at study_end. This prevents inflation of at-risk
+    time for patients who left dialysis follow-up before the study end date.
+    """
+    if p.date_of_death and p.date_of_death <= study_end:
+        return p.date_of_death, 1
+
+    competing = []
+    if getattr(p, "date_of_transplant", None) and p.date_of_transplant <= study_end:
+        competing.append(p.date_of_transplant)
+    if p.date_facility_transfer and p.date_facility_transfer <= study_end:
+        competing.append(p.date_facility_transfer)
+    if p.withdrawal_date and p.withdrawal_date <= study_end:
+        competing.append(p.withdrawal_date)
+
+    censor_date = min(competing) if competing else study_end
+    return censor_date, 0
+
 # ── Statistical Testing Module ─────────────────────────────────────────────────
 
 STAT_VARS = {
@@ -579,12 +601,8 @@ async def run_stat_test(request: Request, db: Session = Depends(get_db)):
         for p in all_patients:
             if p.hd_wef_date > date_to_parsed:
                 continue
-            if p.date_of_death and p.date_of_death <= date_to_parsed:
-                duration_days = (p.date_of_death - p.hd_wef_date).days
-                event = 1
-            else:
-                duration_days = (date_to_parsed - p.hd_wef_date).days
-                event = 0
+            end_date, event = _survival_endpoint(p, date_to_parsed)
+            duration_days = (end_date - p.hd_wef_date).days
             if duration_days <= 0:
                 continue
             durations.append(round(duration_days / 30.44, 1))
@@ -629,12 +647,8 @@ async def run_stat_test(request: Request, db: Session = Depends(get_db)):
             grp = _group_label(getattr(p, group_by, None))
             if not grp:
                 continue
-            if p.date_of_death and p.date_of_death <= date_to_parsed:
-                duration_days = (p.date_of_death - p.hd_wef_date).days
-                event = 1
-            else:
-                duration_days = (date_to_parsed - p.hd_wef_date).days
-                event = 0
+            end_date, event = _survival_endpoint(p, date_to_parsed)
+            duration_days = (end_date - p.hd_wef_date).days
             if duration_days <= 0:
                 continue
             groups_data[grp]["durations"].append(round(duration_days / 30.44, 1))
@@ -692,12 +706,8 @@ async def run_stat_test(request: Request, db: Session = Depends(get_db)):
         for p in all_patients:
             if p.hd_wef_date > date_to_parsed:
                 continue
-            if p.date_of_death and p.date_of_death <= date_to_parsed:
-                dur_days = (p.date_of_death - p.hd_wef_date).days
-                ev = 1
-            else:
-                dur_days = (date_to_parsed - p.hd_wef_date).days
-                ev = 0
+            end_date, ev = _survival_endpoint(p, date_to_parsed)
+            dur_days = (end_date - p.hd_wef_date).days
             if dur_days <= 0:
                 continue
 

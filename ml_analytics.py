@@ -481,7 +481,7 @@ def run_cohort_analytics(db: Session) -> Dict:
                     from scipy.stats import shapiro
                     stat, p_val = shapiro(vals)
                     shapiro_p = round(p_val, 4)
-                    is_normal = p_val >= 0.05
+                    is_normal = bool(p_val >= 0.05)
                 except ImportError:
                     pass
                 except Exception:
