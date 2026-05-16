@@ -7,21 +7,29 @@ from typing import Optional
 from database import Patient, MonthlyRecord
 from alerts import send_entry_alert_email, check_critical_labs, send_critical_lab_alert_email
 from dashboard_logic import get_month_label
-from validators import validate_lab_values
+from validators import validate_hard_limits, validate_lab_values
+from services import audit_service
 
 logger = logging.getLogger(__name__)
 
 def _d(s: Optional[str]) -> Optional[datetime.date]:
     return datetime.strptime(s, "%Y-%m-%d").date() if s else None
 
-def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyRecord:
+def save_monthly_record(
+    db: Session,
+    patient_id: int,
+    data: dict,
+    actor: str = "unknown",
+) -> MonthlyRecord:
     try:
-        # Physiological Range Validation (safeguard against unit errors)
-        warnings = validate_lab_values(data)
-        if warnings:
-            for w in warnings:
-                logger.warning(f"Patient {patient_id}: {w}")
-                
+        # Hard limits — physiologically impossible values. Raises ValueError.
+        # This propagates to the router which returns a user-visible 400 error.
+        validate_hard_limits(data)
+
+        # Soft warnings — outside typical range but not impossible. Logged only.
+        for w in validate_lab_values(data):
+            logger.warning("Patient %s: %s", patient_id, w)
+
         month_str = data.get("month_str")
         if not month_str:
             raise ValueError("month_str is required")
@@ -30,8 +38,14 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
         if idwg is not None:
             try:
                 idwg = float(idwg)
-                if idwg > 15: idwg = None
-            except (ValueError, TypeError):
+                if idwg > 15:
+                    raise ValueError(
+                        f"IDWG value {idwg} kg exceeds physiological maximum of 15 kg. "
+                        "Please verify the measurement."
+                    )
+            except ValueError:
+                raise
+            except TypeError:
                 idwg = None
 
         # Handle antihypertensive medications
@@ -153,6 +167,7 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
             transfusion_date=data.get("transfusion_date") or None,
         )
 
+        is_new = rec is None
         if rec:
             for k, v in fields.items():
                 setattr(rec, k, v)
@@ -176,6 +191,18 @@ def save_monthly_record(db: Session, patient_id: int, data: dict) -> MonthlyReco
                 p.diastolic_dysfunction = data["diastolic_dysfunction"]
             if data.get("echo_date"):
                 p.echo_date = _d(data["echo_date"])
+
+        # Flush assigns rec.id for new records before we write the audit row.
+        # The audit log and the business record then commit atomically.
+        db.flush()
+        audit_service.log_write(
+            db,
+            table="monthly_records",
+            record_id=rec.id,
+            action="create" if is_new else "update",
+            actor=actor,
+            changes={"patient_id": patient_id, "record_month": month_str},
+        )
 
         try:
             db.commit()

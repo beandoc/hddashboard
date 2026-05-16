@@ -7,7 +7,8 @@ import json
 import logging
 
 from database import get_db, Patient, MonthlyRecord
-from config import templates
+from config import templates, _csrf_signer
+from itsdangerous import BadData
 from dependencies import get_user
 from dashboard_logic import get_current_month_str, get_month_label
 from alerts import send_entry_alert_email
@@ -137,6 +138,7 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
         try: hosp_details = json.loads(rec.hospitalization_details)
         except: pass
 
+    csrf_token = _csrf_signer.sign(f"entry-{patient_id}").decode()
     return templates.TemplateResponse("entry_form.html", {
         "request": request, "patient": p, "record": rec,
         "anti_meds": anti_meds,
@@ -147,13 +149,15 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
         "prev_month_str": prev_month_str, "prev_month_label": get_month_label(prev_month_str),
         "next_month_str": next_month_str, "next_month_label": get_month_label(next_month_str),
         "user": get_user(request),
+        "csrf_token": csrf_token,
     })
 
 from services import entry_service
 
 @router.post("/{patient_id}")
 async def save_entry(
-    patient_id: int, db: Session = Depends(get_db),
+    patient_id: int, request: Request, db: Session = Depends(get_db),
+    csrf_token: str = Form(...),
     month_str: str = Form(...),
     entered_by: str = Form(""),
     access_type: str = Form(""),
@@ -232,7 +236,25 @@ async def save_entry(
     action: str = Form("save_back"),
 ):
     try:
-        entry_service.save_monthly_record(db, patient_id, locals())
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
+
+    session_user = get_user(request)
+    if session_user:
+        actor = session_user.get("username") if isinstance(session_user, dict) else getattr(session_user, "username", "unknown")
+    else:
+        actor = "unknown"
+
+    try:
+        entry_service.save_monthly_record(db, patient_id, locals(), actor=actor)
+    except ValueError as exc:
+        db.rollback()
+        logger.warning("VALIDATION ERROR — patient_id=%s: %s", patient_id, exc)
+        return HTMLResponse(
+            content=f"<h3>Validation Error</h3><p>{exc}</p><p><a href='javascript:history.back()'>Go back and correct the value</a></p>",
+            status_code=400,
+        )
     except Exception as exc:
         db.rollback()
         logger.error(

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, HospitalisationEvent
 from config import templates, _csrf_signer
+from itsdangerous import BadData
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month, _resolve_epo_dose
 from services import patient_service
@@ -52,18 +53,21 @@ async def patient_list(request: Request, month: Optional[str] = None, filter: Op
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_patient_form(request: Request):
+    csrf_token = _csrf_signer.sign("patient-new").decode()
     return templates.TemplateResponse("patient_form.html", {
         "request": request,
         "patient": None,
         "mode": "new",
         "error": None,
         "user": get_user(request),
+        "csrf_token": csrf_token,
     })
 
 @router.post("/new")
 async def create_patient(
     request: Request,
     db: Session = Depends(get_db),
+    csrf_token: str = Form(...),
     # ── Identity ──────────────────────────────────────────────────────────────
     hid_no: str = Form(...),
     name: str = Form(...),
@@ -160,6 +164,10 @@ async def create_patient(
     whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
     try:
         patient_service.create_patient_record(db, locals())
     except ValueError as e:

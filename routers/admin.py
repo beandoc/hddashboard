@@ -6,6 +6,7 @@ from typing import Optional
 import json
 import io
 import logging
+import re
 
 from datetime import date, datetime
 from database import get_db, User, Patient, MonthlyRecord, SessionRecord, InterimLabRecord, ClinicalEvent, engine
@@ -13,6 +14,24 @@ from config import templates, pwd_context
 from dependencies import get_user, _require_admin
 
 logger = logging.getLogger(__name__)
+
+_ALLOWED_MIGRATION_TABLES = frozenset({
+    "session_records", "patient_symptom_reports", "patients", "monthly_records",
+})
+_ALLOWED_SQL_TYPES = frozenset({
+    "INTEGER", "FLOAT", "TEXT", "VARCHAR", "DATE",
+    "BOOLEAN", "BOOLEAN DEFAULT FALSE", "BOOLEAN DEFAULT TRUE",
+})
+_SAFE_IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]*$")
+
+def _safe_alter_table(conn, table: str, col: str, col_type: str) -> None:
+    if table not in _ALLOWED_MIGRATION_TABLES:
+        raise ValueError(f"table '{table}' not in migration allowlist")
+    if not _SAFE_IDENTIFIER.match(col):
+        raise ValueError(f"column name '{col}' contains unsafe characters")
+    if col_type.upper() not in _ALLOWED_SQL_TYPES:
+        raise ValueError(f"SQL type '{col_type}' not in allowlist")
+    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -52,7 +71,7 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
         # 1. Update session_records
         for col, col_type in session_cols:
             try:
-                conn.execute(text(f"ALTER TABLE session_records ADD COLUMN {col} {col_type}"))
+                _safe_alter_table(conn, "session_records", col, col_type)
                 conn.commit()
                 results.append(f"✅ Added {col} to session_records")
             except Exception as e:
@@ -61,7 +80,7 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
         # 2. Update patient_symptom_reports
         for col, col_type in symptom_cols:
             try:
-                conn.execute(text(f"ALTER TABLE patient_symptom_reports ADD COLUMN {col} {col_type}"))
+                _safe_alter_table(conn, "patient_symptom_reports", col, col_type)
                 conn.commit()
                 results.append(f"✅ Added {col} to patient_symptom_reports")
             except Exception as e:
@@ -78,7 +97,7 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
         ]
         for col, col_type in patient_cols:
             try:
-                conn.execute(text(f"ALTER TABLE patients ADD COLUMN {col} {col_type}"))
+                _safe_alter_table(conn, "patients", col, col_type)
                 conn.commit()
                 results.append(f"✅ Added {col} to patients")
             except Exception as e:
@@ -103,7 +122,7 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
         ]
         for col, col_type in monthly_cols:
             try:
-                conn.execute(text(f"ALTER TABLE monthly_records ADD COLUMN {col} {col_type}"))
+                _safe_alter_table(conn, "monthly_records", col, col_type)
                 conn.commit()
                 results.append(f"✅ Added {col} to monthly_records")
             except Exception as e:

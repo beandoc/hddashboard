@@ -2,24 +2,24 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
-import os
+from itsdangerous import BadData
 
-# These will be imported from main or other central modules
-# For now, we'll assume they are available or we'll pass them in
 from database import get_db, User, Patient
-# We need to reach back to main for these, which is a bit circular.
-# A better way is to move these to a shared config.py.
-
-from config import templates
+from config import templates, _csrf_signer, COOKIE_SECURE, SESSION_MAX_AGE
 
 router = APIRouter()
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = None):
-    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+    csrf_token = _csrf_signer.sign("login").decode()
+    return templates.TemplateResponse("login.html", {"request": request, "error": error, "csrf_token": csrf_token})
 
 @router.post("/login")
-async def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...), csrf_token: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
     from config import pwd_context, serializer, templates
     
     # 1. Try Staff table
@@ -29,7 +29,11 @@ async def login(request: Request, username: str = Form(...), password: str = For
         db.commit()
         token = serializer.dumps(f"staff:{user.username}")
         response = RedirectResponse(url="/", status_code=303)
-        response.set_cookie(key="hd_session", value=token, httponly=True)
+        response.set_cookie(
+            key="hd_session", value=token,
+            httponly=True, secure=COOKIE_SECURE,
+            samesite="lax", max_age=SESSION_MAX_AGE,
+        )
         return response
 
     # 2. Try Patient table
@@ -50,7 +54,11 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if p and pwd_context.verify(password, p.hashed_password):
         token = serializer.dumps(f"patient:{p.login_username}")
         response = RedirectResponse(url="/patient/dashboard", status_code=303)
-        response.set_cookie(key="hd_session", value=token, httponly=True)
+        response.set_cookie(
+            key="hd_session", value=token,
+            httponly=True, secure=COOKIE_SECURE,
+            samesite="lax", max_age=SESSION_MAX_AGE,
+        )
         return response
 
     return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
@@ -67,7 +75,8 @@ async def change_password_form(request: Request):
     user = get_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": None})
+    csrf_token = _csrf_signer.sign("change-password").decode()
+    return templates.TemplateResponse("change_password.html", {"request": request, "user": user, "error": None, "csrf_token": csrf_token})
 
 @router.post("/change-password")
 async def change_password(
@@ -75,8 +84,13 @@ async def change_password(
     current_pw: str = Form(...),
     new_pw: str = Form(...),
     confirm_pw: str = Form(...),
+    csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
     from config import pwd_context, serializer
     from dependencies import get_user
     user = get_user(request)
@@ -118,15 +132,19 @@ async def change_password(
         "error": error
     })
 
-@router.get("/api/me")
-async def get_current_user_api(request: Request):
-    # This still refers to main.py's get_user. 
-    # In a full refactor, get_user would be in a dependencies.py or shared module.
+async def _me_response(request: Request):
     from dependencies import get_user
     user = get_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    if isinstance(user, dict): # Patient
+    if isinstance(user, dict):
         return {"username": user["username"], "full_name": user["full_name"], "role": user["role"]}
     return {"username": user.username, "full_name": user.full_name, "role": user.role}
+
+@router.get("/api/v1/me")
+async def get_current_user_api_v1(request: Request):
+    return await _me_response(request)
+
+@router.get("/api/me")
+async def get_current_user_api(request: Request):
+    return await _me_response(request)

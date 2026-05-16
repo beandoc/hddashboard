@@ -232,6 +232,7 @@
         {% endif %}
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="month_str" value="{{ month_str }}">
             
             <div class="form-section" id="sec-weight">

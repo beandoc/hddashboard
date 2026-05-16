@@ -693,6 +693,23 @@ class HospitalisationEvent(Base):
     patient = relationship("Patient", back_populates="hospitalisations")
 
 
+class AuditLog(Base):
+    """Immutable audit trail for all PHI write operations.
+
+    One row per create/update. Append-only — never update or delete rows here.
+    actor is the session username; changes is a JSON dict of field → new value.
+    """
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    table_name = Column(String, nullable=False, index=True)
+    record_id = Column(Integer, index=True)
+    action = Column(String, nullable=False)     # "create" | "update"
+    actor = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    changes = Column(Text)                      # JSON — only fields that changed
+
+
 def to_dict(obj):
     """Serialize SQLAlchemy model to dictionary, skipping internal state and relationships."""
     if not obj:
