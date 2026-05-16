@@ -42,6 +42,7 @@ async def variable_manager(request: Request, db: Session = Depends(get_db)):
         "hb": "Hemoglobin", "albumin": "Albumin", "phosphorus": "Phosphorus",
         "calcium": "Calcium", "alkaline_phosphate": "Alk. Phos.", "ipth": "iPTH",
         "vit_d": "Vitamin D", "ferritin": "Ferritin", "tsat": "TSAT",
+        "serum_iron": "Serum Iron", "tibc": "TIBC",
         "urr": "URR", "kt_v": "Kt/V", "bicarbonate": "Bicarbonate",
         "uric_acid": "Uric Acid", "creatinine": "Creatinine",
         "sodium": "Sodium", "potassium": "Potassium", "crp": "CRP",

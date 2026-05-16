@@ -55,6 +55,8 @@ VAR_TO_MONTHLY = {
     "vit_d":                   "vit_d",
     "ferritin":                "serum_ferritin",
     "tsat":                    "tsat",
+    "serum_iron":              "serum_iron",
+    "tibc":                    "tibc",
     "urr":                     "urr",
     "kt_v":                    "single_pool_ktv",
     "bicarbonate":             "serum_bicarbonate",
