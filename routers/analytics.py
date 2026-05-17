@@ -233,16 +233,72 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     mort_map = {r['patient'].id: r for r in mort_data}
 
     active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+    patient_ids = [p.id for p in active_patients]
 
     flagged = {}  # patient_id -> {patient, flags, priority}
-    
-    # Pre-fetch monthly records for weight trend analysis
+
+    # ── Batch pre-fetch everything used inside the per-patient loop ───────────
     current_month = get_current_month_str()
     y, mo = int(current_month[:4]), int(current_month[5:7])
     prev_month = f"{y-1}-12" if mo == 1 else f"{y}-{mo-1:02d}"
-    
+
     curr_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == current_month).all()}
     prev_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()}
+
+    # Last 3 monthly records per patient (for occult overload albumin trend)
+    from sqlalchemy import func
+    recent_mr_all = (
+        db.query(MonthlyRecord)
+        .filter(MonthlyRecord.patient_id.in_(patient_ids), MonthlyRecord.albumin.isnot(None))
+        .order_by(MonthlyRecord.patient_id, MonthlyRecord.record_month.desc())
+        .all()
+    )
+    recent_mr_by_pid: dict = {}
+    for r in recent_mr_all:
+        recent_mr_by_pid.setdefault(r.patient_id, [])
+        if len(recent_mr_by_pid[r.patient_id]) < 3:
+            recent_mr_by_pid[r.patient_id].append(r)
+
+    # Recent sessions per patient (for dyspnea / emergency check)
+    recent_sessions_all = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id.in_(patient_ids))
+        .order_by(SessionRecord.patient_id, SessionRecord.session_date.desc())
+        .all()
+    )
+    recent_sessions_by_pid: dict = {}
+    for s in recent_sessions_all:
+        recent_sessions_by_pid.setdefault(s.patient_id, [])
+        if len(recent_sessions_by_pid[s.patient_id]) < 10:
+            recent_sessions_by_pid[s.patient_id].append(s)
+
+    # Fluid status assessments — latest per patient (single query, no per-patient lookups)
+    fluid_events_raw = (
+        db.query(ClinicalEvent)
+        .filter(
+            ClinicalEvent.patient_id.in_(patient_ids),
+            ClinicalEvent.event_type == "Fluid Status Assessment",
+        )
+        .order_by(ClinicalEvent.event_date.desc())
+        .all()
+    )
+    last_fluid_by_pid: dict = {}
+    for ev in fluid_events_raw:
+        last_fluid_by_pid.setdefault(ev.patient_id, ev)  # first = most recent
+
+    # Last clinical review per patient
+    review_events_raw = (
+        db.query(ClinicalEvent)
+        .filter(
+            ClinicalEvent.patient_id.in_(patient_ids),
+            ClinicalEvent.event_type == "Clinical Review",
+        )
+        .order_by(ClinicalEvent.event_date.desc())
+        .all()
+    )
+    last_review_by_pid: dict = {}
+    for ev in review_events_raw:
+        last_review_by_pid.setdefault(ev.patient_id, ev)
 
     for p in active_patients:
         p_flags = []
@@ -292,17 +348,26 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
                 p_flags.append(f"Dry Weight {dir_str} ({abs(weight_diff):.1f}kg)")
                 priority += 3 if weight_diff < 0 else 2 # Drops are higher priority for malnutrition
 
-        # E. Occult Overload
-        occult = detect_occult_overload(db, p.id)
-        if occult:
+        # E. Occult Overload — computed from pre-fetched data, no extra queries
+        recs_3 = recent_mr_by_pid.get(p.id, [])
+        alb_decline = len(recs_3) >= 2 and recs_3[0].albumin < recs_3[-1].albumin
+        p_sessions = recent_sessions_by_pid.get(p.id, [])
+        breathless = any(
+            (s.pre_hd_dyspnea_likert and s.pre_hd_dyspnea_likert >= 3) or
+            (s.post_hd_dyspnea_likert and s.post_hd_dyspnea_likert >= 3)
+            for s in p_sessions
+        )
+        freq_emergency = any(
+            s.is_emergency and s.reason_emergency in ("Fluid Overload", "Pulmonary Oedema", "Severe Dyspnea")
+            for s in p_sessions
+        )
+        curr_r = curr_recs.get(p.id)
+        if alb_decline and (breathless or freq_emergency) and curr_r and curr_r.idwg and curr_r.idwg > 2.5:
             p_flags.append("Occult Fluid Overload")
             priority += 4
 
-        # F. Fluid Status Pending (No assessment in last 90 days)
-        last_fs = db.query(ClinicalEvent).filter(
-            ClinicalEvent.patient_id == p.id,
-            ClinicalEvent.event_type == "Fluid Status Assessment"
-        ).order_by(ClinicalEvent.event_date.desc()).first()
+        # F. Fluid Status Pending — from pre-fetched map
+        last_fs = last_fluid_by_pid.get(p.id)
         if not last_fs or (datetime.now().date() - last_fs.event_date).days > 90:
             p_flags.append("Fluid Assessment Pending")
             priority += 1
@@ -340,12 +405,7 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
                 priority += 2
 
         if p_flags:
-            # Get last reviewed date (from ClinicalEvent "Clinical Review")
-            last_review = db.query(ClinicalEvent).filter(
-                ClinicalEvent.patient_id == p.id,
-                ClinicalEvent.event_type == "Clinical Review"
-            ).order_by(ClinicalEvent.event_date.desc()).first()
-
+            last_review = last_review_by_pid.get(p.id)
             flagged[p.id] = {
                 "patient": p,
                 "flags": p_flags,
