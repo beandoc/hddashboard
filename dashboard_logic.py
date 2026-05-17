@@ -46,17 +46,16 @@ def _esa_hypo_causes(r) -> list[str]:
     """
     causes = []
 
-    # 1. Absolute iron deficiency: Ferritin < 100 OR TSAT < 20%
+    # 1. Absolute iron deficiency: TSAT < 20%; fall back to serum_iron < 60 when TSAT absent
+    #    (Ferritin excluded — unreliable at this facility)
     abs_iron = (
-        (r.serum_ferritin is not None and r.serum_ferritin < 100) or
-        (r.tsat is not None and r.tsat < 20)
+        (r.tsat is not None and r.tsat < 20) or
+        (r.tsat is None and r.serum_iron is not None and r.serum_iron < 60)
     )
-    # 2. Functional iron deficiency: iron stores adequate but utilisation poor
-    #    Ferritin 100–500 AND TSAT < 25%
+    # 2. Functional iron deficiency: TSAT 20–25% (iron available but utilisation poor)
     func_iron = (
         not abs_iron and
-        r.serum_ferritin is not None and 100 <= r.serum_ferritin <= 500 and
-        r.tsat is not None and r.tsat < 25
+        r.tsat is not None and 20 <= r.tsat < 25
     )
     if abs_iron:
         causes.append("Absolute Iron Deficiency")
@@ -625,9 +624,12 @@ def compute_dashboard(db: Session, month: str = None):
                 _hb_at_target     = _hb_eff is not None and 11.0 <= _hb_eff <= 13.0
                 _hb_above_safe    = _hb_eff is not None and _hb_eff > 13.0
 
-                # True hyporesponsiveness — Hb-gated per KDIGO 2012
-                hypo_r1 = bool(_hb_below_target and _eri and (_eri >= 2.0 or _dose_kg >= 450))
-                hypo_r2 = bool(_hb_below_target and _eri and _eri >= 1.5)
+                # True hyporesponsiveness — Hb-gated per ERBP/KDIGO
+                # ERI code units = standard_ERI / 10  (standard = dose_kg / Hb_g/dL)
+                # Guideline thresholds: ERI > 15.4 IU/kg/wk/g/dL → code > 1.54
+                #                       SC EPO > 300 IU/kg/wk  (IV EPO > 450)
+                hypo_r1 = bool(_hb_below_target and _eri and (_eri >= 2.0 or _dose_kg >= 300))
+                hypo_r2 = bool(_hb_below_target and _eri and _eri >= 1.54)
                 hypo_r3 = bool(_hb_below_target and _hypo_r3_cutoff and _epo_sc > _hypo_r3_cutoff)
 
                 # De-escalation: Hb on-target but dose not yet weaned
@@ -667,10 +669,21 @@ def compute_dashboard(db: Session, month: str = None):
                 row["epo_hypo_causes"] = _causes
                 row["esa_de_escalation"] = _de_escalation
 
-            # 7. IV Iron Recommended: Hb < 10 AND (Ferritin < 500 OR TSAT < 30%)
-            if (r.hb and r.hb < 10 and
-                    ((r.serum_ferritin and r.serum_ferritin < 500) or
-                     (r.tsat and r.tsat < 30))):
+            # 7. IV Iron Recommended:
+            #    Hb < 10 AND iron-deficient by TSAT or serum iron, AND no iron overload.
+            #    Ferritin is NOT used as inclusion criterion — not reliably available.
+            #    Withhold if TSAT ≥ 40% or ferritin ≥ 700 ng/mL (ERBP iron overload threshold).
+            #    Iron deficiency: TSAT < 30% or serum_iron < 60 µg/dL.
+            #    If neither marker available → flag anyway (no data ≠ safe; clinician should check).
+            _iv_hb         = row["hb"]
+            _tsat_low      = r.tsat is not None and r.tsat < 30
+            _iron_low      = r.serum_iron is not None and r.serum_iron < 60
+            _iron_unknown  = r.tsat is None and r.serum_iron is None
+            _iron_overload = (
+                (r.tsat is not None and r.tsat >= 40) or
+                (r.serum_ferritin is not None and r.serum_ferritin >= 700)
+            )
+            if _iv_hb and _iv_hb < 10 and not _iron_overload and (_tsat_low or _iron_low or _iron_unknown):
                 metrics['iv_iron_rec']['count'] += 1
                 metrics['iv_iron_rec']['names'].append(name)
                 row["alerts"].append("IV Iron Rec")

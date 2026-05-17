@@ -4,614 +4,12 @@
   <base target="_top">
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>HD Patients Data Dashboard CH(SC)</title>  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
-
-  <style>
-    :root {
-      --primary: #0ea5e9;
-      --primary-dark: #0284c7;
-      --secondary: #10b981;
-      --secondary-dark: #059669;
-      --bg-main: #f8fafc;
-      --bg-card: #ffffff;
-      --text-main: #1e293b;
-      --text-muted: #64748b;
-      --text-header: #0f172a;
-      --accent-red: #ef4444;
-      --accent-green: #10b981;
-      --accent-orange: #f59e0b;
-      --glass-bg: rgba(255, 255, 255, 0.85);
-      --glass-border: rgba(255, 255, 255, 0.4);
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
-      --shadow-lg: 0 10px 30px -3px rgb(0 0 0 / 0.05);
-      --radius: 12px;
-    }
-
-    body { 
-      font-family: 'Inter', sans-serif; 
-      margin: 0; 
-      padding: 0; 
-      background-color: var(--bg-main); 
-      color: var(--text-main); 
-      -webkit-font-smoothing: antialiased;
-    }
-
-    h1, h2, h3, .brand {
-      font-family: 'Outfit', sans-serif;
-    }
-
-    /* Header Refinement */
-    header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: white;
-      padding: 20px 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      position: relative;
-      overflow: hidden;
-    }
-    header::after {
-      content: "";
-      position: absolute;
-      top: -60%; left: -20%; width: 60%; height: 200%;
-      background: radial-gradient(circle, rgba(14, 165, 233, 0.07) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    header h1 {
-      margin: 0;
-      font-weight: 700;
-      font-size: 1.35rem;
-      letter-spacing: -0.02em;
-      font-family: 'Outfit', sans-serif;
-    }
-    header .header-title { position: relative; z-index: 1; }
-    header .header-title p { margin: 3px 0 0; font-size: 0.78rem; opacity: 0.55; }
-    .header-sub {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      position: relative;
-      z-index: 1;
-    }
-    .month-picker-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.08);
-      padding: 6px 14px;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .month-picker-wrap label { font-size: 0.8em; opacity: .7; font-weight: 500; }
-    .month-picker-wrap input[type="month"] { 
-      border: none; 
-      padding: 2px 4px; 
-      font-family: 'Inter', sans-serif; 
-      font-size: 0.9em; 
-      background: transparent; 
-      color: #fff; 
-      cursor: pointer; 
-      outline: none; 
-    }
-    .month-picker-wrap input[type="month"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-
-    /* Dashboard grid */
-    .dashboard-grid { 
-      display: grid; 
-      grid-template-columns: repeat(4, 1fr); /* Perfect 12-span 4-column bento box */
-      gap: 20px; 
-      padding: 24px; 
-      max-width: 1440px; 
-      margin: 0 auto; 
-    }
-
-    /* Modern Cards */
-    .card { 
-      background: var(--bg-card); 
-      border-radius: var(--radius); 
-      box-shadow: var(--shadow-sm); 
-      border: 1px solid rgba(0,0,0,0.04);
-      padding: 24px; 
-      text-align: center; 
-      display: flex; 
-      flex-direction: column; 
-      align-items: center; 
-      position: relative; 
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      overflow: visible;
-    }
-    .card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-lg);
-      border-color: var(--primary);
-    }
-    .card:has(.visible-list) {
-      overflow: hidden;
-    }
-    .card.highlight { 
-      background: #fffafa; 
-      border: 1px solid rgba(239, 68, 68, 0.1); 
-    }
-    .card.highlight:hover { border-color: var(--accent-red); }
-
-    .card .icon { 
-      font-size: 2.5em; 
-      margin-bottom: 8px; 
-      transition: transform 0.3s;
-    }
-    .card:hover .icon { transform: scale(1.1); }
-
-    .card .value { 
-      font-size: 2.2em; 
-      font-weight: 700; 
-      color: var(--text-header); 
-      font-family: 'Outfit', sans-serif;
-      letter-spacing: -0.02em;
-    }
-    .card.highlight .value { color: var(--accent-red); }
-    
-    .card .title { 
-      font-size: 0.9em; 
-      color: var(--text-muted); 
-      font-weight: 500;
-      margin-top: 4px;
-      line-height: 1.2;
-    }
-
-    .card.wide-card { grid-column: span 2; align-items: flex-start; text-align: left; }
-    .card.wide-card .wide-card-header { 
-      display: flex; 
-      align-items: center; 
-      width: 100%; 
-      margin-bottom: 12px; 
-      gap: 12px;
-    }
-    .card.wide-card .wide-card-header .icon { font-size: 1.6em; margin-bottom: 0; }
-    .card.wide-card .wide-card-header .title { font-size: 1rem; color: var(--text-header); font-weight: 600; flex-grow: 1; }
-    .card.wide-card .wide-card-header .value { font-size: 1.6em; margin-bottom: 0; }
-
-    .card .visible-list {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      overflow: hidden;
-      background: rgba(255, 255, 255, 0.98);
-      padding: 24px;
-      margin: 0;
-      list-style: none;
-      font-size: 0.82em;
-      color: var(--text-main);
-      overflow-y: auto;
-      z-index: 20;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      text-align: left;
-    }
-    .card:hover .visible-list { 
-      opacity: 1;
-      pointer-events: all;
-    }
-    .card .visible-list li { 
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 6px 0; 
-      border-bottom: 1px solid rgba(0,0,0,0.04); 
-    }
-    .card .visible-list::before {
-      content: "Affected Patients";
-      display: block;
-      font-weight: 700;
-      color: var(--text-header);
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      font-size: 0.75rem;
-      letter-spacing: 0.05em;
-    }
-    .card .visible-list li::before { content: "•"; color: var(--accent-red); font-weight: bold; }
-
-    .card .tooltip {
-      position: absolute;
-      bottom: 105%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.95);
-      color: #fff;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 0.78rem;
-      font-weight: 500;
-      white-space: pre-line;
-      pointer-events: none;
-      opacity: 0;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 100;
-      min-width: 180px;
-      text-align: left;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
-    }
-    .card:hover .tooltip {
-      opacity: 1;
-      bottom: 110%;
-    }
-
-    /* Global Button Styles */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      text-decoration: none;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      cursor: pointer;
-      border: 1px solid transparent;
-      white-space: nowrap;
-      font-family: 'Inter', sans-serif;
-    }
-    .btn-primary {
-      background: var(--secondary);
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-    }
-    .btn-primary:hover {
-      background: var(--secondary-dark);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 15px rgba(16, 185, 129, 0.3);
-    }
-    .btn i { font-size: 1.1rem; }
-
-    /* Action bar */
-    .action-bar { 
-      max-width: 1440px; 
-      margin: 0 auto 12px; 
-      padding: 0 24px; 
-      display: flex; 
-      gap: 12px; 
-      align-items: center; 
-    }
-    .btn-wa, .btn-email { 
-      display: inline-flex; 
-      align-items: center; 
-      gap: 8px; 
-      border: none; 
-      border-radius: var(--radius); 
-      padding: 10px 24px; 
-      font-size: 0.9em; 
-      font-weight: 600; 
-      cursor: pointer; 
-      transition: all 0.2s; 
-      box-shadow: var(--shadow-sm);
-    }
-    .btn-wa { background: #10b981; color: #fff; text-decoration: none; }
-    .btn-wa:hover { background: #059669; transform: translateY(-1px); }
-    .btn-email { background: var(--primary); color: #fff; }
-    .btn-email:hover { background: var(--primary-dark); transform: translateY(-1px); }
-
-    /* Modern Table Styling */
-    .table-section { max-width: 1440px; margin: 40px auto; padding: 0 24px; }
-    .table-section h2 { font-size: 1.4em; font-weight: 700; margin-bottom: 20px; color: var(--text-header); }
-    
-    .table-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .search-input { 
-      border: 1px solid #e2e8f0; 
-      border-radius: var(--radius); 
-      padding: 10px 18px; 
-      font-family: 'Inter', sans-serif; 
-      font-size: 0.9em; 
-      outline: none; 
-      width: 320px; 
-      transition: all 0.2s;
-      background: #fff;
-    }
-    .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1); }
-
-    .table-wrap { 
-      background: #fff; 
-      border-radius: var(--radius); 
-      box-shadow: var(--shadow-md); 
-      overflow-x: auto; 
-      border: 1px solid rgba(0,0,0,0.05);
-      -webkit-overflow-scrolling: touch;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
-    thead tr { background: #f1f5f9; color: var(--text-header); }
-    thead th { 
-      padding: 16px 12px; 
-      text-align: left; 
-      font-size: 0.75em; 
-      text-transform: uppercase; 
-      letter-spacing: 0.05em; 
-      font-weight: 700; 
-      white-space: nowrap;
-    }
-    tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
-    tbody tr:hover { background: #f8fafc; }
-    tbody td { padding: 14px 12px; vertical-align: middle; white-space: nowrap; }
-
-    /* Alert Tags (Premium UI) */
-    .alert-tag { 
-      display: inline-flex; 
-      align-items: center;
-      font-size: 0.75em; 
-      font-weight: 600;
-      background: #fef2f2; 
-      color: #dc2626; 
-      border: 1px solid #fee2e2; 
-      border-radius: 6px; 
-      padding: 2px 8px; 
-      margin: 2px;
-    }
-
-    /* Trend Charts Section */
-    .trend-section-title { text-align: center; margin-top: 60px; font-weight: 800; }
-    .trend-charts-section { 
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px; 
-      padding: 24px; 
-      max-width: 1440px; 
-      margin: 0 auto;
-    }
-    .trend-chart-wrapper { 
-      background: #fff; 
-      border-radius: var(--radius); 
-      box-shadow: var(--shadow-md); 
-      padding: 24px; 
-      border: 1px solid rgba(0,0,0,0.03);
-    }
-    .trend-chart-wrapper h3 { font-size: 1.1em; margin-bottom: 20px; font-weight: 700; color: var(--text-header); }
-
-    /* Responsive Grid fixes */
-    @media(max-width: 1280px) {
-      .dashboard-grid { grid-template-columns: repeat(3, 1fr); }
-    }
-    @media(max-width: 1024px) {
-      .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
-      .trend-charts-section { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media(max-width: 640px) {
-      :root {
-        --radius: 16px;
-      }
-
-      header {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 24px 20px;
-        gap: 16px;
-      }
-      .header-sub {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-      }
-      .month-picker-wrap {
-        justify-content: center;
-        padding: 10px;
-      }
-      .hero-btn {
-        width: 100%;
-        justify-content: center;
-        min-height: 48px;
-      }
-
-      .dashboard-grid {
-        grid-template-columns: 1fr;
-        padding: 16px;
-        gap: 16px;
-      }
-
-      .card {
-        padding: 20px;
-      }
-      .card.wide-card {
-        grid-column: span 1;
-      }
-
-      /* Transform table into cards on mobile */
-      .table-section { padding: 0 16px; margin: 24px 0; }
-      .table-toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
-      .search-input { width: 100%; min-height: 44px; }
-
-      .table-wrap {
-        background: transparent;
-        box-shadow: none;
-        border: none;
-        overflow: visible;
-      }
-      table, thead, tbody, th, td, tr { 
-        display: block; 
-      }
-      thead tr { 
-        position: absolute;
-        top: -9999px;
-        left: -9999px;
-      }
-      tbody tr {
-        background: #fff;
-        border-radius: var(--radius);
-        margin-bottom: 16px;
-        padding: 20px;
-        box-shadow: var(--shadow-md);
-        border: 1px solid rgba(0,0,0,0.05);
-      }
-      tbody td {
-        border: none;
-        padding: 12px 0;
-        position: relative;
-        text-align: right;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #f8fafc;
-      }
-      tbody td:last-child { border-bottom: none; }
-      tbody td::before {
-        content: attr(data-label);
-        font-weight: 700;
-        color: var(--text-muted);
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-      }
-      
-      /* Special styling for Name in mobile card */
-      tbody td:first-child {
-        padding: 0 0 12px;
-        text-align: left;
-        display: block;
-        border-bottom: 2px solid #f1f5f9;
-        margin-bottom: 12px;
-      }
-      tbody td:first-child::before { display: none; }
-      tbody td:first-child .cell-name { font-size: 1.15rem; color: var(--text-header); font-weight: 700; }
-
-      .action-bar {
-        flex-direction: column;
-        align-items: stretch;
-        padding: 0 16px;
-        gap: 8px;
-      }
-      .btn-wa, .btn-email {
-        justify-content: center;
-        min-height: 48px;
-      }
-
-      /* Tooltip fix for touch devices */
-      .card .tooltip { display: none; }
-      .card.touch-active .tooltip { 
-        display: block; 
-        opacity: 1; 
-        position: static; 
-        transform: none; 
-        background: #f1f5f9; 
-        color: var(--text-main); 
-        padding: 12px; 
-        border-radius: 8px; 
-        margin-top: 12px; 
-        width: 100%;
-        box-sizing: border-box;
-      }
-      .card.touch-active {
-        border-color: var(--primary);
-      }
-
-      /* Trend charts section stacking */
-      .trend-charts-section {
-        grid-template-columns: 1fr;
-        padding: 16px;
-        gap: 16px;
-      }
-      .chart-container { padding: 16px; }
-      .chart-content, .trend-chart-content { height: 220px; }
-    }
-
-    /* Table value coloring */
-    .val-bad  { color: var(--accent-red);    font-weight: 600; }
-    .val-warn { color: var(--accent-orange); font-weight: 600; }
-    .val-ok   { color: var(--accent-green);  }
-    .val-none { color: var(--text-muted);    }
-    .cell-hid { font-size: 0.78em; color: var(--text-muted); }
-    .no-rec   { font-size: 0.8em; color: var(--text-muted); font-style: italic; }
-
-    /* Chart containers */
-    .chart-container {
-      background: #fff;
-      border-radius: var(--radius);
-      box-shadow: var(--shadow-md);
-      padding: 24px;
-      border: 1px solid rgba(0,0,0,0.04);
-    }
-    .chart-container h3 { font-size: 1em; margin: 0 0 12px; color: var(--text-header); }
-    .chart-content { width: 100%; height: 260px; }
-    .trend-chart-content { width: 100%; height: 220px; }
-
-    /* Trend chart wrappers */
-    .hb-bg   { border-top: 3px solid #EA4335; }
-    .alb-bg  { border-top: 3px solid #4285F4; }
-    .phos-bg { border-top: 3px solid #34A853; }
-
-    /* Patient carousel nav */
-    .patient-nav {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .patient-nav button {
-      background: none;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 4px 8px;
-      cursor: pointer;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-    }
-    .patient-nav button:disabled { opacity: 0.3; cursor: default; }
-    .patient-name-display { font-size: 0.85em; font-weight: 600; color: var(--text-header); }
-
-    /* WhatsApp / Email modal */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 3000;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal {
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 32px;
-      max-width: 480px;
-      width: 90%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-    .modal h3 { margin: 0 0 16px; font-size: 1.2rem; }
-    .modal-body { font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
-    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
-    .btn-cancel {
-      border: 1px solid #e2e8f0;
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 10px 20px;
-      cursor: pointer;
-      font-size: 0.9em;
-    }
-    .btn-confirm {
-      background: #10b981;
-      color: #fff;
-      border: none;
-      border-radius: var(--radius);
-      padding: 10px 20px;
-      cursor: pointer;
-      font-size: 0.9em;
-      font-weight: 600;
-    }
-    .btn-confirm:hover { background: #059669; }
-
-    /* Alert status bar */
-    .alert-status { font-size: 0.85em; color: var(--text-muted); }
-  </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+  <title>HD Dashboard — CH(SC) Nephrology</title>
+  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+  <link rel="stylesheet" href="/static/css/clinical.css"/>
+  <link rel="stylesheet" href="/static/css/pages/dashboard.css"/>
+  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
 </head>
 <body>
 
@@ -710,98 +108,215 @@
   <!-- METRIC CARDS -->
   <div class="dashboard-grid">
 
-    {% set cards = [
-      {"icon":"👥","value":data.metrics.total_patients.count,"title":"Total Patients","hl":False,"names":[],"wide":False,"link":"/patients?month=" ~ month_str},
-      {"icon":"♂️","value":data.metrics.male_patients.count,"title":"Male","hl":False,"names":data.metrics.male_patients.names,"wide":False},
-      {"icon":"♀️","value":data.metrics.female_patients.count,"title":"Female","hl":False,"names":data.metrics.female_patients.names,"wide":False},
-      {"icon":"🚫🔗","value":data.metrics.non_avf.count,"title":"Non-AVF Access","hl":data.metrics.non_avf.count>0,"names":data.metrics.non_avf.names,"wide":False,"link":"/analytics/vascular-access?month=" ~ month_str},
-      {"icon":"💉","value":data.metrics.epo_hypo.count,"title":"ESA Resistant — HypoR1","hl":data.metrics.epo_hypo.count>0,"names":data.metrics.epo_hypo.names,"wide":True,"r2":data.metrics.epo_hypo_r2.count,"r2names":data.metrics.epo_hypo_r2.names,"r3":data.metrics.epo_hypo_r3.count,"r3names":data.metrics.epo_hypo_r3.names,"r3cut":data.metrics.epo_hypo_r3.cutoff,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=epo_resistant"},
-      {"icon":"💊","value":data.metrics.iv_iron_rec.count,"title":"IV Iron Recommended","hl":data.metrics.iv_iron_rec.count>0,"names":data.metrics.iv_iron_rec.names,"wide":True,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=iv_iron"},
-      {"icon":"⚖️","value":data.metrics.idwg_high.count,"title":"Interdialytic Weight Gain >= 2.5kg","hl":data.metrics.idwg_high.count>0,"names":data.metrics.idwg_high.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=idwg_high"},
-      {"icon":"📉","value":data.metrics.albumin_low.count,"title":"Albumin < 2.5g/dL","hl":data.metrics.albumin_low.count>0,"names":data.metrics.albumin_low.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=albumin_low"},
-      {"icon":"⚠️💉","value":data.metrics.hb_high.count,"title":"High Hb > 13.0g/dL","hl":data.metrics.hb_high.count>0,"names":data.metrics.hb_high.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=hb_high"},
-      {"icon":"🦴","value":data.metrics.calcium_low.count,"title":"Corrected Calcium < 8.0mg/dL","hl":data.metrics.calcium_low.count>0,"names":data.metrics.calcium_low.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=calcium_low"},
-      {"icon":"🧪","value":data.metrics.phos_high.count,"title":"High Phosphorus > 5.5mg/dL","hl":data.metrics.phos_high.count>0,"names":data.metrics.phos_high.names,"wide":False,"link":"/analytics/patients?month=" ~ month_str ~ "&filter=phos_high"},
-      {"icon":"📉📈","value":data.metrics.hb_variability_high.count,"title":"High Hb Variability (>2.5 g/dL)","hl":data.metrics.hb_variability_high.count>0,"names":data.metrics.hb_variability_high.names,"wide":False},
-      {"icon":"⏳","value":data.metrics.missing_records.count,"title":"Missing Records","hl":data.metrics.missing_records.count>0,"names":data.metrics.missing_records.names,"wide":False,"link":"/entry?month=" ~ month_str},
-      {"icon":"🛑","value":data.metrics.adherence_risk.count,"title":"Adherence Monitor (USRDS)","hl":data.metrics.adherence_risk.count>0,"names":data.metrics.adherence_risk.names,"wide":True,"link":"/analytics/adherence?month=" ~ month_str},
-    ] %}
+    <!-- ── Overview ─────────────────────────────────────── -->
+    <div class="grid-section-label"><span>Overview</span></div>
 
-    {% for c in cards %}
-    {% set has_perm = (user.role in ['admin', 'doctor']) or (c.link == '/patients') %}
-    {% if c.get('link') and c.value > 0 and has_perm %}
-      <a href="{{ c.link }}" class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}" style="text-decoration:none; color:inherit; cursor:pointer;">
-    {% else %}
-      <div class="card{% if c.hl %} highlight{% endif %}{% if c.wide %} wide-card{% endif %}">
-    {% endif %}
-
-      {% if c.wide %}
-        <div class="wide-card-header">
-          <span class="icon">{{ c.icon }}</span>
-          <span class="title">{{ c.title }}</span>
-          <span class="value">{{ c.value }}</span>
-        </div>
-        {% if c.r2 is defined %}
-          <div style="padding: 0 16px 12px; margin-top: -8px;">
-            <div style="font-size:0.72rem;color:#94a3b8;line-height:1.6;"
-                 title="HypoR1: ERI ≥ 1 IU/kg/wk/g/dL (mild)&#10;HypoR2: ERI ≥ 2 IU/kg/wk/g/dL or dose ≥ 450 IU/wk&#10;HypoR3: Dose &gt; unit-specific cutoff (severe)&#10;&#10;Based on ERBP 2012 classification">
-              ESA Hyporesponse Classification
-              <span style="display:inline-block;width:14px;height:14px;background:#e2e8f0;border-radius:50%;text-align:center;line-height:14px;font-size:0.65rem;cursor:help;margin-left:3px;">?</span>
-              <br>
-              <span style="color:#fb923c;">HypoR2: {{ c.r2 }}</span>
-              &nbsp;·&nbsp;
-              <span style="color:#a78bfa;">HypoR3: {{ c.r3 }}{% if c.r3cut %} (&gt;{{ c.r3cut|int }} IU/wk){% endif %}</span>
-            </div>
-          </div>
-        {% endif %}
-        {% if c.names %}
-        <ul class="visible-list">
-          {% for n in c.names %}<li>{{ n }}</li>{% endfor %}
-        </ul>
-        {% endif %}
-      {% else %}
-        <span class="icon">{{ c.icon }}</span>
-        <div class="value">{{ c.value }}</div>
-        <div class="title">{{ c.title }}</div>
-        {% if c.r2 is defined %}
-          <div style="font-size:0.72rem;color:#94a3b8;margin-top:4px;line-height:1.6;"
-               title="HypoR1: ERI ≥ 1 IU/kg/wk/g/dL (mild)&#10;HypoR2: ERI ≥ 2 IU/kg/wk/g/dL or dose ≥ 450 IU/wk&#10;HypoR3: Dose &gt; unit-specific cutoff (severe)&#10;&#10;Based on ERBP 2012 classification">
-            ESA Hyporesponse Classification
-            <span style="display:inline-block;width:14px;height:14px;background:#e2e8f0;border-radius:50%;text-align:center;line-height:14px;font-size:0.65rem;cursor:help;margin-left:3px;">?</span>
-            <br>
-            <span style="color:#fb923c;">HypoR2: {{ c.r2 }}</span>
-            &nbsp;·&nbsp;
-            <span style="color:#a78bfa;">HypoR3: {{ c.r3 }}{% if c.r3cut %} (&gt;{{ c.r3cut|int }} IU/wk){% endif %}</span>
-          </div>
-        {% endif %}
-        {% if c.names %}
-          <div class="tooltip">{{ c.names | join('\n') }}</div>
-        {% endif %}
-      {% endif %}
-
-    {% if c.get('link') and c.value > 0 and has_perm %}
-      </a>
-    {% else %}
+    {% if user.role in ['admin', 'doctor'] and data.metrics.total_patients.count > 0 %}
+    <a href="/patients?month={{ month_str }}" class="card" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card">{% endif %}
+      <div class="card-icon-wrap icon-blue"><i class="material-icons">people</i></div>
+      <div class="card-body">
+        <div class="value">{{ data.metrics.total_patients.count }}</div>
+        <div class="title">Total Patients</div>
       </div>
-    {% endif %}
-    {% endfor %}
+    {% if user.role in ['admin', 'doctor'] and data.metrics.total_patients.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    <div class="card">
+      <div class="card-icon-wrap icon-indigo"><i class="material-icons">person</i></div>
+      <div class="card-body">
+        <div class="value">{{ data.metrics.male_patients.count }}</div>
+        <div class="title">Male</div>
+      </div>
+      {% if data.metrics.male_patients.names %}<div class="tooltip">{{ data.metrics.male_patients.names | join('\n') }}</div>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap icon-pink"><i class="material-icons">person</i></div>
+      <div class="card-body">
+        <div class="value">{{ data.metrics.female_patients.count }}</div>
+        <div class="title">Female</div>
+      </div>
+      {% if data.metrics.female_patients.names %}<div class="tooltip">{{ data.metrics.female_patients.names | join('\n') }}</div>{% endif %}
+    </div>
+
+    <!-- ── Anemia Management ─────────────────────────── -->
+    <div class="grid-section-label"><span>Anemia Management</span></div>
+
+    {% set r1 = data.metrics.epo_hypo.count %}
+    {% set r2 = data.metrics.epo_hypo_r2.count %}
+    {% set r3 = data.metrics.epo_hypo_r3.count %}
+    {% set total = data.metrics.total_patients.count %}
+    {% set iron = data.metrics.iv_iron_rec %}
+    <div class="card anemia-panel">
+
+      <!-- Donut chart -->
+      <div class="anemia-donut-col">
+        <div id="anemiaDonutChart" class="anemia-donut-plot"></div>
+      </div>
+
+      <!-- Severity breakdown bars -->
+      <div class="anemia-bars-col">
+        <div class="anemia-header-row">
+          <span class="anemia-eyebrow">ESA Hyporesponse
+            <span title="HypoR1: ERI ≥ 1 IU/kg/wk/g/dL (mild)&#10;HypoR2: ERI ≥ 2 IU/kg/wk/g/dL or dose ≥ 450 IU/wk&#10;HypoR3: Dose &gt; unit-specific cutoff (severe)&#10;Based on ERBP 2012" class="anemia-tip">?</span>
+          </span>
+          {% if user.role in ['admin', 'doctor'] and r1 > 0 %}
+          <a href="/analytics/patients?month={{ month_str }}&filter=epo_resistant" class="anemia-view-btn">View patients →</a>
+          {% endif %}
+        </div>
+        <div class="anemia-row">
+          <span class="anemia-swatch swatch-r1"></span>
+          <div class="anemia-row-text">
+            <span class="anemia-row-label">HypoR1 — Mild</span>
+            <span class="anemia-row-desc">ERI ≥ 1 IU/kg/wk/g/dL</span>
+          </div>
+          <div class="anemia-bar-track">
+            <div class="anemia-bar-fill fill-r1" style="--w:{{ ((r1/total*100)|round(1)) if total > 0 else 0 }}%"></div>
+          </div>
+          <span class="anemia-row-count">{{ r1 }}</span>
+        </div>
+        <div class="anemia-row">
+          <span class="anemia-swatch swatch-r2"></span>
+          <div class="anemia-row-text">
+            <span class="anemia-row-label">HypoR2 — Moderate</span>
+            <span class="anemia-row-desc">ERI ≥ 2 or dose ≥ 450 IU/wk</span>
+          </div>
+          <div class="anemia-bar-track">
+            <div class="anemia-bar-fill fill-r2" style="--w:{{ ((r2/total*100)|round(1)) if total > 0 else 0 }}%"></div>
+          </div>
+          <span class="anemia-row-count">{{ r2 }}</span>
+        </div>
+        <div class="anemia-row">
+          <span class="anemia-swatch swatch-r3"></span>
+          <div class="anemia-row-text">
+            <span class="anemia-row-label">HypoR3 — Severe</span>
+            <span class="anemia-row-desc">{% if data.metrics.epo_hypo_r3.cutoff %}Dose &gt;{{ data.metrics.epo_hypo_r3.cutoff|int }} IU/wk{% else %}Unit-specific cutoff{% endif %}</span>
+          </div>
+          <div class="anemia-bar-track">
+            <div class="anemia-bar-fill fill-r3" style="--w:{{ ((r3/total*100)|round(1)) if total > 0 else 0 }}%"></div>
+          </div>
+          <span class="anemia-row-count">{{ r3 }}</span>
+        </div>
+      </div>
+
+      <!-- IV Iron stat -->
+      <div class="anemia-iron-col">
+        <div class="card-icon-wrap icon-amber"><i class="material-icons">medication</i></div>
+        <div class="anemia-iron-count">{{ iron.count }}</div>
+        <div class="anemia-iron-label">IV Iron<br>Recommended</div>
+        {% if user.role in ['admin', 'doctor'] and iron.count > 0 %}
+        <a href="/analytics/patients?month={{ month_str }}&filter=iv_iron" class="anemia-view-btn" style="text-decoration:none;margin-top:4px;">View →</a>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- ── Clinical Markers ───────────────────────────── -->
+    <div class="grid-section-label"><span>Clinical Markers</span></div>
+
+    {% set m = data.metrics.idwg_high %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/patients?month={{ month_str }}&filter=idwg_high" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-orange"><i class="material-icons">monitor_weight</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">IDWG ≥ 2.5 kg</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    {% set m = data.metrics.albumin_low %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/patients?month={{ month_str }}&filter=albumin_low" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-amber"><i class="material-icons">science</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Albumin &lt; 2.5 g/dL</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    {% set m = data.metrics.hb_high %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/patients?month={{ month_str }}&filter=hb_high" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-red"><i class="material-icons">bloodtype</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">High Hb &gt; 13.0 g/dL</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    {% set m = data.metrics.calcium_low %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/patients?month={{ month_str }}&filter=calcium_low" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-orange"><i class="material-icons">healing</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Calcium &lt; 8.0 mg/dL</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    {% set m = data.metrics.phos_high %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/patients?month={{ month_str }}&filter=phos_high" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-orange"><i class="material-icons">biotech</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Phosphorus &gt; 5.5 mg/dL</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    {% set m = data.metrics.hb_variability_high %}
+    <div class="card{% if m.count > 0 %} highlight{% endif %}">
+      <div class="card-icon-wrap icon-amber"><i class="material-icons">show_chart</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">High Hb Variability (&gt;2.5 g/dL)</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    </div>
+
+    <!-- ── Operations ────────────────────────────────── -->
+    <div class="grid-section-label"><span>Operations</span></div>
+
+    {% set m = data.metrics.missing_records %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/entry?month={{ month_str }}" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-red"><i class="material-icons">assignment_late</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Missing Records</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    {% set m = data.metrics.adherence_risk %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/adherence?month={{ month_str }}" class="card wide-card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;overflow:hidden;">
+    {% else %}<div class="card wide-card{% if m.count > 0 %} highlight{% endif %}" style="overflow:hidden;">{% endif %}
+      <div class="wide-card-header">
+        <div class="card-icon-wrap icon-red"><i class="material-icons">person_off</i></div>
+        <span class="title">Adherence Monitor (USRDS)</span>
+        <span class="value">{{ m.count }}</span>
+      </div>
+      {% if m.names %}<ul class="visible-list">{% for n in m.names %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
   </div>
 
-  <!-- CHARTS -->
-  <div class="dashboard-grid">
+  <!-- DEMOGRAPHICS CHARTS -->
+  <div class="section-heading">
+    <div>
+      <h2>Patient Demographics</h2>
+      <p>Active patients this period — {{ data.month_label }}</p>
+    </div>
+  </div>
+  <div class="charts-2col">
     <div class="chart-container">
       <h3>Gender Distribution</h3>
       <div class="chart-content" id="genderChart"></div>
     </div>
     <div class="chart-container">
-      <h3>Count of Non-AVF Access Types</h3>
+      <h3>Vascular Access Profile</h3>
       <div class="chart-content" id="accessChart"></div>
     </div>
   </div>
 
   <!-- TREND CHARTS -->
-  <h2 class="trend-section-title" id="unit-trends">Patient-Level Clinical Trends</h2>
+  <div class="section-heading" id="unit-trends">
+    <div>
+      <h2>Patient-Level Clinical Trends</h2>
+      <p>Worst-first carousel for patients outside safe clinical thresholds</p>
+    </div>
+  </div>
   <div class="trend-charts-section">
     <div class="trend-chart-wrapper hb-bg">
       <h3>Hemoglobin Trendline</h3>
@@ -833,54 +348,72 @@
   </div>
 
   <!-- UNIT-WIDE TRENDS (PHASE 4) -->
-  <h2 class="trend-section-title">Unit-Wide Median Trends (Last 12 Months)</h2>
-  <div class="trend-charts-section" style="border-top: none; padding-top: 10px;">
-      <div class="chart-container" style="margin: 0;">
-              <h3>Median Hemoglobin</h3>
-              <div id="cohortHbChart" class="chart-content"></div>
-          </div>
-          <div class="chart-container" style="max-width: 100%; margin: 0;">
-              <h3>Median Albumin</h3>
-              <div id="cohortAlbChart" class="chart-content"></div>
-          </div>
-          <div class="chart-container" style="margin: 0;">
-              <h3>Median Phosphorus</h3>
-              <div id="cohortPhosChart" class="chart-content"></div>
-          </div>
+  <div class="section-heading">
+    <div>
+      <h2>Unit-Wide Median Trends</h2>
+      <p>Cohort median ± IQR across the last 12 months</p>
+    </div>
+  </div>
+  <div class="trend-charts-section" style="padding-top: 0;">
+    <div class="chart-container">
+      <h3>Median Hemoglobin</h3>
+      <div id="cohortHbChart" class="chart-content"></div>
+    </div>
+    <div class="chart-container">
+      <h3>Median Albumin</h3>
+      <div id="cohortAlbChart" class="chart-content"></div>
+    </div>
+    <div class="chart-container">
+      <h3>Median Phosphorus</h3>
+      <div id="cohortPhosChart" class="chart-content"></div>
+    </div>
   </div>
 
   <!-- DYNAMIC AT-RISK CAROUSEL -->
-  <div style="max-width: 1440px; margin: 40px auto; padding: 0 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-      <h2 class="trend-section-title" style="margin: 0;">Dynamic Patient Trends (At-Risk)</h2>
-      <div class="month-picker-wrap" style="background: #fff; padding: 8px 16px; border-radius: 12px; box-shadow: var(--shadow-sm); border: 1px solid #e2e8f0;">
-        <label style="font-weight: 700; color: var(--text-header); margin-right: 12px;">Parameter:</label>
-        <select id="atRiskParamSelector" onchange="loadAtRiskTrends()" style="border: none; outline: none; font-family: 'Inter', sans-serif; font-weight: 600; color: var(--primary); cursor: pointer;">
-          <option value="hb">Hemoglobin (< 10)</option>
-          <option value="albumin">Albumin (< 3.5)</option>
-          <option value="phosphorus">Phosphorus (> 5.5)</option>
-          <option value="calcium">Calcium (< 8.4 or > 10.2)</option>
-          <option value="serum_ferritin">Ferritin (< 200)</option>
-          <option value="tsat">TSAT (< 20%)</option>
-          <option value="single_pool_ktv">Kt/V (< 1.2)</option>
-          <option value="urr">URR (< 65%)</option>
-          <option value="ipth">iPTH (< 150 or > 600)</option>
-          <option value="serum_potassium">Potassium (< 3.5 or > 5.5)</option>
-          <option value="idwg">IDWG (> 2.5kg)</option>
-        </select>
-      </div>
+  <div class="section-heading">
+    <div>
+      <h2>Dynamic Patient Trends (At-Risk)</h2>
+      <p>Multi-month trendlines for patients outside clinical thresholds</p>
     </div>
-    
-    <div class="trend-chart-wrapper" style="border-top: 3px solid var(--primary);">
-      <h3 id="atRiskChartTitle">At-Risk Patient Trendline</h3>
-      <div id="atRiskTrendChart" class="trend-chart-content" style="height: 300px;"></div>
-      <div id="atRiskEmptyMsg" style="display: none; text-align: center; padding: 60px 0; color: #94a3b8; font-style: italic;">
-        No patients currently in the at-risk range for this parameter.
+  </div>
+  <div class="at-risk-panel">
+    <div class="at-risk-card">
+      <div class="at-risk-header">
+        <div class="at-risk-header-left">
+          <div class="at-risk-icon"><i class="material-icons">trending_down</i></div>
+          <div>
+            <p class="at-risk-title" id="atRiskChartTitle">Hemoglobin Trends (At-Risk)</p>
+            <p class="at-risk-subtitle">Patients below threshold — last 6 months</p>
+          </div>
+        </div>
+        <div class="at-risk-param-selector">
+          <label>Parameter:</label>
+          <select id="atRiskParamSelector" onchange="loadAtRiskTrends()">
+            <option value="hb">Hemoglobin (&lt; 10)</option>
+            <option value="albumin">Albumin (&lt; 3.5)</option>
+            <option value="phosphorus">Phosphorus (&gt; 5.5)</option>
+            <option value="calcium">Calcium (&lt; 8.4 or &gt; 10.2)</option>
+            <option value="serum_ferritin">Ferritin (&lt; 200)</option>
+            <option value="tsat">TSAT (&lt; 20%)</option>
+            <option value="single_pool_ktv">Kt/V (&lt; 1.2)</option>
+            <option value="urr">URR (&lt; 65%)</option>
+            <option value="ipth">iPTH (&lt; 150 or &gt; 600)</option>
+            <option value="serum_potassium">Potassium (&lt; 3.5 or &gt; 5.5)</option>
+            <option value="idwg">IDWG (&gt; 2.5kg)</option>
+          </select>
+        </div>
       </div>
-      <div class="patient-nav" id="atRiskNav" style="display: none;">
-        <button onclick="navigateAtRiskPatient(-1)" id="atRiskPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
-        <a id="atRiskPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
-        <button onclick="navigateAtRiskPatient(1)" id="atRiskNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+      <div class="at-risk-body">
+        <div id="atRiskTrendChart" class="trend-chart-content" style="height: 280px;"></div>
+        <div id="atRiskEmptyMsg" style="display: none;" class="at-risk-empty">
+          <i class="material-icons">check_circle_outline</i>
+          <p>No patients currently outside threshold for this parameter.</p>
+        </div>
+        <div class="patient-nav" id="atRiskNav" style="display: none;">
+          <button onclick="navigateAtRiskPatient(-1)" id="atRiskPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
+          <a id="atRiskPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
+          <button onclick="navigateAtRiskPatient(1)" id="atRiskNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+        </div>
       </div>
     </div>
   </div>
@@ -893,6 +426,33 @@
 const PREV_MONTH = "{{ data.prev_month_label or 'Prev' }}";
 const CURR_MONTH = "{{ data.month_label }}";
 const MONTH_STR  = "{{ month_str }}";
+
+// ── PREMIUM CARD ENTRANCE: stagger + count-up ──
+(function() {
+  // Assign stagger index to each card so CSS can delay them
+  document.querySelectorAll('.dashboard-grid .card').forEach((el, i) => {
+    el.style.setProperty('--stagger-i', i);
+  });
+
+  // Count-up animation for all metric values
+  function animateCounters() {
+    document.querySelectorAll('.dashboard-grid .card .value').forEach(el => {
+      const raw = parseInt(el.textContent.trim(), 10);
+      if (isNaN(raw) || raw === 0) return;
+      const duration = Math.min(900, 300 + raw * 18);
+      const easeOut = t => 1 - Math.pow(1 - t, 3);
+      const t0 = performance.now();
+      el.textContent = '0';
+      (function tick(now) {
+        const p = Math.min((now - t0) / duration, 1);
+        el.textContent = Math.round(easeOut(p) * raw);
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = raw;
+      })(t0);
+    });
+  }
+  requestAnimationFrame(animateCounters);
+})();
 
 // ── TREND DATA (from server, sorted worst-first) ──
 const rawHb   = {{ data.metrics.trend_hb   | tojson }};
@@ -915,14 +475,15 @@ Plotly.newPlot("genderChart", [{
   type:"pie",
   values:[{{ data.metrics.male_patients.count }}, {{ data.metrics.female_patients.count }}],
   labels:["Male","Female"],
-  marker:{ colors:["#4285F4","#EA4335"] },
-  hole:0.4,
+  marker:{ colors:["#0ea5e9","#ec4899"], line:{ color:"#fff", width:2 } },
+  hole:0.42,
   textinfo:"percent+label",
-  hovertemplate:"<b>%{label}</b><br>%{value} patients<extra></extra>",
+  textfont:{ size:12 },
+  hovertemplate:"<b>%{label}</b><br>%{value} patients (%{percent})<extra></extra>",
 }],{
-  margin:{t:20,b:60,l:20,r:20},
+  margin:{t:10,b:40,l:10,r:10},
   paper_bgcolor:"transparent", plot_bgcolor:"transparent",
-  legend:{ orientation:"h", x:0.2, y:-0.12 },
+  legend:{ orientation:"h", x:0.5, xanchor:"center", y:-0.1 },
   font: FONT,
 },{ displayModeBar:false, responsive:true });
 
@@ -932,29 +493,81 @@ const aNames  = Object.keys(accessTypes);
 const aCounts = aNames.map(k => accessTypes[k].count);
 const aHover  = aNames.map(k => accessTypes[k].names.join("<br>"));
 if (aNames.length > 0) {
+  const accessColors = aCounts.map((_,i) => {
+    const palette = ["#dc2626","#ea580c","#d97706","#0284c7","#7c3aed"];
+    return palette[i % palette.length];
+  });
   Plotly.newPlot("accessChart",[{
     type:"bar", x:aCounts, y:aNames, orientation:"h",
-    marker:{ color:"#4285F4" },
-    text:aCounts, textposition:"auto",
+    marker:{ color:accessColors, opacity:0.85 },
+    text:aCounts, textposition:"outside",
+    textfont:{ size:12, color:"#0f172a" },
     hovertemplate:"<b>%{y}</b><br>%{x} patients<br>%{customdata}<extra></extra>",
     customdata:aHover,
   }],{
-    margin:{t:20,b:50,l:90,r:20},
+    margin:{t:10,b:40,l:100,r:40},
     paper_bgcolor:"transparent", plot_bgcolor:"transparent",
-    xaxis:{ title:"Number of Patients", gridcolor:"#eee" },
-    yaxis:{ automargin:true },
+    xaxis:{ title:"", gridcolor:"rgba(0,0,0,0.05)", zeroline:false },
+    yaxis:{ automargin:true, tickfont:{ size:12 } },
     font: FONT,
   },{ displayModeBar:false, responsive:true });
 } else {
   document.getElementById("accessChart").innerHTML =
-    '<p style="color:#777;text-align:center;padding:90px 0">All patients on AVF</p>';
+    '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:8px;color:#94a3b8"><span class="material-icons" style="font-size:2rem;color:#cbd5e1;">check_circle</span><p style="margin:0;font-size:0.85rem;">All patients on AVF</p></div>';
 }
+
+// ── ANEMIA DONUT CHART ──
+(function() {
+  const r1 = {{ data.metrics.epo_hypo.count }};
+  const total = {{ data.metrics.total_patients.count }};
+  const normal = Math.max(0, total - r1);
+  if (document.getElementById('anemiaDonutChart')) {
+    Plotly.newPlot('anemiaDonutChart', [{
+      type: 'pie',
+      values: [r1, normal],
+      labels: ['ESA Resistant', 'No hyporesponse'],
+      marker: {
+        colors: ['#f97316', '#e2e8f0'],
+        line: { color: '#fff', width: 3 }
+      },
+      hole: 0.66,
+      textinfo: 'none',
+      sort: false,
+      hovertemplate: '<b>%{label}</b><br>%{value} patients (%{percent})<extra></extra>',
+    }], {
+      margin: { t: 0, b: 0, l: 0, r: 0 },
+      paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+      showlegend: false,
+      annotations: [{
+        text: r1 + '<br>resist.',
+        showarrow: false,
+        font: { family: "'Outfit',sans-serif", size: 14, color: '#0f172a' },
+        x: 0.5, y: 0.5, xanchor: 'center', yanchor: 'middle',
+      }],
+    }, { displayModeBar: false, responsive: true });
+  }
+})();
 
 // ── TREND LINE CAROUSELS ──
 const trendCfg = {
-  hb:   { div:"hbTrendChart",   nameEl:"hbPatientName",   prevBtn:"hbPrevBtn",   nextBtn:"hbNextBtn",   color:"#EA4335", yTitle:"Hb (mg/dL)",        yMin:5,  yMax:15 },
-  alb:  { div:"albTrendChart",  nameEl:"albPatientName",  prevBtn:"albPrevBtn",  nextBtn:"albNextBtn",  color:"#4285F4", yTitle:"Albumin (g/dL)",     yMin:0,  yMax:5  },
-  phos: { div:"phosTrendChart", nameEl:"phosPatientName", prevBtn:"phosPrevBtn", nextBtn:"phosNextBtn", color:"#34A853", yTitle:"Phosphorus (mg/dL)", yMin:3,  yMax:8  },
+  hb:   { div:"hbTrendChart",   nameEl:"hbPatientName",   prevBtn:"hbPrevBtn",   nextBtn:"hbNextBtn",   color:"#dc2626", fill:"rgba(220,38,38,0.10)",   yTitle:"Hb (g/dL)",          yMin:5,  yMax:15, threshold:10   },
+  alb:  { div:"albTrendChart",  nameEl:"albPatientName",  prevBtn:"albPrevBtn",  nextBtn:"albNextBtn",  color:"#2563eb", fill:"rgba(37,99,235,0.10)",    yTitle:"Albumin (g/dL)",     yMin:0,  yMax:5,  threshold:3.5  },
+  phos: { div:"phosTrendChart", nameEl:"phosPatientName", prevBtn:"phosPrevBtn", nextBtn:"phosNextBtn", color:"#16a34a", fill:"rgba(22,163,74,0.10)",    yTitle:"Phosphorus (mg/dL)", yMin:3,  yMax:8,  threshold:5.5  },
+};
+
+// Per-parameter palette for At-Risk chart (Plotly cannot resolve CSS vars)
+const AT_RISK_CFG = {
+  hb:              { color:"#dc2626", fill:"rgba(220,38,38,0.10)",   threshold:10   },
+  albumin:         { color:"#2563eb", fill:"rgba(37,99,235,0.10)",   threshold:3.5  },
+  phosphorus:      { color:"#16a34a", fill:"rgba(22,163,74,0.10)",   threshold:5.5  },
+  calcium:         { color:"#9333ea", fill:"rgba(147,51,234,0.10)",  threshold:null },
+  serum_ferritin:  { color:"#ea580c", fill:"rgba(234,88,12,0.10)",   threshold:200  },
+  tsat:            { color:"#0891b2", fill:"rgba(8,145,178,0.10)",   threshold:20   },
+  single_pool_ktv: { color:"#4f46e5", fill:"rgba(79,70,229,0.10)",  threshold:1.2  },
+  urr:             { color:"#0d9488", fill:"rgba(13,148,136,0.10)",  threshold:65   },
+  ipth:            { color:"#b45309", fill:"rgba(180,83,9,0.10)",    threshold:null },
+  serum_potassium: { color:"#be185d", fill:"rgba(190,24,93,0.10)",   threshold:null },
+  idwg:            { color:"#7c3aed", fill:"rgba(124,58,237,0.10)",  threshold:2.5  },
 };
 
 function renderTrend(key) {
@@ -964,7 +577,7 @@ function renderTrend(key) {
   const el  = document.getElementById(cfg.div);
 
   if (!arr || arr.length === 0) {
-    el.innerHTML = '<p style="color:#777;text-align:center;padding:60px 0 0">No patients meeting criteria</p>';
+    el.innerHTML = '<div class="chart-empty-state"><span class="material-icons">check_circle_outline</span><p>No patients meeting criteria</p></div>';
     const nameEl = document.getElementById(cfg.nameEl);
     nameEl.textContent = "N/A";
     nameEl.href = "#";
@@ -982,20 +595,27 @@ function renderTrend(key) {
   document.getElementById(cfg.prevBtn).disabled = (idx === 0);
   document.getElementById(cfg.nextBtn).disabled = (idx === arr.length - 1);
 
+  const shapes = cfg.threshold !== null ? [{
+    type:'line', xref:'paper', yref:'y',
+    x0:0, x1:1, y0:cfg.threshold, y1:cfg.threshold,
+    line:{ color:cfg.color, width:1.5, dash:'dot' }, opacity:0.4
+  }] : [];
+
   Plotly.newPlot(cfg.div, [{
     type:"scatter",
     x:[PREV_MONTH, CURR_MONTH],
     y:[d.previous, d.current],
     mode:"lines+markers",
-    line:{ color:cfg.color, width:2.5 },
-    marker:{ color:cfg.color, size:9 },
+    fill:"tozeroy", fillcolor:cfg.fill,
+    line:{ color:cfg.color, width:2.5, shape:"spline" },
+    marker:{ color:"#fff", size:9, line:{ color:cfg.color, width:2.5 } },
     hovertemplate:"%{x}: <b>%{y}</b><extra></extra>",
   }],{
     margin:{t:10,b:40,l:55,r:10},
     paper_bgcolor:"transparent", plot_bgcolor:"transparent",
-    yaxis:{ title:{ text:cfg.yTitle, font:{size:11} }, range:[cfg.yMin,cfg.yMax], gridcolor:"rgba(0,0,0,0.08)" },
-    xaxis:{ gridcolor:"rgba(0,0,0,0.05)" },
-    showlegend:false, font: FONT,
+    yaxis:{ title:{ text:cfg.yTitle, font:{size:11} }, range:[cfg.yMin,cfg.yMax], gridcolor:"rgba(0,0,0,0.08)", zeroline:false },
+    xaxis:{ gridcolor:"rgba(0,0,0,0.05)", zeroline:false },
+    showlegend:false, font:FONT, shapes:shapes,
   },{ displayModeBar:false, responsive:true });
 }
 
@@ -1009,71 +629,65 @@ renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
 
 
 
-// ── COHORT TRENDS (PHASE 4) ──
-function loadCohortTrends() {
-    console.log("Fetching cohort trends from /analytics/api/cohort-trends...");
-    fetch('/analytics/api/cohort-trends')
-    .then(r => {
-        if (!r.ok) {
-            console.error("Cohort trends fetch failed:", r.status, r.statusText);
-            throw new Error(`HTTP error! status: ${r.status}`);
-        }
-        return r.json();
-    })
-    .then(data => {
-        console.log("Cohort trends data received:", data);
-        if (!data.available) {
-            console.warn("Cohort trends data not available.");
-            return;
-        }
-        const renderCohort = (divId, statKey, color) => {
-            const months = data.months;
-            if (!data[statKey]) {
-                console.warn(`Stat key ${statKey} missing in cohort data.`);
-                return;
-            }
-            const medians = data[statKey].map(s => s.median);
-            const p25 = data[statKey].map(s => s.p25);
-            const p75 = data[statKey].map(s => s.p75);
+// ── COHORT TRENDS — inline server data, no fetch ──
+(function() {
+  const COHORT = {{ cohort_data | tojson }};
 
-            const traceMedian = {
-                x: months, y: medians,
-                name: 'Median', type: 'scatter', mode: 'lines+markers',
-                line: { color: color, width: 3 },
-                hovertemplate: "Month: %{x}<br>Median: <b>%{y}</b><extra></extra>"
-            };
+  const renderCohort = (divId, statKey, lineColor, fillColor) => {
+    const el = document.getElementById(divId);
+    if (!el) return;
 
-            const traceIQR = {
-                x: months.concat(months.slice().reverse()),
-                y: p75.concat(p25.slice().reverse()),
-                fill: 'toself',
-                fillcolor: color.replace(')', ', 0.15)').replace('rgb', 'rgba'),
-                line: { color: 'transparent' },
-                name: '25-75th Percentile',
-                showlegend: false,
-                type: 'scatter',
-                hoverinfo: 'skip'
-            };
+    if (!COHORT.available) {
+      el.innerHTML = '<div class="chart-empty-state"><span class="material-icons">show_chart</span><p>Insufficient historical data<br><small>Needs ≥ 2 months of records</small></p></div>';
+      return;
+    }
 
-            Plotly.newPlot(divId, [traceIQR, traceMedian], {
-                margin: { t: 10, b: 40, l: 40, r: 10 },
-                xaxis: { tickangle: -45, gridcolor: "rgba(0,0,0,0.05)" },
-                yaxis: { gridcolor: "rgba(0,0,0,0.05)" },
-                showlegend: false,
-                paper_bgcolor: "transparent", plot_bgcolor: "transparent",
-                font: FONT
-            }, { displayModeBar: false, responsive: true });
-        };
+    const statsArr = COHORT[statKey] || [];
+    const months   = COHORT.months || [];
+    const medians  = statsArr.map(s => s.median);
+    const p25      = statsArr.map(s => s.p25);
+    const p75      = statsArr.map(s => s.p75);
+    const hasAnyMedian = medians.some(v => v !== null);
+    const hasIQR       = p25.some(v => v !== null) && p75.some(v => v !== null);
 
-        renderCohort('cohortHbChart', 'hb', 'rgb(198, 40, 40)');
-        renderCohort('cohortAlbChart', 'albumin', 'rgb(26, 115, 232)');
-        renderCohort('cohortPhosChart', 'phosphorus', 'rgb(46, 125, 50)');
-    })
-    .catch(err => {
-        console.error("Error in loadCohortTrends:", err);
+    if (!hasAnyMedian) {
+      el.innerHTML = '<div class="chart-empty-state"><span class="material-icons">show_chart</span><p>No recorded values yet</p></div>';
+      return;
+    }
+
+    const traces = [];
+    if (hasIQR) {
+      traces.push({
+        x: months.concat(months.slice().reverse()),
+        y: p75.concat(p25.slice().reverse()),
+        fill: 'toself', fillcolor: fillColor,
+        line: { color: 'transparent' },
+        name: 'IQR (25–75th)', showlegend: false,
+        type: 'scatter', hoverinfo: 'skip',
+      });
+    }
+    traces.push({
+      x: months, y: medians,
+      name: 'Median', type: 'scatter', mode: 'lines+markers',
+      line: { color: lineColor, width: 2.5, shape: 'spline', smoothing: 0.5 },
+      marker: { color: '#fff', size: 7, line: { color: lineColor, width: 2 } },
+      hovertemplate: '<b>%{x}</b><br>Median: <b>%{y}</b><extra></extra>',
     });
-}
-loadCohortTrends();
+
+    Plotly.newPlot(divId, traces, {
+      margin: { t: 10, b: 44, l: 42, r: 10 },
+      xaxis: { tickangle: -30, gridcolor: 'rgba(0,0,0,0.05)', tickfont: { size: 10 }, zeroline: false },
+      yaxis: { gridcolor: 'rgba(0,0,0,0.05)', zeroline: false, tickfont: { size: 11 } },
+      showlegend: false,
+      paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+      font: FONT,
+    }, { displayModeBar: false, responsive: true });
+  };
+
+  renderCohort('cohortHbChart',   'hb',         '#dc2626', 'rgba(220,38,38,0.09)');
+  renderCohort('cohortAlbChart',  'albumin',    '#2563eb', 'rgba(37,99,235,0.09)');
+  renderCohort('cohortPhosChart', 'phosphorus', '#16a34a', 'rgba(22,163,74,0.09)');
+})();
 
 // ── DYNAMIC AT-RISK TRENDS ──
 let atRiskData = { months: [], patients: [], parameter: "" };
@@ -1086,7 +700,17 @@ async function loadAtRiskTrends() {
   const navDiv = document.getElementById("atRiskNav");
   const titleEl = document.getElementById("atRiskChartTitle");
 
-  titleEl.textContent = `At-Risk ${param.toUpperCase()} Trendline`;
+  const AT_RISK_LABELS = {
+    hb:'Hemoglobin', albumin:'Albumin', phosphorus:'Phosphorus', calcium:'Calcium',
+    serum_ferritin:'Ferritin', tsat:'TSAT', single_pool_ktv:'Kt/V', urr:'URR',
+    ipth:'iPTH', serum_potassium:'Potassium', idwg:'IDWG',
+  };
+  titleEl.textContent = `${AT_RISK_LABELS[param] || param} — At-Risk Trendlines`;
+
+  // Tint the icon to the parameter's color
+  const iconEl = document.querySelector(".at-risk-icon");
+  const clr = AT_RISK_CFG[param] || { color: '#6366f1' };
+  if (iconEl) iconEl.style.color = clr.color;
 
   try {
     const res = await fetch(`/analytics/api/at-risk-trends?parameter=${param}&month=${MONTH_STR}`);
@@ -1114,35 +738,56 @@ async function loadAtRiskTrends() {
 }
 
 function renderAtRiskTrend() {
-  const d = atRiskData.patients[atRiskIdx];
+  const d      = atRiskData.patients[atRiskIdx];
   const months = atRiskData.months;
-  const param = atRiskData.parameter;
-  
+  const param  = atRiskData.parameter;
+  const clr    = AT_RISK_CFG[param] || { color: '#6366f1', fill: 'rgba(99,102,241,0.10)', threshold: null };
+
   const nameEl = document.getElementById("atRiskPatientName");
   nameEl.innerText = `${d.name} (${atRiskIdx+1}/${atRiskData.patients.length})`;
   nameEl.href = d.id ? `/patients/${d.id}/profile` : '#';
   nameEl.title = "View patient profile";
   nameEl.style.textDecoration = d.id ? 'underline' : 'none';
-  
+
   document.getElementById("atRiskPrevBtn").disabled = (atRiskIdx === 0);
   document.getElementById("atRiskNextBtn").disabled = (atRiskIdx === atRiskData.patients.length - 1);
 
-  Plotly.newPlot("atRiskTrendChart", [{
+  const traces = [{
     type: "scatter",
     x: months,
     y: d.trend,
     mode: "lines+markers",
-    line: { color: "var(--primary)", width: 3 },
-    marker: { color: "var(--primary)", size: 10 },
-    hovertemplate: "%{x}: <b>%{y}</b><extra></extra>",
-    connectgaps: true
-  }], {
-    margin: { t: 10, b: 40, l: 55, r: 10 },
+    fill: "tozeroy", fillcolor: clr.fill,
+    line: { color: clr.color, width: 2.5, shape: "spline", smoothing: 0.6 },
+    marker: { color: "#fff", size: 9, line: { color: clr.color, width: 2.5 } },
+    hovertemplate: "<b>%{x}</b><br>Value: <b>%{y}</b><extra></extra>",
+    connectgaps: true,
+  }];
+
+  const shapes = clr.threshold !== null ? [{
+    type: 'line', xref: 'paper', yref: 'y',
+    x0: 0, x1: 1, y0: clr.threshold, y1: clr.threshold,
+    line: { color: clr.color, width: 1.5, dash: 'dot' }, opacity: 0.45,
+  }] : [];
+
+  const layout = {
+    margin: { t: 16, b: 44, l: 55, r: 16 },
     paper_bgcolor: "transparent", plot_bgcolor: "transparent",
-    yaxis: { title: { text: param.toUpperCase(), font: { size: 11 } }, gridcolor: "rgba(0,0,0,0.08)" },
-    xaxis: { gridcolor: "rgba(0,0,0,0.05)" },
-    showlegend: false, font: FONT,
-  }, { displayModeBar: false, responsive: true });
+    yaxis: {
+      title: { text: param.replace(/_/g,' '), font: { size: 10, color: '#64748b' } },
+      gridcolor: "rgba(0,0,0,0.07)", zeroline: false, tickfont: { size: 11 },
+    },
+    xaxis: { gridcolor: "rgba(0,0,0,0.04)", tickangle: -30, tickfont: { size: 10 }, zeroline: false },
+    showlegend: false, font: FONT, shapes,
+  };
+
+  const chartEl = document.getElementById("atRiskTrendChart");
+  if (chartEl && chartEl._hasPlot) {
+    Plotly.react("atRiskTrendChart", traces, layout);
+  } else {
+    Plotly.newPlot("atRiskTrendChart", traces, layout, { displayModeBar: false, responsive: true });
+    if (chartEl) chartEl._hasPlot = true;
+  }
 }
 
 function navigateAtRiskPatient(dir) {

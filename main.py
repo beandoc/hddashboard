@@ -261,6 +261,13 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
         from ml_analytics import get_high_risk_mortality_count
         high_risk_count = get_high_risk_mortality_count(db)
 
+    try:
+        from ml_analytics import run_cohort_analytics
+        cohort_data = run_cohort_analytics(db)
+    except Exception as _ce:
+        logging.warning(f"Cohort analytics failed: {_ce}")
+        cohort_data = {"available": False}
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "data": data,
@@ -271,6 +278,7 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
         "greeting": greeting,
         "pending_entry_count": pending_entry_count,
         "high_risk_count": high_risk_count,
+        "cohort_data": cohort_data,
     })
 
 # Root health check

@@ -20,10 +20,10 @@
 /* ═══════════════════════════ DESIGN TOKENS ════════════════════════════════ */
 
 :root {
-  /* Brand */
-  --primary:        #7c3aed;
-  --primary-light:  rgba(124, 58, 237, 0.12);
-  --primary-hover:  #6d28d9;
+  /* Brand — cyan as primary action color; purple reserved for admin-role UI */
+  --primary:        #0ea5e9;
+  --primary-light:  rgba(14, 165, 233, 0.12);
+  --primary-hover:  #0284c7;
 
   /* Surfaces */
   --bg:             #f8fafc;
