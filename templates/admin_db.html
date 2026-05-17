@@ -39,6 +39,18 @@
         .info-list li .material-icons { font-size: 16px; margin-top: 2px; color: var(--primary); }
 
         .action-area { margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 24px; display: flex; justify-content: flex-end; }
+
+        @media (max-width: 768px) {
+          header, .page-header { padding: 16px !important; }
+          .container { padding: 0 16px 40px; }
+          .card { padding: 18px 16px; }
+        }
+        @media (max-width: 640px) {
+          .action-area { justify-content: stretch; }
+          .action-area .btn { width: 100%; justify-content: center; }
+          .btn { width: 100%; justify-content: center; }
+          table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

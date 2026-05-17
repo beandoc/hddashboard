@@ -106,6 +106,19 @@
 
         /* Standardization */
         .btn-action { min-height: 44px; }
+
+    @media (max-width: 768px) {
+      .analytics-header { padding: 16px; }
+      .analytics-header h1 { font-size: 1.1rem; }
+      .container { padding: 24px 16px; }
+      .grid { grid-template-columns: 1fr !important; gap: 20px; }
+      .insight-card { padding: 20px; }
+      .risk-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+    @media (max-width: 640px) {
+      .risk-table td, .risk-table th { padding: 10px 14px; }
+      .section-title { font-size: 1.1rem; }
+    }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

@@ -173,6 +173,21 @@
       .sev-bar { gap: 8px; }
       .sev-chip { min-width: 80px; }
     }
+    @media (max-width: 768px) {
+      .page-header { padding: 16px; }
+      .page-header h1 { font-size: 1.1rem; }
+      .filters { flex-direction: column; gap: 10px; }
+      .filters .fg { width: 100%; }
+      .filters input, .filters select { min-width: 0; width: 100%; min-height: 44px; }
+      .btn { min-height: 44px; width: 100%; }
+      .quick-ranges { width: 100%; }
+      .sev-bar { gap: 8px; }
+      .sev-chip { flex: 1 1 calc(50% - 4px); min-width: 0; }
+    }
+    @media (max-width: 640px) {
+      .sev-chip .count { font-size: 1.3rem; }
+      .log-panel { padding: 16px; }
+    }
   </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

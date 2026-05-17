@@ -42,6 +42,21 @@
             .container { margin-top: 0; }
             .med-card { box-shadow: none; border: 1px solid #000; }
         }
+        @media (max-width: 768px) {
+            header, .page-header { padding: 16px !important; }
+            .header-content { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .header-content h1 { font-size: 1.4rem; }
+            .container { padding: 0 16px 40px; }
+            .med-card { padding: 20px; }
+        }
+        @media (max-width: 640px) {
+            .med-table, table { overflow-x: auto; display: block; -webkit-overflow-scrolling: touch; }
+            .med-table th, .med-table td, table th, table td { white-space: nowrap; }
+            .form-row, .form-grid { grid-template-columns: 1fr !important; }
+            .filter-bar, .filter-strip { flex-direction: column; align-items: stretch; gap: 10px; }
+            .med-item { grid-template-columns: 1fr; gap: 8px; }
+            .med-name { font-size: 1rem; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

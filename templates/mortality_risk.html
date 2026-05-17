@@ -161,6 +161,21 @@
       .prob-bar-wrap { width: 100%; justify-content: flex-end; }
       .btn-analyze { width: 100%; justify-content: center; margin-top: 10px; }
     }
+
+  @media (max-width: 768px) {
+    .page-header { padding: 16px; }
+    .header-inner h1 { font-size: 1.1rem; }
+    .risk-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .container { padding: 0 16px 40px; }
+    .section-head { margin: 20px 0 10px; }
+  }
+  @media (max-width: 640px) {
+    .header-chips { gap: 6px; }
+    .chip { padding: 6px 10px; font-size: 0.78rem; }
+    thead th { padding: 10px 12px; font-size: 0.7rem; }
+    td { padding: 10px 12px; }
+    .prob-bar-wrap { min-width: 100px; }
+  }
   </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

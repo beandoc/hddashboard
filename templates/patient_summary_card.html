@@ -27,6 +27,24 @@
         .med-table td { padding: 5px; border-bottom: 1px solid #eee; }
         
         .alert-box { background: #fff0f0; border: 1px solid #ffcccc; padding: 10px; border-radius: 4px; margin-top: 10px; font-weight: bold; color: #cc0000; }
+
+        @media (max-width: 768px) {
+            body { padding: 12px; font-size: 11px; }
+            .header { flex-direction: column; gap: 10px; }
+            .header > div:last-child { text-align: left !important; }
+            .grid { grid-template-columns: 1fr; gap: 16px; }
+            .no-print { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .no-print button { width: 100%; }
+        }
+        @media (max-width: 480px) {
+            body { padding: 8px; }
+            .header h1 { font-size: 16px; }
+            .section { padding: 10px; }
+            .med-table { overflow-x: auto; display: block; -webkit-overflow-scrolling: touch; }
+            .med-table th, .med-table td { white-space: nowrap; }
+            .data-row { flex-direction: column; gap: 2px; }
+            .data-val { font-size: 0.95em; }
+        }
     </style>
 </head>
 <body>

@@ -75,6 +75,19 @@
         .criteria-icon { color: var(--primary); margin-top: 2px; }
         .criteria-text h4 { margin: 0; font-size: 0.9rem; font-family: 'Outfit', sans-serif; }
         .criteria-text p { margin: 4px 0 0; font-size: 0.78rem; color: #64748b; line-height: 1.4; }
+
+    @media (max-width: 768px) {
+      .report-header { padding: 24px 16px; }
+      .report-header h1 { font-size: 1.5rem; }
+      .adherence-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .container { padding: 0 16px 40px; margin-top: -20px; }
+      .criteria-grid { padding: 16px; gap: 12px; }
+    }
+    @media (max-width: 640px) {
+      .stat-summary { grid-template-columns: repeat(2, 1fr) !important; }
+      .adherence-table th, .adherence-table td { padding: 12px 14px; }
+      .flag-pill { font-size: 0.68rem; padding: 3px 8px; }
+    }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

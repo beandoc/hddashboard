@@ -179,6 +179,16 @@
             .config-panel, .results-panel { padding: 20px; }
             .config-grid { grid-template-columns: 1fr 1fr; }
         }
+        @media (max-width: 480px) {
+            header h1 { font-size: 1.2rem; gap: 8px; }
+            header p { margin-left: 0 !important; }
+            .config-grid { grid-template-columns: 1fr; }
+            .test-tabs { gap: 6px; }
+            .test-tab { padding: 7px 12px; font-size: 0.8rem; }
+            .corr-grid { grid-template-columns: 1fr 1fr; }
+            .results-layout { gap: 16px; }
+            .config-panel, .results-panel { padding: 16px; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

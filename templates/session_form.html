@@ -113,6 +113,13 @@
       transition: background 0.15s;
     }
     .btn-save:hover { background: #0284c7; }
+    @media (max-width: 640px) {
+      .container { padding: 16px 16px 60px; }
+      .page-header { padding: 16px; flex-wrap: wrap; }
+      header { padding: 16px; }
+      .grid, .grid-2 { grid-template-columns: 1fr !important; }
+      .btn-save { min-height: 48px; }
+    }
   </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

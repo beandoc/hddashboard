@@ -53,6 +53,18 @@
             padding: 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 24px;
             display: flex; align-items: center; gap: 12px;
         }
+
+        @media (max-width: 768px) {
+          header { padding: 16px !important; flex-direction: column; align-items: flex-start; gap: 6px; }
+          .container { padding: 20px 16px 60px; }
+          .performance-card { padding: 20px 16px; }
+          .metric-grid { gap: 16px; margin-top: 20px; }
+        }
+        @media (max-width: 640px) {
+          .metric-grid { grid-template-columns: 1fr !important; }
+          .metric-value { font-size: 1.7rem; }
+          table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

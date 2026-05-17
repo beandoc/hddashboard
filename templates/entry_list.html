@@ -61,6 +61,18 @@
         .btn-primary:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
 
         .empty-state { padding: 60px; text-align: center; color: var(--text-muted); display: none; }
+        @media (max-width: 768px) {
+          .container { padding: 0 16px 40px; margin-top: 16px; }
+          .filter-strip { flex-direction: column; align-items: stretch; gap: 10px; }
+          .search-wrap { width: 100%; }
+          .filter-strip select { width: 100%; min-height: 44px; }
+          .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
+        @media (max-width: 640px) {
+          th, td { padding: 10px 14px; }
+          .completion-widget { padding: 14px 16px; }
+          .progress-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

@@ -90,6 +90,19 @@
             display: flex; gap: 12px; align-items: center; border: 1px solid #e2e8f0;
         }
         .pattern-key strong { color: var(--primary); font-size: 1rem; }
+
+    @media (max-width: 768px) {
+      .report-header { padding: 24px 16px; }
+      .report-header h1 { font-size: 1.5rem; }
+      .container { padding: 0 16px 40px; margin-top: -20px; }
+      .summary-stats { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    @media (max-width: 640px) {
+      .report-header h1 { font-size: 1.3rem; }
+      .report-table { overflow-x: auto; display: block; -webkit-overflow-scrolling: touch; }
+      .report-table th, .report-table td { padding: 10px 14px; white-space: nowrap; }
+      .variability-section { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

@@ -197,6 +197,20 @@
         .nav-breadcrumb a { color: white; text-decoration: none; font-weight: 500; }
         .nav-breadcrumb .bc-current { color: #a5b4fc; font-weight: 600; }
         .bc-sep { opacity: 0.4; }
+
+        @media (max-width: 768px) {
+          header { padding: 32px 16px 80px !important; }
+          header h1 { font-size: 1.7rem; }
+          .container { padding: 0 16px; }
+          .card { padding: 20px 16px; }
+          .nav-breadcrumb { padding: 12px 16px; }
+        }
+        @media (max-width: 640px) {
+          header h1 { font-size: 1.4rem; }
+          .stats-row { grid-template-columns: 1fr !important; }
+          .watchlist-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .card h3 { font-size: 1.1rem; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>

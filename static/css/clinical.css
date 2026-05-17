@@ -451,6 +451,82 @@ input, select, textarea { min-height: 40px; }
   .hero-btn               { flex: 1; justify-content: center; min-height: 44px; font-size: 0.85rem; }
 }
 
+/* ══════════════════ GLOBAL MOBILE UTILITIES (all pages) ════════════════════
+   These target class names used consistently across templates.
+   Only safe/additive properties — no layout-breaking overrides.              */
+
+/* Horizontal scroll on table wrapper containers */
+.review-table-card,
+.adherence-table-wrap,
+.risk-table-wrap,
+.log-table-wrap,
+.report-table-wrap,
+.hb-table-wrap,
+.census-table-wrap,
+.access-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  /* Fluid two-column grids → single column */
+  .fluid-grid { grid-template-columns: 1fr !important; }
+
+  /* Schedule slot items wrap gracefully */
+  .patient-item { flex-wrap: wrap; gap: 10px; }
+
+  /* Severity summary bar — chips wrap */
+  .sev-bar { gap: 8px; }
+  .sev-chip { min-width: 0; flex: 1 1 calc(50% - 8px); }
+}
+
+@media (max-width: 640px) {
+  /* Container padding for pages that don't set it in their own style block */
+  .container { padding-left: 16px; padding-right: 16px; }
+
+  /* Generic page-/analytics-/report-style headers */
+  .page-header   { padding: 16px !important; }
+  .analytics-header { padding: 16px !important; }
+  .report-header { padding: 24px 16px !important; }
+  .report-header h1 { font-size: 1.5rem !important; }
+
+  /* Login card */
+  .login-card { padding: 28px 20px !important; margin: 0 14px !important; }
+
+  /* Chip rows in headers */
+  .header-chips { flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 6px 12px; font-size: 0.78rem; }
+
+  /* Summary stat grids — force 2 columns so cards stay readable */
+  .stat-summary,
+  .summary-stats { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Form rows in calculators / forms — stack vertically */
+  .form-row { grid-template-columns: 1fr !important; }
+
+  /* Filter strips used in list pages */
+  .filter-strip { flex-direction: column !important; align-items: stretch !important; }
+  .filter-strip .btn-action,
+  .filter-strip .btn-add  { width: 100%; justify-content: center; }
+
+  /* Tabs (e.g. alerts page) */
+  .tabs { flex-wrap: wrap; }
+  .tab  { min-width: 0; flex: 1 1 auto; font-size: 0.85rem; padding: 10px 8px; }
+
+  /* Research / admin generic 2-col grids */
+  .two-col-grid { grid-template-columns: 1fr !important; }
+
+  /* Generic action bars */
+  .action-bar-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+  .action-bar-wrap .btn { width: 100%; justify-content: center; }
+}
+
+/* Slot card header wraps on narrow screens */
+@media (max-width: 480px) {
+  .slot-card-header { flex-direction: column; gap: 4px; font-size: 0.95em; }
+  .date-picker-wrap { text-align: left; }
+}
+
 /* ═══════════════════════════ DARK MODE ════════════════════════════════════ */
 
 :root[data-theme="dark"], [data-theme="dark"] {

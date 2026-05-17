@@ -277,3 +277,32 @@ textarea.form-control { resize: vertical; }
     background: rgba(10, 15, 30, 0.95) !important;
     border-bottom: 1px solid var(--border) !important;
 }
+
+/* ── Sticky Band Responsive ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .patient-sticky-band { padding: 8px 16px; }
+    .sticky-band-content { gap: 10px; }
+    .sticky-metrics { gap: 14px; flex-wrap: wrap; }
+    .sticky-name { font-size: 1rem; }
+}
+
+@media (max-width: 640px) {
+    .sticky-band-content { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .sticky-metrics { gap: 12px; }
+    .sticky-metric .val { font-size: 0.82rem; }
+    /* Hide lower-priority sticky metrics on very small screens */
+    .sticky-metric:nth-child(n+4) { display: none; }
+    /* Form rows inside modals collapse to 1 column */
+    .form-row-2, .form-row-21 { grid-template-columns: 1fr !important; }
+    /* Profile header */
+    .profile-header::before { width: 4px; }
+}
+
+@media (max-width: 480px) {
+    .patient-sticky-band { top: 56px; }
+    .sticky-metrics { gap: 10px; }
+    .sticky-metric:nth-child(n+3) { display: none; }
+    .labs-summary { grid-template-columns: repeat(2, 1fr); }
+    .section-title { font-size: 1.05rem; }
+    .modal-box { padding: 20px 16px; }
+}
