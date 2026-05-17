@@ -12,7 +12,7 @@ from typing import Optional
 import logging
 import time
 
-from database import get_db, Patient, SessionLocal, User
+from database import get_db, Patient, SessionLocal, User, create_tables
 from config import templates, serializer, pwd_context, limiter, COOKIE_SECURE, SESSION_MAX_AGE, SESSION_IDLE_TTL
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
@@ -76,6 +76,7 @@ def _seed_default_users() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    create_tables()
     _check_schema_version()
     _seed_default_users()
     logging.info("Startup complete.")
