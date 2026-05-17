@@ -366,15 +366,24 @@
                 {% set row_status = 'missing' if (not row.has_record or row.has_missing_data) else ('alert' if row.alerts else 'stable') %}
                 <tr data-status="{{ row_status }}"
                     data-urgency="{{ '0' if (not row.has_record or row.has_missing_data) else ('1' if row.alerts else '2') }}"
+                    data-relative="{{ p.relation if p.relation else '' }}"
                     class="{{ 'row-missing' if (not row.has_record or row.has_missing_data) else '' }}">
 
                     <!-- Patient: name + HID + sex badge -->
                     <td data-label="Patient">
                         <a href="/patients/{{ row.id }}/profile" class="cell-name">{{ row.name }}</a>
                         <div class="cell-hid">{{ row.hid }}</div>
-                        <span class="sex-badge {{ 'sex-m' if p.sex == 'Male' else ('sex-f' if p.sex == 'Female' else 'sex-unk') }}">
-                            {{ p.sex or '?' }}
-                        </span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px;">
+                            <span class="sex-badge {{ 'sex-m' if p.sex == 'Male' else ('sex-f' if p.sex == 'Female' else 'sex-unk') }}">
+                                {{ p.sex or '?' }}
+                            </span>
+                            {% if p.relation %}
+                            <span style="font-size: 0.65rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px;">
+                                <i class="material-icons" style="font-size:0.8rem; color:#64748b;">family_restroom</i>
+                                <span>{{ p.relation }}</span>
+                            </span>
+                            {% endif %}
+                        </div>
                     </td>
 
                     <!-- Last HD session -->
@@ -792,7 +801,8 @@
             const hidEl  = row.querySelector('.cell-hid');
             const nameText = (nameEl ? nameEl.textContent : '').toLowerCase();
             const hidText  = (hidEl  ? hidEl.textContent  : '').toLowerCase();
-            const matchSearch = !query || nameText.includes(query) || hidText.includes(query);
+            const relativeText = (row.dataset.relative || '').toLowerCase();
+            const matchSearch = !query || nameText.includes(query) || hidText.includes(query) || relativeText.includes(query);
             const rowStatus   = row.dataset.status || 'stable';
             const matchStatus = status === 'all' || rowStatus === status;
             row.style.display = (matchSearch && matchStatus) ? '' : 'none';

@@ -158,10 +158,6 @@
                         <label>Height (cm)</label>
                         <input type="number" step="0.1" name="height" value="{{ patient.height if patient and patient.height else '' }}" placeholder="e.g. 165" inputmode="decimal">
                     </div>
-                    <div class="form-group">
-                        <label>Handgrip Strength (kg)</label>
-                        <input type="number" step="0.1" min="0" max="80" name="handgrip_strength" inputmode="decimal" placeholder="e.g. 22.5" value="{{ patient.handgrip_strength if patient and patient.handgrip_strength else '' }}">
-                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -198,7 +194,7 @@
                 </div>
                 <div class="form-group">
                     <label>Healthcare Facility</label>
-                    <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else '' }}" placeholder="Hospital / Centre Name">
+                    <input type="text" name="healthcare_facility" value="{{ patient.healthcare_facility if patient and patient.healthcare_facility else 'Dialysis centre Pune' }}" placeholder="Hospital / Centre Name">
                 </div>
             </div>
 
@@ -493,6 +489,17 @@
                 <div class="form-group">
                     <label>2D Echo Report Details</label>
                     <textarea name="echo_report" rows="2" placeholder="e.g. Detailed findings from the 2D Echo report..." style="resize: vertical;">{{ patient.echo_report if patient and patient.echo_report else '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- ── Research Parameters ── -->
+            <div class="form-card">
+                <h3><i class="material-icons">science</i> Research Parameters</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Handgrip Strength (kg)</label>
+                        <input type="number" step="0.1" min="0" max="80" name="handgrip_strength" inputmode="decimal" placeholder="e.g. 22.5" value="{{ patient.handgrip_strength if patient and patient.handgrip_strength else '' }}">
+                    </div>
                 </div>
             </div>
 

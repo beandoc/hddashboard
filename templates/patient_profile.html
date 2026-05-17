@@ -528,6 +528,69 @@
         </main>
 
         <aside aria-label="Clinical summary sidebar">
+            <!-- DEMOGRAPHICS & CONTACTS -->
+            <div class="card" style="padding: 16px; margin-bottom: 20px;">
+                <h2 class="stat-label" style="font-size:0.8rem; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:var(--primary);">
+                    <i class="material-icons" style="font-size:1.1rem;">contact_page</i> Contacts & Demographics
+                </h2>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+                    <div>
+                        <span class="stat-label" style="font-size: 0.68rem; display:block; color:#64748b;">Contact Number</span>
+                        <span style="font-size: 0.85rem; font-weight: 600;">{{ patient.contact_no or '—' }}</span>
+                    </div>
+                    
+                    <div>
+                        <span class="stat-label" style="font-size: 0.68rem; display:block; color:#64748b;">Relative / Guardian Name</span>
+                        <span style="font-size: 0.85rem; font-weight: 600;">{{ patient.relation or '—' }}</span>
+                    </div>
+                    
+                    <div>
+                        <span class="stat-label" style="font-size: 0.68rem; display:block; color:#64748b;">Relation Type</span>
+                        <span style="font-size: 0.85rem; font-weight: 600;">
+                            {% set rt = (patient.relation_type or '')|upper %}
+                            {% if rt in ['SELF', 'SERVICE'] %}
+                                Self (Service Person)
+                            {% elif rt == 'F/O' %}
+                                Father
+                            {% elif rt == 'M/O' %}
+                                Mother
+                            {% elif rt == 'S/O' %}
+                                Son
+                            {% elif rt == 'D/O' %}
+                                Daughter
+                            {% elif rt == 'W/O' %}
+                                Wife
+                            {% elif rt %}
+                                {{ patient.relation_type }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    {% if patient.email %}
+                    <div>
+                        <span class="stat-label" style="font-size: 0.68rem; display:block; color:#64748b;">Email Address</span>
+                        <span style="font-size: 0.85rem; font-weight: 600; word-break: break-all;">{{ patient.email }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if patient.education_level %}
+                    <div>
+                        <span class="stat-label" style="font-size: 0.68rem; display:block; color:#64748b;">Education Level</span>
+                        <span style="font-size: 0.85rem; font-weight: 600;">{{ patient.education_level }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if patient.height %}
+                    <div>
+                        <span class="stat-label" style="font-size: 0.68rem; display:block; color:#64748b;">Height (cm)</span>
+                        <span style="font-size: 0.85rem; font-weight: 600;">{{ patient.height }} cm</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
             <!-- RISK SUMMARY -->
             <div class="card" style="padding: 16px;">
                 <h2 class="stat-label" style="font-size:0.8rem; margin-bottom:12px;">Comorbidity &amp; Risk</h2>
@@ -731,6 +794,16 @@
                 <div style="font-size: 0.8rem; line-height: 1.5; background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 8px;">
                     <strong>2D Echo ({{ patient.echo_date.strftime('%b %Y') if patient.echo_date else 'Date Unknown' }}):</strong><br/>
                     {{ patient.echo_report or 'EF: ' ~ patient.ejection_fraction ~ '%' }}
+                </div>
+                {% endif %}
+
+                {% if patient.handgrip_strength %}
+                <div style="font-size: 0.8rem; line-height: 1.5; background: #f0fdf4; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #bbf7d0; display: flex; align-items: center; gap: 6px;">
+                    <i class="material-icons" style="font-size: 1.1rem; color: #16a34a;">science</i>
+                    <div>
+                        <strong>Research Parameters:</strong><br/>
+                        Handgrip Strength: {{ patient.handgrip_strength }} kg
+                    </div>
                 </div>
                 {% endif %}
                 

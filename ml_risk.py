@@ -1299,7 +1299,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
 
 
 _ML_PER_PATIENT_CACHE: dict = {}  # patient_id -> (result_dict_without_patient, expiry_ts)
-_ML_CACHE_TTL = 120  # 2 minutes — recompute when monthly data is likely stale
+_ML_CACHE_TTL = 300  # 5 minutes — monthly data changes infrequently
 
 # Whole-function result cache (patient_id -> risk_dict, no ORM objects).
 # On cache hit, only the Patient objects are re-fetched (1 fast query).
@@ -1367,6 +1367,9 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
 
     from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
 
+    # Hoist outside the loop — each call does os.path.exists + os.path.getmtime syscalls
+    det_model = _load_deterioration_model()
+
     now_ts = _time.time()
     rows = []
     for p in patients:
@@ -1417,7 +1420,6 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
         # to live extraction for patients whose snapshot hasn't been computed yet.
         det_shap = None
         snap = _snap_by_pid.get(p.id)
-        det_model = _load_deterioration_model()
         if det_model is not None and df:
             if snap is not None and snap.feature_vector:
                 fv = snap.feature_vector

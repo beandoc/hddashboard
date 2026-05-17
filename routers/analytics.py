@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 import asyncio
@@ -16,7 +15,7 @@ from ml_analytics import (
     analyze_pds, analyze_mia_cascade,
     analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
     train_deterioration_model, get_deterioration_model_status,
-    predict_mortality_risk, get_all_patients_mortality_risk,
+    get_all_patients_mortality_risk,
 )
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
@@ -184,7 +183,6 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
 @router.get("/mortality-risk", response_class=HTMLResponse)
 async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)
-    from ml_analytics import get_all_patients_mortality_risk
     rows = get_all_patients_mortality_risk(db)
 
     # Sort: no-data patients last, then descending by 1-yr probability
@@ -212,9 +210,6 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     from dashboard_logic import get_current_month_str
     from ml_analytics import run_cohort_analytics
     
-    # We can reuse the dashboard data logic or fetch patients with alerts
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
-    # Simple logic to find patients with alerts for the watchlist
     month_str, _ = get_effective_month(db)
     data = compute_dashboard(db, month_str)
     patient_rows = data.get("patient_rows", [])
@@ -237,7 +232,7 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     mort_data = get_all_patients_mortality_risk(db)
     mort_map = {r['patient'].id: r for r in mort_data}
 
-    active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+    active_patients = [r['patient'] for r in mort_data]
     patient_ids = [p.id for p in active_patients]
 
     flagged = {}  # patient_id -> {patient, flags, priority}
@@ -251,10 +246,15 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     prev_recs = {r.patient_id: r for r in db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).all()}
 
     # Last 3 monthly records per patient (for occult overload albumin trend)
-    from sqlalchemy import func
+    # Filter to last 3 months — only 3 records per patient are ever used
+    mr_cutoff_month = (date.today().replace(day=1) - timedelta(days=90)).strftime('%Y-%m')
     recent_mr_all = (
         db.query(MonthlyRecord)
-        .filter(MonthlyRecord.patient_id.in_(patient_ids), MonthlyRecord.albumin.isnot(None))
+        .filter(
+            MonthlyRecord.patient_id.in_(patient_ids),
+            MonthlyRecord.albumin.isnot(None),
+            MonthlyRecord.record_month >= mr_cutoff_month,
+        )
         .order_by(MonthlyRecord.patient_id, MonthlyRecord.record_month.desc())
         .all()
     )
@@ -265,9 +265,14 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
             recent_mr_by_pid[r.patient_id].append(r)
 
     # Recent sessions per patient (for dyspnea / emergency check)
+    # Limit to last 90 days — avoids loading full session history for every patient
+    sessions_cutoff = date.today() - timedelta(days=90)
     recent_sessions_all = (
         db.query(SessionRecord)
-        .filter(SessionRecord.patient_id.in_(patient_ids))
+        .filter(
+            SessionRecord.patient_id.in_(patient_ids),
+            SessionRecord.session_date >= sessions_cutoff,
+        )
         .order_by(SessionRecord.patient_id, SessionRecord.session_date.desc())
         .all()
     )
@@ -305,6 +310,11 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     for ev in review_events_raw:
         last_review_by_pid.setdefault(ev.patient_id, ev)
 
+    # Pre-build O(1) lookups — avoids O(n²) linear scans inside the per-patient loop
+    hb_trend_map = {item['id']: item for item in dash_data['metrics']['trend_hb']}
+    alb_trend_map = {item['id']: item for item in dash_data['metrics']['trend_albumin']}
+    idwg_high_names = set(dash_data['metrics']['idwg_high']['names'])
+
     for p in active_patients:
         p_flags = []
         priority = 0
@@ -318,7 +328,7 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
             priority += 3
 
         # B. Hb — tiered severity: Critical (<7) > Acute drop (>3 g/dL fall) > Low (<9)
-        hb_trend = next((item for item in dash_data['metrics']['trend_hb'] if item['id'] == p.id), None)
+        hb_trend = hb_trend_map.get(p.id)
         if hb_trend:
             hb_val  = hb_trend.get("current") or 0
             hb_drop_mag = hb_trend.get("drop") or 0
@@ -333,13 +343,13 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
                 priority += 2
 
         # C. Low Albumin
-        alb_trend = next((item for item in dash_data['metrics']['trend_albumin'] if item['id'] == p.id), None)
+        alb_trend = alb_trend_map.get(p.id)
         if alb_trend:
             p_flags.append("Low Albumin")
             priority += 2
 
         # D. High IDWG
-        if p.name in dash_data['metrics']['idwg_high']['names']:
+        if p.name in idwg_high_names:
             p_flags.append("High IDWG (>2.5kg)")
             priority += 1
 
