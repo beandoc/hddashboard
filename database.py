@@ -1689,3 +1689,20 @@ def get_db():
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    
+    # ── Database schema migration for patient credentials ─────────────────────
+    # Adds login_username to patient_credentials if missing and copies values
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        db.execute(text("ALTER TABLE patient_credentials ADD COLUMN IF NOT EXISTS login_username VARCHAR;"))
+        db.execute(text("UPDATE patient_credentials pc SET login_username = p.login_username FROM patients p WHERE pc.patient_id = p.id AND pc.login_username IS NULL;"))
+        db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_patient_credentials_login_username ON patient_credentials (login_username);"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.error(f"Error during auto-migration of patient_credentials: {e}")
+    finally:
+        db.close()
+
