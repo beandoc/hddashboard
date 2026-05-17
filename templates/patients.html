@@ -142,6 +142,9 @@
         .act-reminder-icon:hover { background: #ffedd5; }
         .act-admit-icon { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
         .act-admit-icon:hover { background: #ede9fe; }
+        .act-discharge-icon { background: #eff6ff; color: #0369a1; border: 1px solid #bfdbfe; }
+        .act-discharge-icon:hover:not(:disabled) { background: #dbeafe; }
+        .act-discharge-icon:disabled { opacity: 0.38; cursor: not-allowed; }
 
         @media (max-width: 1200px) {
             .act-lbl { display: none; }
@@ -246,7 +249,7 @@
 </header>
 
 {% if data.data_note == "new_month_no_data" %}
-<div style="background:#fffbeb;border-bottom:2px solid #f59e0b;padding:12px 24px;display:flex;align-items:center;gap:10px;font-size:0.88rem;color:#92400e;">
+<div class="notice-banner" style="background:#fffbeb;border-bottom:2px solid #f59e0b;padding:12px 24px;display:flex;align-items:center;gap:10px;font-size:0.88rem;color:#92400e;flex-wrap:wrap;">
     <span class="material-icons" style="font-size:1.1rem;color:#d97706;">info</span>
     <span>No records entered for <strong>{{ current_month_label }}</strong> yet — showing <strong>{{ data.month_label }}</strong> data. <a href="/entry" style="color:#b45309;font-weight:700;text-decoration:underline;">Enter this month's data</a></span>
 </div>
@@ -353,7 +356,6 @@
                     <th>Last HD Session</th>
                     <th>Hb Trend (6m)</th>
                     <th>Albumin Trend (6m)</th>
-                    <th>Kt/V Trend (6m)</th>
                     <th>Lab Status</th>
                     <th>Clinical Alerts</th>
                     <th data-label="Actions">Actions</th>
@@ -429,22 +431,6 @@
                         {% endif %}
                     </td>
 
-                    <!-- Kt/V Trend (6m) -->
-                    <td data-label="Kt/V Trend (6m)">
-                        {% if row.ktv_sparkline and row.ktv_sparkline.points %}
-                            <div style="display:flex; flex-direction:column; align-items:flex-start;">
-                                <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
-                                    {{ row.single_pool_ktv if row.single_pool_ktv is not none else (row.ktv_sparkline.last if row.ktv_sparkline.last is not none else '—') }}
-                                </span>
-                                <svg class="sparkline" viewBox="0 0 70 20" aria-label="Kt/V 6-month trend line">
-                                    <polyline class="{{ row.ktv_sparkline.trend }}-trend" points="{{ row.ktv_sparkline.points }}"></polyline>
-                                </svg>
-                            </div>
-                        {% else %}
-                            <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">—</span>
-                        {% endif %}
-                    </td>
-
                     <!-- Lab Status -->
                     <td data-label="Lab Status">
                         {% if not row.has_record %}
@@ -480,9 +466,9 @@
                         {% endif %}
                     </td>
 
-                    <!-- Actions: Context-aware primary + Quick Actions + Overflow -->
+                    <!-- Actions -->
                     <td data-label="Actions" class="actions-cell">
-                        <div style="display:inline-flex; gap:8px; align-items:center;">
+                        <div style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;">
                             <!-- Primary Action -->
                             {% if not row.has_record or row.has_missing_data %}
                                 <button onclick="openInterimModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn-primary act-enter-labs" title="Enter interim lab results">
@@ -498,19 +484,21 @@
                                 </a>
                             {% endif %}
 
-                            <!-- Quick Action: Analytics -->
-                            <a href="/analytics/patients/{{ row.id }}" class="act-btn act-analytics-icon" title="Patient Analytics">
-                                <i class="material-icons">bar_chart</i>
-                            </a>
-
-                            <!-- Quick Action: Reminder -->
-                            <button onclick="openReminderModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn act-reminder-icon" title="Set Clinical Reminder">
-                                <i class="material-icons" style="color:var(--accent-orange);">event_note</i>
+                            <!-- Admit -->
+                            <button onclick="openAdmitModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')"
+                                    class="act-btn act-admit-icon"
+                                    title="Record hospital admission">
+                                <i class="material-icons" style="font-size:0.9rem;">local_hospital</i>
+                                <span class="act-lbl">Admit</span>
                             </button>
 
-                            <!-- Quick Action: Admit -->
-                            <button onclick="openAdmitModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" class="act-btn act-admit-icon" title="Hospital Admission">
-                                <i class="material-icons" style="color:#7c3aed;">local_hospital</i>
+                            <!-- Discharge (only active if currently admitted) -->
+                            <button onclick="openDischargeModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')"
+                                    class="act-btn act-discharge-icon"
+                                    title="{% if row.is_admitted %}Record discharge{% else %}Patient not currently admitted{% endif %}"
+                                    {% if not row.is_admitted %}disabled{% endif %}>
+                                <i class="material-icons" style="font-size:0.9rem;">logout</i>
+                                <span class="act-lbl">Discharge</span>
                             </button>
 
                             <!-- Overflow menu -->
@@ -522,17 +510,17 @@
                                     <a href="/patients/{{ row.id }}/profile" class="more-item">
                                         <i class="material-icons">account_circle</i> Full Profile
                                     </a>
-                                    <a href="/events?patient_id={{ p.id }}" class="more-item">
+                                    <a href="/analytics/patients/{{ row.id }}" class="more-item">
+                                        <i class="material-icons">bar_chart</i> Analytics
+                                    </a>
+                                    <a href="/events?patient_id={{ row.id }}" class="more-item">
                                         <i class="material-icons">timeline</i> Timeline
                                     </a>
-                                    <div class="more-divider"></div>
-                                    <button onclick="openDischargeModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}')" 
-                                            class="more-item" {{ 'disabled' if not row.is_admitted else '' }}
-                                            style="{{ 'opacity:0.5; cursor:not-allowed;' if not row.is_admitted else '' }}">
-                                        <i class="material-icons" style="color:#0369a1;">logout</i> Discharge
+                                    <button onclick="openReminderModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
+                                        <i class="material-icons" style="color:var(--accent-orange);">event_note</i> Set Reminder
                                     </button>
                                     <div class="more-divider"></div>
-                                    <button onclick="openDeactivateModal({{ p.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
+                                    <button onclick="openDeactivateModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}', '{{ row.hid }}')" class="more-item more-danger">
                                         <i class="material-icons">person_off</i> Deactivate Patient
                                     </button>
                                 </div>

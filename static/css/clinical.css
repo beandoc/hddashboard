@@ -456,7 +456,6 @@ input, select, textarea { min-height: 40px; }
    Only safe/additive properties — no layout-breaking overrides.              */
 
 /* Horizontal scroll on table wrapper containers */
-.review-table-card,
 .adherence-table-wrap,
 .risk-table-wrap,
 .log-table-wrap,
@@ -525,6 +524,50 @@ input, select, textarea { min-height: 40px; }
 @media (max-width: 480px) {
   .slot-card-header { flex-direction: column; gap: 4px; font-size: 0.95em; }
   .date-picker-wrap { text-align: left; }
+}
+
+/* ══════════════════ iPHONE 16 PRO REFINEMENTS (≤430px) ═══════════════════
+   Targets the 393 px logical viewport — fills the gap that 640 px rules
+   can't fully address on a narrow high-DPI screen.                          */
+
+@media (max-width: 430px) {
+  /* Safe-area padding: clears home indicator bar on iPhone */
+  main { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+
+  /* Shave 4px off each side — gains 8px usable content width */
+  .container { padding-left: 12px !important; padding-right: 12px !important; }
+
+  /* Page headers — tighter side padding */
+  .page-header      { padding: 14px 14px !important; }
+  .analytics-header { padding: 14px 14px !important; }
+  .report-header    { padding: 20px 14px !important; }
+  header            { padding-left: 14px !important; padding-right: 14px !important; }
+
+  /* Inline notice banners (dashboard staff/doctor strips) */
+  .notice-banner { padding-left: 14px !important; padding-right: 14px !important; }
+
+  /* Stat cards — compact padding at this width */
+  .stat-card { padding: 10px 10px !important; gap: 8px !important; }
+  .stat-card .stat-body .val { font-size: 1.15rem !important; }
+  .stat-card .stat-icon { width: 32px !important; height: 32px !important; }
+
+  /* Filter bar — tight side padding */
+  .filter-bar { padding: 10px 12px !important; }
+
+  /* Bayesian stats 4-col → 2-col on narrow screens */
+  .bay-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Modal — reduce padding so more content fits */
+  .modal-box  { padding: 16px !important; }
+  .modal-box .form-field input,
+  .modal-box .form-field select,
+  .modal-box .form-field textarea { font-size: 0.95rem !important; }
+
+  /* Chip rows: smaller chips */
+  .chip { padding: 5px 10px !important; font-size: 0.75rem !important; }
+
+  /* Chart containers */
+  .chart-container { padding: 14px !important; }
 }
 
 /* ═══════════════════════════ DARK MODE ════════════════════════════════════ */

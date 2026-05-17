@@ -72,32 +72,55 @@
     .flag-composite { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
     .flag-weight    { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
 
-    /* Bayesian signal mini-panel */
+    /* Bayesian signal card */
     .bay-panel {
-      margin-top: 10px; padding: 10px 14px;
-      background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px;
-      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      margin-top: 10px; border-radius: 10px;
+      overflow: hidden; border: 1px solid #c4b5fd;
+    }
+    .bay-panel-header {
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+      padding: 8px 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
     .bay-panel-title {
       font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: #7c3aed; width: 100%;
+      letter-spacing: 0.06em; color: rgba(255,255,255,0.9);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .bay-composite-badge {
+      font-size: 0.72rem; font-weight: 800; padding: 2px 9px;
+      border-radius: 20px; background: rgba(255,255,255,0.18);
+      color: #fff; border: 1px solid rgba(255,255,255,0.3);
+      white-space: nowrap;
+    }
+    .bay-stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      background: #fff;
     }
     .bay-stat {
-      display: flex; flex-direction: column; align-items: center; min-width: 72px;
+      padding: 12px 10px; text-align: center;
+      border-right: 1px solid #ede9fe;
     }
+    .bay-stat:last-child { border-right: none; }
     .bay-stat .val {
-      font-size: 1rem; font-weight: 800; color: #1e293b; line-height: 1;
+      font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1; display: block;
     }
-    .bay-stat .val.warn  { color: #d97706; }
-    .bay-stat .val.danger{ color: #dc2626; }
+    .bay-stat .val.warn   { color: #d97706; }
+    .bay-stat .val.danger { color: #dc2626; }
     .bay-stat .lbl {
-      font-size: 0.62rem; color: #64748b; margin-top: 2px; text-align: center;
+      font-size: 0.62rem; color: #64748b; margin-top: 4px;
+      display: block; line-height: 1.3;
     }
-    .bay-divider { width: 1px; height: 32px; background: #e9d5ff; }
+    .bay-panel-footer {
+      background: #f5f3ff; padding: 6px 14px;
+      font-size: 0.64rem; color: #7c3aed;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;
+      border-top: 1px solid #ede9fe;
+    }
     .bay-adj-badge {
       font-size: 0.65rem; padding: 2px 7px; border-radius: 10px;
       background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0;
-      font-weight: 600;
+      font-weight: 600; display: inline-flex; align-items: center; gap: 3px;
     }
 
     .priority-circle {
@@ -130,6 +153,27 @@
     }
     .empty-state i { font-size: 3.5rem; opacity: 0.2; display: block; margin-bottom: 16px; }
 
+    /* Insights toggle button */
+    .insights-toggle {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 8px; padding: 3px 10px 3px 8px;
+      background: none; border: 1px solid #e9d5ff; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 600; color: #7c3aed;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      font-family: inherit;
+    }
+    .insights-toggle:hover { background: #f5f3ff; border-color: #c4b5fd; }
+    .insights-toggle .toggle-icon {
+      font-size: 0.85rem; transition: transform 0.2s ease;
+    }
+    .insights-toggle.open .toggle-icon { transform: rotate(180deg); }
+    .insights-toggle.open { background: #f5f3ff; border-color: #c4b5fd; }
+
+    /* Bayesian + SHAP panels hidden by default */
+    .bay-panel, .shap-panel { display: none; }
+    .bay-panel.open { display: flex; }
+    .shap-panel.open { display: block; }
+
     /* SHAP "why this score" panel */
     .shap-panel {
       margin-top: 10px; padding: 10px 14px;
@@ -154,33 +198,6 @@
     .shap-bar-neg { background: #3b82f6; }
     .shap-val { font-size: 0.65rem; color: #6b7280; text-align: right; font-family: monospace; }
 
-    /* Clinical override widget */
-    .override-panel {
-      margin-top: 10px; padding: 10px 14px;
-      background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
-    }
-    .override-panel-title {
-      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: #92400e; margin-bottom: 8px;
-      display: flex; align-items: center; gap: 5px;
-    }
-    .override-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
-    .override-form select, .override-form input[type="text"] {
-      font-size: 0.78rem; padding: 5px 8px; border: 1px solid #fcd34d;
-      border-radius: 6px; background: white; color: #1e293b;
-      font-family: inherit;
-    }
-    .override-form select { min-width: 160px; }
-    .override-form input[type="text"] { flex: 1; min-width: 160px; }
-    .override-submit {
-      padding: 5px 12px; background: #d97706; color: white;
-      border: none; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
-      cursor: pointer; transition: background 0.2s;
-    }
-    .override-submit:hover { background: #b45309; }
-    .override-saved {
-      font-size: 0.72rem; color: #15803d; font-weight: 600; display: none;
-    }
 
   @media (max-width: 768px) {
     .page-hero { padding: 20px 16px; }
@@ -190,14 +207,71 @@
     thead th { padding: 10px 12px; }
     td { padding: 12px; }
   }
+
+  /* ── Mobile card layout (≤640px = iPhone 16 Pro and similar) ── */
   @media (max-width: 640px) {
-    .bay-panel { flex-direction: column; }
-    .bay-divider { width: 100%; height: 1px; }
-    .override-form { flex-direction: column; }
-    .override-form select,
-    .override-form input[type="text"] { min-width: 0; width: 100%; }
-    .btn-analyze { width: 100%; justify-content: center; }
-    .shap-row { grid-template-columns: 90px 1fr 44px; }
+    /* Switch the table wrapper to a plain block so cards can breathe */
+    .review-table-card {
+      overflow: visible;
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    /* Table → block stack */
+    .review-table-card table,
+    .review-table-card tbody { display: block; }
+    .review-table-card thead { display: none; }
+
+    /* Each row becomes a card */
+    .review-table-card tbody tr {
+      display: block;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    /* All cells: block, reset desktop padding */
+    .review-table-card td { display: block; border: none !important; padding: 0 !important; }
+
+    /* Col 1 (#): hide — flag count visible in pills */
+    .review-table-card td:nth-child(1) { display: none !important; }
+
+    /* Col 2 (patient name): card header */
+    .review-table-card td:nth-child(2) {
+      padding-bottom: 12px !important;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #f1f5f9 !important;
+    }
+
+    /* Col 3 (flags + panels): full width content area */
+    .review-table-card td:nth-child(3) { padding-bottom: 12px !important; }
+
+    /* Col 4 (action button): pinned footer */
+    .review-table-card td:nth-child(4) {
+      padding-top: 12px !important;
+      border-top: 1px solid var(--border) !important;
+      text-align: left !important;
+    }
+
+    /* Analyze button: full width, finger-friendly */
+    .btn-analyze { width: 100%; justify-content: center; min-height: 48px; }
+
+    /* Bayesian stats: 2-col grid */
+    .bay-stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* Bay panel: rounded corners inside card */
+    .bay-panel { border-radius: 8px; overflow: hidden; margin-top: 10px; }
+
+    /* SHAP feature bars: narrower label column */
+    .shap-panel { border-radius: 8px; margin-top: 10px; }
+    .shap-row { grid-template-columns: 80px 1fr 44px; gap: 8px; }
   }
   </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
@@ -224,7 +298,6 @@
           <th style="width: 40px; text-align: center;">#</th>
           <th>Patient</th>
           <th>Clinical Flags &amp; Bayesian Persistence</th>
-          <th>Last Review</th>
           <th style="text-align: right;">Action</th>
         </tr>
       </thead>
@@ -266,68 +339,75 @@
               {% endfor %}
             </div>
 
+            {# Toggle — only shown when at least one panel exists #}
+            {% if bay or item.det_shap %}
+            <button class="insights-toggle"
+                    id="toggle-{{ item.patient.id }}"
+                    onclick="toggleInsights({{ item.patient.id }})"
+                    aria-expanded="false">
+              <i class="material-icons toggle-icon">expand_more</i>
+              Model insights
+            </button>
+            {% endif %}
+
             {# Bayesian mini-panel — shown when profile is available #}
             {% if bay %}
             {% set bay_data = bay.data %}
             {% set hb_b   = bay_data.hb %}
             {% set alb_b  = bay_data.albumin %}
             {% set phos_b = bay_data.phosphorus %}
-            <div class="bay-panel">
-              <div class="bay-panel-title">
-                <i class="material-icons" style="font-size:0.8rem; vertical-align:middle;">auto_graph</i>
-                Bayesian Persistence · P(alert next month) / P(×3 months)
-              </div>
-
-              <div class="bay-stat">
-                <span class="val {% if hb_b.prob_alert_next >= 0.6 %}danger{% elif hb_b.prob_alert_next >= 0.4 %}warn{% endif %}">
-                  {{ (hb_b.prob_alert_next * 100) | round | int }}%
+            <div class="bay-panel" id="bay-{{ item.patient.id }}">
+              <div class="bay-panel-header">
+                <div class="bay-panel-title">
+                  <i class="material-icons" style="font-size:0.85rem;">auto_graph</i>
+                  Bayesian Risk Persistence
+                </div>
+                <span class="bay-composite-badge">
+                  Composite {{ (bay_data.summary.composite_alert_score * 100)|round|int }}%
                 </span>
-                <span class="lbl">Hb &lt;10<br>next mo.</span>
               </div>
-              <div class="bay-divider"></div>
-              <div class="bay-stat">
-                <span class="val {% if hb_b.prob_persistent_3 >= 0.3 %}danger{% elif hb_b.prob_persistent_3 >= 0.15 %}warn{% endif %}">
-                  {{ (hb_b.prob_persistent_3 * 100) | round | int }}%
+
+              <div class="bay-stats-grid">
+                <div class="bay-stat">
+                  <span class="val {% if hb_b.prob_alert_next >= 0.6 %}danger{% elif hb_b.prob_alert_next >= 0.4 %}warn{% endif %}">
+                    {{ (hb_b.prob_alert_next * 100) | round | int }}%
+                  </span>
+                  <span class="lbl">Hb &lt;10<br>next month</span>
+                </div>
+                <div class="bay-stat">
+                  <span class="val {% if hb_b.prob_persistent_3 >= 0.3 %}danger{% elif hb_b.prob_persistent_3 >= 0.15 %}warn{% endif %}">
+                    {{ (hb_b.prob_persistent_3 * 100) | round | int }}%
+                  </span>
+                  <span class="lbl">Hb persists<br>×3 months</span>
+                </div>
+                <div class="bay-stat">
+                  <span class="val {% if alb_b.prob_alert_next >= 0.5 %}danger{% elif alb_b.prob_alert_next >= 0.3 %}warn{% endif %}">
+                    {{ (alb_b.prob_alert_next * 100) | round | int }}%
+                  </span>
+                  <span class="lbl">Albumin &lt;3.5<br>next month</span>
+                </div>
+                <div class="bay-stat">
+                  <span class="val {% if phos_b.prob_alert_next >= 0.55 %}danger{% elif phos_b.prob_alert_next >= 0.35 %}warn{% endif %}">
+                    {{ (phos_b.prob_alert_next * 100) | round | int }}%
+                  </span>
+                  <span class="lbl">Phosphorus &gt;5.5<br>next month</span>
+                </div>
+              </div>
+
+              <div class="bay-panel-footer">
+                <span>Hb 95% PI: {{ (hb_b.pi_95[0]*100)|round|int }}%–{{ (hb_b.pi_95[1]*100)|round|int }}% · {{ hb_b.n_observed }} observed months</span>
+                {% if hb_b.intervention_adjusted %}
+                <span class="bay-adj-badge">
+                  <i class="material-icons" style="font-size:0.72rem;">vaccines</i> IV Iron adjusted
                 </span>
-                <span class="lbl">Hb ×3<br>persist</span>
-              </div>
-
-              <div class="bay-divider"></div>
-
-              <div class="bay-stat">
-                <span class="val {% if alb_b.prob_alert_next >= 0.5 %}danger{% elif alb_b.prob_alert_next >= 0.3 %}warn{% endif %}">
-                  {{ (alb_b.prob_alert_next * 100) | round | int }}%
-                </span>
-                <span class="lbl">Alb &lt;3.5<br>next mo.</span>
-              </div>
-              <div class="bay-divider"></div>
-              <div class="bay-stat">
-                <span class="val {% if phos_b.prob_alert_next >= 0.55 %}danger{% elif phos_b.prob_alert_next >= 0.35 %}warn{% endif %}">
-                  {{ (phos_b.prob_alert_next * 100) | round | int }}%
-                </span>
-                <span class="lbl">Phos &gt;5.5<br>next mo.</span>
-              </div>
-
-              {% if hb_b.intervention_adjusted %}
-              <div class="bay-divider"></div>
-              <span class="bay-adj-badge">
-                <i class="material-icons" style="font-size:0.75rem; vertical-align:middle;">vaccines</i>
-                IV Iron adjusted
-              </span>
-              {% endif %}
-
-              {# 95% CI for Hb — gives nephrologist a sense of uncertainty #}
-              <div style="width:100%; font-size:0.65rem; color:#94a3b8; margin-top:2px;">
-                Hb 95% PI: {{ (hb_b.pi_95[0]*100)|round|int }}%–{{ (hb_b.pi_95[1]*100)|round|int }}%
-                &nbsp;·&nbsp; based on {{ hb_b.n_observed }} observed months
-                &nbsp;·&nbsp; composite score: <strong>{{ (bay_data.summary.composite_alert_score * 100)|round|int }}%</strong>
+                {% endif %}
               </div>
             </div>
             {% endif %}
 
             {# SHAP "why this score" — shown when deterioration model is trained and SHAP is available #}
             {% if item.det_shap %}
-            <div class="shap-panel">
+            <div class="shap-panel" id="shap-{{ item.patient.id }}">
               <div class="shap-panel-title">
                 <i class="material-icons" style="font-size:0.8rem; vertical-align:middle;">psychology</i>
                 Why this deterioration score · top drivers
@@ -352,36 +432,6 @@
             </div>
             {% endif %}
 
-            {# Clinical override log — most valuable retraining signal #}
-            <div class="override-panel" id="override-panel-{{ item.patient.id }}">
-              <div class="override-panel-title">
-                <i class="material-icons" style="font-size:0.8rem;">rate_review</i>
-                Clinical Override — disagree with the model?
-              </div>
-              <form class="override-form" onsubmit="submitOverride(event, {{ item.patient.id }})">
-                <input type="hidden" name="patient_id" value="{{ item.patient.id }}">
-                <input type="hidden" name="model_name" value="deterioration_v1">
-                <select name="override_direction" required>
-                  <option value="" disabled selected>My assessment is…</option>
-                  <option value="higher_risk">Higher risk than model says</option>
-                  <option value="lower_risk">Lower risk than model says</option>
-                  <option value="agree_but_act_differently">Agree but acting differently</option>
-                </select>
-                <input type="text" name="clinician_decision" placeholder="Action taken (optional)" maxlength="200">
-                <input type="text" name="override_reason" placeholder="Reason (optional)" maxlength="400">
-                <button type="submit" class="override-submit">Log override</button>
-                <span class="override-saved" id="override-saved-{{ item.patient.id }}">✓ Saved</span>
-              </form>
-            </div>
-          </td>
-          <td>
-            <div class="last-review">
-              {% if item.last_review %}
-                {{ item.last_review.strftime('%d %b %Y') }}
-              {% else %}
-                <span class="review-never">Never reviewed</span>
-              {% endif %}
-            </div>
           </td>
           <td style="text-align: right;">
             <a href="/analytics/patients/{{ item.patient.id }}" class="btn-analyze">
@@ -406,26 +456,16 @@
 
 </main>
 
+
 <script>
-async function submitOverride(event, patientId) {
-  event.preventDefault();
-  const form = event.target;
-  const data = new FormData(form);
-  try {
-    const resp = await fetch('/analytics/clinical-override', {
-      method: 'POST',
-      body: data,
-    });
-    if (resp.ok) {
-      const saved = document.getElementById('override-saved-' + patientId);
-      if (saved) { saved.style.display = 'inline'; }
-      form.reset();
-    } else {
-      alert('Override could not be saved — please try again.');
-    }
-  } catch (e) {
-    alert('Network error: ' + e);
-  }
+function toggleInsights(pid) {
+  const btn  = document.getElementById('toggle-' + pid);
+  const bay  = document.getElementById('bay-'    + pid);
+  const shap = document.getElementById('shap-'   + pid);
+  const open = btn.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open);
+  if (bay)  bay.classList.toggle('open',  open);
+  if (shap) shap.classList.toggle('open', open);
 }
 </script>
 

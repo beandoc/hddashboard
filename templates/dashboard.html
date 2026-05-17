@@ -617,7 +617,7 @@
 
 {% include "_nav.html" %}
 {% if user and user.role == 'staff' %}
-<div style="
+<div class="notice-banner" style="
   background: linear-gradient(90deg, #0ea5e9 0%, #0284c7 100%);
   color: #fff; padding: 12px 32px;
   display: flex; align-items: center; justify-content: space-between;
@@ -642,7 +642,7 @@
 {% endif %}
 
 {% if user and user.role == 'doctor' %}
-<div style="
+<div class="notice-banner" style="
   background: linear-gradient(90deg, #7c3aed 0%, #6d28d9 100%);
   color: #fff; padding: 12px 32px;
   display: flex; align-items: center; justify-content: space-between;
@@ -701,7 +701,7 @@
 <main>
 
   {% if data.data_note == "new_month_no_data" %}
-  <div style="background:#fffbeb;border-bottom:2px solid #f59e0b;padding:12px 24px;display:flex;align-items:center;gap:10px;font-size:0.88rem;color:#92400e;">
+  <div class="notice-banner" style="background:#fffbeb;border-bottom:2px solid #f59e0b;padding:12px 24px;display:flex;align-items:center;gap:10px;font-size:0.88rem;color:#92400e;flex-wrap:wrap;">
     <span class="material-icons" style="font-size:1.1rem;color:#d97706;">info</span>
     <span>No records entered for <strong>{{ current_month_label }}</strong> yet — showing <strong>{{ data.month_label }}</strong> data. <a href="/entry" style="color:#b45309;font-weight:700;text-decoration:underline;">Enter this month's data</a></span>
   </div>
