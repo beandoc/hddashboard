@@ -54,15 +54,23 @@ async def events_timeline(
 
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
 
-    # Determine currently admitted patients (last event is Hospitalization and not yet Discharged)
-    admitted_patients = []
-    for p in patients:
-        last_event = db.query(ClinicalEvent).filter(
-            ClinicalEvent.patient_id == p.id,
-            ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"])
-        ).order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc()).first()
-        if last_event and last_event.event_type == "Hospitalization":
-            admitted_patients.append(p)
+    # Batch: single query for all patients, determine admitted ones in Python
+    _hosp_events = (
+        db.query(ClinicalEvent)
+        .filter(
+            ClinicalEvent.patient_id.in_([p.id for p in patients]),
+            ClinicalEvent.event_type.in_(["Hospitalization", "Discharge"]),
+        )
+        .order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc())
+        .all()
+    )
+    _last_hosp_by_pid: dict = {}
+    for ev in _hosp_events:
+        _last_hosp_by_pid.setdefault(ev.patient_id, ev)
+    admitted_patients = [
+        p for p in patients
+        if _last_hosp_by_pid.get(p.id) and _last_hosp_by_pid[p.id].event_type == "Hospitalization"
+    ]
 
     return templates.TemplateResponse("events.html", {
         "request":     request,

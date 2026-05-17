@@ -26,14 +26,20 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
     
     # 1. Get clinical alerts
     alert_patients = get_patients_needing_alerts(db, month_str)
+
+    # Batch-load all monthly records for this month once — avoids N+1 in both loops below
+    active = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    _all_month_recs = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id.in_([p.id for p in active]),
+        MonthlyRecord.record_month == month_str,
+    ).all()
+    _month_rec_map = {r.patient_id: r for r in _all_month_recs}
+
     alert_links = []
     for ap in alert_patients:
         p = ap["patient"]
         if not p.contact_no: continue
-        rec_obj = db.query(MonthlyRecord).filter(
-            MonthlyRecord.patient_id == p.id,
-            MonthlyRecord.record_month == month_str
-        ).first()
+        rec_obj = _month_rec_map.get(p.id)
         link = build_individual_whatsapp_link(p, rec_obj, month_label)
         alert_links.append({
             "name": p.name, "hid": p.hid_no, "contact": p.contact_no,
@@ -41,14 +47,10 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
         })
 
     # 2. Get schedule links
-    active = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     schedule_links = []
     for p in active:
         if not p.contact_no: continue
-        rec_obj = db.query(MonthlyRecord).filter(
-            MonthlyRecord.patient_id == p.id,
-            MonthlyRecord.record_month == month_str
-        ).first()
+        rec_obj = _month_rec_map.get(p.id)
         sessions = compute_upcoming_sessions(p)
         remarks = (rec_obj.issues or "") if (rec_obj and rec_obj.issues) else ""
         msg = build_schedule_message(p.name, sessions, remarks)

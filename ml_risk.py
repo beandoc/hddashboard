@@ -1298,13 +1298,34 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
     }
 
 
+_ML_PER_PATIENT_CACHE: dict = {}  # patient_id -> (result_dict_without_patient, expiry_ts)
+_ML_CACHE_TTL = 120  # 2 minutes — recompute when monthly data is likely stale
+
+# Whole-function result cache (patient_id -> risk_dict, no ORM objects).
+# On cache hit, only the Patient objects are re-fetched (1 fast query).
+_ML_FULL_CACHE: dict = {"ts": 0.0, "rows": None}
+
+
 def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
     """
     Compute mortality risk for all active patients.
 
     PERF: Batch-loads all MonthlyRecords in 2 queries (patients + records)
     instead of 1+N queries. Records are sorted and sliced in Python.
+    Per-patient ML results (Bayesian + SHAP) cached for 2 min to avoid
+    recomputing expensive inference on every request.
+    On whole-function cache hit: only 1 DB query (patients) instead of 3+N.
     """
+    # Whole-function cache hit: skip all batch queries and ML computation
+    if _time.time() - _ML_FULL_CACHE["ts"] < _ML_CACHE_TTL and _ML_FULL_CACHE["rows"] is not None:
+        patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+        pid_to_patient = {p.id: p for p in patients}
+        return [
+            {"patient": pid_to_patient[pid], **risk_dict}
+            for pid, risk_dict in _ML_FULL_CACHE["rows"]
+            if pid in pid_to_patient
+        ]
+
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     if not patients:
         return []
@@ -1346,9 +1367,17 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
 
     from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
 
+    now_ts = _time.time()
     rows = []
     for p in patients:
         records = records_by_pid.get(p.id, [])
+
+        # Fast path: return cached ML result — only Patient ORM obj is refreshed
+        _cached_entry = _ML_PER_PATIENT_CACHE.get(p.id)
+        if _cached_entry and now_ts < _cached_entry[1]:
+            rows.append({"patient": p, **_cached_entry[0]})
+            continue
+
         df = [
             {
                 "month": r.record_month,
@@ -1420,8 +1449,7 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
                 )
             det_shap = _compute_deterioration_shap(det_model, feats)
 
-        rows.append({
-            "patient":      p,
+        _ml_result = {
             "mort":         mort,
             "prob_1yr":     mort["data"].get("prob_1yr") if mort.get("available") else None,
             "risk_level":   mort["data"].get("risk_level", "Unknown") if mort.get("available") else "Unknown",
@@ -1433,9 +1461,14 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
             "bay_profile":  bay_profile,
             "davies":       davies,
             "det_shap":     det_shap,
-            # Audit surface: what the model saw, keyed by hash for traceability
             "feature_hash": snap.feature_hash if snap else None,
-        })
+        }
+        _ML_PER_PATIENT_CACHE[p.id] = (_ml_result, now_ts + _ML_CACHE_TTL)
+        rows.append({"patient": p, **_ml_result})
+
+    # Populate whole-function cache with non-ORM data only
+    _ML_FULL_CACHE["rows"] = [(p.id, {k: v for k, v in r.items() if k != "patient"}) for p, r in zip(patients, rows)]
+    _ML_FULL_CACHE["ts"] = now_ts
     return rows
 
 

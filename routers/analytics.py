@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Optional
 import asyncio
@@ -67,26 +68,30 @@ async def adherence_report(request: Request, month: Optional[str] = None, db: Se
 @router.get("/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)
+    from sqlalchemy.orm import joinedload
     month_str, _ = get_effective_month(db, month)
-    
-    # 1. Monthly Totals
-    patients = db.query(Patient).all()
+
+    # Eager-load outcomes in 2 queries (patients + outcomes IN-batch) to avoid
+    # N+1 lazy loads when accessing current_survival_status / date_of_death
+    patients = db.query(Patient).options(joinedload(Patient.outcomes)).all()
     active_patients = [p for p in patients if p.is_active]
-    
-    # 2. New Registrations this month
+
     new_regs = [p for p in patients if p.created_at and p.created_at.strftime("%Y-%m") == month_str]
-    
-    # 3. Deaths this month
-    deaths = [p for p in patients if p.current_survival_status == "Deceased" and p.date_of_death and p.date_of_death.strftime("%Y-%m") == month_str]
-    
-    # 4. Transfers this month
-    transfers = [p for p in patients if p.current_survival_status == "Transferred" and p.date_facility_transfer and p.date_facility_transfer.strftime("%Y-%m") == month_str]
-    
-    # 5. Hospitalizations this month
+    deaths = [
+        p for p in patients
+        if p.current_survival_status == "Deceased"
+        and p.date_of_death
+        and p.date_of_death.strftime("%Y-%m") == month_str
+    ]
+    transfers = [
+        p for p in patients
+        if p.current_survival_status == "Transferred"
+        and p.date_facility_transfer
+        and p.date_facility_transfer.strftime("%Y-%m") == month_str
+    ]
+
     monthly_recs = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()
     hosp_count = sum(1 for r in monthly_recs if r.hospitalization_diagnosis or r.hospitalization_icd_diagnosis)
-    
-    # 6. Admission Rate (Hosp per 100 patient months)
     hosp_rate = (hosp_count / len(active_patients) * 100) if active_patients else 0
 
     return templates.TemplateResponse("census_report.html", {
