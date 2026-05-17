@@ -1,6 +1,8 @@
 import os
 import hmac as _hmac
 import hashlib as _hashlib
+from dotenv import load_dotenv
+load_dotenv()  # must run before DATABASE_URL is read below
 from typing import Optional, AsyncGenerator
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, Index, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import JSONB
