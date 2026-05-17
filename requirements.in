@@ -1,0 +1,33 @@
+# Direct dependencies — edit this file, then regenerate requirements.txt with:
+#   pip-compile --generate-hashes requirements.in -o requirements.txt
+#
+# Run under Python 3.11 to match the production interpreter:
+#   python3.11 -m pip install pip-tools
+#   python3.11 -m piptools compile --generate-hashes requirements.in -o requirements.txt
+
+alembic
+fastapi
+uvicorn[standard]
+sqlalchemy
+starlette
+jinja2
+python-multipart
+python-dotenv
+pydantic
+twilio
+psycopg2-binary
+passlib[bcrypt]
+bcrypt
+itsdangerous
+slowapi
+limits
+pyotp
+qrcode[pil]
+Pillow
+numpy
+scipy
+pandas
+scikit-learn
+statsmodels
+xgboost
+joblib
