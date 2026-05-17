@@ -29,6 +29,11 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
+# The auth middleware uses SessionLocal directly (not via DI), so patch it
+# to also point at the test DB — otherwise request.state.user is always None.
+import main as _main_module
+_main_module.SessionLocal = TestingSessionLocal
+
 try:
     print("1. Testing Imports & Model Integrity...")
     Base.metadata.create_all(bind=test_engine)
@@ -46,10 +51,27 @@ try:
         db.add(User(username="smoke_admin", hashed_password=pwd_context.hash("smoke123"), role="admin"))
         db.commit()
     
-    # Login
-    response = client.post("/login", data={"username": "smoke_admin", "password": "smoke123"}, follow_redirects=True)
+    # Login (GET first to obtain CSRF token)
+    login_get = client.get("/login")
+    assert login_get.status_code == 200
+    
+    import re
+    csrf_match = re.search(r'name="csrf_token"\s+value="([^"]+)"', login_get.text)
+    if not csrf_match:
+        csrf_match = re.search(r'value="([^"]+)"\s+name="csrf_token"', login_get.text)
+    csrf_token = csrf_match.group(1) if csrf_match else "dummy_token"
+    
+    response = client.post(
+        "/login", 
+        data={"username": "smoke_admin", "password": "smoke123", "csrf_token": csrf_token}, 
+        follow_redirects=True
+    )
+    if response.status_code != 200:
+        print(f"❌ Login failed with status: {response.status_code}")
+        print(f"Response Body: {response.text[:1000]}")
     assert response.status_code == 200
     print("✅ Login successful.")
+    print(f"🍪 Active Client Cookies: {client.cookies}")
 
     # Create Patient
     patient_data = {
@@ -59,9 +81,13 @@ try:
         "age": 45,
         "contact_no": "1234567890",
         "access_type": "AVF",
-        "dry_weight": 70.0
+        "dry_weight": 70.0,
+        "csrf_token": csrf_token
     }
     response = client.post("/patients/new", data=patient_data, follow_redirects=True)
+    if response.status_code != 200:
+        print(f"❌ Patient registration failed with status: {response.status_code}")
+        print(f"Response Body: {response.text[:1000]}")
     assert response.status_code == 200
     print("✅ Patient registration successful.")
 
@@ -75,9 +101,13 @@ try:
         "calcium": 7.5,
         "phosphorus": 6.0,
         "tsat": 20.0,
-        "idwg": 3.0
+        "idwg": 3.0,
+        "csrf_token": csrf_token
     }
     response = client.post(f"/entry/{p.id}", data=record_data, follow_redirects=True)
+    if response.status_code != 200:
+        print(f"❌ Clinical data entry failed with status: {response.status_code}")
+        print(f"Response Body: {response.text[:1000]}")
     assert response.status_code == 200
     print("✅ Clinical data entry successful.")
 
@@ -91,6 +121,9 @@ try:
 
     print("4. Testing Streaming Backup Integrity...")
     response = client.get("/admin/db/export")
+    if response.status_code != 200:
+        print(f"❌ Backup export failed with status: {response.status_code}")
+        print(f"Response Body: {response.text[:1000]}")
     assert response.status_code == 200
     backup_data = response.json()
     assert "patients" in backup_data

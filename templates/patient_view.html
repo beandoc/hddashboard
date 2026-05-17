@@ -116,11 +116,15 @@
 
         /* Nutrition Tracker */
         .nutrition-card { padding: 0; overflow: hidden; border: none; box-shadow: 0 8px 20px -4px rgba(0,0,0,0.1); }
-        .nutrition-summary { background: #0f172a; color: white; padding: 28px 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-        @media (max-width: 580px) {
-            .nutrition-summary { grid-template-columns: 1fr; gap: 20px; }
+        .nutrition-summary { background: #0f172a; color: white; padding: 28px 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        @media (max-width: 720px) {
+            .nutrition-summary { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        }
+        @media (max-width: 400px) {
+            .nutrition-summary { grid-template-columns: 1fr; gap: 16px; }
         }
         .phos-bar { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .pot-bar  { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
         .stat-ring { text-align: center; }
         .ring-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
         .ring-value { font-family: 'Outfit'; font-size: 2.4rem; font-weight: 700; line-height: 1; }
@@ -132,6 +136,44 @@
         .prot-bar { background: linear-gradient(90deg, #6366f1, #818cf8); }
         .progress-bar-over { background: linear-gradient(90deg, #ef4444, #fca5a5); }
         .over-badge { font-size: 0.65rem; font-weight: 800; color: #f87171; margin-top: 4px; }
+
+        /* Rolling averages panel */
+        .avg-panel { background: #0f172a; padding: 0 20px 24px; }
+        .avg-tab-row { display: flex; gap: 8px; padding: 0 0 16px 0; }
+        .avg-tab { padding: 6px 16px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+                   background: #1e293b; color: #94a3b8; border: 1px solid #334155; transition: all 0.2s; }
+        .avg-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .avg-hidden { display: none; }
+        .avg-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        @media (max-width: 640px) { .avg-grid { grid-template-columns: repeat(3, 1fr); } }
+        .avg-cell { background: #1e293b; border-radius: 12px; padding: 12px 14px; }
+        .avg-cell-phos  { border-left: 3px solid #f59e0b; }
+        .avg-cell-pot   { border-left: 3px solid #3b82f6; }
+        .avg-cell-calc  { border-left: 3px solid #22c55e; }
+        .avg-cell-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-weight: 700; margin-bottom: 4px; }
+        .avg-label-phos { color: #f59e0b; }
+        .avg-label-pot  { color: #60a5fa; }
+        .avg-label-calc { color: #4ade80; }
+        .avg-cell-value { font-size: 1.1rem; font-weight: 800; color: #f1f5f9; line-height: 1; }
+        .avg-val-phos   { color: #fbbf24; }
+        .avg-val-pot    { color: #93c5fd; }
+        .avg-val-calc   { color: #86efac; }
+        .avg-cell-unit  { font-size: 0.62rem; color: #64748b; font-weight: 500; margin-left: 2px; }
+        .avg-confidence { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+        .avg-conf-bar-bg { flex: 1; height: 4px; background: #334155; border-radius: 2px; overflow: hidden; }
+        .avg-conf-bar-fill { height: 100%; border-radius: 2px; width: 0; transition: width 0.5s ease; }
+        .conf-full { background: #22c55e; }
+        .conf-mid  { background: #f59e0b; }
+        .conf-low  { background: #ef4444; }
+        .avg-conf-label { font-size: 0.7rem; color: #64748b; }
+
+        /* Date picker in plate builder */
+        .log-date-row { display: flex; align-items: center; gap: 12px; background: #f0f9ff;
+                        border: 1.5px solid #bae6fd; border-radius: 12px; padding: 10px 16px; margin-bottom: 20px; }
+        .log-date-input { border: none; background: transparent; font-size: 0.95rem; font-weight: 700;
+                          color: var(--primary); font-family: 'Inter'; cursor: pointer; outline: none; flex: 1; }
+        .log-date-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+                          background: var(--primary); color: white; white-space: nowrap; }
 
         .meal-entry-section { padding: 24px; background: white; border-bottom: 1px solid var(--border); }
         .entry-subtitle { font-family: 'Outfit'; font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: var(--text); }
@@ -170,14 +212,24 @@
         .med-dose { color: var(--primary); font-weight: 700; font-size: 0.85rem; }
         .med-category { font-size: 0.7rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
 
-        /* Symptom Reporter */
-        .pds-section-heading { font-size: 0.82rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #e0f2fe; }
-        .symptom-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+        /* Symptom Reporter Premium Overhauls */
+        .pds-section-heading { font-size: 0.88rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.8px; margin: 26px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+        .symptom-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
         .symptom-chip input[type=checkbox] { display: none; }
-        .symptom-chip label { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 2px solid var(--border); border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; background: white; }
-        .symptom-chip input:checked + label { border-color: var(--primary); background: #e0f2fe; color: #0369a1; }
-        .severity-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
-        .range-display { font-size: 0.75rem; text-align: center; color: var(--primary); font-weight: 700; margin-top: 3px; }
+        .symptom-chip label { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.25s ease; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .symptom-chip label:hover { border-color: var(--primary); transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        
+        /* Individual color themes for checked symptom chips */
+        .symptom-chip.cramping input:checked + label { border-color: #f87171; background: #fef2f2; color: #991b1b; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.1); }
+        .symptom-chip.breathlessness input:checked + label { border-color: #38bdf8; background: #f0f9ff; color: #0369a1; box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.1); }
+        .symptom-chip.itching input:checked + label { border-color: #fbbf24; background: #fffbeb; color: #b45309; box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.1); }
+        .symptom-chip.nausea input:checked + label { border-color: #fb923c; background: #fff7ed; color: #c2410c; box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.1); }
+        .symptom-chip.dizziness input:checked + label { border-color: #c084fc; background: #faf5ff; color: #6b21a8; box-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.1); }
+        
+        .severity-labels { display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-top: 6px; }
+        .range-display { font-size: 0.78rem; text-align: center; color: var(--text); font-weight: 700; margin-top: 8px; }
+        .pds-metric-card { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; transition: all 0.2s; }
+        .pds-metric-card:hover { border-color: #cbd5e1; background: #f1f5f9; }
 
         /* Symptom History */
         .symptom-history-item { background: #f8fafc; border-radius: 12px; border: 1px solid var(--border); padding: 14px 16px; margin-bottom: 10px; }
@@ -391,66 +443,1161 @@
                 {% set phos_raw = (today_stats.total_phos / nutrition_targets.phosphorus * 100)|int %}
                 {% set phos_perc = phos_raw if phos_raw < 100 else 100 %}
                 <div class="ring-value">{{ today_stats.total_phos|int }}<span>mg</span></div>
-                <div class="ring-target">Target: &lt; {{ nutrition_targets.phosphorus }} mg</div>
+                <div class="ring-target">Limit: {{ nutrition_targets.phosphorus }} mg</div>
                 <div class="progress-bar-container">
                     <div class="progress-bar {% if phos_raw > 100 %}progress-bar-over{% else %}phos-bar{% endif %}" style="width: {{ phos_perc }}%"></div>
                 </div>
                 {% if phos_raw > 100 %}<div class="over-badge" style="color:#f87171;">⚠ {{ phos_raw - 100 }}% over limit</div>{% endif %}
             </div>
+            <div class="stat-ring">
+                <div class="ring-label">Potassium</div>
+                {% set pot_raw = (today_stats.total_pot / nutrition_targets.potassium * 100)|int %}
+                {% set pot_perc = pot_raw if pot_raw < 100 else 100 %}
+                <div class="ring-value">{{ today_stats.total_pot|int }}<span>mg</span></div>
+                <div class="ring-target">Limit: {{ nutrition_targets.potassium }} mg</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar {% if pot_raw > 100 %}progress-bar-over{% else %}pot-bar{% endif %}" style="width: {{ pot_perc }}%"></div>
+                </div>
+                {% if pot_raw > 100 %}<div class="over-badge" style="color:#f87171;">⚠ {{ pot_raw - 100 }}% over limit</div>{% endif %}
+            </div>
         </div>
 
-        <div class="meal-entry-section">
-            <h3 class="entry-subtitle">Log a Meal</h3>
-            <p style="color:var(--muted); font-size:0.8rem; margin:-8px 0 16px 0;">Just type what you had (e.g., <i>"2 Rotis with Dal and Curd"</i>). Calories, Protein, and Phosphorus will be automatically computed for you!</p>
-            <form action="/patient/meals" method="POST" class="meal-form-v2">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Meal Type</label>
-                        <select name="meal_type" required>
-                            <option value="Breakfast">Breakfast</option>
-                            <option value="Lunch">Lunch</option>
-                            <option value="Dinner">Dinner</option>
-                            <option value="Snack">Snack / Beverage</option>
-                        </select>
+        <!-- Rolling Averages Panel -->
+        <div class="avg-panel">
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 0 14px 0; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; font-weight:700;">Nutrient Averages</div>
+                    <div style="font-size:0.82rem; color:#94a3b8; margin-top:2px;">More days logged → better estimate accuracy</div>
+                </div>
+                <div class="avg-tab-row" style="padding:0; margin:0;">
+                    <button class="avg-tab active" data-window="d1">Today</button>
+                    <button class="avg-tab" data-window="d3">3-Day Avg</button>
+                    <button class="avg-tab" data-window="d7">7-Day Avg</button>
+                </div>
+            </div>
+
+            {% macro avg_cells(avg) %}
+                {% if avg %}
+                <div class="avg-grid">
+                    <div class="avg-cell">
+                        <div class="avg-cell-label">Calories</div>
+                        <div class="avg-cell-value">{{ avg.cal }}<span class="avg-cell-unit">kcal</span></div>
                     </div>
-                    <div class="form-group">
-                        <label>Calories (kcal) <span style="color:var(--muted); font-size:0.65rem; font-weight:normal;">(Optional)</span></label>
-                        <input type="number" step="1" name="calories" placeholder="e.g. 450 (or leave blank)" min="0">
+                    <div class="avg-cell">
+                        <div class="avg-cell-label">Protein</div>
+                        <div class="avg-cell-value">{{ avg.prot }}<span class="avg-cell-unit">g</span></div>
                     </div>
-                    <div class="form-group">
-                        <label>Protein (g) <span style="color:var(--muted); font-size:0.65rem; font-weight:normal;">(Optional)</span></label>
-                        <input type="number" step="0.1" name="protein" placeholder="e.g. 15.5 (or leave blank)" min="0">
+                    <div class="avg-cell avg-cell-phos">
+                        <div class="avg-cell-label avg-label-phos">Phosphorus</div>
+                        <div class="avg-cell-value avg-val-phos">{{ avg.phos }}<span class="avg-cell-unit">mg</span></div>
+                    </div>
+                    <div class="avg-cell avg-cell-pot">
+                        <div class="avg-cell-label avg-label-pot">Potassium</div>
+                        <div class="avg-cell-value avg-val-pot">{{ avg.pot }}<span class="avg-cell-unit">mg</span></div>
+                    </div>
+                    <div class="avg-cell avg-cell-calc">
+                        <div class="avg-cell-label avg-label-calc">Calcium</div>
+                        <div class="avg-cell-value avg-val-calc">{{ avg.calc }}<span class="avg-cell-unit">mg</span></div>
                     </div>
                 </div>
-                <div class="form-group full-width">
-                    <label>What did you have? <span style="color:var(--primary); font-size:0.68rem; font-weight:bold;">(Required)</span></label>
-                    <input type="text" name="notes" placeholder="e.g. 2 Rotis with Dal and Curd" required>
+                <div class="avg-confidence">
+                    <div class="avg-conf-bar-bg">
+                        <div class="avg-conf-bar-fill {% if avg.n == avg.of %}conf-full{% elif avg.n * 2 >= avg.of %}conf-mid{% else %}conf-low{% endif %}"
+                             data-pct="{{ (avg.n / avg.of * 100)|int }}"></div>
+                    </div>
+                    <span class="avg-conf-label">Based on <strong style="color:#f1f5f9;">{{ avg.n }}/{{ avg.of }}</strong> day{{ 's' if avg.of > 1 }} of data{% if avg.n < avg.of %} — log more for accuracy{% endif %}</span>
                 </div>
-                <button type="submit" class="btn-primary-v2">Add to My Log</button>
+                {% else %}
+                <div style="text-align:center; padding:18px 0; color:#475569; font-size:0.85rem;">
+                    No data logged yet — start by logging meals below.
+                </div>
+                {% endif %}
+            {% endmacro %}
+
+            <div class="avg-window-panel" id="avg-d1">{{ avg_cells(nutrition_avg.d1) }}</div>
+            <div class="avg-window-panel avg-hidden" id="avg-d3">{{ avg_cells(nutrition_avg.d3) }}</div>
+            <div class="avg-window-panel avg-hidden" id="avg-d7">{{ avg_cells(nutrition_avg.d7) }}</div>
+        </div>
+
+        <script>
+        (function() {
+            // ── Confidence bar widths (driven by data-pct, avoids Jinja2 in style="") ──
+            document.querySelectorAll('.avg-conf-bar-fill[data-pct]').forEach(function(el) {
+                el.style.width = el.dataset.pct + '%';
+            });
+
+            // ── Avg panel tab switching ──
+            document.querySelectorAll('.avg-tab').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.avg-tab').forEach(function(b) { b.classList.remove('active'); });
+                    document.querySelectorAll('.avg-window-panel').forEach(function(p) { p.classList.add('avg-hidden'); });
+                    this.classList.add('active');
+                    var panel = document.getElementById('avg-' + this.dataset.window);
+                    if (panel) panel.classList.remove('avg-hidden');
+                });
+            });
+        })();
+        </script>
+
+        <style>
+            .plate-builder-card {
+                background: #ffffff;
+                border: 1px solid var(--border);
+                border-radius: 20px;
+                padding: 28px;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+                margin-bottom: 24px;
+                position: relative;
+                overflow: hidden;
+            }
+            .plate-builder-card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 5px;
+                background: linear-gradient(90deg, var(--primary), var(--secondary));
+            }
+            .search-wrapper-premium {
+                position: relative;
+                flex: 2;
+            }
+            .search-icon-premium {
+                position: absolute;
+                left: 14px;
+                top: 50%;
+                transform: translateY(-50%);
+                color: var(--muted);
+                pointer-events: none;
+                font-size: 20px;
+            }
+            .search-input-premium {
+                width: 100%;
+                padding: 12px 16px 12px 42px !important;
+                border-radius: 12px !important;
+                border: 1.5px solid var(--border) !important;
+                font-size: 0.95em !important;
+                background: #f8fafc !important;
+                transition: all 0.25s ease !important;
+            }
+            .search-input-premium:focus {
+                border-color: var(--primary) !important;
+                background: #ffffff !important;
+                box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12) !important;
+                outline: none;
+            }
+            .dropdown-premium {
+                display: none;
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: calc(100% + 6px);
+                background: #ffffff;
+                border: 1px solid rgba(15, 23, 42, 0.08);
+                border-radius: 14px;
+                box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+                z-index: 100;
+                max-height: 260px;
+                overflow-y: auto;
+            }
+            .dropdown-item-premium {
+                padding: 12px 16px;
+                cursor: pointer;
+                border-bottom: 1px solid #f1f5f9;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                transition: all 0.2s ease;
+            }
+            .dropdown-item-premium:hover {
+                background: #f0f9ff;
+                padding-left: 20px;
+            }
+            .plate-card-premium {
+                background: #ffffff;
+                border: 1px solid #f1f5f9;
+                border-radius: 14px;
+                padding: 12px 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01), 0 2px 4px -1px rgba(0,0,0,0.01);
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                animation: slideIn 0.3s ease-out;
+            }
+            @keyframes slideIn {
+                from { opacity: 0; transform: translateY(8px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .plate-card-premium:hover {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04);
+                border-color: #e2e8f0;
+            }
+            .food-avatar-premium {
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                margin-right: 12px;
+                box-shadow: inset 0 -2px 4px rgba(0,0,0,0.04);
+            }
+            .qty-pill-premium {
+                display: flex;
+                align-items: center;
+                background: #f1f5f9;
+                border-radius: 30px;
+                padding: 3px;
+                border: 1px solid #e2e8f0;
+            }
+            .qty-btn-premium {
+                width: 26px;
+                height: 26px;
+                border-radius: 50%;
+                background: #ffffff;
+                border: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-weight: 700;
+                color: var(--text);
+                box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+                transition: all 0.15s ease;
+            }
+            .qty-btn-premium:hover {
+                transform: scale(1.08);
+                background: var(--primary);
+                color: white;
+            }
+            .delete-btn-premium {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #fff5f5;
+                border: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                color: #ef4444;
+                transition: all 0.2s ease;
+                margin-left: 6px;
+            }
+            .delete-btn-premium:hover {
+                background: #ef4444;
+                color: #ffffff;
+            }
+            .nutrient-pill-badge {
+                font-size: 0.65rem;
+                font-weight: 600;
+                padding: 2px 6px;
+                border-radius: 20px;
+                display: inline-block;
+            }
+            .badge-cal  { background: #e0f2fe; color: #0369a1; }
+            .badge-prot { background: #dcfce7; color: #15803d; }
+            .badge-phos { background: #fef3c7; color: #b45309; }
+            .badge-pot  { background: #dbeafe; color: #1d4ed8; }
+            .badge-calc { background: #f0fdf4; color: #166534; }
+            
+            .summary-card-premium {
+                background: #ffffff; 
+                border: 1px solid #f1f5f9; 
+                padding: 16px; 
+                border-radius: 16px; 
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+                transition: all 0.3s;
+                position: relative;
+            }
+            .summary-card-premium:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+            }
+            .educational-impact-bar {
+                height: 5px;
+                background: #e2e8f0;
+                border-radius: 10px;
+                margin-top: 10px;
+                overflow: hidden;
+            }
+            .educational-impact-fill {
+                height: 100%;
+                border-radius: 10px;
+                width: 0%;
+                transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            
+            /* Slot selector button styles */
+            .slot-tab-btn {
+                flex: 1;
+                min-width: 100px;
+                min-height: 46px;
+                border-radius: 12px;
+                border: 1.5px solid var(--border);
+                background: #ffffff;
+                color: var(--text);
+                font-weight: 700;
+                font-family: 'Inter';
+                font-size: 0.85rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            .slot-tab-btn:hover {
+                border-color: var(--primary);
+                background: #f0f9ff;
+            }
+            .slot-tab-btn.active {
+                border-color: var(--primary);
+                background: var(--primary);
+                color: white;
+                box-shadow: 0 4px 10px rgba(14, 165, 233, 0.2);
+            }
+            .recall-section-card {
+                background: #ffffff;
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                padding: 18px;
+                transition: all 0.2s ease;
+            }
+            .recall-section-card.active-target {
+                border-color: var(--primary);
+                box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+            }
+        </style>
+
+        <div class="plate-builder-card">
+            <h3 class="entry-subtitle" style="font-size:1.15rem; display:flex; align-items:center; gap:8px; margin:0 0 6px 0;">
+                <span class="material-icons" style="color:var(--primary); font-size:24px;">date_range</span> 24-Hour Food Recall Dashboard
+            </h3>
+            <p style="color:var(--muted); font-size:0.82rem; margin:0 0 20px 0; line-height:1.4;">
+                Review and document your complete 24-hour food intake. Select a slot (Breakfast, Lunch, Dinner, Snacks), search items to build plates, and click **Save & Compute** once completed!
+            </p>
+            
+            <!-- Log Date Picker -->
+            <div class="log-date-row">
+                <span class="material-icons" style="color:var(--primary); font-size:20px;">event</span>
+                <label style="font-size:0.75rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px; white-space:nowrap;">Logging for</label>
+                <input type="date" id="log-date-picker" class="log-date-input"
+                       value="{{ today_iso }}" min="{{ min_log_date }}" max="{{ today_iso }}">
+                <span id="log-date-badge" class="log-date-badge">Today</span>
+            </div>
+
+            <!-- Granular Active Meal Slot Selector Tabs -->
+            <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+                <button type="button" class="slot-tab-btn active" data-slot="Breakfast">
+                    <span>🌅</span> Breakfast
+                </button>
+                <button type="button" class="slot-tab-btn" data-slot="Lunch">
+                    <span>☀️</span> Lunch
+                </button>
+                <button type="button" class="slot-tab-btn" data-slot="Dinner">
+                    <span>🌙</span> Dinner
+                </button>
+                <button type="button" class="slot-tab-btn" data-slot="Snack">
+                    <span>☕</span> Snacks / Bev
+                </button>
+            </div>
+
+            <form action="/patient/meals" method="POST" id="interactive-meal-form" class="meal-form-v2">
+                <!-- Autocomplete search linked to the active slot -->
+                <div class="form-row" style="margin-bottom:16px; grid-template-columns: 1fr;">
+                    <div class="form-group" style="position:relative;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+                            <label style="font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.4px; margin:0;">
+                                🔍 Search Database to Add to <span id="active-slot-indicator" style="color:var(--primary); font-weight:800;">Breakfast</span>
+                            </label>
+                            <!-- Diet Preference Selector Tabs -->
+                            <div style="display:flex; gap:3px; background:#f1f5f9; border-radius:8px; padding:3px; border:1px solid #cbd5e1;">
+                                <button type="button" class="diet-tab" data-diet="all" style="border:none; padding:4px 10px; font-size:0.68rem; font-weight:800; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all 0.15s; background:var(--primary); color:white; outline:none;">
+                                    🍽️ All Foods
+                                </button>
+                                <button type="button" class="diet-tab" data-diet="veg" style="border:none; padding:4px 10px; font-size:0.68rem; font-weight:800; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all 0.15s; background:transparent; color:#475569; outline:none;">
+                                    🟢 Veg Only
+                                </button>
+                                <button type="button" class="diet-tab" data-diet="egg" style="border:none; padding:4px 10px; font-size:0.68rem; font-weight:800; border-radius:6px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all 0.15s; background:transparent; color:#475569; outline:none;">
+                                    🥚 Egg-Veg
+                                </button>
+                            </div>
+                        </div>
+                        <div class="search-wrapper-premium">
+                            <span class="material-icons search-icon-premium">search</span>
+                            <input type="text" id="food-search-input" class="search-input-premium" placeholder="Search (e.g. roti, rice, paneer, tea, apple...)">
+                        </div>
+                        <!-- Dropdown List -->
+                        <div id="search-autocomplete-dropdown" class="dropdown-premium"></div>
+                    </div>
+                </div>
+
+                <!-- Guided Virtual 24-Hour recall plates dashboard -->
+                <div style="background:linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); border:1.5px dashed #cbd5e1; border-radius:16px; padding:22px; margin-bottom:20px;">
+                    <h4 style="margin:0 0 14px; font-size:0.92em; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between;">
+                        <span style="display:flex; align-items:center; gap:6px;">
+                            <span class="material-icons" style="font-size:20px; color:var(--primary);">menu_book</span> 24-Hour Recall Plate Entries
+                        </span>
+                        <span id="plate-item-count-badge" style="background:var(--primary); color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; display:none;">0 items</span>
+                    </h4>
+                    
+                    <!-- Granular Stack of Plates -->
+                    <div class="recall-board" style="display:flex; flex-direction:column; gap:12px; margin-bottom:20px;">
+                        
+                        <!-- Breakfast Slot Section -->
+                        <div class="recall-section-card active-target" id="section-Breakfast">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                                <span style="font-weight:700; font-size:0.85rem; display:flex; align-items:center; gap:6px; color:#0ea5e9;">
+                                    <span>🌅</span> Breakfast Plate
+                                </span>
+                                <span id="badge-Breakfast" style="font-size:0.7rem; color:var(--muted); font-weight:700; text-transform:uppercase;">Empty</span>
+                            </div>
+                            <div class="slot-items-container" id="container-Breakfast" style="display:flex; flex-direction:column; gap:8px;">
+                                <div style="font-size:0.8rem; color:var(--muted); font-style:italic;">No items added to Breakfast yet</div>
+                            </div>
+                        </div>
+
+                        <!-- Lunch Slot Section -->
+                        <div class="recall-section-card" id="section-Lunch">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                                <span style="font-weight:700; font-size:0.85rem; display:flex; align-items:center; gap:6px; color:#10b981;">
+                                    <span>☀️</span> Lunch Plate
+                                </span>
+                                <span id="badge-Lunch" style="font-size:0.7rem; color:var(--muted); font-weight:700; text-transform:uppercase;">Empty</span>
+                            </div>
+                            <div class="slot-items-container" id="container-Lunch" style="display:flex; flex-direction:column; gap:8px;">
+                                <div style="font-size:0.8rem; color:var(--muted); font-style:italic;">No items added to Lunch yet</div>
+                            </div>
+                        </div>
+
+                        <!-- Dinner Slot Section -->
+                        <div class="recall-section-card" id="section-Dinner">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                                <span style="font-weight:700; font-size:0.85rem; display:flex; align-items:center; gap:6px; color:#f59e0b;">
+                                    <span>🌙</span> Dinner Plate
+                                </span>
+                                <span id="badge-Dinner" style="font-size:0.7rem; color:var(--muted); font-weight:700; text-transform:uppercase;">Empty</span>
+                            </div>
+                            <div class="slot-items-container" id="container-Dinner" style="display:flex; flex-direction:column; gap:8px;">
+                                <div style="font-size:0.8rem; color:var(--muted); font-style:italic;">No items added to Dinner yet</div>
+                            </div>
+                        </div>
+
+                        <!-- Snack Slot Section -->
+                        <div class="recall-section-card" id="section-Snack">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                                <span style="font-weight:700; font-size:0.85rem; display:flex; align-items:center; gap:6px; color:#8b5cf6;">
+                                    <span>☕</span> Snacks / Beverages Plate
+                                </span>
+                                <span id="badge-Snack" style="font-size:0.7rem; color:var(--muted); font-weight:700; text-transform:uppercase;">Empty</span>
+                            </div>
+                            <div class="slot-items-container" id="container-Snack" style="display:flex; flex-direction:column; gap:8px;">
+                                <div style="font-size:0.8rem; color:var(--muted); font-style:italic;">No items added to Snacks yet</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Visual Educational Summary for the full day -->
+                    <div id="plate-summary-stats" style="display:none; margin-top:20px; padding-top:20px; border-top:1.5px dashed #cbd5e1;">
+                        <h5 style="margin:0 0 12px 0; font-size:0.8em; text-transform:uppercase; color:var(--muted); letter-spacing:0.06em; font-weight:700;">Live 24-Hour Total Impact</h5>
+                        
+                        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; text-align:left;">
+                            <!-- Calories Summary -->
+                            <div class="summary-card-premium">
+                                <div style="font-size:0.66em; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px;">Calories</div>
+                                <div id="summary-calories" style="font-size:1.1em; font-weight:800; color:var(--text); margin-top:4px;">0 <span style="font-size:0.6em; font-weight:500; color:var(--muted);">kcal</span></div>
+                                <div class="educational-impact-bar">
+                                    <div id="impact-bar-cal" class="educational-impact-fill" style="background:#0ea5e9;"></div>
+                                </div>
+                                <div id="impact-txt-cal" style="font-size:0.6rem; color:var(--muted); margin-top:4px;">0% target</div>
+                            </div>
+
+                            <!-- Protein Summary -->
+                            <div class="summary-card-premium">
+                                <div style="font-size:0.66em; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px;">Protein</div>
+                                <div id="summary-protein" style="font-size:1.1em; font-weight:800; color:#10b981; margin-top:4px;">0.0 <span style="font-size:0.6em; font-weight:500; color:var(--muted);">g</span></div>
+                                <div class="educational-impact-bar">
+                                    <div id="impact-bar-prot" class="educational-impact-fill" style="background:#10b981;"></div>
+                                </div>
+                                <div id="impact-txt-prot" style="font-size:0.6rem; color:var(--muted); margin-top:4px;">0% target</div>
+                            </div>
+
+                            <!-- Phosphorus Summary -->
+                            <div class="summary-card-premium">
+                                <div style="font-size:0.66em; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px;">Phosphorus</div>
+                                <div id="summary-phosphorus" style="font-size:1.1em; font-weight:800; color:#f59e0b; margin-top:4px;">0 <span style="font-size:0.6em; font-weight:500; color:var(--muted);">mg</span></div>
+                                <div class="educational-impact-bar">
+                                    <div id="impact-bar-phos" class="educational-impact-fill" style="background:#f59e0b;"></div>
+                                </div>
+                                <div id="impact-txt-phos" style="font-size:0.6rem; color:var(--muted); margin-top:4px;">0% limit</div>
+                            </div>
+
+                            <!-- Potassium Summary -->
+                            <div class="summary-card-premium">
+                                <div style="font-size:0.66em; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px;">Potassium</div>
+                                <div id="summary-potassium" style="font-size:1.1em; font-weight:800; color:#3b82f6; margin-top:4px;">0 <span style="font-size:0.6em; font-weight:500; color:var(--muted);">mg</span></div>
+                                <div class="educational-impact-bar">
+                                    <div id="impact-bar-pot" class="educational-impact-fill" style="background:#3b82f6;"></div>
+                                </div>
+                                <div id="impact-txt-pot" style="font-size:0.6rem; color:var(--muted); margin-top:4px;">0% limit</div>
+                            </div>
+
+                            <!-- Calcium Summary -->
+                            <div class="summary-card-premium">
+                                <div style="font-size:0.66em; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px;">Calcium</div>
+                                <div id="summary-calcium" style="font-size:1.1em; font-weight:800; color:#16a34a; margin-top:4px;">0 <span style="font-size:0.6em; font-weight:500; color:var(--muted);">mg</span></div>
+                                <div class="educational-impact-bar">
+                                    <div id="impact-bar-calc" class="educational-impact-fill" style="background:#16a34a;"></div>
+                                </div>
+                                <div id="impact-txt-calc" style="font-size:0.6rem; color:var(--muted); margin-top:4px;">0% target</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fallback Free-text Description -->
+                <div class="form-group full-width" style="margin-bottom:16px;">
+                    <label style="font-weight:700; display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.4px;">
+                        <span>What did you have? <span style="color:var(--primary); font-weight:bold;">(Auto-filled by Plate Builder)</span></span>
+                        <a href="javascript:void(0)" id="toggle-manual-text-btn" style="font-size:0.75rem; text-decoration:none; color:var(--primary); text-transform:none; font-weight:600;">Edit custom notes manually</a>
+                    </label>
+                    <input type="text" name="notes" id="meal-notes-input" placeholder="e.g. [Breakfast] 2 x Roti | [Lunch] 1 x Rice" required style="width:100%; padding:12px 15px; border-radius:10px; border:1.5px solid var(--border); font-size:0.95em; background:#f8fafc; font-family:'Inter';">
+                </div>
+
+                <!-- Hidden inputs to submit exact calculated macro numbers to backend (used *only* if manual override fallback is submitted) -->
+                <input type="hidden" name="log_date" id="hidden-log-date" value="{{ today_iso }}">
+                <input type="hidden" name="calories" id="hidden-calories">
+                <input type="hidden" name="protein" id="hidden-protein">
+                <input type="hidden" name="phosphorus" id="hidden-phosphorus">
+                <input type="hidden" name="potassium" id="hidden-potassium">
+                <input type="hidden" name="calcium" id="hidden-calcium">
+                <input type="hidden" name="meal_type" value="Breakfast">
+
+                <button type="submit" id="submit-recall-btn" class="btn-primary-v2" style="width:100%; padding:15px; font-weight:800; font-size:1.05rem; border-radius:12px; background:var(--primary); color:white; border:none; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 6px -1px rgba(14, 165, 233, 0.2);">
+                    Save 24-Hour Food Recall & Compute
+                </button>
             </form>
         </div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const searchInput = document.getElementById("food-search-input");
+                const dropdown = document.getElementById("search-autocomplete-dropdown");
+                const emptyState = document.getElementById("plate-empty-state");
+                const summaryStats = document.getElementById("plate-summary-stats");
+                const notesInput = document.getElementById("meal-notes-input");
+                const toggleManualBtn = document.getElementById("toggle-manual-text-btn");
+                const itemCountBadge = document.getElementById("plate-item-count-badge");
+                const submitRecallBtn = document.getElementById("submit-recall-btn");
+                const activeIndicator = document.getElementById("active-slot-indicator");
+                const formElement = document.getElementById("interactive-meal-form");
+                
+                const hiddenLogDate = document.getElementById("hidden-log-date");
+                const hiddenCal  = document.getElementById("hidden-calories");
+                const hiddenProt = document.getElementById("hidden-protein");
+                const hiddenPhos = document.getElementById("hidden-phosphorus");
+                const hiddenPot  = document.getElementById("hidden-potassium");
+                const hiddenCalc = document.getElementById("hidden-calcium");
+
+                // ── Date picker ──
+                const datePicker = document.getElementById("log-date-picker");
+                const dateBadge  = document.getElementById("log-date-badge");
+                const todayISO   = "{{ today_iso }}";
+
+                function formatDateBadge(iso) {
+                    if (iso === todayISO) return "Today";
+                    const d = new Date(iso + "T00:00:00");
+                    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+                }
+
+                datePicker.addEventListener("change", function() {
+                    const val = this.value;
+                    dateBadge.textContent = formatDateBadge(val);
+                    dateBadge.style.background = (val === todayISO) ? "var(--primary)" : "#7c3aed";
+                    hiddenLogDate.value = val;
+                });
+
+                const sumCalories   = document.getElementById("summary-calories");
+                const sumProtein    = document.getElementById("summary-protein");
+                const sumPhosphorus = document.getElementById("summary-phosphorus");
+                const sumPotassium  = document.getElementById("summary-potassium");
+                const sumCalcium    = document.getElementById("summary-calcium");
+
+                // Daily targets / limits for hemodialysis patients (weight-adjusted from server)
+                const TARGETS = {
+                    calories:   parseFloat("{{ nutrition_targets.calories }}") || 1800,
+                    protein:    parseFloat("{{ nutrition_targets.protein }}") || 72,
+                    phosphorus: parseFloat("{{ nutrition_targets.phosphorus }}") || 900,
+                    potassium:  parseFloat("{{ nutrition_targets.potassium }}") || 2000,
+                    calcium:    parseFloat("{{ nutrition_targets.calcium }}") || 1000,
+                };
+
+                // Dynamic progress indicators
+                const barCal  = document.getElementById("impact-bar-cal");
+                const barProt = document.getElementById("impact-bar-prot");
+                const barPhos = document.getElementById("impact-bar-phos");
+                const barPot  = document.getElementById("impact-bar-pot");
+                const barCalc = document.getElementById("impact-bar-calc");
+
+                const txtCal  = document.getElementById("impact-txt-cal");
+                const txtProt = document.getElementById("impact-txt-prot");
+                const txtPhos = document.getElementById("impact-txt-phos");
+                const txtPot  = document.getElementById("impact-txt-pot");
+                const txtCalc = document.getElementById("impact-txt-calc");
+
+                // 24-Hour Recall State
+                let recallData = {
+                    'Breakfast': [],
+                    'Lunch': [],
+                    'Dinner': [],
+                    'Snack': []
+                };
+                let activeMealSlot = 'Breakfast';
+                let isEditingNotesManually = false;
+
+                // Handle Slot selection changes
+                const tabButtons = document.querySelectorAll(".slot-tab-btn");
+                tabButtons.forEach(btn => {
+                    btn.addEventListener("click", function() {
+                        tabButtons.forEach(b => {
+                            b.classList.remove("active");
+                            b.style.border = "1.5px solid var(--border)";
+                            b.style.background = "#ffffff";
+                            b.style.color = "var(--text)";
+                        });
+                        
+                        this.classList.add("active");
+                        this.style.border = "1.5px solid var(--primary)";
+                        this.style.background = "var(--primary)";
+                        this.style.color = "white";
+                        
+                        activeMealSlot = this.getAttribute("data-slot");
+                        activeIndicator.textContent = activeMealSlot;
+                        
+                        // Highlight corresponding recall board card
+                        document.querySelectorAll(".recall-section-card").forEach(c => {
+                            c.classList.remove("active-target");
+                        });
+                        document.getElementById("section-" + activeMealSlot).classList.add("active-target");
+                        
+                        // Scroll search bar into view for ease of input
+                        searchInput.focus();
+                    });
+                });
+
+                // Helper to assign a dynamic category avatar
+                function getFoodCategoryAvatar(name) {
+                    const n = name.toLowerCase();
+                    if (n.match(/(roti|chapati|phulka|naan|bread|rice|dosa|idli|bun|pav|flour|wheat)/)) {
+                        return { emoji: "🥖", bg: "#fef3c7" };
+                    }
+                    if (n.match(/(milk|curd|paneer|cheese|yogurt|dahi|butter|cream)/)) {
+                        return { emoji: "🥛", bg: "#e0f2fe" };
+                    }
+                    if (n.match(/(dal|sambar|lentil|chana|rajma|pulse|bean|sprout)/)) {
+                        return { emoji: "🥣", bg: "#ffedd5" };
+                    }
+                    if (n.match(/(chicken|fish|egg|meat|mutton|pork|beef|prawn)/)) {
+                        return { emoji: "🍗", bg: "#fee2e2" };
+                    }
+                    if (n.match(/(apple|banana|orange|mango|fruit|grape|papaya|guava|citrus)/)) {
+                        return { emoji: "🍎", bg: "#dcfce7" };
+                    }
+                    if (n.match(/(tea|coffee|juice|water|beverage|soda)/)) {
+                        return { emoji: "☕", bg: "#f3e8ff" };
+                    }
+                    return { emoji: "🍲", bg: "#f1f5f9" };
+                }
+
+                // Toggle manual text field editing
+                toggleManualBtn.addEventListener("click", function() {
+                    isEditingNotesManually = !isEditingNotesManually;
+                    if (isEditingNotesManually) {
+                        notesInput.removeAttribute("readonly");
+                        notesInput.style.background = "white";
+                        notesInput.focus();
+                        toggleManualBtn.textContent = "Auto-generate from Plate Builder";
+                    } else {
+                        notesInput.setAttribute("readonly", true);
+                        notesInput.style.background = "#f8fafc";
+                        updateNotesAndHiddenFields();
+                        toggleManualBtn.textContent = "Edit custom notes manually";
+                    }
+                });
+
+                // Default state is readonly for notesInput
+                notesInput.setAttribute("readonly", true);
+
+                // Diet filter selection state control
+                let activeDietFilter = 'all';
+                const dietTabs = document.querySelectorAll(".diet-tab");
+                dietTabs.forEach(tab => {
+                    tab.addEventListener("click", function() {
+                        dietTabs.forEach(t => {
+                            t.style.background = "transparent";
+                            t.style.color = "#475569";
+                        });
+                        this.style.background = "var(--primary)";
+                        this.style.color = "white";
+                        activeDietFilter = this.getAttribute("data-diet");
+                        
+                        // Re-trigger query search immediately if input is filled
+                        const query = searchInput.value.trim();
+                        if (query.length >= 2) {
+                            searchInput.dispatchEvent(new Event("input"));
+                        }
+                    });
+                });
+
+                // Fetch suggestions as patient types
+                searchInput.addEventListener("input", function() {
+                    const query = searchInput.value.trim();
+                    if (query.length < 2) {
+                        dropdown.style.display = "none";
+                        return;
+                    }
+
+                    fetch(`/patient/api/foods/search?q=${encodeURIComponent(query)}&diet=${activeDietFilter}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            if (!data || data.length === 0) {
+                                dropdown.innerHTML = `<div style="padding:16px; color:var(--muted); font-size:0.85em; text-align:center;">No matching food items found</div>`;
+                                dropdown.style.display = "block";
+                                return;
+                            }
+
+                            dropdown.innerHTML = "";
+                            data.forEach(item => {
+                                const row = document.createElement("div");
+                                row.className = "dropdown-item-premium";
+                                
+                                const avatar = getFoodCategoryAvatar(item.name);
+
+                                row.innerHTML = `
+                                    <div style="display:flex; align-items:center; flex:1; min-width:0;">
+                                        <div style="background:${avatar.bg}; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; margin-right:10px; flex-shrink:0;">
+                                            ${avatar.emoji}
+                                        </div>
+                                        <div style="min-width:0;">
+                                            <div style="font-weight:600; color:var(--text); font-size:0.9em;">${item.name}</div>
+                                            ${item.serving_size ? `<div style="font-size:0.68rem; color:#6366f1; font-weight:600; margin-top:1px;">per ${item.serving_size}</div>` : ''}
+                                            <div style="font-size:0.7rem; color:var(--muted); margin-top:2px; display:flex; gap:6px; flex-wrap:wrap;">
+                                                <span style="color:#f59e0b;">P: ${Math.round(item.phosphorus)}mg</span>
+                                                <span style="color:#3b82f6;">K: ${Math.round(item.potassium)}mg</span>
+                                                <span style="color:#10b981;">Ca: ${Math.round(item.calcium)}mg</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="text-align:right; flex-shrink:0; margin-left:8px;">
+                                        <span class="nutrient-pill-badge badge-cal" style="font-size:0.65rem;">${Math.round(item.calories)} kcal</span>
+                                        <span class="nutrient-pill-badge badge-prot" style="font-size:0.65rem; margin-left:4px;">${item.protein}g prot</span>
+                                    </div>
+                                `;
+
+                                row.addEventListener("click", function() {
+                                    addItemToSlot(item);
+                                    searchInput.value = "";
+                                    dropdown.style.display = "none";
+                                    searchInput.focus();
+                                });
+
+                                dropdown.appendChild(row);
+                            });
+                            dropdown.style.display = "block";
+                        })
+                        .catch(err => console.error("Error searching foods:", err));
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener("click", function(e) {
+                    if (e.target !== searchInput && e.target !== dropdown) {
+                        dropdown.style.display = "none";
+                    }
+                });
+
+                function addItemToSlot(food) {
+                    let sizes = [];
+                    try {
+                        if (food.serving_sizes) {
+                            sizes = JSON.parse(food.serving_sizes);
+                        }
+                    } catch(e) {
+                        console.error("Error parsing serving sizes JSON:", e);
+                    }
+
+                    // Fallback to standard 100g and 1g if empty
+                    if (!sizes || sizes.length === 0) {
+                        sizes = [
+                            { label: "Serve", gramsPerUnit: 100, isDefault: true },
+                            { label: "Grams", gramsPerUnit: 1 }
+                        ];
+                    }
+
+                    const defaultSize = sizes.find(s => s.isDefault) || sizes[0];
+
+                    // Check if already exists in this slot with the same measure unit
+                    const existing = recallData[activeMealSlot].find(
+                        item => item.id === food.id && item.selected_unit === defaultSize.label
+                    );
+
+                    if (existing) {
+                        existing.quantity += 1;
+                    } else {
+                        recallData[activeMealSlot].push({
+                            ...food,
+                            quantity: 1,
+                            selected_unit: defaultSize.label,
+                            selected_grams: parseFloat(defaultSize.gramsPerUnit || 100),
+                            available_units: sizes
+                        });
+                    }
+                    renderRecallDashboard();
+                }
+
+                function renderRecallDashboard() {
+                    let overallCount = 0;
+                    
+                    const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+                    slots.forEach(slot => {
+                        const container = document.getElementById("container-" + slot);
+                        const badge = document.getElementById("badge-" + slot);
+                        const items = recallData[slot];
+                        
+                        overallCount += items.length;
+                        
+                        if (items.length === 0) {
+                            container.innerHTML = `<div style="font-size:0.8rem; color:var(--muted); font-style:italic; padding:6px 0;">No items added to ${slot === 'Snack' ? 'Snacks' : slot} yet</div>`;
+                            badge.textContent = "Empty";
+                            badge.style.color = "var(--muted)";
+                            return;
+                        }
+
+                        // Calculate slot totals using serving size gram multipliers
+                        let slotCal = 0;
+                        items.forEach(it => {
+                            const mult = (it.selected_grams * it.quantity) / 100;
+                            slotCal += it.calories * mult;
+                        });
+                        badge.textContent = `${items.length} item${items.length > 1 ? 's' : ''} · ${Math.round(slotCal)} kcal`;
+                        badge.style.color = "var(--primary)";
+
+                        container.innerHTML = "";
+                        items.forEach((item, index) => {
+                            const card = document.createElement("div");
+                            card.className = "plate-card-premium";
+                            card.style.background = "#fafafa";
+                            card.style.border = "1px solid #f1f5f9";
+                            card.style.padding = "10px 12px";
+                            card.style.borderRadius = "10px";
+                            card.style.marginBottom = "6px";
+                            card.style.display = "flex";
+                            card.style.alignItems = "center";
+                            card.style.justifyContent = "space-between";
+
+                            const mult = (item.selected_grams * item.quantity) / 100;
+                            const itemCal  = Math.round(item.calories   * mult);
+                            const itemProt = (item.protein * mult).toFixed(1);
+                            const itemPhos = Math.round(item.phosphorus * mult);
+                            const itemPot  = Math.round((item.potassium || 0) * mult);
+                            const itemCalc = Math.round((item.calcium   || 0) * mult);
+                            const avatar = getFoodCategoryAvatar(item.name);
+
+                            card.innerHTML = `
+                                <div style="display:flex; align-items:center; flex:2; min-width:0; gap:8px;">
+                                    <div class="food-avatar-premium" style="background:${avatar.bg}; width:34px; height:34px; font-size:18px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                        ${avatar.emoji}
+                                    </div>
+                                    <div style="min-width:0; display:flex; flex-direction:column; flex:1;">
+                                        <div style="font-weight:700; font-size:0.88em; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</div>
+                                        
+                                        <!-- Interactive Portion Dropdown Mapping -->
+                                        <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+                                            <span style="font-size:0.68rem; color:#6366f1; font-weight:700; text-transform:uppercase; letter-spacing:0.2px;">Measure:</span>
+                                            <select class="measure-select-premium" style="padding:2px 6px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.72rem; color:var(--text); background:white; font-weight:600; outline:none; cursor:pointer;">
+                                                ${item.available_units.map(unit => `
+                                                    <option value="${unit.label}" data-grams="${unit.gramsPerUnit}" ${unit.label === item.selected_unit ? 'selected' : ''}>
+                                                        ${unit.label} (${unit.gramsPerUnit}g)
+                                                    </option>
+                                                `).join('')}
+                                            </select>
+                                        </div>
+
+                                        <div style="display:flex; gap:3px; margin-top:5px; flex-wrap:wrap;">
+                                            <span class="nutrient-pill-badge badge-cal"  style="font-size:0.6rem; padding:1px 5px;">${itemCal} kcal</span>
+                                            <span class="nutrient-pill-badge badge-prot" style="font-size:0.6rem; padding:1px 5px;">${itemProt}g prot</span>
+                                            <span class="nutrient-pill-badge badge-phos" style="font-size:0.6rem; padding:1px 5px;">${itemPhos}mg P</span>
+                                            <span class="nutrient-pill-badge badge-pot"  style="font-size:0.6rem; padding:1px 5px;">${itemPot}mg K</span>
+                                            <span class="nutrient-pill-badge badge-calc" style="font-size:0.6rem; padding:1px 5px;">${itemCalc}mg Ca</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style="display:flex; align-items:center; margin-left:8px; flex-shrink:0;">
+                                    <div class="qty-pill-premium" style="padding:2px; margin-right:6px; display:inline-flex; align-items:center; border:1px solid #e2e8f0; border-radius:20px; background:#fff;">
+                                        <button type="button" class="qty-btn-premium qty-dec" style="width:22px; height:22px; border-radius:50%; border:none; background:none; font-weight:800; cursor:pointer; color:var(--muted); font-size:12px;">-</button>
+                                        <span style="font-weight:800; font-size:0.85em; min-width:20px; text-align:center; color:var(--text);">${item.quantity}</span>
+                                        <button type="button" class="qty-btn-premium qty-inc" style="width:22px; height:22px; border-radius:50%; border:none; background:none; font-weight:800; cursor:pointer; color:var(--muted); font-size:12px;">+</button>
+                                    </div>
+
+                                    <button type="button" class="delete-btn-premium" style="width:28px; height:28px; border-radius:50%; border:none; background:#fef2f2; color:#ef4444; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;">
+                                        <span class="material-icons" style="font-size:16px;">delete_outline</span>
+                                    </button>
+                                </div>
+                            `;
+
+                            // Setup change listener for serving measure
+                            card.querySelector(".measure-select-premium").addEventListener("change", function(e) {
+                                const selectedOption = this.options[this.selectedIndex];
+                                const newLabel = selectedOption.value;
+                                const newGrams = parseFloat(selectedOption.getAttribute("data-grams"));
+                                
+                                item.selected_unit = newLabel;
+                                item.selected_grams = newGrams;
+                                
+                                renderRecallDashboard();
+                            });
+
+                            // Setup portion quantity controls
+                            card.querySelector(".qty-dec").addEventListener("click", (e) => {
+                                e.stopPropagation();
+                                if (item.quantity > 1) {
+                                    item.quantity -= 1;
+                                } else {
+                                    items.splice(index, 1);
+                                }
+                                renderRecallDashboard();
+                            });
+
+                            card.querySelector(".qty-inc").addEventListener("click", (e) => {
+                                e.stopPropagation();
+                                item.quantity += 1;
+                                renderRecallDashboard();
+                            });
+
+                            card.querySelector(".delete-btn-premium").addEventListener("click", (e) => {
+                                e.stopPropagation();
+                                items.splice(index, 1);
+                                renderRecallDashboard();
+                            });
+
+                            container.appendChild(card);
+                        });
+                    });
+
+                    // Update summary display
+                    if (overallCount === 0) {
+                        summaryStats.style.display = "none";
+                        itemCountBadge.style.display = "none";
+                        submitRecallBtn.disabled = true;
+                        submitRecallBtn.style.opacity = "0.6";
+                        
+                        if (!isEditingNotesManually) {
+                            notesInput.value = "";
+                        }
+                    } else {
+                        summaryStats.style.display = "block";
+                        itemCountBadge.textContent = `${overallCount} item${overallCount > 1 ? 's' : ''}`;
+                        itemCountBadge.style.display = "inline-block";
+                        submitRecallBtn.disabled = false;
+                        submitRecallBtn.style.opacity = "1";
+                    }
+
+                    updateNotesAndHiddenFields();
+                }
+
+                function updateNotesAndHiddenFields() {
+                    let totalCals  = 0;
+                    let totalProts = 0.0;
+                    let totalPhos  = 0;
+                    let totalPots  = 0;
+                    let totalCalcs = 0;
+                    let noteParts  = [];
+
+                    const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+                    slots.forEach(slot => {
+                        const items = recallData[slot];
+                        if (items.length > 0) {
+                            let slotNotes = [];
+                            items.forEach(item => {
+                                const mult = (item.selected_grams * item.quantity) / 100;
+                                totalCals  += item.calories  * mult;
+                                totalProts += item.protein   * mult;
+                                totalPhos  += item.phosphorus * mult;
+                                totalPots  += (item.potassium || 0) * mult;
+                                totalCalcs += (item.calcium   || 0) * mult;
+                                slotNotes.push(`${item.quantity} x ${item.selected_unit} of ${item.name}`);
+                            });
+                            const label = slot === 'Snack' ? 'Snacks' : slot;
+                            noteParts.push(`[${label}] ${slotNotes.join(", ")}`);
+                        }
+                    });
+
+                    // Update UI summary numbers
+                    sumCalories.innerHTML   = `${Math.round(totalCals)} <span style="font-size:0.6em; font-weight:500; color:var(--muted);">kcal</span>`;
+                    sumProtein.innerHTML    = `${totalProts.toFixed(1)} <span style="font-size:0.6em; font-weight:500; color:var(--muted);">g</span>`;
+                    sumPhosphorus.innerHTML = `${Math.round(totalPhos)} <span style="font-size:0.6em; font-weight:500; color:var(--muted);">mg</span>`;
+                    sumPotassium.innerHTML  = `${Math.round(totalPots)} <span style="font-size:0.6em; font-weight:500; color:var(--muted);">mg</span>`;
+                    sumCalcium.innerHTML    = `${Math.round(totalCalcs)} <span style="font-size:0.6em; font-weight:500; color:var(--muted);">mg</span>`;
+
+                    // Percentages
+                    const rawCal  = Math.round((totalCals  / TARGETS.calories)   * 100);
+                    const rawProt = Math.round((totalProts / TARGETS.protein)    * 100);
+                    const rawPhos = Math.round((totalPhos  / TARGETS.phosphorus) * 100);
+                    const rawPot  = Math.round((totalPots  / TARGETS.potassium)  * 100);
+                    const rawCalc = Math.round((totalCalcs / TARGETS.calcium)    * 100);
+
+                    function applyBar(bar, txt, rawPct, label, isLimit) {
+                        const capped = Math.min(rawPct, 100);
+                        bar.style.width = `${capped}%`;
+                        if (rawPct > 100) {
+                            bar.style.background = '#ef4444';
+                            txt.style.color = '#dc2626';
+                            txt.style.fontWeight = '700';
+                            txt.textContent = `⚠ ${rawPct - 100}% over ${isLimit ? 'limit' : 'target'}`;
+                        } else if (rawPct >= 80 && isLimit) {
+                            bar.style.background = '#f97316';
+                            txt.style.color = '#ea580c';
+                            txt.style.fontWeight = '600';
+                            txt.textContent = `${rawPct}% of limit — approaching`;
+                        } else {
+                            txt.style.color = 'var(--muted)';
+                            txt.style.fontWeight = '400';
+                            txt.textContent = `${rawPct}% of ${isLimit ? 'limit' : 'target'}`;
+                        }
+                    }
+
+                    applyBar(barCal,  txtCal,  rawCal,  'target', false);
+                    applyBar(barProt, txtProt, rawProt, 'target', false);
+                    applyBar(barPhos, txtPhos, rawPhos, 'limit',  true);
+                    applyBar(barPot,  txtPot,  rawPot,  'limit',  true);
+                    applyBar(barCalc, txtCalc, rawCalc, 'target', false);
+
+                    // Populate hidden inputs for manual single-form fallback
+                    hiddenCal.value  = Math.round(totalCals);
+                    hiddenProt.value = totalProts.toFixed(1);
+                    hiddenPhos.value = Math.round(totalPhos);
+                    hiddenPot.value  = Math.round(totalPots);
+                    hiddenCalc.value = Math.round(totalCalcs);
+
+                    if (!isEditingNotesManually) {
+                        notesInput.value = noteParts.join(" | ");
+                    }
+                }
+
+                // Hijack Form Submit to post full 24-hour recall in bulk!
+                formElement.addEventListener("submit", function(e) {
+                    if (isEditingNotesManually) {
+                        return; // Let standard form submission handle it
+                    }
+
+                    e.preventDefault();
+
+                    const payload = [];
+                    const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+                    
+                    slots.forEach(slot => {
+                        const items = recallData[slot];
+                        if (items.length > 0) {
+                            let slotCal  = 0;
+                            let slotProt = 0.0;
+                            let slotPhos = 0;
+                            let slotPot  = 0;
+                            let slotCalc = 0;
+                            let slotNotes = [];
+
+                            items.forEach(item => {
+                                const mult = (item.selected_grams * item.quantity) / 100;
+                                slotCal  += item.calories   * mult;
+                                slotProt += item.protein    * mult;
+                                slotPhos += item.phosphorus * mult;
+                                slotPot  += (item.potassium || 0) * mult;
+                                slotCalc += (item.calcium   || 0) * mult;
+                                slotNotes.push(`${item.quantity} x ${item.selected_unit} of ${item.name}`);
+                            });
+
+                            payload.push({
+                                meal_type:  slot,
+                                notes:      slotNotes.join(", "),
+                                calories:   Math.round(slotCal),
+                                protein:    parseFloat(slotProt.toFixed(1)),
+                                phosphorus: Math.round(slotPhos),
+                                potassium:  Math.round(slotPot),
+                                calcium:    Math.round(slotCalc),
+                                log_date:   datePicker.value,
+                            });
+                        }
+                    });
+
+                    if (payload.length === 0) {
+                        alert("Please add at least one item to your plates before submitting.");
+                        return;
+                    }
+
+                    submitRecallBtn.disabled = true;
+                    submitRecallBtn.textContent = "Saving 24-Hour Food Recall...";
+
+                    fetch('/patient/meals/bulk', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(r => {
+                        if (!r.ok) throw new Error("Bulk submission failed");
+                        return r.json();
+                    })
+                    .then(data => {
+                        if (data.status === 'success') {
+                            window.location.href = '/patient/dashboard';
+                        } else {
+                            alert("Failed to save recall entries.");
+                            submitRecallBtn.disabled = false;
+                            submitRecallBtn.textContent = "Save 24-Hour Food Recall & Compute";
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert("Network connection error. Please try again.");
+                        submitRecallBtn.disabled = false;
+                        submitRecallBtn.textContent = "Save 24-Hour Food Recall & Compute";
+                    });
+                });
+            });
+        </script>
+
 
         <div class="meal-history">
             <h3 class="entry-subtitle">Recent Log (last 7 days)</h3>
             {% for date_str, day_data in meals_by_day.items() %}
             <div class="history-day">
-                <div class="day-header">
+                <div class="day-header" style="display:flex; justify-content:space-between; align-items:center;">
                     <span class="day-date">{{ day_data.date.strftime('%A, %d %b') }}</span>
                     <span class="day-totals" style="color:var(--primary); font-size:0.75rem;">
-                        {{ day_data.total_cal|int }} kcal · {{ day_data.total_prot|round(1) }}g prot · {{ (day_data.total_phos or 0)|int }}mg phos
+                        {{ day_data.total_cal|int }} kcal · {{ day_data.total_prot|round(1) }}g prot · <span style="color:#d97706;">{{ (day_data.total_phos or 0)|int }}mg P</span> · <span style="color:#3b82f6;">{{ (day_data.total_pot or 0)|int }}mg K</span>
                     </span>
                 </div>
                 <div class="day-entries">
                     {% for m in day_data.entries %}
-                    <div class="entry-row">
-                        <div class="entry-meta">
+                    <div class="entry-row" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding:10px 0;">
+                        <div class="entry-meta" style="flex:1; display:flex; align-items:center; gap:8px;">
                             <span class="meal-tag {{ m.meal_type|lower }}">{{ m.meal_type }}</span>
-                            <span class="meal-notes">{{ m.notes or '—' }}</span>
+                            <span class="meal-notes" style="font-weight:600; color:var(--text); font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:400px;">{{ m.notes or '—' }}</span>
                         </div>
-                        <div class="entry-stats" style="font-size:0.72rem; color:var(--muted); line-height:1.4;">
-                            <span>{{ m.calories|int }} kcal</span>
-                            <span>{{ m.protein|round(1) }}g prot</span>
-                            <span style="color:#d97706;">{{ (m.phosphorus or 0)|int }}mg phos</span>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div class="entry-stats" style="font-size:0.72rem; color:var(--muted); text-align:right;">
+                                <span>{{ m.calories|int }} kcal · {{ m.protein|round(1) }}g prot</span>
+                                <span style="color:#d97706;">{{ (m.phosphorus or 0)|int }}mg P · <span style="color:#3b82f6;">{{ (m.potassium or 0)|int }}mg K</span></span>
+                            </div>
+                            <form action="/patient/meals/{{ m.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete this meal record?');" style="margin:0; padding:0; display:flex; align-items:center;">
+                                <button type="submit" style="background:none; border:none; color:#ef4444; cursor:pointer; padding:4px; display:flex; align-items:center; transition:transform 0.15s ease;" onmouseover="this.style.transform='scale(1.15)';" onmouseout="this.style.transform='scale(1)';">
+                                    <span class="material-icons" style="font-size:18px;">delete</span>
+                                </button>
+                            </form>
                         </div>
                     </div>
                     {% endfor %}
@@ -503,101 +1650,144 @@
     </div>
 
     <!-- SYMPTOM REPORTER & PDS LOGGER -->
-    <h2 class="section-title"><i class="material-icons">sentiment_very_dissatisfied</i> Post-Dialysis Symptom Log</h2>
-    <div class="card">
-        <p style="color:var(--muted); font-size:0.85rem; margin:0 0 4px 0;">Help your care team adjust your treatment by logging your recovery experience after your last session.</p>
-        <form action="/patient/symptoms" method="POST" class="meal-form-v2" id="symptomForm">
+    <h2 class="section-title" style="margin-top: 32px;"><span class="material-icons" style="font-size: 24px; color: var(--primary);">sentiment_very_dissatisfied</span> Post-Dialysis Symptom Log</h2>
+    <div class="card" style="border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -4px rgba(0,0,0,0.05); border: 1.5px solid #e2e8f0; padding: 24px;">
+        <p style="color:var(--muted); font-size:0.88rem; margin:0 0 16px 0; font-weight:500; line-height:1.4;">Help your care team adjust your treatment by logging your recovery experience after your last session.</p>
+        <form action="/patient/symptoms" method="POST" class="meal-form-v2" id="symptomForm" style="display: flex; flex-direction: column; gap: 4px;">
 
-            <div class="pds-section-heading">1. Dialysis Recovery Time</div>
-            <div class="form-group">
-                <label>How long to recover your normal energy after the last session?</label>
-                <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
-                    <input type="number" name="dialysis_recovery_time_mins" placeholder="Minutes" min="0" max="1440" style="width:110px;">
-                    <span style="font-size:0.8rem; color:var(--muted);">minutes (e.g. 120 = 2 hours)</span>
+            <!-- SECTION 1: Dialysis Recovery Time -->
+            <div class="pds-section-heading">⏱️ 1. Dialysis Recovery Time</div>
+            <div class="pds-metric-card" style="margin-bottom:12px;">
+                <label style="font-weight:700; font-size:0.8rem; color:#475569; text-transform:uppercase; letter-spacing:0.4px;">Recovery duration</label>
+                <div style="font-size:0.82rem; color:var(--muted); margin-bottom:4px; font-weight:500;">How long did it take to regain your normal energy levels after your last session?</div>
+                <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
+                    <div style="position:relative; width:130px;">
+                        <span class="material-icons" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--primary);">schedule</span>
+                        <input type="number" name="dialysis_recovery_time_mins" placeholder="Mins" min="0" max="1440" style="width:100%; padding-left:38px; border-radius:10px; font-weight:700; border:1.5px solid #cbd5e1; height:42px; font-size:0.9rem; outline:none; transition:border-color 0.2s;">
+                    </div>
+                    <span style="font-size:0.82rem; color:var(--muted); font-weight:600;">minutes <span style="font-weight:400; color:#94a3b8;">(e.g., 120 mins = 2 hours)</span></span>
                 </div>
             </div>
 
-            <div class="pds-section-heading">2. Energy & Fatigue (SONG-HD)</div>
-            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
-                <div class="form-group">
-                    <label>Tiredness (1=None, 10=Exhausted)</label>
-                    <input type="range" name="tiredness_score" min="1" max="10" value="5" oninput="document.getElementById('tiredLabel').textContent=this.value">
-                    <div class="range-display">Score: <b id="tiredLabel">5</b></div>
+            <!-- SECTION 2: Energy & Fatigue (SONG-HD) -->
+            <div class="pds-section-heading">📊 2. Energy & Fatigue (SONG-HD)</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:12px;">
+                <!-- Tiredness Slider -->
+                <div class="pds-metric-card">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Tiredness <span style="font-weight:400; color:#94a3b8;">(1-10)</span></label>
+                    <input type="range" name="tiredness_score" min="1" max="10" value="5" style="accent-color:#0ea5e9; cursor:pointer;" oninput="document.getElementById('tiredLabel').textContent=this.value">
+                    <div class="range-display">
+                        <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Exhaustion:</span>
+                        <span id="tiredLabel" style="background:#0ea5e9; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">5</span>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Energy Level (1=None, 10=Full)</label>
-                    <input type="range" name="energy_level_score" min="1" max="10" value="5" oninput="document.getElementById('energyLabel').textContent=this.value">
-                    <div class="range-display">Score: <b id="energyLabel">5</b></div>
+                <!-- Energy Level Slider -->
+                <div class="pds-metric-card">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Energy Level <span style="font-weight:400; color:#94a3b8;">(1-10)</span></label>
+                    <input type="range" name="energy_level_score" min="1" max="10" value="5" style="accent-color:#10b981; cursor:pointer;" oninput="document.getElementById('energyLabel').textContent=this.value">
+                    <div class="range-display">
+                        <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Vitality:</span>
+                        <span id="energyLabel" style="background:#10b981; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">5</span>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Sleepiness (1=None, 10=Severe)</label>
-                    <input type="range" name="sleepiness_severity" min="1" max="10" value="1" oninput="document.getElementById('sleepLabel').textContent=this.value">
-                    <div class="range-display">Score: <b id="sleepLabel">1</b></div>
+                <!-- Sleepiness Slider -->
+                <div class="pds-metric-card">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Sleepiness <span style="font-weight:400; color:#94a3b8;">(1-10)</span></label>
+                    <input type="range" name="sleepiness_severity" min="1" max="10" value="1" style="accent-color:#8b5cf6; cursor:pointer;" oninput="document.getElementById('sleepLabel').textContent=this.value">
+                    <div class="range-display">
+                        <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Severity:</span>
+                        <span id="sleepLabel" style="background:#8b5cf6; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">1</span>
+                    </div>
                 </div>
             </div>
-            <div class="form-row" style="grid-template-columns: 1fr 1fr; margin-top:4px;">
-                <div class="form-group">
-                    <label>Daily Activity Impact (1–5)</label>
-                    <select name="daily_activity_impact">
-                        <option value="">Select impact...</option>
-                        <option value="1">1 — No limitation</option>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:12px; align-items:center;">
+                <div class="pds-metric-card">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569; margin-bottom:2px;">Daily Activity Impact</label>
+                    <select name="daily_activity_impact" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
+                        <option value="">Select impact level...</option>
+                        <option value="1">1 — No limitation at all</option>
                         <option value="2">2 — Mildly limited</option>
                         <option value="3">3 — Moderately limited</option>
                         <option value="4">4 — Severely limited</option>
-                        <option value="5">5 — Unable to do activities</option>
+                        <option value="5">5 — Unable to do any activities</option>
                     </select>
                 </div>
-                <div class="form-group" style="justify-content:flex-end; padding-bottom:6px;">
-                    <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; color:var(--text); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:600;">
-                        <input type="checkbox" name="missed_social_or_work_event" value="true" style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary);">
-                        Missed work or social event due to fatigue
+                <div class="pds-metric-card" style="padding:18px 14px; display:flex; justify-content:center;">
+                    <label style="display:inline-flex; align-items:center; gap:10px; font-size:0.82rem; color:var(--text); cursor:pointer; font-weight:700; user-select:none; width:100%;">
+                        <input type="checkbox" name="missed_social_or_work_event" value="true" style="width:20px; height:20px; cursor:pointer; accent-color:var(--primary); border-radius:6px; border:1.5px solid #cbd5e1;">
+                        <span>Missed work or social event due to fatigue</span>
                     </label>
                 </div>
             </div>
 
-            <div class="pds-section-heading">3. Mood & Cognition</div>
-            <div class="form-row" style="grid-template-columns: 1fr 1fr;">
-                <div class="form-group">
-                    <label>Cognitive Alertness</label>
-                    <select name="cognitive_alertness">
-                        <option value="">Select...</option>
-                        <option value="Sharp">Sharp / Clear</option>
+            <!-- SECTION 3: Mood & Cognition -->
+            <div class="pds-section-heading">🧠 3. Mood & Cognition</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:12px;">
+                <div class="pds-metric-card">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569; margin-bottom:2px;">Cognitive Alertness</label>
+                    <select name="cognitive_alertness" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
+                        <option value="">Select alertness status...</option>
+                        <option value="Sharp">Sharp / Clear / Focused</option>
                         <option value="Slight Brain Fog">Slight Brain Fog</option>
                         <option value="Severe Brain Fog">Severe Brain Fog</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Post-Session Mood</label>
-                    <select name="post_hd_mood">
-                        <option value="">Select...</option>
-                        <option value="Positive">Positive</option>
-                        <option value="Neutral">Neutral</option>
-                        <option value="Negative">Negative / Depressed</option>
+                <div class="pds-metric-card">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569; margin-bottom:2px;">Post-Session Mood</label>
+                    <select name="post_hd_mood" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
+                        <option value="">Select mood status...</option>
+                        <option value="Positive">Positive / Calm</option>
+                        <option value="Neutral">Neutral / Fine</option>
+                        <option value="Negative">Negative / Depressed / Anxious</option>
                     </select>
                 </div>
             </div>
 
-            <div class="pds-section-heading">4. Physical Symptoms</div>
+            <!-- SECTION 4: Physical Symptoms -->
+            <div class="pds-section-heading">🤒 4. Physical Symptoms</div>
             <div class="symptom-chips">
-                <div class="symptom-chip"><input type="checkbox" name="symptom_cramping" id="sc1" value="cramping"><label for="sc1"><i class="material-icons" style="font-size:15px;">bolt</i> Cramping</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_breathlessness" id="sc2" value="breathlessness"><label for="sc2"><i class="material-icons" style="font-size:15px;">air</i> Breathlessness</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_itching" id="sc3" value="itching"><label for="sc3"><i class="material-icons" style="font-size:15px;">back_hand</i> Itching</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_nausea" id="sc5" value="nausea"><label for="sc5"><i class="material-icons" style="font-size:15px;">sick</i> Nausea</label></div>
-                <div class="symptom-chip"><input type="checkbox" name="symptom_dizziness" id="sc6" value="dizziness"><label for="sc6"><i class="material-icons" style="font-size:15px;">rotate_right</i> Dizziness</label></div>
-            </div>
-            <div style="margin-top:12px;">
-                <div class="form-group">
-                    <label>Overall Physical Symptom Severity</label>
-                    <input type="range" name="severity" min="1" max="5" value="3" id="severitySlider" oninput="document.getElementById('sevLabel').textContent=this.value">
+                <div class="symptom-chip cramping">
+                    <input type="checkbox" name="symptom_cramping" id="sc1" value="cramping">
+                    <label for="sc1"><span class="material-icons" style="font-size:17px;">bolt</span> Cramping</label>
                 </div>
-                <div class="severity-labels"><span>Mild (1)</span><span id="sevLabel" style="color:var(--primary); font-weight:700;">3</span><span>Severe (5)</span></div>
-            </div>
-            <div class="form-group" style="margin-top:12px;">
-                <label>Additional Notes (optional)</label>
-                <input type="text" name="notes" placeholder="e.g. cramps started after dinner">
+                <div class="symptom-chip breathlessness">
+                    <input type="checkbox" name="symptom_breathlessness" id="sc2" value="breathlessness">
+                    <label for="sc2"><span class="material-icons" style="font-size:17px;">air</span> Breathlessness</label>
+                </div>
+                <div class="symptom-chip itching">
+                    <input type="checkbox" name="symptom_itching" id="sc3" value="itching">
+                    <label for="sc3"><span class="material-icons" style="font-size:17px;">back_hand</span> Itching</label>
+                </div>
+                <div class="symptom-chip nausea">
+                    <input type="checkbox" name="symptom_nausea" id="sc5" value="nausea">
+                    <label for="sc5"><span class="material-icons" style="font-size:17px;">sick</span> Nausea</label>
+                </div>
+                <div class="symptom-chip dizziness">
+                    <input type="checkbox" name="symptom_dizziness" id="sc6" value="dizziness">
+                    <label for="sc6"><span class="material-icons" style="font-size:17px;">rotate_right</span> Dizziness</label>
+                </div>
             </div>
 
-            <button type="submit" class="btn-primary-v2" onclick="collectSymptoms(this.form)">Submit Report</button>
+            <div class="pds-metric-card" style="margin-top:8px;">
+                <label style="font-weight:700; font-size:0.8rem; color:#475569;">Overall Physical Symptom Severity</label>
+                <input type="range" name="severity" min="1" max="5" value="3" id="severitySlider" style="accent-color:var(--primary); cursor:pointer; margin-top:6px;" oninput="updateSeverityUI(this.value)">
+                <div class="severity-labels">
+                    <span>Mild (1)</span>
+                    <span id="sevLabel" style="background:#fef3c7; color:#d97706; font-size:0.75rem; padding:2px 10px; border-radius:20px; font-weight:800; transition:all 0.2s;">3 (Moderate)</span>
+                    <span>Severe (5)</span>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top:16px;">
+                <label style="font-weight:700; font-size:0.8rem; color:#475569;">Additional Notes <span style="font-weight:400; color:#94a3b8;">(optional)</span></label>
+                <input type="text" name="notes" placeholder="e.g. cramps started after dinner" style="width:100%; border-radius:10px; border:1.5px solid #cbd5e1; height:42px; padding:0 12px; font-weight:600; color:var(--text); background:white; outline:none; transition:border-color 0.2s;">
+            </div>
+
+            <!-- Highly Polished submit button -->
+            <button type="submit" class="btn-primary-v2" onclick="collectSymptoms(this.form)" style="width:100%; height:46px; border-radius:10px; font-size:0.95rem; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; margin-top:20px; border:none; background:linear-gradient(135deg, var(--primary) 0%, #1e40af 100%); color:white; box-shadow:0 4px 6px -1px rgba(37, 99, 235, 0.2); transition:transform 0.15s, opacity 0.2s;">
+                <span class="material-icons" style="font-size:18px;">send</span> Submit Report
+            </button>
         </form>
 
         {% if recent_symptoms %}
@@ -692,6 +1882,24 @@
     });
     {% endif %}
 
+    function updateSeverityUI(val) {
+        const label = document.getElementById('sevLabel');
+        if (!label) return;
+        if (val <= 2) {
+            label.textContent = `${val} (Mild)`;
+            label.style.background = "#dcfce7";
+            label.style.color = "#16a34a";
+        } else if (val == 3) {
+            label.textContent = `${val} (Moderate)`;
+            label.style.background = "#fef3c7";
+            label.style.color = "#d97706";
+        } else {
+            label.textContent = `${val} (Severe)`;
+            label.style.background = "#fee2e2";
+            label.style.color = "#dc2626";
+        }
+    }
+
     function collectSymptoms(form) {
         const checked = Array.from(form.querySelectorAll('input[type=checkbox][name^=symptom_]:checked')).map(cb => cb.value);
         let hidden = form.querySelector('input[name=symptoms]');
@@ -703,6 +1911,14 @@
         }
         hidden.value = checked.join(',');
     }
+
+    // Initialize severity UI state on load
+    document.addEventListener("DOMContentLoaded", function() {
+        const severitySlider = document.getElementById('severitySlider');
+        if (severitySlider) {
+            updateSeverityUI(severitySlider.value);
+        }
+    });
 </script>
 </body>
 </html>

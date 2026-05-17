@@ -135,6 +135,134 @@
             {% endif %}
         </div>
 
+        <!-- Food Database Card -->
+        <div class="card">
+            <h3><i class="material-icons" style="color:var(--primary);vertical-align:middle;margin-right:6px;">restaurant</i> Master Clinical Food Dictionary Manager</h3>
+            <p style="color:var(--text-muted); font-size:0.88em; margin:0 0 16px;">
+                Manage the clinical food dictionary used for granular 24-Hour patient recalls. You can add new entries, click the **edit icon** in the table to update/add missing nutrient values, or delete entries.
+            </p>
+            
+            <!-- Add/Edit Food Item Form -->
+            <form action="/admin/food-items/create" method="POST" style="background:#f8fafc; border: 1px solid #e2e8f0; padding:18px; border-radius:8px; margin-bottom:24px;">
+                <input type="hidden" name="food_id" id="food-id-input">
+                <h4 id="form-heading-title" style="margin:0 0 12px 0; font-size:0.95em; color:var(--text-header); transition: color 0.2s;">Add / Update Food Item</h4>
+                
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:12px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Food Name</label>
+                        <input type="text" name="name" id="food-name-input" placeholder="e.g. Upma" required style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; grid-column: span 2;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Regex Synonyms (comma-separated)</label>
+                        <input type="text" name="synonyms" id="food-synonyms-input" placeholder="e.g. upma, suji upma" required style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Calories (kcal)</label>
+                        <input type="number" step="1" name="calories" id="food-calories-input" placeholder="200" required style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Protein (g)</label>
+                        <input type="number" step="0.1" name="protein" id="food-protein-input" placeholder="4.0" required style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Phosphorus (mg)</label>
+                        <input type="number" step="1" name="phosphorus" id="food-phosphorus-input" placeholder="60" required style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Potassium (mg)</label>
+                        <input type="number" step="1" name="potassium" id="food-potassium-input" placeholder="e.g. 150" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <label style="font-size:0.75em; font-weight:600; color:var(--text-muted);">Calcium (mg)</label>
+                        <input type="number" step="1" name="calcium" id="food-calcium-input" placeholder="e.g. 20" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88em;">
+                    </div>
+                </div>
+                
+                <div style="display:flex; justify-content:flex-end; align-items:center;">
+                    <button type="button" id="cancel-edit-btn" class="btn btn-secondary" style="padding:8px 16px; font-size:0.82em; display:none; margin-right:8px;">
+                        Cancel Edit
+                    </button>
+                    <button type="submit" class="btn btn-primary" style="padding:8px 16px; font-size:0.82em;">
+                        <i class="material-icons" style="font-size:16px;">save</i> Save Food Item
+                    </button>
+                </div>
+            </form>
+
+            <!-- Table of Food Items -->
+            {% if food_items %}
+            <div style="overflow-y:auto; max-height:400px; border:1px solid #e2e8f0; border-radius:8px;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.85em; text-align:left;">
+                    <thead>
+                        <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; position:sticky; top:0; z-index:10;">
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase;">Name</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase;">Synonyms</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase; text-align:right;">Cal (kcal)</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase; text-align:right;">Prot (g)</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase; text-align:right;">Phos (mg)</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase; text-align:right;">Pot (mg)</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase; text-align:right;">Calcium (mg)</th>
+                            <th style="padding:10px 12px; color:var(--text-muted); font-size:0.75em; text-transform:uppercase; text-align:center;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in food_items %}
+                        <tr style="border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:10px 12px; font-weight:600; color:var(--text-header);">{{ item.name }}</td>
+                            <td style="padding:10px 12px; font-family:monospace; color:var(--text-muted); font-size:0.85em; max-width:200px; word-break:break-all;">{{ item.synonyms }}</td>
+                            <td style="padding:10px 12px; text-align:right; font-weight:500;">{{ item.calories|int }}</td>
+                            <td style="padding:10px 12px; text-align:right; font-weight:500;">{{ item.protein|round(1) }}</td>
+                            <td style="padding:10px 12px; text-align:right; font-weight:500; color:#d97706;">{{ item.phosphorus|int }}</td>
+                            <td style="padding:10px 12px; text-align:right; font-weight:500; color:#2563eb;">{{ item.potassium|int if item.potassium is not none else '—' }}</td>
+                            <td style="padding:10px 12px; text-align:right; font-weight:500; color:#059669;">{{ item.calcium|int if item.calcium is not none else '—' }}</td>
+                            <td style="padding:10px 12px; text-align:center; white-space:nowrap;">
+                                <!-- Edit pencil button -->
+                                <button type="button" class="edit-food-btn" 
+                                        data-id="{{ item.id }}" 
+                                        data-name="{{ item.name }}" 
+                                        data-synonyms="{{ item.synonyms }}" 
+                                        data-calories="{{ item.calories|int }}" 
+                                        data-protein="{{ item.protein|round(1) }}" 
+                                        data-phosphorus="{{ item.phosphorus|int }}" 
+                                        data-potassium="{{ item.potassium|int if item.potassium is not none else '' }}" 
+                                        data-calcium="{{ item.calcium|int if item.calcium is not none else '' }}"
+                                        style="background:none; border:none; color:var(--primary); cursor:pointer; padding:4px;">
+                                    <i class="material-icons" style="font-size:18px;">edit</i>
+                                </button>
+                                <!-- Delete form -->
+                                <form action="/admin/food-items/{{ item.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ item.name }}?')">
+                                    <button type="submit" style="background:none; border:none; color:#dc2626; cursor:pointer; padding:4px;">
+                                        <i class="material-icons" style="font-size:18px;">delete</i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="color:var(--text-muted); font-size:0.88em; margin:0;">No food database items registered.</p>
+            {% endif %}
+        </div>
+
+        <!-- Purge Western Data Card -->
+        <div class="card" style="border-left: 5px solid #e11d48; position:relative; overflow:hidden;">
+            <h3 style="color:#e11d48;"><i class="material-icons" style="vertical-align:middle;margin-right:6px;">cleaning_services</i> Cleanse & Strip Western Foods</h3>
+            <p style="color:var(--text-muted); font-size:0.88em; margin:0 0 16px; line-height:1.5;">
+                Hemodialysis patients in this region eat custom local/regional diets. Cluttering the database with American USDA brands, fast food outlets (McDonald's, Taco Bell, Kraft, Campbell, Heinz, etc.), or strictly western items (marshmallows, frozen waffles, spaghetti dinners, pepperoni, salami, bacon slabs) degrades autocomplete lookup search accuracy.
+            </p>
+            <div class="alert alert-warning" style="margin-bottom: 20px; background:#fffbeb; color:#b45309; border-left:4px solid #f59e0b;">
+                <i class="material-icons">info</i>
+                This tool automatically purges pure western brand entries and fast food descriptions while safely preserving base ingredients (milk, chicken, wheat, apple, banana, tea, etc.) and regional specialties.
+            </div>
+            
+            <form action="/admin/db/strip-western" method="POST" onsubmit="return confirm('Are you sure you want to strip all pure western brands and processed foods from the master clinical food dictionary? This will clean up autocomplete search results.');">
+                <button type="submit" class="btn" style="background:#e11d48; color:white; font-weight:700;">
+                    <i class="material-icons">delete_sweep</i> Strip Pure Western Food Data
+                </button>
+            </form>
+        </div>
+
         <!-- Backup Card -->
         <div class="card">
             <h3><i class="material-icons">cloud_download</i> Download Backup</h3>
@@ -192,6 +320,66 @@
                 label.style.color = 'var(--text-header)';
             }
         }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const editButtons = document.querySelectorAll('.edit-food-btn');
+            const formHeadingTitle = document.getElementById('form-heading-title');
+            const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            
+            const idInput = document.getElementById('food-id-input');
+            const nameInput = document.getElementById('food-name-input');
+            const synonymsInput = document.getElementById('food-synonyms-input');
+            const caloriesInput = document.getElementById('food-calories-input');
+            const proteinInput = document.getElementById('food-protein-input');
+            const phosphorusInput = document.getElementById('food-phosphorus-input');
+            const potassiumInput = document.getElementById('food-potassium-input');
+            const calciumInput = document.getElementById('food-calcium-input');
+
+            editButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    const name = this.getAttribute('data-name');
+                    const synonyms = this.getAttribute('data-synonyms');
+                    const calories = this.getAttribute('data-calories');
+                    const protein = this.getAttribute('data-protein');
+                    const phosphorus = this.getAttribute('data-phosphorus');
+                    const potassium = this.getAttribute('data-potassium');
+                    const calcium = this.getAttribute('data-calcium');
+
+                    idInput.value = id;
+                    nameInput.value = name;
+                    synonymsInput.value = synonyms;
+                    caloriesInput.value = calories;
+                    proteinInput.value = protein;
+                    phosphorusInput.value = phosphorus;
+                    potassiumInput.value = potassium;
+                    calciumInput.value = calcium;
+
+                    formHeadingTitle.textContent = `Update Food Item: ${name}`;
+                    formHeadingTitle.style.color = 'var(--primary)';
+                    cancelEditBtn.style.display = 'inline-flex';
+                    
+                    // Smoothly scroll to the form
+                    formHeadingTitle.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+            });
+
+            cancelEditBtn.addEventListener('click', function() {
+                idInput.value = '';
+                nameInput.value = '';
+                synonymsInput.value = '';
+                caloriesInput.value = '';
+                proteinInput.value = '';
+                phosphorusInput.value = '';
+                potassiumInput.value = '';
+                calciumInput.value = '';
+
+                formHeadingTitle.textContent = 'Add / Update Food Item';
+                formHeadingTitle.style.color = 'var(--text-header)';
+                cancelEditBtn.style.display = 'none';
+            });
+        });
     </script>
 </body>
 </html>
+
