@@ -200,3 +200,80 @@ textarea.form-control { resize: vertical; }
     .header-stats { grid-template-columns: 1fr; }
     .btn-text { font-size: 0.8rem; }
 }
+
+/* Sticky Patient Header Band */
+.patient-sticky-band {
+    position: sticky;
+    top: 60px;
+    z-index: 100;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f8fafc;
+    padding: 10px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+}
+.patient-sticky-band.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.sticky-band-content {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+.sticky-patient-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.sticky-name {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.15rem;
+}
+.sticky-metrics {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+.sticky-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.sticky-metric .lbl {
+    font-size: 0.62rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+.sticky-metric .val {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+.sticky-metric .val.access {
+    color: var(--accent-red);
+}
+.sticky-metric .val.ktv {
+    color: var(--primary);
+}
+
+/* Dark Mode Overrides for Sticky Band */
+[data-theme="dark"] .patient-sticky-band {
+    background: rgba(10, 15, 30, 0.95) !important;
+    border-bottom: 1px solid var(--border) !important;
+}

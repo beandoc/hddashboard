@@ -6,9 +6,29 @@ venv/
 .venv/
 .env
 
-# Database
+# Database — local files must never enter the repo
 *.db
 *.sqlite3
+
+# PHI / patient data exports — must never be committed
+export_*.json
+import_real_data.py
+historical_*.csv
+*_backup.sql
+neon_backup.sql
+render_backup.sql
+
+# One-shot data migration scripts — executed against production, no repo value
+push_historic_data.py
+migrate_pds.py
+
+# Scratch / debug scripts — developer scratchpad, not project code
+scratch/
+
+# CI / runtime secrets
+*.pem
+*.key
+secrets.json
 
 # Next.js / Node
 node_modules/
@@ -17,3 +37,7 @@ out/
 build/
 .DS_Store
 *.log
+
+# ML model training artifacts (keep pkl files tracked; exclude raw training CSVs)
+training_data*.csv
+raw_data*.csv

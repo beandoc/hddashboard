@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Status & Dry Weight - {{ patient.name }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-    <style>
+    <title>Fluid Status & Dry Weight - {{ patient.name }}</title>    <style>
         :root {
             --primary: #3b82f6;
             --radius: 16px;
@@ -50,6 +47,8 @@
         .item-tools { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
         .tool-chip { font-size: 0.75rem; background: #f8fafc; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; }
     </style>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
 </head>
 <body>
 

@@ -614,9 +614,19 @@ async def deactivate_patient(
             params["dod"] = dod
             params["cause"] = cause_of_death or None
             db.execute(
+                text("UPDATE patients SET is_active = false, updated_at = :now WHERE id = :pid"),
+                params,
+            )
+            # date_of_death / primary_cause_of_death live in patient_outcomes
+            db.execute(
                 text(
-                    "UPDATE patients SET is_active = false, updated_at = :now, "
-                    "date_of_death = :dod, primary_cause_of_death = :cause WHERE id = :pid"
+                    "INSERT INTO patient_outcomes "
+                    "(patient_id, date_of_death, primary_cause_of_death, current_survival_status) "
+                    "VALUES (:pid, :dod, :cause, 'Deceased') "
+                    "ON CONFLICT (patient_id) DO UPDATE SET "
+                    "date_of_death = EXCLUDED.date_of_death, "
+                    "primary_cause_of_death = EXCLUDED.primary_cause_of_death, "
+                    "current_survival_status = 'Deceased'"
                 ),
                 params,
             )

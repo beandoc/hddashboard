@@ -1,22 +1,30 @@
-from fastapi import APIRouter, Depends, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-import logging
 
 from database import get_db, Patient, MonthlyRecord
-from dynamic_vars import VariableDefinition, VariableValue, get_all_variables, upsert_variable_value
+from dynamic_vars import (
+    VariableDefinition,
+    get_all_variables,
+    get_all_variable_values_for_cohort,
+    upsert_variable_value,
+)
 from config import templates
 from dependencies import get_user
 from dashboard_logic import get_current_month_str
 from constants import VAR_TO_MONTHLY
+import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/variables", tags=["variables"])
 
+
 def _monthly_field_values(db: Session, field: str, patient_ids: list[int], from_m: str, to_m: str) -> dict:
-    """Pull {patient_id: {month: value}} from MonthlyRecord for a given column."""
+    """Pull {patient_id: {month: value}} from MonthlyRecord for a core column."""
     rows = db.query(MonthlyRecord).filter(
         MonthlyRecord.patient_id.in_(patient_ids),
         MonthlyRecord.record_month >= from_m,
@@ -29,63 +37,52 @@ def _monthly_field_values(db: Session, field: str, patient_ids: list[int], from_
             out.setdefault(r.patient_id, {})[r.record_month] = v
     return out
 
+
+# ── Variable manager UI ───────────────────────────────────────────────────────
+
 @router.get("/manager", response_class=HTMLResponse)
 async def variable_manager(request: Request, db: Session = Depends(get_db)):
     variables = get_all_variables(db, active_only=False)
-    
-    # Inject Core Variables that aren't already defined
+
     defined_names = {v.name for v in variables}
-    core_vars = []
-    
-    # Human-readable mapping for core vars
+
+    class VirtualVar:
+        def __init__(self, id, name, display_name):
+            self.id = id; self.name = name; self.display_name = display_name
+            self.category = "Core"; self.is_active = True; self.unit = ""
+            self.data_type = "number"; self.decimal_places = 1
+            self.threshold_low = None; self.threshold_high = None
+            self.target_low = None; self.target_high = None
+            self.description = "Core clinical variable from monthly records"
+            self.show_in_dashboard = True; self.show_in_timeline = True
+            self.alert_direction = "both"
+
     core_display = {
         "hb": "Hemoglobin", "albumin": "Albumin", "phosphorus": "Phosphorus",
         "calcium": "Calcium", "alkaline_phosphate": "Alk. Phos.", "ipth": "iPTH",
         "vit_d": "Vitamin D", "ferritin": "Ferritin", "tsat": "TSAT",
-        "serum_iron": "Serum Iron", "tibc": "TIBC",
-        "urr": "URR", "kt_v": "Kt/V", "bicarbonate": "Bicarbonate",
-        "uric_acid": "Uric Acid", "creatinine": "Creatinine",
+        "serum_iron": "Serum Iron", "tibc": "TIBC", "urr": "URR", "kt_v": "Kt/V",
+        "bicarbonate": "Bicarbonate", "uric_acid": "Uric Acid", "creatinine": "Creatinine",
         "sodium": "Sodium", "potassium": "Potassium", "crp": "CRP",
         "systolic_bp_pre": "Systolic BP (Pre)", "idwg": "IDWG",
         "dry_weight": "Target Dry Weight", "nt_probnp": "NT-ProBNP",
-        "ef": "Ejection Fraction", "wbc": "WBC Count", "platelets": "Platelet Count"
+        "ef": "Ejection Fraction", "wbc": "WBC Count", "platelets": "Platelet Count",
     }
-    
-    class VirtualVar:
-        def __init__(self, id, name, display_name, category="Core", is_active=True):
-            self.id = id
-            self.name = name
-            self.display_name = display_name
-            self.category = category
-            self.is_active = is_active
-            self.unit = ""
-            self.data_type = "number"
-            self.decimal_places = 1
-            self.threshold_low = None
-            self.threshold_high = None
-            self.target_low = None
-            self.target_high = None
-            self.description = "Core clinical variable from monthly records"
-            self.show_in_dashboard = True
-            self.show_in_timeline = True
-            self.alert_direction = "both"
 
-    for name, field in VAR_TO_MONTHLY.items():
-        if name not in defined_names:
-            # Use negative IDs for virtual vars to distinguish them
-            v_id = - (list(VAR_TO_MONTHLY.keys()).index(name) + 1)
-            core_vars.append(VirtualVar(v_id, name, core_display.get(name, name.replace("_", " ").title())))
+    core_keys = list(VAR_TO_MONTHLY.keys())
+    core_vars = [
+        VirtualVar(-(i + 1), name, core_display.get(name, name.replace("_", " ").title()))
+        for i, name in enumerate(core_keys)
+        if name not in defined_names
+    ]
 
     all_vars = variables + core_vars
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    vars_json = []
-    for v in all_vars:
-        vars_json.append({
-            "id": v.id,
-            "name": v.name,
-            "display_name": v.display_name,
-            "unit": getattr(v, "unit", ""),
-            "category": v.category,
+
+    vars_json = [
+        {
+            "id": v.id, "name": v.name, "display_name": v.display_name,
+            "unit": getattr(v, "unit", ""), "category": v.category,
             "data_type": getattr(v, "data_type", "number"),
             "decimal_places": getattr(v, "decimal_places", 1),
             "threshold_low": getattr(v, "threshold_low", None),
@@ -97,8 +94,10 @@ async def variable_manager(request: Request, db: Session = Depends(get_db)):
             "show_in_timeline": getattr(v, "show_in_timeline", True),
             "alert_direction": getattr(v, "alert_direction", "both"),
             "is_active": getattr(v, "is_active", True),
-        })
-    
+        }
+        for v in all_vars
+    ]
+
     return templates.TemplateResponse("variable_manager.html", {
         "request": request, "variables": all_vars, "variables_json": vars_json,
         "patient_list_data": [{"id": p.id, "name": p.name, "hid": p.hid_no} for p in patients],
@@ -107,71 +106,107 @@ async def variable_manager(request: Request, db: Session = Depends(get_db)):
         "user": get_user(request),
     })
 
+
+# ── Variable definition CRUD ──────────────────────────────────────────────────
+
 @router.post("")
 async def api_create_variable(payload: dict, db: Session = Depends(get_db)):
-    existing = db.query(VariableDefinition).filter(VariableDefinition.name == payload.get("name")).first()
-    if existing: raise HTTPException(status_code=400, detail="Variable name already exists")
+    if db.query(VariableDefinition).filter(VariableDefinition.name == payload.get("name")).first():
+        raise HTTPException(status_code=400, detail="Variable name already exists")
     vdef = VariableDefinition(**{k: v for k, v in payload.items() if hasattr(VariableDefinition, k)})
     db.add(vdef)
     db.commit()
     db.refresh(vdef)
     return {"id": vdef.id, "name": vdef.name}
 
+
 @router.put("/{var_id}")
 async def api_update_variable(var_id: int, payload: dict, db: Session = Depends(get_db)):
     vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
-    if not vdef: raise HTTPException(status_code=404, detail="Variable not found")
+    if not vdef:
+        raise HTTPException(status_code=404, detail="Variable not found")
     for k, v in payload.items():
-        if hasattr(vdef, k) and k not in ("id", "created_at"): setattr(vdef, k, v)
+        if hasattr(vdef, k) and k not in ("id", "created_at"):
+            setattr(vdef, k, v)
     db.commit()
     return {"ok": True}
+
 
 @router.post("/{var_id}/toggle")
 async def api_toggle_variable(var_id: int, db: Session = Depends(get_db)):
     vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
-    if not vdef: raise HTTPException(status_code=404, detail="Variable not found")
+    if not vdef:
+        raise HTTPException(status_code=404, detail="Variable not found")
     vdef.is_active = not vdef.is_active
     db.commit()
     return {"is_active": vdef.is_active}
+
+
+# ── Variable data reads ───────────────────────────────────────────────────────
+
+def _resolve_var(db: Session, var_id: int) -> tuple[str, Optional[VariableDefinition]]:
+    """Return (var_name, vdef_or_None). Handles positive IDs (defined) and negative (core)."""
+    if var_id > 0:
+        vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
+        if not vdef:
+            raise HTTPException(status_code=404, detail="Variable not found")
+        return vdef.name, vdef
+    idx = abs(var_id) - 1
+    core_list = list(VAR_TO_MONTHLY.keys())
+    if idx >= len(core_list):
+        raise HTTPException(status_code=404, detail="Core variable not found")
+    return core_list[idx], None
+
+
+def _get_var_data(
+    db: Session, var_id: int, patient_ids: list[int] | None = None,
+    from_m: str = "2020-01", to_m: str | None = None,
+) -> tuple[dict, dict, str, str]:
+    """Unified data fetch for a variable (dynamic JSONB or core MonthlyRecord column).
+
+    Returns: (all_data, thresholds, var_name, unit)
+    all_data shape: {patient_id: {month: float}}
+    """
+    to_m = to_m or get_current_month_str()
+    var_name, vdef = _resolve_var(db, var_id)
+    thresholds = {
+        "low": vdef.threshold_low if vdef else None,
+        "high": vdef.threshold_high if vdef else None,
+        "target_low": vdef.target_low if vdef else None,
+        "target_high": vdef.target_high if vdef else None,
+    }
+    unit = vdef.unit if vdef else ""
+
+    if patient_ids is None:
+        patient_ids = [p.id for p in db.query(Patient).filter(Patient.is_active == True).all()]
+
+    all_data: dict = {}
+
+    # Dynamic variable: read from JSONB
+    if var_id > 0:
+        all_data = get_all_variable_values_for_cohort(db, var_name, patient_ids, from_m, to_m)
+
+    # Core variable: read from MonthlyRecord column, fill gaps
+    monthly_field = VAR_TO_MONTHLY.get(var_name)
+    if monthly_field:
+        bridged = _monthly_field_values(db, monthly_field, patient_ids, from_m, to_m)
+        for pid, months in bridged.items():
+            for month, val in months.items():
+                all_data.setdefault(pid, {}).setdefault(month, val)
+
+    return all_data, thresholds, var_name, unit
+
 
 @router.get("/{var_id}/values")
 async def api_get_variable_values(var_id: int, request: Request, db: Session = Depends(get_db)):
     from_m = request.query_params.get("from", "2023-01")
     to_m   = request.query_params.get("to", get_current_month_str())
+    patient_ids = [p.id for p in db.query(Patient).filter(Patient.is_active == True).all()]
+    all_data, _, _, _ = _get_var_data(db, var_id, patient_ids, from_m, to_m)
+    return all_data
 
-    var_name = ""
-    if var_id > 0:
-        vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
-        if not vdef: raise HTTPException(status_code=404, detail="Variable not found")
-        var_name = vdef.name
-    else:
-        idx = abs(var_id) - 1
-        core_list = list(VAR_TO_MONTHLY.keys())
-        if idx >= len(core_list): raise HTTPException(status_code=404, detail="Core variable not found")
-        var_name = core_list[idx]
 
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
-    pid_list = [p.id for p in patients]
-
-    result: dict = {}
-    if var_id > 0:
-        rows = db.query(VariableValue).filter(
-            VariableValue.variable_id == var_id,
-            VariableValue.patient_id.in_(pid_list),
-            VariableValue.record_month >= from_m,
-            VariableValue.record_month <= to_m,
-        ).all()
-        for r in rows:
-            result.setdefault(r.patient_id, {})[r.record_month] = r.value_num
-
-    monthly_field = VAR_TO_MONTHLY.get(var_name)
-    if monthly_field:
-        bridged = _monthly_field_values(db, monthly_field, pid_list, from_m, to_m)
-        for pid, months in bridged.items():
-            for month, val in months.items():
-                result.setdefault(pid, {}).setdefault(month, val)
-
-    return result
+# ── Variable value write ──────────────────────────────────────────────────────
 
 @router.post("/value")
 async def api_upsert_value(payload: dict, db: Session = Depends(get_db)):
@@ -181,211 +216,126 @@ async def api_upsert_value(payload: dict, db: Session = Depends(get_db)):
     month_str  = payload["record_month"]
     entered_by = payload.get("entered_by", "Variable Manager")
 
-    vdef = None
-    if var_id > 0:
-        vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
-        if not vdef: raise HTTPException(status_code=404, detail="Variable not found")
-        
-        upsert_variable_value(
-            db,
-            patient_id=patient_id,
-            month_str=month_str,
-            variable_id=var_id,
-            value_num=val_num,
-            value_text=payload.get("value_text"),
-            entered_by=entered_by,
-        )
-        var_name = vdef.name
-    else:
-        # Virtual variable from core list
-        idx = abs(var_id) - 1
-        core_list = list(VAR_TO_MONTHLY.keys())
-        if idx >= len(core_list): raise HTTPException(status_code=404, detail="Core variable not found")
-        var_name = core_list[idx]
+    var_name, vdef = _resolve_var(db, var_id)
 
-    # Sync to MonthlyRecord if it's a mapped core variable
+    if var_id > 0:
+        upsert_variable_value(
+            db, patient_id=patient_id, month_str=month_str,
+            variable_id=var_id, value_num=val_num,
+            value_text=payload.get("value_text"), entered_by=entered_by,
+        )
+
+    # Sync to MonthlyRecord core column when it's a mapped core variable
     monthly_field = VAR_TO_MONTHLY.get(var_name)
     if monthly_field:
-        from database import MonthlyRecord
         rec = db.query(MonthlyRecord).filter(
             MonthlyRecord.patient_id == patient_id,
-            MonthlyRecord.record_month == month_str
+            MonthlyRecord.record_month == month_str,
         ).first()
         if not rec:
             rec = MonthlyRecord(patient_id=patient_id, record_month=month_str, entered_by=entered_by)
             db.add(rec)
-        
         if hasattr(rec, monthly_field):
             setattr(rec, monthly_field, val_num)
             db.commit()
 
-    # Trigger Automated Alert if critical
-    # (vdef might be None for virtual vars, so we use a mock if needed or skip)
-    alert_vdef = vdef
-    if not alert_vdef:
-        # Mock for virtual vars to reuse alert logic
-        class MockVdef:
-            def __init__(self, name):
-                self.name = name
-                self.display_name = name.replace("_", " ").title()
-                self.unit = ""
-                self.threshold_low = None
-                self.threshold_high = None
-        alert_vdef = MockVdef(var_name)
-
-    if alert_vdef and val_num is not None:
-        is_critical = False
-        alert_msg = ""
-        t_low = getattr(alert_vdef, "threshold_low", None)
-        t_high = getattr(alert_vdef, "threshold_high", None)
-        
-        if t_low is not None and val_num < t_low:
-            is_critical = True
-            alert_msg = f"Low {alert_vdef.display_name} ({val_num} {getattr(alert_vdef, 'unit', '')})"
-        elif t_high is not None and val_num > t_high:
-            is_critical = True
-            alert_msg = f"High {alert_vdef.display_name} ({val_num} {getattr(alert_vdef, 'unit', '')})"
-        
-        if is_critical:
-            from alerts import send_entry_alert_email
-            from dashboard_logic import get_month_label
-            p = db.query(Patient).filter(Patient.id == patient_id).first()
-            if p:
-                send_entry_alert_email(
-                    patient_name=p.name,
-                    hid=p.hid_no,
-                    month_label=get_month_label(month_str),
-                    alerts=[alert_msg],
-                    labs={alert_vdef.name: val_num},
-                    entered_by=entered_by
-                )
+    # Fire critical alert if threshold breached
+    if val_num is not None and vdef is not None:
+        _maybe_send_alert(db, patient_id, month_str, vdef, val_num, entered_by)
 
     return {"ok": True}
 
-def _get_var_data(db: Session, var_id: int):
-    """Internal helper to fetch all data for a variable (core or dynamic)."""
-    vdef = None
-    var_name = ""
-    thresholds = {"low": None, "high": None, "target_low": None, "target_high": None}
-    unit = ""
 
-    if var_id > 0:
-        vdef = db.query(VariableDefinition).filter(VariableDefinition.id == var_id).first()
-        if not vdef: return None, None, None, None
-        var_name = vdef.name
-        unit = vdef.unit
-        thresholds = {
-            "low": vdef.threshold_low,
-            "high": vdef.threshold_high,
-            "target_low": vdef.target_low,
-            "target_high": vdef.target_high
-        }
-    else:
-        idx = abs(var_id) - 1
-        core_list = list(VAR_TO_MONTHLY.keys())
-        if idx >= len(core_list): return None, None, None, None
-        var_name = core_list[idx]
-        # Core variables don't have stored units/thresholds in VariableDefinition yet
-        # (Could be added to a system_defaults table later)
+def _maybe_send_alert(db, patient_id, month_str, vdef, val_num, entered_by):
+    t_low  = getattr(vdef, "threshold_low", None)
+    t_high = getattr(vdef, "threshold_high", None)
+    alert_msg = None
+    if t_low is not None and val_num < t_low:
+        alert_msg = f"Low {vdef.display_name} ({val_num} {vdef.unit or ''})"
+    elif t_high is not None and val_num > t_high:
+        alert_msg = f"High {vdef.display_name} ({val_num} {vdef.unit or ''})"
+    if not alert_msg:
+        return
+    from alerts import send_entry_alert_email
+    from dashboard_logic import get_month_label
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if p:
+        send_entry_alert_email(
+            patient_name=p.name, hid=p.hid_no,
+            month_label=get_month_label(month_str),
+            alerts=[alert_msg], labs={vdef.name: val_num},
+            entered_by=entered_by,
+        )
 
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
-    pid_list = [p.id for p in patients]
-    all_data: dict = {}
 
-    if var_id > 0:
-        rows = db.query(VariableValue).filter(VariableValue.variable_id == var_id, VariableValue.patient_id.in_(pid_list)).all()
-        for r in rows: all_data.setdefault(r.patient_id, {})[r.record_month] = r.value_num
-
-    monthly_field = VAR_TO_MONTHLY.get(var_name)
-    if monthly_field:
-        bridged = _monthly_field_values(db, monthly_field, pid_list, "2020-01", get_current_month_str())
-        for pid, months in bridged.items():
-            for month, val in months.items(): all_data.setdefault(pid, {}).setdefault(month, val)
-    
-    return all_data, thresholds, var_name, unit
+# ── Summary endpoint (used by variable manager charts) ───────────────────────
 
 @router.get("/{var_id}/summary")
-async def api_variable_summary(var_id: int, var2_id: Optional[int] = None, var3_id: Optional[int] = None, db: Session = Depends(get_db)):
-    all_data, thresholds, var_name, unit = _get_var_data(db, var_id)
-    if all_data is None: raise HTTPException(status_code=404, detail="Variable not found")
-
+async def api_variable_summary(
+    var_id: int,
+    var2_id: Optional[int] = None,
+    var3_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    patient_ids = [p.id for p in db.query(Patient).filter(Patient.is_active == True).all()]
+    all_data, thresholds, var_name, unit = _get_var_data(db, var_id, patient_ids)
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    
-    patient_rows = []
-    for p in patients:
-        months = all_data.get(p.id, {})
-        latest = months[max(months)] if months else None
-        # Add basic demographic info for Treemaps/Pyramids
-        patient_rows.append({
-            "id": p.id, "name": p.name, "hid": p.hid_no, "latest_value": latest,
-            "gender": p.sex, "age": p.age, "access_type": p.access_type, "shift": p.hd_slot_1 or "N/A"
-        })
 
-    # Statistical Trend (Median, Percentiles)
+    patient_rows = [
+        {
+            "id": p.id, "name": p.name, "hid": p.hid_no,
+            "latest_value": (lambda m: m[max(m)] if m else None)(all_data.get(p.id, {})),
+            "gender": p.sex, "age": p.age,
+            "access_type": p.access_type, "shift": p.hd_slot_1 or "N/A",
+        }
+        for p in patients
+    ]
+
+    # Trend (monthly median + IQR)
     month_buckets: dict = {}
     for pid, months in all_data.items():
         for m, v in months.items():
-            if v is not None: month_buckets.setdefault(m, []).append(v)
+            if v is not None:
+                month_buckets.setdefault(m, []).append(v)
 
-    def _pct(sorted_vals, p):
-        n = len(sorted_vals)
-        if n == 0: return None
-        idx = (p / 100) * (n - 1)
-        lo, hi = int(idx), min(int(idx) + 1, n - 1)
-        return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (idx - lo)
+    def _pct(vals, p):
+        n = len(vals)
+        if not n:
+            return None
+        i = (p / 100) * (n - 1)
+        lo, hi = int(i), min(int(i) + 1, n - 1)
+        return vals[lo] + (vals[hi] - vals[lo]) * (i - lo)
 
-    trend = []
-    for m in sorted(month_buckets):
-        vals = sorted(month_buckets[m])
-        median = _pct(vals, 50)
-        p25 = _pct(vals, 25)
-        p75 = _pct(vals, 75)
-        trend.append({
+    trend = [
+        {
             "month": m,
-            "median": round(median, 2) if median is not None else None,
-            "p25":    round(p25, 2)    if p25 is not None else None,
-            "p75":    round(p75, 2)    if p75 is not None else None,
-        })
+            "median": round(v50, 2) if (v50 := _pct(sorted(month_buckets[m]), 50)) is not None else None,
+            "p25":    round(v25, 2) if (v25 := _pct(sorted(month_buckets[m]), 25)) is not None else None,
+            "p75":    round(v75, 2) if (v75 := _pct(sorted(month_buckets[m]), 75)) is not None else None,
+        }
+        for m in sorted(month_buckets)
+    ]
 
-    # Prepare Response
     res = {
-        "var_name": var_name,
-        "unit": unit,
-        "patients": patient_rows, 
-        "trend": trend,
-        "all_data": all_data,
-        "thresholds": thresholds
+        "var_name": var_name, "unit": unit,
+        "patients": patient_rows, "trend": trend,
+        "all_data": all_data, "thresholds": thresholds,
     }
 
-    # Handle Optional Correlation Data (X, Y, Size)
-    if var2_id:
-        v2_all_data, v2_thresholds, v2_name, v2_unit = _get_var_data(db, var2_id)
-        if v2_all_data is not None:
-            res["var2"] = {"name": v2_name, "unit": v2_unit, "all_data": v2_all_data, "thresholds": v2_thresholds}
-            
-    if var3_id:
-        v3_all_data, v3_thresholds, v3_name, v3_unit = _get_var_data(db, var3_id)
-        if v3_all_data is not None:
-            res["var3"] = {"name": v3_name, "unit": v3_unit, "all_data": v3_all_data, "thresholds": v3_thresholds}
+    for extra_id, key in [(var2_id, "var2"), (var3_id, "var3")]:
+        if extra_id:
+            d, t, n, u = _get_var_data(db, extra_id, patient_ids)
+            if d is not None:
+                res[key] = {"name": n, "unit": u, "all_data": d, "thresholds": t}
 
-    # Pre-calculate Trajectory (Dumbbell) data for convenience
     months_with_data = sorted(month_buckets.keys(), reverse=True)
     if len(months_with_data) >= 2:
-        curr_m = months_with_data[0]
-        prev_m = months_with_data[1]
-        trajectory = []
-        for p in patient_rows:
-            p_months = all_data.get(p["id"], {})
-            c_val = p_months.get(curr_m)
-            p_val = p_months.get(prev_m)
-            if c_val is not None and p_val is not None:
-                trajectory.append({
-                    "name": p["name"],
-                    "prev": p_val,
-                    "curr": c_val,
-                    "month_prev": prev_m,
-                    "month_curr": curr_m
-                })
-        res["trajectory"] = trajectory
+        curr_m, prev_m = months_with_data[0], months_with_data[1]
+        res["trajectory"] = [
+            {"name": p["name"], "prev": p_m.get(prev_m), "curr": p_m.get(curr_m),
+             "month_prev": prev_m, "month_curr": curr_m}
+            for p in patient_rows
+            if (p_m := all_data.get(p["id"], {})) and p_m.get(curr_m) is not None and p_m.get(prev_m) is not None
+        ]
 
     return res

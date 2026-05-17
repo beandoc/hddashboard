@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ patient.name }} - Comprehensive Clinical Profile</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-    <link rel="stylesheet" href="/static/css/patient_profile.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>{{ patient.name }} - Comprehensive Clinical Profile</title>    <link rel="stylesheet" href="/static/css/patient_profile.css">
+    <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
 </head>
 <body>
 
@@ -23,6 +22,38 @@
   <span class="bc-sep">/</span>
   <span class="bc-current">{{ patient.name }}</span>
 </nav>
+
+<!-- Sticky Patient Header Band -->
+<div class="patient-sticky-band" id="patientStickyBand">
+    <div class="sticky-band-content">
+        <div class="sticky-patient-info">
+            <span class="sticky-name">{{ patient.name }}</span>
+            <span class="badge badge-hid" style="margin: 0;">HID: {{ patient.hid_no }}</span>
+        </div>
+        <div class="sticky-metrics">
+            <div class="sticky-metric">
+                <span class="lbl">Age/Sex</span>
+                <span class="val">{{ patient.age or '—' }}y / {{ patient.sex or '—' }}</span>
+            </div>
+            <div class="sticky-metric">
+                <span class="lbl">Vintage</span>
+                <span class="val">{% if patient.hd_wef_date %}{{ patient.hd_wef_date.strftime('%b %Y') }}{% else %}—{% endif %}</span>
+            </div>
+            <div class="sticky-metric">
+                <span class="lbl">Access</span>
+                <span class="val access">{{ patient.access_type or '—' }}</span>
+            </div>
+            <div class="sticky-metric">
+                <span class="lbl">Last Kt/V</span>
+                <span class="val ktv">{% if latest_monthly and latest_monthly.single_pool_ktv %}{{ latest_monthly.single_pool_ktv }}{% else %}—{% endif %}</span>
+            </div>
+            <div class="sticky-metric">
+                <span class="lbl">Dry Wt</span>
+                <span class="val">{{ patient.dry_weight or '—' }} kg</span>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="container">
 
@@ -312,9 +343,7 @@
                     <i class="material-icons" aria-hidden="true">insights</i> Hb & ESA Trend Analysis
                 </h2>
                 {% if hb_trend_data | select | list %}
-                <div style="height: 300px; width: 100%;">
-                    <canvas id="profileTrendChart" aria-label="Hemoglobin and ESA trend chart" role="img"></canvas>
-                </div>
+                <div id="profileTrendChart" style="height: 300px; width: 100%;" aria-label="Hemoglobin and ESA trend chart" role="img"></div>
                 {% else %}
                 <div class="empty-state">Not enough data to display Hb/ESA trend.</div>
                 {% endif %}
@@ -327,9 +356,7 @@
                     Fluid & Nutritional Trend (Prescribed Dry Weight · Albumin · IDWG)
                 </h2>
                 {% if weight_trend_data | select | list %}
-                <div style="height: 320px; width: 100%;">
-                    <canvas id="weightStabilityChart" aria-label="Prescribed dry weight, albumin, and IDWG trend chart" role="img"></canvas>
-                </div>
+                <div id="weightStabilityChart" style="height: 320px; width: 100%;" aria-label="Prescribed dry weight, albumin, and IDWG trend chart" role="img"></div>
                 <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; font-style: italic;">
                     ⚠️ <b>Clinical note:</b> Dry weight shown is the <em>prescribed target</em>, not actual pre-dialysis weight. A gradual downward drift often signals muscle wasting — correlate with Albumin. IDWG &gt; 2.5 kg indicates poor fluid compliance.
                 </p>
@@ -345,9 +372,7 @@
                     <i class="material-icons" style="color: #0ea5e9;" aria-hidden="true">biotech</i> 
                     Residual Kidney Function Tracking (KRCRw)
                 </h2>
-                <div style="height: 250px; width: 100%;">
-                    <canvas id="krcrTrendChart" aria-label="Residual kidney function trend" role="img"></canvas>
-                </div>
+                <div id="krcrTrendChart" style="height: 250px; width: 100%;" aria-label="Residual kidney function trend" role="img"></div>
                 <div style="margin-top: 15px; display: flex; gap: 15px; flex-wrap: wrap;">
                     <div style="background: white; border: 1px solid #bae6fd; padding: 10px; border-radius: 12px; flex: 1; min-width: 140px;">
                         <p style="font-size: 0.6rem; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px;">Baseline GCr</p>
@@ -734,194 +759,173 @@
 {% endif %}
 
 <script>
-    // ── Hb & ESA Trend Chart (real data only) ────────────────────────────────
+    // ── Sticky Header Band Toggle ──
+    window.addEventListener('scroll', () => {
+        const header = document.querySelector('.profile-header');
+        const band = document.getElementById('patientStickyBand');
+        if (header && band) {
+            const headerBottom = header.offsetTop + header.offsetHeight;
+            if (window.scrollY > headerBottom) {
+                band.classList.add('visible');
+            } else {
+                band.classList.remove('visible');
+            }
+        }
+    });
+
+    // ── Hb & ESA Trend Chart ─────────────────────────────────────────────────
     {% if hb_trend_data | select | list %}
     (function () {
-        const ctx = document.getElementById('profileTrendChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: {{ hb_trend_labels | tojson }},
-                datasets: [{
-                    label: 'Hemoglobin (g/dL)',
-                    data: {{ hb_trend_data | tojson }},
-                    borderColor: '#0ea5e9',
-                    backgroundColor: 'rgba(14, 165, 233, 0.1)',
-                    borderWidth: 3,
-                    yAxisID: 'y',
-                    tension: 0.4,
-                    fill: true,
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
-                    pointBackgroundColor: '#fff',
-                    pointBorderWidth: 3,
-                    spanGaps: true
-                }, {
-                    label: 'ESA Weekly Dose (Units)',
-                    data: {{ esa_trend_data | tojson }},
-                    borderColor: '#ef4444',
-                    borderDash: [5, 5],
-                    borderWidth: 2,
-                    yAxisID: 'y1',
-                    pointRadius: 4,
-                    tension: 0,
-                    fill: false,
-                    spanGaps: true
-                }]
+        const labels = {{ hb_trend_labels | tojson }};
+        const hbData = {{ hb_trend_data | tojson }};
+        const esaData = {{ esa_trend_data | tojson }};
+        Plotly.newPlot('profileTrendChart', [
+            {
+                x: labels, y: hbData,
+                name: 'Hemoglobin (g/dL)',
+                type: 'scatter', mode: 'lines+markers',
+                yaxis: 'y1',
+                line: { color: '#0ea5e9', width: 3, shape: 'spline' },
+                fill: 'tozeroy', fillcolor: 'rgba(14,165,233,0.08)',
+                marker: { size: 7, color: '#fff', line: { color: '#0ea5e9', width: 2.5 } },
+                connectgaps: true,
+                hovertemplate: '%{x}<br>Hb: <b>%{y} g/dL</b><extra></extra>'
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'top', labels: { usePointStyle: true, font: { weight: '600' } } }
-                },
-                scales: {
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        min: 6,
-                        max: 16,
-                        title: { display: true, text: 'Hb (g/dL)', font: { weight: 'bold' } },
-                        ticks: { stepSize: 1 }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        min: 0,
-                        grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'ESA Dose (Units)', font: { weight: 'bold' } }
-                    },
-                    x: { grid: { display: false } }
-                }
+            {
+                x: labels, y: esaData,
+                name: 'ESA Weekly Dose (Units)',
+                type: 'scatter', mode: 'lines+markers',
+                yaxis: 'y2',
+                line: { color: '#ef4444', width: 2, dash: 'dot' },
+                marker: { size: 5 },
+                connectgaps: true,
+                hovertemplate: '%{x}<br>ESA: <b>%{y} U/wk</b><extra></extra>'
             }
-        });
+        ], {
+            margin: { t: 30, r: 70, b: 50, l: 55 },
+            legend: { orientation: 'h', y: 1.12, font: { family: 'Inter', size: 12 } },
+            hovermode: 'x unified',
+            xaxis: { showgrid: false, tickfont: { family: 'Inter', size: 11 } },
+            yaxis: {
+                title: { text: 'Hb (g/dL)', font: { family: 'Inter', size: 12, color: '#0ea5e9' } },
+                range: [6, 16], dtick: 1,
+                tickfont: { color: '#0ea5e9' }
+            },
+            yaxis2: {
+                title: { text: 'ESA Dose (Units)', font: { family: 'Inter', size: 12, color: '#ef4444' } },
+                overlaying: 'y', side: 'right', rangemode: 'tozero',
+                tickfont: { color: '#ef4444' }, showgrid: false
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Inter' }
+        }, { responsive: true, displayModeBar: false });
     })();
     {% endif %}
 
-    // ── Weight Stability Chart (Fluid & Nutritional) ─────────────────────────
+    // ── Weight / Albumin / IDWG Chart ────────────────────────────────────────
     {% if weight_trend_data | select | list %}
     (function () {
-        const ctx = document.getElementById('weightStabilityChart').getContext('2d');
-        const idwgRaw = {{ idwg_trend_data | tojson }};
+        const labels   = {{ hb_trend_labels | tojson }};
+        const wtData   = {{ weight_trend_data | tojson }};
+        const albData  = {{ albumin_trend_data | tojson }};
+        const idwgRaw  = {{ idwg_trend_data | tojson }};
         const hasIdwg  = idwgRaw.some(v => v !== null);
-        const datasets = [{
-            label: 'Prescribed Dry Weight (kg)',
-            data: {{ weight_trend_data | tojson }},
-            borderColor: '#7c3aed',
-            backgroundColor: 'rgba(124, 58, 237, 0.08)',
-            borderWidth: 3,
-            yAxisID: 'y',
-            tension: 0.3,
-            fill: true,
-            pointRadius: 5,
-            spanGaps: true
-        }, {
-            label: 'Albumin (g/dL)',
-            data: {{ albumin_trend_data | tojson }},
-            borderColor: '#10b981',
-            borderWidth: 3,
-            yAxisID: 'y1',
-            tension: 0.3,
-            fill: false,
-            pointRadius: 5,
-            spanGaps: true
-        }];
+
+        const traces = [
+            {
+                x: labels, y: wtData,
+                name: 'Prescribed Dry Weight (kg)',
+                type: 'scatter', mode: 'lines+markers',
+                yaxis: 'y1',
+                line: { color: '#7c3aed', width: 3, shape: 'spline' },
+                fill: 'tozeroy', fillcolor: 'rgba(124,58,237,0.06)',
+                marker: { size: 6 },
+                connectgaps: true,
+                hovertemplate: '%{x}<br>Dry Wt: <b>%{y} kg</b><extra></extra>'
+            },
+            {
+                x: labels, y: albData,
+                name: 'Albumin (g/dL)',
+                type: 'scatter', mode: 'lines+markers',
+                yaxis: 'y2',
+                line: { color: '#10b981', width: 3, shape: 'spline' },
+                marker: { size: 6 },
+                connectgaps: true,
+                hovertemplate: '%{x}<br>Albumin: <b>%{y} g/dL</b><extra></extra>'
+            }
+        ];
+
         if (hasIdwg) {
-            datasets.push({
-                label: 'Avg IDWG (kg)',
-                data: idwgRaw,
-                borderColor: '#f59e0b',
-                backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                borderWidth: 2,
-                borderDash: [4, 3],
-                yAxisID: 'y2',
-                tension: 0.2,
-                fill: false,
-                pointRadius: 4,
-                pointStyle: 'triangle',
-                spanGaps: true
+            traces.push({
+                x: labels, y: idwgRaw,
+                name: 'Avg IDWG (kg)',
+                type: 'scatter', mode: 'lines+markers',
+                yaxis: 'y3',
+                line: { color: '#f59e0b', width: 2, dash: 'dashdot' },
+                marker: { size: 5, symbol: 'triangle-up' },
+                connectgaps: true,
+                hovertemplate: '%{x}<br>IDWG: <b>%{y} kg</b>%{customdata}<extra></extra>',
+                customdata: idwgRaw.map(v => v > 2.5 ? ' ⚠️' : '')
             });
         }
-        new Chart(ctx, {
-            type: 'line',
-            data: { labels: {{ hb_trend_labels | tojson }}, datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'top', labels: { usePointStyle: true, font: { weight: '600' } } },
-                    tooltip: {
-                        callbacks: {
-                            afterLabel: function(ctx) {
-                                if (ctx.dataset.label.includes('IDWG') && ctx.parsed.y > 2.5)
-                                    return '⚠️ Above 2.5 kg threshold';
-                                return '';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        type: 'linear', display: true, position: 'left',
-                        title: { display: true, text: 'Dry Weight (kg)', font: { weight: 'bold' } }
-                    },
-                    y1: {
-                        type: 'linear', display: true, position: 'right',
-                        min: 2, max: 5,
-                        grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'Albumin (g/dL)', font: { weight: 'bold' } }
-                    },
-                    y2: {
-                        type: 'linear', display: hasIdwg, position: 'right',
-                        min: 0, max: 6,
-                        grid: { drawOnChartArea: false },
-                        title: { display: hasIdwg, text: 'IDWG (kg)', font: { weight: 'bold' }, color: '#f59e0b' },
-                        ticks: { color: '#f59e0b' },
-                        border: { color: '#f59e0b' }
-                    },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
+
+        const layout = {
+            margin: { t: 30, r: 100, b: 50, l: 65 },
+            legend: { orientation: 'h', y: 1.12, font: { family: 'Inter', size: 11 } },
+            hovermode: 'x unified',
+            xaxis: { showgrid: false, tickfont: { family: 'Inter', size: 11 } },
+            yaxis: {
+                title: { text: 'Dry Weight (kg)', font: { color: '#7c3aed', size: 12 } },
+                tickfont: { color: '#7c3aed' }
+            },
+            yaxis2: {
+                title: { text: 'Albumin (g/dL)', font: { color: '#10b981', size: 12 } },
+                overlaying: 'y', side: 'right', range: [2, 5],
+                tickfont: { color: '#10b981' }, showgrid: false
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Inter' }
+        };
+        if (hasIdwg) {
+            layout.yaxis3 = {
+                title: { text: 'IDWG (kg)', font: { color: '#f59e0b', size: 11 } },
+                overlaying: 'y', side: 'right', anchor: 'free', position: 1,
+                range: [0, 6], tickfont: { color: '#f59e0b' }, showgrid: false
+            };
+        }
+        Plotly.newPlot('weightStabilityChart', traces, layout, { responsive: true, displayModeBar: false });
     })();
     {% endif %}
 
     // ── KRCRw Trend Chart ────────────────────────────────────────────────────
     {% if krcr_trend_data %}
     (function () {
-        const ctx = document.getElementById('krcrTrendChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: {{ krcr_trend_labels | tojson }},
-                datasets: [{
-                    label: 'Residual Kidney Clearance (mL/min)',
-                    data: {{ krcr_trend_data | tojson }},
-                    borderColor: '#059669',
-                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
-                    borderWidth: 4,
-                    tension: 0.3,
-                    fill: true,
-                    pointRadius: 5,
-                    pointBackgroundColor: '#059669'
-                }]
+        Plotly.newPlot('krcrTrendChart', [{
+            x: {{ krcr_trend_labels | tojson }},
+            y: {{ krcr_trend_data | tojson }},
+            name: 'KRCRw (mL/min)',
+            type: 'scatter', mode: 'lines+markers',
+            line: { color: '#059669', width: 4, shape: 'spline' },
+            fill: 'tozeroy', fillcolor: 'rgba(5,150,105,0.10)',
+            marker: { size: 7, color: '#059669' },
+            connectgaps: true,
+            hovertemplate: '%{x}<br>KRCRw: <b>%{y:.2f} mL/min</b><extra></extra>'
+        }], {
+            margin: { t: 20, r: 30, b: 45, l: 55 },
+            showlegend: false,
+            hovermode: 'x unified',
+            xaxis: { showgrid: false, tickfont: { family: 'Inter', size: 11 } },
+            yaxis: {
+                title: { text: 'KRCRw (mL/min)', font: { family: 'Inter', size: 12 } },
+                rangemode: 'tozero',
+                gridcolor: 'rgba(0,0,0,0.06)', griddash: 'dot'
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    y: { beginAtZero: true, grid: { borderDash: [2, 2] } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Inter' }
+        }, { responsive: true, displayModeBar: false });
     })();
     {% endif %}
 

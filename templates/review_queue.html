@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Clinical Review Queue — HD Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-  <style>
+  <title>Clinical Review Queue — HD Dashboard</title>  <style>
     :root {
       --primary: #7c3aed;
       --bg: #f8fafc;
@@ -132,7 +129,61 @@
       padding: 80px 40px; text-align: center; color: var(--muted);
     }
     .empty-state i { font-size: 3.5rem; opacity: 0.2; display: block; margin-bottom: 16px; }
+
+    /* SHAP "why this score" panel */
+    .shap-panel {
+      margin-top: 10px; padding: 10px 14px;
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+    }
+    .shap-panel-title {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #15803d; margin-bottom: 8px;
+    }
+    .shap-bars { display: flex; flex-direction: column; gap: 4px; }
+    .shap-row {
+      display: grid; grid-template-columns: 110px 1fr 52px;
+      align-items: center; gap: 6px; font-size: 0.7rem;
+    }
+    .shap-feat { color: #374151; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .shap-bar-wrap { background: #e5e7eb; border-radius: 4px; height: 6px; overflow: hidden; }
+    .shap-bar-fill {
+      height: 100%; border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .shap-bar-pos { background: #ef4444; }
+    .shap-bar-neg { background: #3b82f6; }
+    .shap-val { font-size: 0.65rem; color: #6b7280; text-align: right; font-family: monospace; }
+
+    /* Clinical override widget */
+    .override-panel {
+      margin-top: 10px; padding: 10px 14px;
+      background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    }
+    .override-panel-title {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #92400e; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .override-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+    .override-form select, .override-form input[type="text"] {
+      font-size: 0.78rem; padding: 5px 8px; border: 1px solid #fcd34d;
+      border-radius: 6px; background: white; color: #1e293b;
+      font-family: inherit;
+    }
+    .override-form select { min-width: 160px; }
+    .override-form input[type="text"] { flex: 1; min-width: 160px; }
+    .override-submit {
+      padding: 5px 12px; background: #d97706; color: white;
+      border: none; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .override-submit:hover { background: #b45309; }
+    .override-saved {
+      font-size: 0.72rem; color: #15803d; font-weight: 600; display: none;
+    }
   </style>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
 </head>
 <body>
 
@@ -255,6 +306,55 @@
               </div>
             </div>
             {% endif %}
+
+            {# SHAP "why this score" — shown when deterioration model is trained and SHAP is available #}
+            {% if item.det_shap %}
+            <div class="shap-panel">
+              <div class="shap-panel-title">
+                <i class="material-icons" style="font-size:0.8rem; vertical-align:middle;">psychology</i>
+                Why this deterioration score · top drivers
+              </div>
+              <div class="shap-bars">
+                {% set max_abs = item.det_shap | map(attribute='shap_value') | map('abs') | max %}
+                {% for s in item.det_shap[:6] %}
+                {% set pct = ((s.shap_value | abs) / (max_abs + 0.0001) * 100) | round | int %}
+                <div class="shap-row">
+                  <span class="shap-feat" title="{{ s.feature }} = {{ s.value }}">{{ s.feature }}</span>
+                  <div class="shap-bar-wrap">
+                    <div class="shap-bar-fill {% if s.shap_value > 0 %}shap-bar-pos{% else %}shap-bar-neg{% endif %}"
+                         style="width:{{ pct }}%"></div>
+                  </div>
+                  <span class="shap-val">{% if s.shap_value > 0 %}+{% endif %}{{ "%.3f"|format(s.shap_value) }}</span>
+                </div>
+                {% endfor %}
+              </div>
+              <div style="font-size:0.62rem; color:#6b7280; margin-top:6px;">
+                Red = increases risk · Blue = decreases risk · values are log-odds contributions
+              </div>
+            </div>
+            {% endif %}
+
+            {# Clinical override log — most valuable retraining signal #}
+            <div class="override-panel" id="override-panel-{{ item.patient.id }}">
+              <div class="override-panel-title">
+                <i class="material-icons" style="font-size:0.8rem;">rate_review</i>
+                Clinical Override — disagree with the model?
+              </div>
+              <form class="override-form" onsubmit="submitOverride(event, {{ item.patient.id }})">
+                <input type="hidden" name="patient_id" value="{{ item.patient.id }}">
+                <input type="hidden" name="model_name" value="deterioration_v1">
+                <select name="override_direction" required>
+                  <option value="" disabled selected>My assessment is…</option>
+                  <option value="higher_risk">Higher risk than model says</option>
+                  <option value="lower_risk">Lower risk than model says</option>
+                  <option value="agree_but_act_differently">Agree but acting differently</option>
+                </select>
+                <input type="text" name="clinician_decision" placeholder="Action taken (optional)" maxlength="200">
+                <input type="text" name="override_reason" placeholder="Reason (optional)" maxlength="400">
+                <button type="submit" class="override-submit">Log override</button>
+                <span class="override-saved" id="override-saved-{{ item.patient.id }}">✓ Saved</span>
+              </form>
+            </div>
           </td>
           <td>
             <div class="last-review">
@@ -287,6 +387,29 @@
   </div>
 
 </main>
+
+<script>
+async function submitOverride(event, patientId) {
+  event.preventDefault();
+  const form = event.target;
+  const data = new FormData(form);
+  try {
+    const resp = await fetch('/analytics/clinical-override', {
+      method: 'POST',
+      body: data,
+    });
+    if (resp.ok) {
+      const saved = document.getElementById('override-saved-' + patientId);
+      if (saved) { saved.style.display = 'inline'; }
+      form.reset();
+    } else {
+      alert('Override could not be saved — please try again.');
+    }
+  } catch (e) {
+    alert('Network error: ' + e);
+  }
+}
+</script>
 
 </body>
 </html>

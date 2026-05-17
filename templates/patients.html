@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Management - HD Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-    <style>
+    <title>Patient Management - HD Dashboard</title>    <style>
         :root {
             --primary: #0ea5e9;
             --primary-dark: #0284c7;
@@ -227,6 +224,8 @@
         }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     </style>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
 </head>
 <body>
 
@@ -330,6 +329,12 @@
             <option value="stable">Stable Only</option>
         </select>
 
+        <!-- Density Toggle -->
+        <button id="densityToggle" onclick="toggleDensity()" class="filter-select" style="display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 12px; background:var(--card); border:1px solid var(--border); border-radius:8px; cursor:pointer;" title="Toggle Data Density">
+            <i class="material-icons" style="font-size:1.1rem; color:var(--text-muted);">density_medium</i>
+            <span style="font-size:0.875rem; font-weight:500;">Comfortable</span>
+        </button>
+
         <div class="filter-divider"></div>
 
         <a href="/patients/new" class="btn-add">
@@ -346,7 +351,9 @@
                 <tr>
                     <th data-label="Patient">Patient</th>
                     <th>Last HD Session</th>
-                    <th>Hb Variability (6m Range)</th>
+                    <th>Hb Trend (6m)</th>
+                    <th>Albumin Trend (6m)</th>
+                    <th>Kt/V Trend (6m)</th>
                     <th>Lab Status</th>
                     <th>Clinical Alerts</th>
                     <th data-label="Actions">Actions</th>
@@ -373,7 +380,7 @@
                     <!-- Last HD session -->
                     <td data-label="Last HD session">
                         {% if row.last_session_date %}
-                            <span style="font-size:0.82rem; font-weight:600; color:#0f172a;">
+                            <span style="font-size:0.82rem; font-weight:600; color:var(--text);">
                                 {{ row.last_session_date.strftime('%-d %b') }}
                             </span>
                         {% else %}
@@ -381,17 +388,51 @@
                         {% endif %}
                     </td>
 
-                    <!-- Hb Variability (6m) -->
-                    <td data-label="Hb Variability (6m Range)">
-                        {% if row.hb_var_range is not none %}
-                            <div style="font-weight:700; font-size:0.95rem; color:{{ '#dc2626' if row.hb_var_range > 2.5 else '#16a34a' }};">
-                                {{ row.hb_var_range }} <span style="font-size:0.7rem; font-weight:400; color:#64748b;">g/dL</span>
+                    <!-- Hb Trend (6m) -->
+                    <td data-label="Hb Trend (6m)">
+                        {% if row.hb_sparkline and row.hb_sparkline.points %}
+                            <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                                <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
+                                    {{ row.hb if row.hb is not none else '—' }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
+                                </span>
+                                <svg class="sparkline" viewBox="0 0 70 20" aria-label="Hemoglobin 6-month trend line">
+                                    <polyline class="{{ row.hb_sparkline.trend }}-trend" points="{{ row.hb_sparkline.points }}"></polyline>
+                                </svg>
                             </div>
-                            {% if row.hb_var_pattern %}
-                                <div style="font-size:0.68rem; color:#64748b; margin-top:2px;">Pattern {{ row.hb_var_pattern }}</div>
-                            {% endif %}
                         {% else %}
-                            <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">Insufficient data</span>
+                            <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Albumin Trend (6m) -->
+                    <td data-label="Albumin Trend (6m)">
+                        {% if row.alb_sparkline and row.alb_sparkline.points %}
+                            <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                                <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
+                                    {{ row.albumin if row.albumin is not none else '—' }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
+                                </span>
+                                <svg class="sparkline" viewBox="0 0 70 20" aria-label="Albumin 6-month trend line">
+                                    <polyline class="{{ row.alb_sparkline.trend }}-trend" points="{{ row.alb_sparkline.points }}"></polyline>
+                                </svg>
+                            </div>
+                        {% else %}
+                            <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Kt/V Trend (6m) -->
+                    <td data-label="Kt/V Trend (6m)">
+                        {% if row.ktv_sparkline and row.ktv_sparkline.points %}
+                            <div style="display:flex; flex-direction:column; align-items:flex-start;">
+                                <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
+                                    {{ row.single_pool_ktv if row.single_pool_ktv is not none else (row.ktv_sparkline.last if row.ktv_sparkline.last is not none else '—') }}
+                                </span>
+                                <svg class="sparkline" viewBox="0 0 70 20" aria-label="Kt/V 6-month trend line">
+                                    <polyline class="{{ row.ktv_sparkline.trend }}-trend" points="{{ row.ktv_sparkline.points }}"></polyline>
+                                </svg>
+                            </div>
+                        {% else %}
+                            <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">—</span>
                         {% endif %}
                     </td>
 
@@ -956,6 +997,35 @@
         const diag = document.getElementById('discharge_diagnosis').value;
         document.getElementById('discharge_description').value = `Hospital: ${hospital}\nDischarge Diagnosis: ${diag}`;
     }
+
+    // ── DATA DENSITY TOGGLE ──
+    function toggleDensity() {
+        const isCompact = document.body.classList.toggle('compact-mode');
+        localStorage.setItem('density', isCompact ? 'compact' : 'comfortable');
+        updateDensityUI(isCompact);
+    }
+    function updateDensityUI(isCompact) {
+        const btn = document.getElementById('densityToggle');
+        if (btn) {
+            const icon = btn.querySelector('.material-icons');
+            const label = btn.querySelector('span');
+            if (isCompact) {
+                if (icon) icon.textContent = 'density_small';
+                if (label) label.textContent = 'Compact';
+            } else {
+                if (icon) icon.textContent = 'density_medium';
+                if (label) label.textContent = 'Comfortable';
+            }
+        }
+    }
+    // Restore density preference immediately
+    (function() {
+        const savedDensity = localStorage.getItem('density');
+        if (savedDensity === 'compact') {
+            document.body.classList.add('compact-mode');
+            window.addEventListener('DOMContentLoaded', () => updateDensityUI(true));
+        }
+    })();
 
     // ── TOAST ─────────────────────────────────────────────────────────────
     function showToast(msg, isError = false) {

@@ -1,86 +1,53 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 import time
 
-from database import engine, Base, get_db, Patient, SessionLocal, User, MonthlyRecord
-from config import templates, serializer, pwd_context
+from database import get_db, Patient, SessionLocal, User
+from config import templates, serializer, pwd_context, limiter, COOKIE_SECURE, SESSION_MAX_AGE, SESSION_IDLE_TTL
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
-from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research
+from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research, api_v1
 
 # ─────────────────────────────────────────────────────────────────────────────
-# APP INITIALIZATION
+# REQUIRED DB SCHEMA VERSION
+# Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
+REQUIRED_DB_VERSION = "0006"
 
-def _init_db_with_retry(max_attempts: int = 5, delay: int = 5):
-    for attempt in range(1, max_attempts + 1):
+
+def _check_schema_version() -> None:
+    """Refuse to start the app against an unmigrated database."""
+    db = SessionLocal()
+    try:
         try:
-            Base.metadata.create_all(bind=engine)
-            return
+            row = db.execute(
+                text("SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1")
+            ).fetchone()
         except Exception as exc:
-            logging.warning("DB init attempt %d/%d failed: %s", attempt, max_attempts, exc)
-            if attempt == max_attempts:
-                raise
-            time.sleep(delay)
-
-# We will wrap the DB initialization in a background thread later.
-# _init_db_with_retry()
-
-# Auto-migrate: sync DB schema with SQLAlchemy models on every startup
-def _run_startup_migrations():
-    # Map SQLAlchemy column types to SQL DDL strings
-    from sqlalchemy import inspect as sa_inspect
-    from sqlalchemy import Integer, String, Float, Boolean, Date, DateTime, Text
-
-    is_pg = not engine.url.drivername.startswith("sqlite")
-    type_map = {
-        Integer: "INTEGER",
-        String: "VARCHAR",
-        Float: "FLOAT",
-        Boolean: "BOOLEAN",
-        Date: "DATE",
-        DateTime: "TIMESTAMP" if is_pg else "DATETIME",
-        Text: "TEXT",
-    }
-
-    inspector = sa_inspect(engine)
-    with engine.connect() as conn:
-        for mapper in Base.registry.mappers:
-            table_name = mapper.persist_selectable.name
-            if not inspector.has_table(table_name):
-                continue
-            existing = {col["name"] for col in inspector.get_columns(table_name)}
-            for col in mapper.persist_selectable.columns:
-                if col.name in existing or col.primary_key:
-                    continue
-                # Robust type compilation using the engine's dialect
-                try:
-                    sql_type = col.type.compile(engine.dialect)
-                except Exception:
-                    sql_type = type_map.get(type(col.type), "VARCHAR")
-                
-                default_clause = ""
-                if col.default is not None and hasattr(col.default, "arg") and not callable(col.default.arg):
-                    default_clause = f" DEFAULT '{col.default.arg}'" if isinstance(col.default.arg, str) else f" DEFAULT {col.default.arg}"
-                
-                try:
-                    # Use a separate connection for each migration to avoid transaction issues
-                    with engine.begin() as migration_conn:
-                        migration_conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {sql_type}{default_clause}"))
-                    logging.info(f"Migration: successfully added {col.name} to {table_name}")
-                except Exception as e:
-                    # Log the error but continue (usually means column exists)
-                    logging.debug(f"Migration skip: {col.name} in {table_name} (%s)", e)
-
-# _run_startup_migrations()
+            raise RuntimeError(
+                "Cannot read alembic_version table — run 'alembic upgrade head' to initialise the schema."
+            ) from exc
+        current = row[0] if row else None
+        if current != REQUIRED_DB_VERSION:
+            raise RuntimeError(
+                f"DB schema is at version '{current}', app requires '{REQUIRED_DB_VERSION}'. "
+                "Run 'alembic upgrade head' and restart."
+            )
+    finally:
+        db.close()
 
 
-def _seed_default_users():
+def _seed_default_users() -> None:
     db = SessionLocal()
     try:
         defaults = [
@@ -89,8 +56,7 @@ def _seed_default_users():
             {"username": "doctor", "full_name": "Doctor User",   "role": "doctor"},
         ]
         for d in defaults:
-            exists = db.query(User).filter(User.username == d["username"]).first()
-            if not exists:
+            if not db.query(User).filter(User.username == d["username"]).first():
                 db.add(User(
                     username=d["username"],
                     full_name=d["full_name"],
@@ -99,62 +65,91 @@ def _seed_default_users():
                     is_active=True,
                 ))
         db.commit()
+    except Exception as exc:
+        logging.error(f"Startup seed failed: {exc}")
     finally:
         db.close()
 
-# _seed_default_users()
 
-import threading
-def _startup_db_tasks():
-    try:
-        _init_db_with_retry()
-        _run_startup_migrations()
-        _seed_default_users()
-        logging.info("Background DB startup tasks completed successfully.")
-    except Exception as e:
-        logging.error(f"Background DB startup tasks failed: {e}")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _check_schema_version()
+    _seed_default_users()
+    logging.info("Startup complete.")
+    yield
 
-threading.Thread(target=_startup_db_tasks, daemon=True).start()
 
-app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0")
+app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Authentication Middleware
+# Paths where the route handler manages its own session cookie — middleware
+# must not overwrite those Set-Cookie headers.
+_AUTH_PATHS = {"/login", "/logout", "/change-password"}
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """Processes session cookie and populates request.state.user."""
+    """Decode session cookie, enforce idle + absolute TTL, refresh sliding window."""
+    from itsdangerous import SignatureExpired, BadData
+
     token = request.cookies.get("hd_session")
     request.state.user = None
-    
+    new_token: str | None = None
+
     if token:
         try:
-            data = serializer.loads(token)
-            user_type, username = data.split(":", 1)
-            
-            try:
+            # max_age enforces 8 h absolute TTL server-side (URLSafeTimedSerializer
+            # embeds creation timestamp in the signature).
+            data = serializer.loads(token, max_age=SESSION_MAX_AGE)
+            parts = data.split(":", 2)
+            if len(parts) == 3:
+                user_type, username, lat_str = parts
+                lat = int(lat_str)
+            else:
+                user_type, username = parts[0], parts[1]
+                lat = 0  # legacy token — treat as idle immediately
+
+            if time.time() - lat <= SESSION_IDLE_TTL:
                 db = SessionLocal()
                 try:
                     if user_type == "staff":
-                        user = db.query(User).filter(User.username == username, User.is_active == True).first()
+                        user = db.query(User).filter(
+                            User.username == username, User.is_active == True
+                        ).first()
                         if user:
                             request.state.user = user
                     elif user_type == "patient":
-                        p = db.query(Patient).filter(Patient.login_username == username, Patient.is_active == True).first()
+                        p = db.query(Patient).filter(
+                            Patient.login_username == username, Patient.is_active == True
+                        ).first()
                         if p:
                             request.state.user = {
                                 "username": p.login_username,
                                 "full_name": p.name,
                                 "role": "patient",
-                                "id": p.id
+                                "id": p.id,
                             }
+                except Exception as db_err:
+                    logging.error(f"Auth middleware DB error: {db_err}")
                 finally:
                     db.close()
-            except Exception as db_err:
-                logging.error(f"Auth middleware DB error: {db_err}")
-                pass
-        except Exception:
+
+                if request.state.user and request.url.path not in _AUTH_PATHS:
+                    new_token = serializer.dumps(
+                        f"{user_type}:{username}:{int(time.time())}"
+                    )
+        except (SignatureExpired, BadData):
             pass
-            
+
     response = await call_next(request)
+
+    if new_token and request.url.path not in _AUTH_PATHS:
+        response.set_cookie(
+            key="hd_session", value=new_token,
+            httponly=True, secure=COOKIE_SECURE,
+            samesite="strict", max_age=SESSION_MAX_AGE,
+        )
     return response
 
 # Static files
@@ -178,6 +173,7 @@ app.include_router(sustainability.router)
 app.include_router(fluid_status.router)
 app.include_router(admin_analytics.router)
 app.include_router(research.router)
+app.include_router(api_v1.router)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CORE ROUTES (Dashboard)

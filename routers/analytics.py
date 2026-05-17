@@ -2,23 +2,22 @@ from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+import asyncio
 import logging
 
 from datetime import date, datetime, timedelta
-from database import get_db, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
+from database import get_db, SessionLocal, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
 from config import templates
-from dependencies import get_user, _require_analytics_access, _get_role
+from dependencies import get_user, _require_analytics_access
 from dashboard_logic import compute_dashboard, get_current_month_str, get_effective_month
 from ml_analytics import (
-    run_patient_analytics, analyze_bfr_trend, run_cohort_analytics,
-    get_at_risk_trends, analyze_pds, analyze_mia_cascade,
+    run_patient_analytics, analyze_bfr_trend,
+    analyze_pds, analyze_mia_cascade,
     analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
     train_deterioration_model, get_deterioration_model_status,
     predict_mortality_risk, get_all_patients_mortality_risk,
 )
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
-from krcrw_model import estimate_krcrw
-from phosphate_model import estimate_phosphate_kinetics, calculate_pbe
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +354,7 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
                 "last_review": last_review.event_date if last_review else None,
                 "bay_profile": bay,
                 "bay_signal": (m.get("mort", {}) or {}).get("bay_signal") if m else None,
+                "det_shap": m.get("det_shap") if m else None,
             }
 
     # Sort by priority desc, then Bayesian composite desc, then mortality risk desc
@@ -512,67 +512,75 @@ async def save_doctor_note(
     db.commit()
     return RedirectResponse(url=f"/analytics/patients/{patient_id}?success=note_saved", status_code=303)
 
+# ── Legacy /analytics/api/* (Direct unwrapped JSON responses for HTML templates) ──
+# The HTML templates fetch these legacy routes. We return the unwrapped format
+# directly to maintain full template compatibility without breaking versioned api_v1.
+
 @router.get("/api/dashboard")
-async def api_dashboard(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
-    from dashboard_logic import get_current_month_str
+async def _legacy_dashboard(month: Optional[str] = None):
+    # Runs compute_dashboard (sync, DB-heavy) in the thread pool so the event
+    # loop is free to serve other requests during the cohort aggregation.
     from fastapi.encoders import jsonable_encoder
-    from dependencies import get_user, _get_role
-    # Allow any authenticated staff/doctor/admin
-    user = get_user(request)
-    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
+    from dashboard_logic import get_current_month_str
     month_str = month or get_current_month_str()
+
+    def _compute():
+        db = SessionLocal()
+        try:
+            return compute_dashboard(db, month_str)
+        finally:
+            db.close()
+
     try:
-        data = compute_dashboard(db, month_str)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content=jsonable_encoder(data))
+        data = await asyncio.to_thread(_compute)
+        return JSONResponse(content=jsonable_encoder(data))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @router.get("/api/cohort-trends")
-async def api_cohort_trends(request: Request, db: Session = Depends(get_db)):
+async def _legacy_cohort_trends():
     from fastapi.encoders import jsonable_encoder
-    from dependencies import get_user, _get_role
-    # Allow any authenticated staff/doctor/admin
-    user = get_user(request)
-    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
+    from ml_analytics import run_cohort_analytics
+
+    def _compute():
+        db = SessionLocal()
+        try:
+            return run_cohort_analytics(db)
+        finally:
+            db.close()
+
     try:
-        data = run_cohort_analytics(db)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content=jsonable_encoder(data))
+        data = await asyncio.to_thread(_compute)
+        return JSONResponse(content=jsonable_encoder(data))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @router.get("/api/at-risk-trends")
-async def api_at_risk_trends(request: Request, parameter: str, month: Optional[str] = None, db: Session = Depends(get_db)):
+async def _legacy_at_risk_trends(parameter: str = "", month: Optional[str] = None):
     from fastapi.encoders import jsonable_encoder
-    from dependencies import get_user, _get_role
-    # Allow any authenticated staff/doctor/admin
-    user = get_user(request)
-    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
+    from ml_analytics import get_at_risk_trends
+
+    def _compute():
+        db = SessionLocal()
+        try:
+            return get_at_risk_trends(db, parameter, month)
+        finally:
+            db.close()
+
     try:
-        data = get_at_risk_trends(db, parameter, month)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content=jsonable_encoder(data))
+        data = await asyncio.to_thread(_compute)
+        return JSONResponse(content=jsonable_encoder(data))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @router.get("/api/patients")
-async def api_patients(request: Request, q: str = "", db: Session = Depends(get_db)):
-    from database import Patient
+async def _legacy_patients(q: str = "", db: Session = Depends(get_db)):
     from fastapi.encoders import jsonable_encoder
-    from dependencies import get_user, _get_role
-    # Allow any authenticated staff/doctor/admin
-    user = get_user(request)
-    if not user or _get_role(user) not in ("staff", "doctor", "admin"):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
     patients = db.query(Patient).filter(Patient.name.contains(q)).all()
-    # Simple serialization for the test
-    data = [{"id": p.id, "name": p.name, "hid_no": p.hid_no} for p in patients]
-    return JSONResponse(content=jsonable_encoder(data))
+    return JSONResponse(content=jsonable_encoder([{"id": p.id, "name": p.name, "hid_no": p.hid_no} for p in patients]))
 
 
 @router.post("/admin/train-deterioration-model")
@@ -622,43 +630,12 @@ async def krcrw_calculator(request: Request, db: Session = Depends(get_db)):
     })
 
 @router.post("/api/krcrw")
-async def api_krcrw(payload: dict):
-    try:
-        from krcrw_model import estimate_krcrw
-        res = estimate_krcrw(
-            sex=payload["sex"],
-            age=payload["age"],
-            weight=payload["weight"],
-            g_creat_input=payload["g_creat"],
-            lab_day=payload["lab_day"],
-            schedule=payload["schedule"],
-            pre_creat_measured=payload["pre_creat"],
-            ivp2=payload["ivp2"],
-            qb=payload["qb"],
-            qd=payload["qd"],
-            td=payload["td"],
-            weekly_fluid_l=payload["weekly_fluid"],
-            k_code=payload["k_code"],
-            koa=payload["koa"],
-            is_black=payload.get("is_black", False)
-        )
-        return res
-    except Exception as e:
-        logger.exception("KRCRw calculation failed")
-        raise HTTPException(status_code=500, detail=str(e))
+async def _legacy_krcrw():
+    return RedirectResponse(url="/api/v1/krcrw", status_code=308)
 
 @router.post("/api/krcrw/set-baseline")
-async def api_krcrw_set_baseline(request: Request, payload: dict, db: Session = Depends(get_db)):
-    _require_analytics_access(request)
-    patient_id = payload["patient_id"]
-    from database import Patient
-    p = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not p: raise HTTPException(status_code=404)
-    
-    p.baseline_gcr = payload["g_creat"]
-    p.baseline_vdcr = payload["vdcr"] # This is the IVP2 value used
-    db.commit()
-    return {"ok": True}
+async def _legacy_krcrw_set_baseline():
+    return RedirectResponse(url="/api/v1/krcrw/set-baseline", status_code=308)
 
 @router.get("/phosphate-modeling", response_class=HTMLResponse)
 async def phosphate_calculator(request: Request, db: Session = Depends(get_db)):
@@ -683,82 +660,17 @@ async def urea_modeling(request: Request, db: Session = Depends(get_db)):
     })
 
 @router.get("/api/patients/{patient_id}/latest-monthly")
-async def api_patient_latest_monthly(patient_id: int, db: Session = Depends(get_db)):
-    from database import MonthlyRecord
-    rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
-    if not rec:
-        return {"available": False}
-    
-    return {
-        "available": True,
-        "phosphorus": rec.phosphorus,
-        "phosphate_binder_type": rec.phosphate_binder_type,
-        "phosphate_binder_dose_mg": rec.phosphate_binder_dose_mg,
-        "v_urea": rec.single_pool_ktv # just a guess if needed, but usually v_urea is calc from weight
-    }
+async def _legacy_patient_latest_monthly(patient_id: int):
+    return RedirectResponse(url=f"/api/v1/patients/{patient_id}/latest-monthly", status_code=301)
 
 @router.post("/api/ukm/clearance")
-async def api_ukm_clearance(payload: dict):
-    from urea_model import calculate_dialyzer_clearance
-    try:
-        res = calculate_dialyzer_clearance(
-            koa_invitro=payload["koa_invitro"],
-            qb=payload["qb"],
-            qd=payload["qd"],
-            td=payload["td"],
-            weight_loss_kg=payload["weight_loss_kg"]
-        )
-        return res
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+async def _legacy_ukm_clearance():
+    return RedirectResponse(url="/api/v1/ukm/clearance", status_code=308)
 
 @router.post("/api/ukm/adequacy")
-async def api_ukm_adequacy(payload: dict):
-    from urea_model import calculate_std_ktv, calculate_san_std_ktv
-    try:
-        # stdKt/V calc
-        res = calculate_std_ktv(
-            sp_ktv=payload["sp_ktv"],
-            td=payload["td"],
-            sessions_per_week=payload["sessions_per_week"],
-            weight_gain_weekly_l=payload["weight_gain_weekly_l"],
-            v_watson=payload["v_watson"]
-        )
-        
-        # Surface Area Normalization
-        san_ktv = calculate_san_std_ktv(
-            std_ktv=res["std_ktv_adjusted"],
-            v_watson=payload["v_watson"],
-            bsa_dubois=payload.get("bsa", 0),
-            m_ratio=payload.get("m_ratio", 20.0)
-        )
-        res["san_std_ktv"] = san_ktv
-        return res
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+async def _legacy_ukm_adequacy():
+    return RedirectResponse(url="/api/v1/ukm/adequacy", status_code=308)
 
 @router.post("/api/phosphate/calculate")
-async def api_phosphate_calculate(payload: dict):
-    try:
-        res = estimate_phosphate_kinetics(
-            sex=payload["sex"],
-            weight=payload["weight"],
-            v_urea=payload["v_urea"],
-            koa_urea=payload["koa_urea"],
-            qb=payload["qb"],
-            qd=payload["qd"],
-            td=payload["td"],
-            schedule=payload["schedule"],
-            p_pre_measured=payload["p_pre"],
-            p_intake_mg_day=payload["p_intake"],
-            p_binder_pbe=payload["p_binder"],
-            krp_ml_min=payload["krp"],
-            solve_for=payload.get("solve_for", "p_pre"),
-            koa_p_ratio=payload.get("koa_ratio", 0.5),
-            hdf_pre=payload.get("hdf_pre", 0.0),
-            hdf_post=payload.get("hdf_post", 0.0)
-        )
-        return res
-    except Exception as e:
-        logger.exception("Phosphate calculation failed")
-        raise HTTPException(status_code=500, detail=str(e))
+async def _legacy_phosphate_calculate():
+    return RedirectResponse(url="/api/v1/phosphate/calculate", status_code=308)

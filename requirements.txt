@@ -1,3 +1,4 @@
+alembic==1.16.5
 fastapi==0.128.8
 uvicorn[standard]==0.39.0
 sqlalchemy==2.0.49
@@ -7,10 +8,18 @@ python-multipart==0.0.20
 python-dotenv==1.0.1
 pydantic==2.13.1
 twilio==9.1.0
+
+# Async PostgreSQL driver — required for async SQLAlchemy engine
+asyncpg==0.30.0
+# Sync driver kept for Alembic migrations and sync Jinja2 routes
 psycopg2-binary==2.9.12
+
 passlib[bcrypt]==1.7.4
 bcrypt==4.3.0
 itsdangerous==2.2.0
+slowapi==0.1.9
+limits==4.2
+Pillow==11.2.1
 numpy>=1.26.4
 scipy>=1.13.0
 pandas>=2.2.3
@@ -18,3 +27,11 @@ scikit-learn>=1.4.0
 statsmodels>=0.14.2
 xgboost>=2.1.0
 joblib>=1.3.0
+
+# Task queue — durable clinical alert delivery and MLOps scheduling
+celery[redis]>=5.3.6
+redis>=5.0.0
+flower>=2.0.1          # Celery monitoring UI (run: celery -A celery_app flower)
+
+# Explainability — SHAP values for deterioration model
+shap>=0.45.0

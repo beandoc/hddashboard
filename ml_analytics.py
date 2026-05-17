@@ -261,6 +261,11 @@ def run_patient_analytics(
             "residual_urine_output":      r.residual_urine_output,
             "vit_d":                      r.vit_d,
             "nt_probnp":                  r.nt_probnp,
+            # cardiac / echo fields (sparse — carried forward via _sparse_keys)
+            "serum_iron":                 r.serum_iron,
+            "ejection_fraction":          r.ejection_fraction,
+            "diastolic_dysfunction":      r.diastolic_dysfunction,
+            "echo_date":                  r.echo_date,
         }
         for r in records
     ]
@@ -707,12 +712,23 @@ def run_group_comparison(groups: Dict[str, List[float]], test_type: str = "mann-
             return result
             
         stat, p_val, dof, expected = stats.chi2_contingency(table)
+        min_expected = float(np.min(expected))
+        chi_warning = (
+            f"Warning: minimum expected cell count is {min_expected:.1f} (<5). "
+            "Chi-square approximation may be unreliable; consider Fisher's exact test."
+        ) if min_expected < 5 else None
         result.update({
             "available": True,
             "p_value": round(p_val, 4),
             "statistic": round(stat, 2),
             "significant": p_val < 0.05,
-            "message": f"Chi-Square Test of Independence: {'Significant' if p_val < 0.05 else 'No significant'} association found (p={p_val:.4f})."
+            "min_expected_cell": round(min_expected, 2),
+            "warning": chi_warning,
+            "message": (
+                f"Chi-Square Test of Independence: {'Significant' if p_val < 0.05 else 'No significant'} "
+                f"association found (p={p_val:.4f})."
+                + (f" {chi_warning}" if chi_warning else "")
+            ),
         })
         
     else:
@@ -762,6 +778,10 @@ def run_correlation_analysis(x: List[float], y: List[float], z: List[float] = No
 
     arr = np.array(data)
     
+    def _ols_residuals(a, b):
+        slope, intercept, _, _, _ = stats.linregress(b, a)
+        return a - (slope * b + intercept)
+
     if z is None:
         # Standard Correlation
         if method == "spearman":
@@ -769,18 +789,20 @@ def run_correlation_analysis(x: List[float], y: List[float], z: List[float] = No
         else:
             r, p = stats.pearsonr(arr[:, 0], arr[:, 1])
     else:
-        # Partial Correlation using residuals
-        # Correlation between residuals of (x ~ z) and (y ~ z)
-        def _get_residuals(a, b):
-            slope, intercept, r_val, p_val, std_err = stats.linregress(b, a)
-            return a - (slope * b + intercept)
-
-        res_x = _get_residuals(arr[:, 0], arr[:, 2])
-        res_y = _get_residuals(arr[:, 1], arr[:, 2])
-        
         if method == "spearman":
-            r, p = stats.spearmanr(res_x, res_y)
+            # Spearman partial: rank all three variables first, then partial-correlate
+            # the ranks via OLS residuals. Applying OLS residuals to raw values and
+            # then computing Spearman produces an uninterpretable hybrid.
+            rx = stats.rankdata(arr[:, 0]).astype(float)
+            ry = stats.rankdata(arr[:, 1]).astype(float)
+            rz = stats.rankdata(arr[:, 2]).astype(float)
+            res_x = _ols_residuals(rx, rz)
+            res_y = _ols_residuals(ry, rz)
+            r, p = stats.pearsonr(res_x, res_y)
         else:
+            # Pearson partial: OLS residuals on raw values
+            res_x = _ols_residuals(arr[:, 0], arr[:, 2])
+            res_y = _ols_residuals(arr[:, 1], arr[:, 2])
             r, p = stats.pearsonr(res_x, res_y)
 
     result.update({
@@ -816,29 +838,43 @@ def run_survival_analysis(durations: List[float], events: List[int]) -> Dict:
     # Sort by duration
     data = sorted(zip(durations, events))
     unique_times = sorted(list(set([d for d, e in data])))
-    
+
     survival_prob = 1.0
     n_at_risk = len(data)
-    timeline = [{"time": 0, "survival": 1.0, "at_risk": n_at_risk}]
-    
+    greenwood_sum = 0.0  # running Greenwood variance accumulator: sum d/(n*(n-d))
+    timeline = [{"time": 0, "survival": 1.0, "ci_lower": 1.0, "ci_upper": 1.0, "at_risk": n_at_risk}]
+
     for t in unique_times:
-        d_t = sum(1 for dur, ev in data if dur == t and ev == 1) # events at time t
-        c_t = sum(1 for dur, ev in data if dur == t and ev == 0) # censored at time t
-        
+        d_t = sum(1 for dur, ev in data if dur == t and ev == 1)
+        c_t = sum(1 for dur, ev in data if dur == t and ev == 0)
+
         if n_at_risk > 0:
             survival_prob *= (1 - d_t / n_at_risk)
+
+            # Greenwood's formula: accumulate d_t / (n * (n - d_t)) at each event time
+            denom = n_at_risk * (n_at_risk - d_t)
+            if d_t > 0 and denom > 0:
+                greenwood_sum += d_t / denom
+
+            # 95% CI via plain Greenwood: S(t) ± 1.96 * S(t) * sqrt(greenwood_sum)
+            se = survival_prob * math.sqrt(greenwood_sum)
+            ci_lo = round(max(0.0, survival_prob - 1.96 * se), 4)
+            ci_hi = round(min(1.0, survival_prob + 1.96 * se), 4)
+
             n_at_risk -= (d_t + c_t)
             timeline.append({
                 "time": float(t),
                 "survival": round(float(survival_prob), 4),
+                "ci_lower": ci_lo,
+                "ci_upper": ci_hi,
                 "at_risk": int(n_at_risk),
-                "events": int(d_t)
+                "events": int(d_t),
             })
 
     result.update({
         "available": True,
         "timeline": timeline,
-        "median_survival": next((t["time"] for t in timeline if t["survival"] <= 0.5), None)
+        "median_survival": next((t["time"] for t in timeline if t["survival"] <= 0.5), None),
     })
     return result
 
@@ -859,38 +895,7 @@ def run_logrank_test(durations_a: List[float], events_a: List[int],
 
     # Aggregate all unique event times
     all_times = sorted(list(set(durations_a + durations_b)))
-    
-    observed_a = 0
-    expected_a = 0
-    variance_a = 0
-    
-    for t in all_times:
-        # Group A stats at time t
-        n_a = sum(1 for d in durations_a if d >= t)
-        d_a = sum(1 for d, e in zip(durations_a, events_a) if d == t and e == 1)
-        
-        # Group B stats at time t
-        n_b = sum(1 for d in durations_b if d >= t)
-        d_b = sum(1 for d, e in zip(durations_b, events_b) if d == t and e == 1)
-        
-        n_total = n_a + n_b
-        d_total = d_a + d_b
-        
-        if n_total > 1:
-            observed_a += d_a
-            expected_a += d_a + d_b * (n_a / n_total) if n_total > 0 else 0 # actually: d_total * (n_a / n_total)
-            # Correct formula for expected:
-            e_a = d_total * (n_a / n_total)
-            expected_a = observed_a - d_a + e_a # just adding to running sum
-            
-            # Variance calculation for Log-Rank
-            if n_total > 1:
-                var = (d_total * (n_a / n_total) * (n_b / n_total) * (n_total - d_total) / (n_total - 1))
-                variance_a += var
 
-    # Final log-rank statistic (Chi-square distributed with df=1)
-    # Re-computing clean sums for clarity in final step
-    # Resetting for a clean logic pass
     obs_a, exp_a, var_a = 0, 0, 0
     for t in all_times:
         na = sum(1 for d in durations_a if d >= t)
@@ -1010,11 +1015,25 @@ def run_cox_ph(
             break
         beta = beta_new
 
+    # Guard: suppress all estimates if Newton-Raphson did not converge.
+    # Returning invalid HRs with only a message-string warning is dangerous
+    # in a clinical context — callers must receive available=False explicitly.
+    if not converged:
+        result["available"] = False
+        result["message"] = (
+            f"Cox PH model did not converge after 100 iterations "
+            f"({n} patients, {int(ev.sum())} events, {p} covariates). "
+            "Common causes: collinear covariates, complete separation, or too few "
+            "events per variable. Results suppressed."
+        )
+        return result
+
     # Back-transform to original covariate scale
     beta_orig = beta / X_std
 
+    # Numerically stable SE: solve(info, I) instead of explicit inv(info)
     try:
-        var_cov_s = np.linalg.inv(info)
+        var_cov_s = np.linalg.solve(info, np.eye(p))
         se_orig = np.sqrt(np.diag(var_cov_s)) / X_std
     except np.linalg.LinAlgError:
         se_orig = np.full(p, np.nan)
@@ -1041,6 +1060,50 @@ def run_cox_ph(
                 concordant += 0.5
     c_index = concordant / pairs if pairs > 0 else 0.5
 
+    # ── Schoenfeld residuals — proportional hazards assumption test ──────────
+    # r_ki = x_ki − E[x_k | R(t_i)] for each event i and covariate k.
+    # Grambsch & Therneau (1994): significant Spearman(r_k, log t) → PH violated.
+    sr_list: List[np.ndarray] = []
+    sr_times: List[float] = []
+    eta_final = Xs_s @ beta
+    eta_final -= eta_final.max()
+    exp_eta_final = np.exp(eta_final)
+
+    for i in range(len(t_s)):
+        if e_s[i] != 1:
+            continue
+        risk_mask = t_s >= t_s[i]
+        s = exp_eta_final[risk_mask].sum()
+        if s == 0:
+            continue
+        w = exp_eta_final[risk_mask] / s
+        mu_k = (Xs_s[risk_mask] * w[:, None]).sum(axis=0)
+        sr_list.append(Xs_s[i] - mu_k)
+        sr_times.append(float(t_s[i]))
+
+    ph_tests: List[Dict] = []
+    ph_violated_any = False
+    if len(sr_list) >= 3:
+        sr_arr = np.array(sr_list)
+        log_t = np.log(np.array(sr_times) + 1e-9)
+        for k in range(p):
+            rho, p_ph = sp_stats.spearmanr(log_t, sr_arr[:, k])
+            violated = bool(p_ph < 0.05)
+            if violated:
+                ph_violated_any = True
+            ph_tests.append({
+                "name": covariate_names[k],
+                "rho": round(float(rho), 4),
+                "p_value": round(float(p_ph), 4),
+                "ph_violated": violated,
+            })
+
+    ph_warning = (
+        "PH assumption may be violated for: "
+        + ", ".join(t["name"] for t in ph_tests if t["ph_violated"])
+        + ". Consider time-varying coefficients or stratification."
+    ) if ph_violated_any else None
+
     cov_out = []
     for k in range(p):
         cov_out.append({
@@ -1061,11 +1124,13 @@ def run_cox_ph(
         "n_events": int(ev.sum()),
         "covariates": cov_out,
         "c_index": round(float(c_index), 3),
-        "converged": converged,
+        "converged": True,
+        "ph_tests": ph_tests,
+        "ph_warning": ph_warning,
         "message": (
             f"Cox PH model fitted on {n} patients, {int(ev.sum())} events. "
-            f"C-index: {c_index:.3f}. "
-            f"{'Converged.' if converged else 'Warning: algorithm may not have converged.'}"
+            f"C-index: {c_index:.3f}. Converged."
+            + (f" {ph_warning}" if ph_warning else "")
         ),
     })
     return result
@@ -1201,7 +1266,7 @@ def run_bayesian_multilevel(
         mn = float(np.mean(s))
         sd = float(np.std(s))
         lo, hi = float(np.percentile(s, 2.5)), float(np.percentile(s, 97.5))
-        # Effective sample size (simple autocorrelation-based)
+        # Effective sample size (lag-1 autocorrelation approximation)
         s_c = s - mn
         acf1 = float(np.corrcoef(s_c[:-1], s_c[1:])[0, 1]) if len(s) > 2 else 0.0
         ess = int(n_samples * (1 - acf1) / (1 + acf1)) if acf1 < 1.0 else 1
@@ -1209,11 +1274,44 @@ def run_bayesian_multilevel(
                 "ci_lower": round(lo, 4), "ci_upper": round(hi, 4),
                 "ess": max(ess, 1)}
 
+    def _rhat(samps_1d):
+        """Split-chain R-hat (Gelman-Rubin). Values < 1.1 indicate convergence."""
+        s = samps_1d[n_warmup:]
+        n = len(s)
+        half = n // 2
+        if half < 2:
+            return float("nan")
+        c1, c2 = s[:half].astype(float), s[half: half * 2].astype(float)
+        w = float((c1.var(ddof=1) + c2.var(ddof=1)) / 2.0)
+        b = half * float(np.array([c1.mean(), c2.mean()]).var(ddof=1))
+        if w == 0:
+            return float("nan")
+        var_plus = ((half - 1) / half) * w + b / half
+        return round(float(math.sqrt(var_plus / w)), 3)
+
     mu_summary = _summarise(mu_samps)
     beta_summaries = [_summarise(beta_samps[:, k]) for k in range(p)]
 
     sigma2_e_summ = _summarise(sigma2_e_samps)
     sigma2_a_summ = _summarise(sigma2_a_samps)
+
+    # ── Convergence: split-chain R-hat for key parameters ──────────────────
+    rhat_values = (
+        [_rhat(mu_samps), _rhat(sigma2_e_samps), _rhat(sigma2_a_samps)]
+        + [_rhat(beta_samps[:, k]) for k in range(p)]
+    )
+    finite_rhats = [v for v in rhat_values if not math.isnan(v)]
+    max_rhat = round(max(finite_rhats), 3) if finite_rhats else float("nan")
+    converged = max_rhat < 1.1 if finite_rhats else False
+    convergence_info = {
+        "max_rhat": max_rhat,
+        "converged": converged,
+        "warning": (
+            None if converged
+            else f"Convergence concern: max R-hat = {max_rhat:.3f} (threshold 1.1). "
+                 "Consider increasing n_warmup or n_samples."
+        ),
+    }
 
     # ICC = sigma2_a / (sigma2_a + sigma2_e) sampled pointwise
     icc_samps = sigma2_a_samps[n_warmup:] / (
@@ -1257,11 +1355,13 @@ def run_bayesian_multilevel(
         "random_effects": random_effects,
         "n_samples": n_samples,
         "n_warmup": n_warmup,
+        "convergence": convergence_info,
         "message": (
             f"Bayesian MLM fitted: {N} observations, {J} patients, "
             f"{p} predictor(s). ICC={icc_summary['mean']:.3f} "
             f"[{icc_summary['ci_lower']:.3f}, {icc_summary['ci_upper']:.3f}]. "
-            f"{n_samples} posterior samples (after {n_warmup} warmup)."
+            f"{n_samples} posterior samples (after {n_warmup} warmup). "
+            f"Max R-hat={max_rhat:.3f} ({'OK' if converged else 'WARN: not converged'})."
         ),
     })
     return result

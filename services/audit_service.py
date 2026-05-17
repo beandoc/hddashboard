@@ -13,6 +13,7 @@ def log_write(
     action: str,
     actor: str,
     changes: Optional[dict] = None,
+    patient_id: Optional[int] = None,
 ) -> None:
     """Record a PHI write operation in the audit log.
 
@@ -21,11 +22,12 @@ def log_write(
     failure must not abort a clinical save.
 
     Args:
-        action: "create" or "update"
-        actor:  session username of the staff member performing the write
-        changes: dict of {field: new_value} — omit fields that didn't change
+        action:     "create" or "update"
+        actor:      session username of the staff member performing the write
+        changes:    dict of {field: new_value} — omit fields that didn't change
+        patient_id: raw patient PK — stored only as an HMAC hash, never as PHI
     """
-    from database import AuditLog
+    from database import AuditLog, compute_patient_id_hash
     try:
         entry = AuditLog(
             table_name=table,
@@ -33,6 +35,7 @@ def log_write(
             action=action,
             actor=actor,
             changes=json.dumps(changes, default=str) if changes else None,
+            patient_id_hash=compute_patient_id_hash(patient_id),
         )
         db.add(entry)
         db.flush()

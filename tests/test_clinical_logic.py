@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from database import Base, Patient, MonthlyRecord
-from dashboard_logic import compute_dashboard, THRESHOLDS
+from dashboard_logic import compute_dashboard
 
 # Setup in-memory SQLite for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

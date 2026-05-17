@@ -120,6 +120,28 @@ def get_effective_month(db: Session, requested_month: str = None) -> tuple:
 
     return current, None
 
+def make_sparkline_points(values: list, width: int = 70, height: int = 20) -> str:
+    # Filter out None values
+    valid_vals = [float(v) for v in values if v is not None]
+    if len(valid_vals) < 2:
+        return ""
+    min_v = min(valid_vals)
+    max_v = max(valid_vals)
+    range_v = max_v - min_v if max_v != min_v else 1.0
+    
+    points = []
+    n = len(values)
+    for i, v in enumerate(values):
+        if v is None:
+            continue
+        # x-coordinate evenly spaced
+        x = (i / (n - 1)) * width if n > 1 else width / 2
+        # y-coordinate normalized (inverted since SVG y=0 is top)
+        y = height - ((float(v) - min_v) / range_v) * (height - 4) - 2
+        points.append(f"{x:.1f},{y:.1f}")
+    return " ".join(points)
+
+
 def compute_dashboard(db: Session, month: str = None):
     """
     Compute aggregate metrics and per-patient rows for the clinical dashboard.
@@ -171,6 +193,8 @@ def compute_dashboard(db: Session, month: str = None):
         'iv_iron_rec': {'count': 0, 'names': []},
         'hb_high': {'count': 0, 'names': []},
         'hb_variability_high': {'count': 0, 'names': []}, # Range > 2.5 g/dL (High risk)
+        'hb_drop_alert': {'count': 0, 'names': []},
+        'dialysis_intensification': {'count': 0, 'names': []},
         'missing_records': {'count': 0, 'names': []},
         'adherence_risk':  {'count': 0, 'names': [], 'flags': {}}, # USRDS criteria
         'trend_hb': [],
@@ -217,18 +241,31 @@ def compute_dashboard(db: Session, month: str = None):
     prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).yield_per(100).all()
     prev_record_map = {r.patient_id: r for r in prev_records}
 
-    # Fetch all records for the last 6 months for variability analysis
+    # Fetch all records for the last 6 months for variability and sparklines
     all_6m_records = db.query(MonthlyRecord).filter(
-        MonthlyRecord.record_month.in_(six_months),
-        MonthlyRecord.hb.isnot(None)
+        MonthlyRecord.record_month.in_(six_months)
     ).all()
     
-    # Map patient_id -> [hb values]
+    # Map patient_id -> chronologically sorted lists of hb, albumin, single_pool_ktv
+    chrono_months = list(reversed(six_months))
+    history_by_patient = {}
     hb_history = {}
     for rec in all_6m_records:
-        if rec.patient_id not in hb_history:
-            hb_history[rec.patient_id] = []
-        hb_history[rec.patient_id].append(rec.hb)
+        pid = rec.patient_id
+        if pid not in history_by_patient:
+            history_by_patient[pid] = {m: {"hb": None, "albumin": None, "ktv": None} for m in chrono_months}
+        if rec.record_month in history_by_patient[pid]:
+            history_by_patient[pid][rec.record_month] = {
+                "hb": float(rec.hb) if rec.hb is not None else None,
+                "albumin": float(rec.albumin) if rec.albumin is not None else None,
+                "ktv": float(rec.single_pool_ktv) if rec.single_pool_ktv is not None else None
+            }
+        
+        # Keep hb_history populated for backward compatibility with existing code
+        if rec.hb is not None:
+            if pid not in hb_history:
+                hb_history[pid] = []
+            hb_history[pid].append(rec.hb)
 
     # Fetch interim records for this month
     interim_labs = db.query(InterimLabRecord).filter(InterimLabRecord.record_month == month).order_by(InterimLabRecord.lab_date.asc()).yield_per(100).all()
@@ -347,6 +384,38 @@ def compute_dashboard(db: Session, month: str = None):
             "is_interim": False,
             "interim_details": {},
             "alerts": []
+        }
+
+        # 2.5 Sparkline Trends
+        p_hist = history_by_patient.get(p.id, {})
+        hb_vals = [p_hist.get(m, {}).get("hb") for m in chrono_months] if p_hist else []
+        alb_vals = [p_hist.get(m, {}).get("albumin") for m in chrono_months] if p_hist else []
+        ktv_vals = [p_hist.get(m, {}).get("ktv") for m in chrono_months] if p_hist else []
+        
+        # Helper to check trend direction
+        def get_trend_dir(vals):
+            valid = [v for v in vals if v is not None]
+            if len(valid) < 2:
+                return "stable"
+            return "up" if valid[-1] >= valid[0] else "down"
+            
+        row["hb_sparkline"] = {
+            "points": make_sparkline_points(hb_vals),
+            "values": [v for v in hb_vals if v is not None],
+            "last": next((v for v in reversed(hb_vals) if v is not None), None),
+            "trend": get_trend_dir(hb_vals)
+        }
+        row["alb_sparkline"] = {
+            "points": make_sparkline_points(alb_vals),
+            "values": [v for v in alb_vals if v is not None],
+            "last": next((v for v in reversed(alb_vals) if v is not None), None),
+            "trend": get_trend_dir(alb_vals)
+        }
+        row["ktv_sparkline"] = {
+            "points": make_sparkline_points(ktv_vals),
+            "values": [v for v in ktv_vals if v is not None],
+            "last": next((v for v in reversed(ktv_vals) if v is not None), None),
+            "trend": get_trend_dir(ktv_vals)
         }
 
         # 3. Hb Variability Analysis
@@ -476,6 +545,22 @@ def compute_dashboard(db: Session, month: str = None):
                     "previous": prev_hb,
                     "drop": hb_drop,
                 })
+
+            # Hb Drop Alert: Hb drops by > 1.5 g/dL compared to previous month
+            if hb_drop and hb_drop > 1.5:
+                metrics['hb_drop_alert']['count'] += 1
+                metrics['hb_drop_alert']['names'].append(name)
+                row["alerts"].append("Hb Drop")
+
+            # Dialysis Intensification Alert: Phos rising (current > prev) AND IDWG >= 2.5
+            prev_phos = prev_r.phosphorus if prev_r else None
+            effective_phos = r.phosphorus
+            phos_rising = (effective_phos is not None) and (prev_phos is not None) and (effective_phos > prev_phos)
+            effective_idwg = r.idwg
+            if phos_rising and effective_idwg and effective_idwg >= 2.5:
+                metrics['dialysis_intensification']['count'] += 1
+                metrics['dialysis_intensification']['names'].append(name)
+                row["alerts"].append("Intensify Dialysis")
                 
             # 2.5 High Hb > 13.0 g/dL (Risk: Stroke/Thrombosis)
             if effective_hb and effective_hb > 13.0:

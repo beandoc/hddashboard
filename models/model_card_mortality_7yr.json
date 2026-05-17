@@ -1,0 +1,38 @@
+{
+  "model_name": "mortality_7yr",
+  "artifact": "Xgbc_clf_final_round_sevenyearAI.pkl",
+  "algorithm": "XGBoost classifier",
+  "outcome": "All-cause mortality within 7 years",
+  "source_cohort": "Xu et al. 2023 — Chinese maintenance hemodialysis cohort",
+  "indian_recalibration": {
+    "method": "Platt scaling (logit-space linear transform)",
+    "slope": 0.72,
+    "intercept": -0.40,
+    "rationale": "Recalibrates Chinese baseline event rate to Indian HD population prior"
+  },
+  "input_features": [
+    {"name": "age",          "type": "continuous", "unit": "years"},
+    {"name": "albumin",      "type": "continuous", "unit": "g/L"},
+    {"name": "neutrophil",   "type": "continuous", "unit": "×10⁹/L"},
+    {"name": "ef",           "type": "continuous", "unit": "%"},
+    {"name": "cad",          "type": "binary",     "encoding": "1=yes"}
+  ],
+  "performance": {
+    "source": "Xu et al. 2023 — reported on held-out Chinese test set",
+    "auc": 0.77
+  },
+  "retraining_triggers": [
+    "Calibration slope drifts beyond ±0.15 from 1.0 on the weekly MLOps check",
+    "PR-AUC drops below 0.25 for two consecutive weekly reports",
+    "Brier score exceeds 0.25 for two consecutive weekly reports",
+    "Clinician-reported systematic mis-ranking of ≥3 patients in one quarter",
+    "Major cohort demographic shift (>20% change in mean age or albumin)"
+  ],
+  "limitations": [
+    "7-year horizon: heavy right-censoring expected in most clinic cohorts",
+    "Predictions should be interpreted as relative ranking, not absolute probability",
+    "Trained on a Chinese cohort; Indian recalibration is empirical, not validated on a labelled Indian set"
+  ],
+  "owner": "HD Dashboard — ml_risk.py",
+  "last_reviewed": "2026-05-17"
+}

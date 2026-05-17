@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Portal - {{ patient.name }}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-    <style>
+    <title>Patient Portal - {{ patient.name }}</title>    <style>
         :root {
             --primary: #0ea5e9;
             --secondary: #6366f1;
@@ -204,7 +201,9 @@
         .chart-empty i { font-size: 36px; opacity: 0.2; }
         .chart-empty p { margin: 0; font-size: 0.85rem; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/vendor/js/chart.min.js"></script>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
 </head>
 <body>
 

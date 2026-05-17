@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "source": "Xu et al. 2023 — XGBoost mortality prediction for maintenance hemodialysis patients (Chinese cohort, AUC 0.979 / 0.933 / 0.935)",
+  "python_version_trained": "3.x (unknown — models received as pre-built artifacts)",
+  "models": {
+    "1yr": {
+      "file": "Xgbc_clf_final_round_oneyearAI.pkl",
+      "sha256": "bddd0ad391b011c2d048f123d4242bb90c800a3680d8818cd38abe7762d6e764",
+      "size_bytes": 182512,
+      "horizon": "1-year mortality",
+      "reported_auc": 0.979
+    },
+    "4yr": {
+      "file": "Xgbc_clf_final_round.pkl",
+      "sha256": "e2b41d45afc9c1ccb6f9a32976bfad1e4c9a3cf437645652a37821350d8f8998",
+      "size_bytes": 265236,
+      "horizon": "4-year mortality",
+      "reported_auc": 0.933
+    },
+    "7yr": {
+      "file": "Xgbc_clf_final_round_sevenyearAI.pkl",
+      "sha256": "c98a5ddfe38b59cafe8b01db3e3ebd4063f4cc82cdc839cda81a3aee8dafbfe3",
+      "size_bytes": 191692,
+      "horizon": "7-year mortality",
+      "reported_auc": 0.935
+    }
+  },
+  "features": {
+    "IDH": {
+      "description": "Ischemic/hypertensive heart disease or CAD (binary 0/1)",
+      "training_range": [0, 1],
+      "training_mean": null,
+      "units": "binary"
+    },
+    "Age": {
+      "description": "Patient age in years",
+      "training_range": [18, 95],
+      "training_p5_p95": [32, 80],
+      "training_mean": 58,
+      "units": "years",
+      "drift_warn_below": 18,
+      "drift_warn_above": 95
+    },
+    "Albumin": {
+      "description": "Serum albumin",
+      "training_range": [15, 55],
+      "training_p5_p95": [28, 46],
+      "training_mean": 38,
+      "units": "g/L",
+      "drift_warn_below": 15,
+      "drift_warn_above": 55
+    },
+    "N109L": {
+      "description": "Neutrophil count",
+      "training_range": [0.5, 15.0],
+      "training_p5_p95": [1.5, 8.5],
+      "training_mean": 4.2,
+      "units": "x10^9/L",
+      "drift_warn_below": 0.5,
+      "drift_warn_above": 15.0
+    },
+    "EF": {
+      "description": "Left ventricular ejection fraction",
+      "training_range": [10, 80],
+      "training_p5_p95": [45, 75],
+      "training_mean": 62,
+      "units": "%",
+      "drift_warn_below": 10,
+      "drift_warn_above": 80
+    }
+  },
+  "drift_notes": [
+    "Reference ranges are estimated from Xu et al. 2023 paper — exact training quantiles not published.",
+    "Inputs outside drift_warn bounds may extrapolate beyond the model's training support.",
+    "Indian HD population: age distribution similar; albumin tends lower; EF data sparse — calibration pending.",
+    "No automated retraining pipeline. Manual review recommended if >15% of monthly predictions trigger drift warnings."
+  ]
+}

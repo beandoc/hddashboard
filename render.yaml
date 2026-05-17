@@ -3,6 +3,7 @@ services:
     name: hd-dashboard-pro
     env: python
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
@@ -10,7 +11,7 @@ services:
           name: hd-dashboard-db
           property: connectionString
       - key: PYTHON_VERSION
-        value: 3.10.0
+        value: 3.11.9
 
 databases:
   - name: hd-dashboard-db

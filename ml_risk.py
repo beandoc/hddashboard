@@ -4,10 +4,10 @@ ml_risk.py
 Deterioration Risk Model (logistic regression) and Mortality Risk Prediction
 (XGBoost Xu et al. 2023) for hemodialysis patients.
 """
+import hashlib
 import math
 import logging
 import os
-import pickle
 import json
 import warnings
 import time as _time
@@ -16,7 +16,7 @@ from typing import List, Dict, Optional
 
 import numpy as np
 
-from database import MonthlyRecord, Patient
+from database import MonthlyRecord, Patient, PatientFeatureSnapshot
 
 try:
     import statsmodels.api as sm
@@ -70,8 +70,41 @@ DETERIORATION_FEATURE_NAMES = [
     "dm",             # Binary: any diabetes mellitus (type 1 or 2)
 ]
 
-_MODEL_PATH      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model.pkl")
+_MODEL_PATH      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model.joblib")
 _MODEL_META_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model_meta.json")
+
+
+def get_snapshot_feature_vector(db, patient_id: int, month_str: str) -> Optional[list]:
+    """Return the cached feature vector from patient_feature_snapshot, or None if absent/stale.
+
+    Calling code should fall back to live feature extraction when this returns None.
+    The vector ordering matches _build_feature_vector:
+      [hb_alert, hb, alb_alert, albumin, target_score, epo_hypo, age, cad, chf, dm_type]
+    """
+    snap = (
+        db.query(PatientFeatureSnapshot)
+        .filter(
+            PatientFeatureSnapshot.patient_id == patient_id,
+            PatientFeatureSnapshot.as_of_month == month_str,
+            PatientFeatureSnapshot.stale == False,
+        )
+        .first()
+    )
+    if snap is None or not snap.feature_vector:
+        return None
+    fv = snap.feature_vector
+    return [
+        fv.get("hb_alert", 0),
+        fv.get("hb", 10.0),
+        fv.get("alb_alert", 0),
+        fv.get("albumin", 3.5),
+        fv.get("target_score", 5.0),
+        fv.get("epo_hypo", 0),
+        fv.get("age", 60),
+        fv.get("cad", 0),
+        fv.get("chf", 0),
+        fv.get("dm_type", 0),
+    ]
 
 
 def _build_feature_vector(
@@ -178,9 +211,8 @@ def _load_deterioration_model():
             if _DETERIORATION_MODEL is not None and mtime <= _MODEL_LOAD_TIME:
                 return _DETERIORATION_MODEL
 
-            with open(_MODEL_PATH, "rb") as f:
-                _DETERIORATION_MODEL = pickle.load(f)
-                _MODEL_LOAD_TIME = mtime
+            _DETERIORATION_MODEL = joblib.load(_MODEL_PATH)
+            _MODEL_LOAD_TIME = mtime
             return _DETERIORATION_MODEL
         except Exception as e:
             logger.warning("Failed to load deterioration model: %s", e)
@@ -309,14 +341,20 @@ def train_deterioration_model(db: Session) -> dict:
     cal_model.fit(X_arr, y_arr)
 
     # ── 5. Persist model + metadata ───────────────────────────────────────────
-    with open(_MODEL_PATH, "wb") as f:
-        pickle.dump(cal_model, f)
+    joblib.dump(cal_model, _MODEL_PATH, compress=3)
 
     global _DETERIORATION_MODEL
     _DETERIORATION_MODEL = None
 
+    trained_at_str = datetime.now().isoformat(timespec="seconds")
+
+    # SHA-256 of the training matrix for reproducibility / audit
+    training_data_hash = hashlib.sha256(
+        json.dumps(X, sort_keys=True).encode()
+    ).hexdigest()
+
     meta = {
-        "trained_at":          datetime.now().isoformat(timespec="seconds"),
+        "trained_at":          trained_at_str,
         "n_samples":           n_samples,
         "n_events":            n_events,
         "event_rate":          event_rate,
@@ -331,6 +369,7 @@ def train_deterioration_model(db: Session) -> dict:
         "skipped_patients":    skipped,
         "epf_minimum_used":    EPF_MIN,
         "epf_warning_level":   EPF_WARN,
+        "training_data_hash":  training_data_hash,
         "data_quality_note": (
             f"EPF={epf:.1f} (need ≥{EPF_WARN} for reliable estimates). "
             + ("⚠ Overfitting risk — use for risk ranking only, not absolute probabilities." if overfitting_risk else "EPF adequate.")
@@ -338,6 +377,31 @@ def train_deterioration_model(db: Session) -> dict:
     }
     with open(_MODEL_META_PATH, "w") as f:
         json.dump(meta, f, indent=2)
+
+    # ── Register artifact in DB — inference is refused without this row ────────
+    try:
+        from database import SessionLocal, ModelArtifact
+        _art_db = SessionLocal()
+        try:
+            art = ModelArtifact(
+                model_name          = "deterioration_v1",
+                version             = trained_at_str,
+                trained_at          = datetime.fromisoformat(trained_at_str),
+                training_data_hash  = training_data_hash,
+                metrics_json        = json.dumps({
+                    "cv_auc": cv_auc, "n_samples": n_samples,
+                    "n_events": n_events, "epf": epf,
+                    "calibration_method": cal_method,
+                }),
+                feature_schema_json = json.dumps(DETERIORATION_FEATURE_NAMES),
+                artifact_path       = os.path.relpath(_MODEL_PATH),
+            )
+            _art_db.add(art)
+            _art_db.commit()
+        finally:
+            _art_db.close()
+    except Exception as _art_exc:
+        logger.warning("Failed to register ModelArtifact: %s", _art_exc)
 
     logger.info(
         "Deterioration model trained: n_samples=%d n_events=%d epf=%.1f cv_auc=%.3f cal=%s overfitting_risk=%s C=%.1f",
@@ -368,6 +432,101 @@ def get_deterioration_model_status() -> dict:
     return {"trained": True, "sklearn_available": _SKLEARN_AVAILABLE, **meta}
 
 
+# ── SHAP helper ───────────────────────────────────────────────────────────────
+
+try:
+    import shap as _shap
+    _SHAP_AVAILABLE = True
+except ImportError:
+    _SHAP_AVAILABLE = False
+
+
+def _compute_deterioration_shap(model, feats: list) -> Optional[list]:
+    """Return a list of {feature, value, shap_value} dicts, sorted by |shap| desc.
+
+    Uses LinearExplainer on the final estimator inside the calibration wrapper.
+    Returns None when shap is unavailable or the pipeline shape doesn't match.
+    """
+    if not _SHAP_AVAILABLE:
+        return None
+    try:
+        # CalibratedClassifierCV wraps a Pipeline; extract the underlying pipeline
+        base_estimator = getattr(model, "estimators_", [model])[0]
+        if hasattr(base_estimator, "named_steps"):
+            preprocessor_steps = [s for name, s in base_estimator.named_steps.items()
+                                   if name != "clf"]
+            import numpy as _np
+            x = _np.array([feats], dtype=float)
+            for step in preprocessor_steps:
+                x = step.transform(x)
+            clf = base_estimator.named_steps.get("clf") or list(base_estimator.named_steps.values())[-1]
+        else:
+            import numpy as _np
+            x = _np.array([feats], dtype=float)
+            clf = base_estimator
+
+        explainer = _shap.LinearExplainer(clf, _np.zeros_like(x))
+        sv = explainer.shap_values(x)
+        # sv shape: (1, n_features) for binary class positive label
+        raw = sv[0] if sv.ndim == 2 else sv
+        result = [
+            {
+                "feature": DETERIORATION_FEATURE_NAMES[i],
+                "value": round(float(feats[i]), 4) if feats[i] is not None else None,
+                "shap_value": round(float(raw[i]), 4),
+            }
+            for i in range(len(DETERIORATION_FEATURE_NAMES))
+        ]
+        result.sort(key=lambda r: abs(r["shap_value"]), reverse=True)
+        return result[:10]
+    except Exception as exc:
+        logger.debug("SHAP computation skipped: %s", exc)
+        return None
+
+
+# ── MLOps prediction logger ───────────────────────────────────────────────────
+
+def _log_deterioration_prediction(
+    feats: list,
+    prob: float,
+    patient_id: Optional[int],
+    model_version: Optional[str],
+) -> None:
+    """Fire-and-forget: write one MLPrediction row.  Never raises."""
+    if patient_id is None:
+        return
+    try:
+        from database import SessionLocal, MLPrediction
+        feat_dict = {name: (feats[i] if feats[i] is not None else None)
+                     for i, name in enumerate(DETERIORATION_FEATURE_NAMES)}
+        feat_json = json.dumps(feat_dict, sort_keys=True)
+        feat_hash = hashlib.sha256(feat_json.encode()).hexdigest()
+
+        from datetime import datetime as _dt
+        month_str = _dt.utcnow().strftime("%Y-%m")
+
+        db = SessionLocal()
+        try:
+            from database import compute_patient_id_hash
+            row = MLPrediction(
+                patient_id=patient_id,
+                patient_id_hash=compute_patient_id_hash(patient_id),
+                model_name="deterioration_v1",
+                model_version=model_version or "unknown",
+                input_feature_hash=feat_hash,
+                features_json=feat_json,
+                prediction_score=round(prob, 6),
+                predicted_class=int(prob >= 0.40),
+                prediction_month=month_str,
+            )
+            db.add(row)
+            db.commit()
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.debug("MLPrediction log skipped: %s", exc)
+
+
 def compute_deterioration_risk(
     hb: Dict, alb: Dict, target: Dict,
     epo: Dict = None, patient_info: Dict = None,
@@ -392,6 +551,27 @@ def compute_deterioration_risk(
     if (patient_info or {}).get("chf_status"):  factors.append("Congestive heart failure")
 
     model = _load_deterioration_model()
+
+    # Refuse inference when no registered artifact exists — prevents an
+    # unversioned or manually-dropped pkl from silently producing predictions.
+    if model is not None:
+        try:
+            from database import SessionLocal as _SL, ModelArtifact as _MA
+            _gate_db = _SL()
+            try:
+                _registered = _gate_db.query(_MA).filter(
+                    _MA.model_name == "deterioration_v1"
+                ).first()
+            finally:
+                _gate_db.close()
+            if _registered is None:
+                logger.warning(
+                    "Deterioration model file exists but has no ModelArtifact registry row — "
+                    "refusing inference. Re-train via POST /admin/train-deterioration-model."
+                )
+                model = None
+        except Exception as _gate_exc:
+            logger.debug("ModelArtifact gate check failed: %s", _gate_exc)
 
     if model is not None:
         feats = _extract_analytics_features_for_inference(hb_data, alb_data, target_data, epo_data, patient_info)
@@ -419,6 +599,17 @@ def compute_deterioration_risk(
             if (patient_info or {}).get("chf_status") is None: missing.append("CHF Status")
             if (patient_info or {}).get("dm_status") is None: missing.append("DM Status")
 
+            # ── MLOps: log prediction ────────────────────────────────────────
+            _log_deterioration_prediction(
+                feats=feats,
+                prob=prob,
+                patient_id=(patient_info or {}).get("id"),
+                model_version=meta.get("trained_at"),
+            )
+
+            # ── SHAP: compute per-prediction feature contributions ────────────
+            shap_values = _compute_deterioration_shap(model, feats)
+
             return {
                 "available": True,
                 "error":     None,
@@ -437,6 +628,7 @@ def compute_deterioration_risk(
                     "model_n_samples": meta.get("n_samples"),
                     "model_trained_at": meta.get("trained_at"),
                     "auc_warning":     meta.get("auc_warning", False),
+                    "shap_values":     shap_values,
                 }
             }
         except Exception as e:
@@ -531,15 +723,85 @@ def _indian_recalibrate(prob_raw: float, apply: bool = True) -> tuple:
 _XGB_MODELS: dict = {}
 _XGB_LOAD_ATTEMPTED: bool = False
 
+_MANIFEST_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "manifest.json")
+
+# Drift thresholds keyed by the feature name used at inference time.
+# Sourced from models/manifest.json — duplicated here so checks survive a
+# missing manifest file.
+_XGB_DRIFT_BOUNDS: dict = {
+    "Age":       (18,   95),
+    "Albumin":   (15.0, 55.0),   # g/L
+    "N109L":     (0.5,  15.0),   # ×10⁹/L
+    "EF":        (10,   80),
+}
+
+
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _verify_xgb_manifests(model_dir: str) -> None:
+    """Log a warning for any pkl whose SHA-256 does not match manifest.json."""
+    try:
+        with open(_MANIFEST_PATH) as f:
+            manifest = json.load(f)
+    except Exception as e:
+        logger.warning("models/manifest.json missing or unreadable — skipping integrity check: %s", e)
+        return
+
+    for key, entry in manifest.get("models", {}).items():
+        path = os.path.join(model_dir, entry["file"])
+        if not os.path.exists(path):
+            logger.warning("Model file missing: %s", entry["file"])
+            continue
+        actual = _sha256_file(path)
+        if actual != entry["sha256"]:
+            logger.error(
+                "INTEGRITY MISMATCH for %s: manifest=%s actual=%s — "
+                "model may have been replaced or corrupted.",
+                entry["file"], entry["sha256"][:12], actual[:12],
+            )
+        else:
+            logger.debug("Integrity OK: %s", entry["file"])
+
+
+def _check_xgb_feature_drift(age, albumin_gl, neutrophil, ef) -> list:
+    """
+    Return a list of human-readable drift warnings for features outside the
+    Xu et al. 2023 training distribution.  Empty list = no drift detected.
+    """
+    warnings_out = []
+    checks = [
+        ("Age",     age,        "yr"),
+        ("Albumin", albumin_gl, "g/L"),
+        ("N109L",   neutrophil, "×10⁹/L"),
+        ("EF",      ef,         "%"),
+    ]
+    for name, value, unit in checks:
+        if value is None:
+            continue
+        lo, hi = _XGB_DRIFT_BOUNDS[name]
+        if not (lo <= value <= hi):
+            warnings_out.append(
+                f"{name} {value} {unit} is outside Xu et al. training range "
+                f"[{lo}–{hi} {unit}]; prediction may extrapolate."
+            )
+    return warnings_out
+
 
 def _load_xgb_models() -> dict:
-    """Load the three XGBoost PKL models once and cache them."""
+    """Load the three XGBoost PKL models once, verifying SHA-256 against manifest."""
     global _XGB_MODELS, _XGB_LOAD_ATTEMPTED
     if _XGB_LOAD_ATTEMPTED:
         return _XGB_MODELS  # already tried — return cached result (may be empty)
     _XGB_LOAD_ATTEMPTED = True
     try:
         model_dir = os.path.join(os.path.dirname(__file__), "models")
+        _verify_xgb_manifests(model_dir)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             _XGB_MODELS = {
@@ -892,6 +1154,11 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
         acute_hb_warning = None
         acute_hb_severity = None
 
+    # ── Feature drift check ──────────────────────────────────────────────────
+    drift_warnings = _check_xgb_feature_drift(age, albumin_gl, neutrophil, ef)
+    if drift_warnings:
+        logger.warning("XGBoost input drift detected: %s", "; ".join(drift_warnings))
+
     return {
         "available":          True,
         "error":              None,
@@ -922,6 +1189,9 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
             "threshold_validation": "Chinese cohort only",
             "acute_hb_warning":   acute_hb_warning,
             "acute_hb_severity":  acute_hb_severity,
+            # ── Drift detection ───────────────────────────────────────────────
+            "drift_warnings":     drift_warnings,
+            "drift_detected":     bool(drift_warnings),
             # ── Indian population calibration fields ──────────────────────────
             "prob_1yr_raw_chinese": prob_1yr_raw if _apply_recal else None,
             "indian_recalibrated":  _apply_recal,
@@ -1058,6 +1328,22 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
 
     patient_map = {p.id: p for p in patients}
 
+    # Batch-load current-month feature snapshots so we can (a) skip re-extraction
+    # for the deterioration model when a fresh snapshot is available, and (b) expose
+    # feature_hash on every row for the clinician audit view.
+    from dashboard_logic import get_current_month_str as _cur_month
+    _snap_month = _cur_month()
+    _snapshots = (
+        db.query(PatientFeatureSnapshot)
+        .filter(
+            PatientFeatureSnapshot.patient_id.in_(pid_list),
+            PatientFeatureSnapshot.as_of_month == _snap_month,
+            PatientFeatureSnapshot.stale == False,
+        )
+        .all()
+    )
+    _snap_by_pid: dict = {s.patient_id: s for s in _snapshots}
+
     from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
 
     rows = []
@@ -1096,18 +1382,59 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
         bay_profile = compute_bayesian_alert_profile(df, patient_info) if df else {"available": False}
         mort = augment_mortality_risk(mort, bay_profile)
         davies = compute_davies_score(patient_info, df[0] if df else None)
+        # ── Deterioration SHAP (fast — LogisticRegression, O(n_features)) ─────
+        # Use the materialized feature snapshot when available — O(1) dict lookup
+        # instead of re-deriving all features from the monthly record.  Falls back
+        # to live extraction for patients whose snapshot hasn't been computed yet.
+        det_shap = None
+        snap = _snap_by_pid.get(p.id)
+        det_model = _load_deterioration_model()
+        if det_model is not None and df:
+            if snap is not None and snap.feature_vector:
+                fv = snap.feature_vector
+                feats = [
+                    fv.get("hb_alert", 0), fv.get("hb", 10.0),
+                    fv.get("alb_alert", 0), fv.get("albumin", 3.5),
+                    fv.get("target_score", 5.0), fv.get("epo_hypo", 0),
+                    fv.get("age", 60), fv.get("cad", 0),
+                    fv.get("chf", 0), fv.get("dm_type", 0),
+                ]
+            else:
+                latest = df[0]
+                hb_v    = latest.get("hb")
+                alb_v   = latest.get("albumin")
+                epo_hyp = (hb_v is not None and hb_v < 10.0 and
+                           (latest.get("epo_weekly_units") or latest.get("epo_mircera_dose")))
+                feats = _build_feature_vector(
+                    hb_val=hb_v,
+                    hb_alert=(hb_v is not None and hb_v < 10.0),
+                    alb_val=alb_v,
+                    alb_alert=(alb_v is not None and alb_v < 3.5),
+                    target_score=None,
+                    epo_hypo=epo_hyp,
+                    age=p.age,
+                    cad=p.cad_status,
+                    chf=p.chf_status,
+                    dm_status=p.dm_status,
+                    is_training=False,
+                )
+            det_shap = _compute_deterioration_shap(det_model, feats)
+
         rows.append({
-            "patient":     p,
-            "mort":        mort,
-            "prob_1yr":    mort["data"].get("prob_1yr") if mort.get("available") else None,
-            "risk_level":  mort["data"].get("risk_level", "Unknown") if mort.get("available") else "Unknown",
-            "css_class":   mort["data"].get("class", "secondary") if mort.get("available") else "secondary",
-            "confidence":  mort["data"].get("data_completeness", "—") if mort.get("available") else "—",
-            "latest_hb":   df[0].get("hb") if df else None,
-            "latest_alb":  df[0].get("albumin") if df else None,
-            "n_months":    len(df),
-            "bay_profile": bay_profile,
-            "davies":      davies,
+            "patient":      p,
+            "mort":         mort,
+            "prob_1yr":     mort["data"].get("prob_1yr") if mort.get("available") else None,
+            "risk_level":   mort["data"].get("risk_level", "Unknown") if mort.get("available") else "Unknown",
+            "css_class":    mort["data"].get("class", "secondary") if mort.get("available") else "secondary",
+            "confidence":   mort["data"].get("data_completeness", "—") if mort.get("available") else "—",
+            "latest_hb":    df[0].get("hb") if df else None,
+            "latest_alb":   df[0].get("albumin") if df else None,
+            "n_months":     len(df),
+            "bay_profile":  bay_profile,
+            "davies":       davies,
+            "det_shap":     det_shap,
+            # Audit surface: what the model saw, keyed by hash for traceability
+            "feature_hash": snap.feature_hash if snap else None,
         })
     return rows
 

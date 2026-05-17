@@ -1,0 +1,48 @@
+{
+  "model_name": "deterioration_v1",
+  "artifact": "deterioration_model.pkl",
+  "algorithm": "CalibratedClassifierCV(LogisticRegression, cv=5, method='sigmoid')",
+  "outcome": "Hospitalization in the following calendar month",
+  "source_cohort": "Local clinic monthly records (training set grows with every retrain)",
+  "input_features": [
+    {"name": "hb_alert",       "type": "binary",     "description": "Hb < 10.0 g/dL"},
+    {"name": "hb_value",       "type": "continuous", "unit": "g/dL", "imputation": "median"},
+    {"name": "alb_alert",      "type": "binary",     "description": "Albumin < 3.5 g/dL"},
+    {"name": "alb_value",      "type": "continuous", "unit": "g/dL", "imputation": "median"},
+    {"name": "target_score",   "type": "continuous", "range": "0–10", "description": "KDOQI achievement score"},
+    {"name": "epo_hypo_proxy", "type": "binary",     "description": "Sub-target Hb despite active ESA"},
+    {"name": "age",            "type": "continuous", "unit": "years"},
+    {"name": "cad",            "type": "binary",     "encoding": "1=yes"},
+    {"name": "chf",            "type": "binary",     "encoding": "1=yes"},
+    {"name": "dm",             "type": "binary",     "encoding": "1=yes (any DM)"}
+  ],
+  "training_guards": {
+    "min_events": 50,
+    "min_samples": 80,
+    "min_epf": 5,
+    "epf_warning_below": 10
+  },
+  "mlops": {
+    "prediction_log_table": "ml_predictions",
+    "metrics_table": "ml_model_metrics",
+    "metrics_schedule": "Every Monday 02:00 UTC",
+    "lookback_window_days": 90,
+    "outcome_backfill": "hospitalization_this_month of the next calendar month's MonthlyRecord"
+  },
+  "retraining_triggers": [
+    "Calibration slope drifts beyond ±0.15 from 1.0 (automated alert via task_alert_model_drift)",
+    "PR-AUC drops below 0.25 for two consecutive weekly reports",
+    "Brier score exceeds 0.25 for two consecutive weekly reports",
+    "EPF (events per feature) falls below 5 on the next training attempt",
+    "≥30 new labelled samples since the last training run",
+    "Manual trigger: POST /admin/train-deterioration-model"
+  ],
+  "explainability": "SHAP LinearExplainer — top-10 features surfaced per prediction in review_queue.html",
+  "limitations": [
+    "Small clinic cohort — CV-AUC may be optimistic below ~200 samples",
+    "Outcome label (hospitalization_this_month) is self-reported; coding errors will bias the model",
+    "Features derived from monthly summaries; within-month volatility is invisible to the model"
+  ],
+  "owner": "HD Dashboard — ml_risk.py",
+  "last_reviewed": "2026-05-17"
+}
