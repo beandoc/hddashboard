@@ -1432,6 +1432,7 @@ class PatientMealRecord(Base):
     date = Column(Date, default=lambda: datetime.utcnow().date())
     calories = Column(Float)
     protein = Column(Float)
+    phosphorus = Column(Float, nullable=True)
     meal_type = Column(String)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -1698,6 +1699,10 @@ def create_tables():
         db.execute(text("ALTER TABLE patient_credentials ADD COLUMN IF NOT EXISTS login_username VARCHAR;"))
         db.execute(text("UPDATE patient_credentials pc SET login_username = p.login_username FROM patients p WHERE pc.patient_id = p.id AND pc.login_username IS NULL;"))
         db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_patient_credentials_login_username ON patient_credentials (login_username);"))
+        
+        # ── Database schema migration for patient meal records ────────────────────
+        db.execute(text("ALTER TABLE patient_meal_records ADD COLUMN IF NOT EXISTS phosphorus DOUBLE PRECISION;"))
+        
         db.commit()
     except Exception as e:
         db.rollback()

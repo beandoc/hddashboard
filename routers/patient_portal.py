@@ -67,18 +67,20 @@ async def patient_dashboard(request: Request, db: Session = Depends(get_db)):
     for m in meal_records:
         d_str = m.date.strftime("%Y-%m-%d")
         if d_str not in meals_by_day:
-            meals_by_day[d_str] = {"date": m.date, "total_cal": 0, "total_prot": 0, "entries": []}
+            meals_by_day[d_str] = {"date": m.date, "total_cal": 0, "total_prot": 0, "total_phos": 0, "entries": []}
         meals_by_day[d_str]["total_cal"] += (m.calories or 0)
         meals_by_day[d_str]["total_prot"] += (m.protein or 0)
+        meals_by_day[d_str]["total_phos"] += (m.phosphorus or 0)
         meals_by_day[d_str]["entries"].append(m)
 
     nutrition_targets = {
         "calories": round((p.dry_weight or 60) * 30),
-        "protein": round((p.dry_weight or 60) * 1.2, 1)
+        "protein": round((p.dry_weight or 60) * 1.2, 1),
+        "phosphorus": 900
     }
 
     today_str = today.strftime("%Y-%m-%d")
-    today_stats = meals_by_day.get(today_str, {"total_cal": 0, "total_prot": 0})
+    today_stats = meals_by_day.get(today_str, {"total_cal": 0, "total_prot": 0, "total_phos": 0})
 
     import json
     anti_meds = []
@@ -151,10 +153,34 @@ async def patient_dashboard(request: Request, db: Session = Depends(get_db)):
     })
 
 @router.post("/meals")
-async def log_meal(request: Request, calories: float = Form(...), protein: float = Form(...), meal_type: str = Form("Breakfast"), notes: str = Form(""), db: Session = Depends(get_db)):
+async def log_meal(
+    request: Request,
+    calories: float = Form(None),
+    protein: float = Form(None),
+    meal_type: str = Form("Breakfast"),
+    notes: str = Form(""),
+    db: Session = Depends(get_db)
+):
     u = get_user(request)
-    if not u or not isinstance(u, dict) or u.get("role") != "patient": raise HTTPException(status_code=403)
-    meal = PatientMealRecord(patient_id=u["id"], date=datetime.utcnow().date(), calories=calories, protein=protein, meal_type=meal_type, notes=notes)
+    if not u or not isinstance(u, dict) or u.get("role") != "patient":
+        raise HTTPException(status_code=403)
+        
+    from services.nutrition_service import estimate_meal_nutrients
+    est_cal, est_prot, est_phos = estimate_meal_nutrients(notes, meal_type)
+    
+    final_cal = calories if (calories is not None and calories > 0) else est_cal
+    final_prot = protein if (protein is not None and protein > 0) else est_prot
+    final_phos = est_phos # Phosphorus is always estimated
+    
+    meal = PatientMealRecord(
+        patient_id=u["id"],
+        date=datetime.utcnow().date(),
+        calories=final_cal,
+        protein=final_prot,
+        phosphorus=final_phos,
+        meal_type=meal_type,
+        notes=notes
+    )
     db.add(meal)
     db.commit()
     return RedirectResponse(url="/patient/dashboard", status_code=303)
