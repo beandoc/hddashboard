@@ -76,12 +76,19 @@
             .container { padding: 0 16px; padding-bottom: 120px; margin-top: 10px; }
             .form-card { padding: 20px; border-radius: 16px; margin-bottom: 16px; }
             .form-card h3 { font-size: 1rem; margin-bottom: 16px; }
-            
+
             input, select, textarea { min-height: 48px; }
             .form-row { grid-template-columns: 1fr; gap: 12px; }
             .comorbidity-grid { grid-template-columns: 1fr; gap: 8px; }
-            
+
             .btn-submit { min-height: 56px; margin-top: 10px; }
+        }
+        @media (max-width: 640px) {
+          .container { padding: 16px; }
+          header { padding: 16px; }
+          .form-grid, .form-row, .form-section-grid { grid-template-columns: 1fr !important; }
+          .action-row { flex-direction: column; gap: 10px; }
+          .btn-submit, .btn-cancel { min-height: 48px; width: 100%; justify-content: center; }
         }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
