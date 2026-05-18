@@ -6,8 +6,8 @@
     <title>Patient Management — HD Dashboard</title>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
-    <link rel="stylesheet" href="/static/css/clinical.css"/>
-    <link rel="stylesheet" href="/static/css/pages/patients.css"/>
+    <link rel="stylesheet" href="/static/css/clinical.css?v=2.0.2"/>
+    <link rel="stylesheet" href="/static/css/pages/patients.css?v=2.0.2"/>
 </head>
 <body>
 
@@ -282,10 +282,10 @@
 
                             <!-- Overflow menu -->
                             <div class="more-wrap">
-                                <button class="act-btn act-more" onclick="toggleMore('more-{{ row.id }}', event)" title="More options">
+                                <button class="act-btn act-more" onclick="event.stopPropagation(); toggleMore('more-{{ row.id }}', this, event)" title="More options">
                                     <i class="material-icons">more_vert</i>
                                 </button>
-                                <div class="more-dropdown" id="more-{{ row.id }}">
+                                <div class="more-dropdown" id="more-{{ row.id }}" onclick="event.stopPropagation()">
                                     <a href="/patients/{{ row.id }}/profile" class="more-item">
                                         <i class="material-icons">account_circle</i> Full Profile
                                     </a>
@@ -587,8 +587,10 @@
     */
 
     // ── OVERFLOW DROPDOWN ─────────────────────────────────────────────────
-    function toggleMore(id, event) {
-        event.stopPropagation();
+    let lastToggleTime = 0;
+
+    function toggleMore(id, btn, event) {
+        if (event) event.stopPropagation();
         const dd = document.getElementById(id);
         const isOpen = dd.classList.contains('open');
         
@@ -602,10 +604,10 @@
         });
         
         if (!isOpen) {
+            lastToggleTime = Date.now();
             dd.classList.add('open');
             
             // Calculate fixed position to escape table overflow clipping
-            const btn = event.currentTarget;
             const rect = btn.getBoundingClientRect();
             
             dd.style.position = 'fixed';
@@ -633,7 +635,11 @@
     }
     
     document.addEventListener('click', closeAllDropdowns);
-    document.addEventListener('scroll', closeAllDropdowns, true); // capture phase
+    document.addEventListener('scroll', (e) => {
+        // Ignore scroll events triggered instantly by focus adjustments on click
+        if (Date.now() - lastToggleTime < 150) return;
+        closeAllDropdowns();
+    }, true);
 
     // ── INTERIM LAB MODAL ─────────────────────────────────────────────────
     const INTERIM_UNITS = {

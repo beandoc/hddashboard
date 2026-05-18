@@ -123,8 +123,36 @@ th.sort-desc .sort-icons .desc { color: #0ea5e9; }
 /* ── ACTIONS COLUMN ──────────────────────────────────────── */
 
 .actions-cell { white-space: nowrap; }
-.act-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; border: none; cursor: pointer; text-decoration: none; transition: all 0.15s; vertical-align: middle; }
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+  vertical-align: middle;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
 .act-btn i { font-size: 1.25rem; }
+
+@media (min-width: 1201px) {
+  .act-btn:not(.act-more) {
+    width: auto;
+    padding: 0 16px;
+  }
+}
+
+body.compact-mode .act-btn .act-lbl {
+  display: none !important;
+}
 .act-profile { background: #f0f9ff; color: #0369a1; }
 .act-profile:hover { background: #bae6fd; }
 .act-lab { background: #fef9c3; color: #92400e; }
@@ -190,7 +218,7 @@ th.sort-desc .sort-icons .desc { color: #0ea5e9; }
 
 /* ── PAGE ENTRANCE ANIMATION ─────────────────────────────── */
 
-@keyframes pageEntrance { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pageEntrance { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .stats-bar  { animation: pageEntrance 0.32s ease both; }
 .filter-bar { animation: pageEntrance 0.32s 0.05s ease both; }
 .table-wrap { animation: pageEntrance 0.32s 0.1s ease both; }
