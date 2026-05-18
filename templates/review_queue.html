@@ -367,16 +367,27 @@
                 </span>
               </div>
 
+              {# Use conditional (AR-1 anchored) probabilities when current Hb diverges
+                 strongly from the long-run posterior mean (divergence > 1.5 SD).
+                 The marginal prediction in that case is misleadingly optimistic/pessimistic
+                 because Bayesian shrinkage dominates over the actual current value. #}
+              {% set use_cond = hb_b.use_conditional and hb_b.prob_hb_gt12_conditional is not none %}
+              {% set disp_lt9   = hb_b.prob_hb_lt9_conditional   if use_cond else hb_b.prob_hb_lt9 %}
+              {% set disp_gt12  = hb_b.prob_hb_gt12_conditional  if use_cond else hb_b.prob_hb_gt12 %}
+              {% set disp_1012  = hb_b.prob_hb_10_to_12_conditional if use_cond else hb_b.prob_hb_10_to_12 %}
+              {% set disp_hb    = hb_b.predicted_hb_conditional   if use_cond else hb_b.predicted_hb %}
+              {% set disp_ci    = hb_b.hb_ci_80_conditional       if use_cond else hb_b.hb_ci_80 %}
+
               <div class="bay-stats-grid">
                 <div class="bay-stat">
-                  <span class="val {% if hb_b.prob_hb_lt9 >= 0.30 %}danger{% elif hb_b.prob_hb_lt9 >= 0.15 %}warn{% endif %}">
-                    {{ (hb_b.prob_hb_lt9 * 100) | round | int }}%
+                  <span class="val {% if disp_lt9 >= 0.30 %}danger{% elif disp_lt9 >= 0.15 %}warn{% endif %}">
+                    {{ (disp_lt9 * 100) | round | int }}%
                   </span>
                   <span class="lbl">P(Hb &lt;9)<br>severe anemia</span>
                 </div>
                 <div class="bay-stat">
-                  <span class="val {% if hb_b.prob_hb_gt12 >= 0.15 %}warn{% endif %}">
-                    {{ (hb_b.prob_hb_gt12 * 100) | round | int }}%
+                  <span class="val {% if disp_gt12 >= 0.15 %}warn{% endif %}">
+                    {{ (disp_gt12 * 100) | round | int }}%
                   </span>
                   <span class="lbl">P(Hb &gt;12)<br>over-correction</span>
                 </div>
@@ -395,7 +406,7 @@
               </div>
 
               <div class="bay-panel-footer">
-                <span>Predicted Hb: {{ hb_b.predicted_hb }} g/dL · 80% CI {{ hb_b.hb_ci_80[0] }}–{{ hb_b.hb_ci_80[1] }} g/dL · P(target 10–12): {{ (hb_b.prob_hb_10_to_12 * 100)|round|int }}% · {{ hb_b.n_observed }} months</span>
+                <span>Predicted Hb: {{ disp_hb }} g/dL · 80% CI {{ disp_ci[0] }}–{{ disp_ci[1] }} g/dL · P(target 10–12): {{ (disp_1012 * 100)|round|int }}%{% if use_cond %} · current-anchored{% endif %} · {{ hb_b.n_observed }} months</span>
                 {% if hb_b.intervention_adjusted %}
                 <span class="bay-adj-badge">
                   <i class="material-icons" style="font-size:0.72rem;">vaccines</i> IV Iron adjusted
