@@ -369,16 +369,16 @@
 
               <div class="bay-stats-grid">
                 <div class="bay-stat">
-                  <span class="val {% if hb_b.prob_alert_next >= 0.6 %}danger{% elif hb_b.prob_alert_next >= 0.4 %}warn{% endif %}">
-                    {{ (hb_b.prob_alert_next * 100) | round | int }}%
+                  <span class="val {% if hb_b.prob_hb_lt9 >= 0.30 %}danger{% elif hb_b.prob_hb_lt9 >= 0.15 %}warn{% endif %}">
+                    {{ (hb_b.prob_hb_lt9 * 100) | round | int }}%
                   </span>
-                  <span class="lbl">Hb &lt;10<br>next month</span>
+                  <span class="lbl">P(Hb &lt;9)<br>severe anemia</span>
                 </div>
                 <div class="bay-stat">
-                  <span class="val {% if hb_b.prob_persistent_3 >= 0.3 %}danger{% elif hb_b.prob_persistent_3 >= 0.15 %}warn{% endif %}">
-                    {{ (hb_b.prob_persistent_3 * 100) | round | int }}%
+                  <span class="val {% if hb_b.prob_hb_gt12 >= 0.15 %}warn{% endif %}">
+                    {{ (hb_b.prob_hb_gt12 * 100) | round | int }}%
                   </span>
-                  <span class="lbl">Hb persists<br>×3 months</span>
+                  <span class="lbl">P(Hb &gt;12)<br>over-correction</span>
                 </div>
                 <div class="bay-stat">
                   <span class="val {% if alb_b.prob_alert_next >= 0.5 %}danger{% elif alb_b.prob_alert_next >= 0.3 %}warn{% endif %}">
@@ -395,7 +395,7 @@
               </div>
 
               <div class="bay-panel-footer">
-                <span>Hb 95% PI: {{ (hb_b.pi_95[0]*100)|round|int }}%–{{ (hb_b.pi_95[1]*100)|round|int }}% · {{ hb_b.n_observed }} observed months</span>
+                <span>Predicted Hb: {{ hb_b.predicted_hb }} g/dL · 80% CI {{ hb_b.hb_ci_80[0] }}–{{ hb_b.hb_ci_80[1] }} g/dL · P(target 10–12): {{ (hb_b.prob_hb_10_to_12 * 100)|round|int }}% · {{ hb_b.n_observed }} months</span>
                 {% if hb_b.intervention_adjusted %}
                 <span class="bay-adj-badge">
                   <i class="material-icons" style="font-size:0.72rem;">vaccines</i> IV Iron adjusted

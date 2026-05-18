@@ -341,7 +341,7 @@ def run_patient_analytics(
             dd_raw = getattr(patient_obj, "diastolic_dysfunction", None)
         patient_info["diastolic_dysfunction"] = dd_raw
 
-    from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
+    from bayesian_analytics import compute_bayesian_alert_profile, attach_bayesian_signal
 
     # BUG 6 FIX: log exceptions with full traceback and expose error key in result
     try:
@@ -354,7 +354,7 @@ def run_patient_analytics(
         mort_risk  = predict_mortality_risk(df, patient_info)
         mia_status = compute_mia_score(db, patient_id)
         bay_profile = compute_bayesian_alert_profile(df, patient_info)
-        mort_risk   = augment_mortality_risk(mort_risk, bay_profile)
+        mort_risk   = attach_bayesian_signal(mort_risk, bay_profile)
         davies      = compute_davies_score(patient_info, df[0])
         analytics_error = None
     except Exception as e:

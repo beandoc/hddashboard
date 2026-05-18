@@ -1365,7 +1365,7 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
     )
     _snap_by_pid: dict = {s.patient_id: s for s in _snapshots}
 
-    from bayesian_analytics import compute_bayesian_alert_profile, augment_mortality_risk
+    from bayesian_analytics import compute_bayesian_alert_profile, attach_bayesian_signal
 
     # Hoist outside the loop — each call does os.path.exists + os.path.getmtime syscalls
     det_model = _load_deterioration_model()
@@ -1412,7 +1412,7 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
         }
         mort = predict_mortality_risk(df, patient_info) if df else {"available": False}
         bay_profile = compute_bayesian_alert_profile(df, patient_info) if df else {"available": False}
-        mort = augment_mortality_risk(mort, bay_profile)
+        mort = attach_bayesian_signal(mort, bay_profile)
         davies = compute_davies_score(patient_info, df[0] if df else None)
         # ── Deterioration SHAP (fast — LogisticRegression, O(n_features)) ─────
         # Use the materialized feature snapshot when available — O(1) dict lookup
