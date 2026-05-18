@@ -120,7 +120,8 @@ try:
     print("✅ Dashboard alerts correctly triggered.")
 
     print("4. Testing Streaming Backup Integrity...")
-    response = client.get("/admin/db/export")
+    hd_session_cookie = client.cookies.get("hd_session")
+    response = client.get("/admin/db/export", cookies={"hd_session": hd_session_cookie})
     if response.status_code != 200:
         print(f"❌ Backup export failed with status: {response.status_code}")
         print(f"Response Body: {response.text[:1000]}")
