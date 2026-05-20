@@ -376,7 +376,7 @@ export default function OCRUploadModal({
                 <span className="font-black text-gray-800 text-xl">Analyzing Report</span>
               </div>
               <p className="text-gray-500 font-medium">
-                Gemini Vision is reading your report{".".repeat(processingDot + 1)}
+                Reading Data, Please wait{".".repeat(processingDot + 1)}
               </p>
               <div className="mt-6 flex flex-col gap-2 text-sm text-gray-400">
                 {[
