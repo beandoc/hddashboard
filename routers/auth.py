@@ -28,11 +28,12 @@ async def api_login(
     db: Session = Depends(get_db),
 ):
     now_ts = int(time.time())
-    username = payload.username
+    username = payload.username.strip()
     password = payload.password
 
+    from sqlalchemy import func
     from config import pwd_context as _pwd
-    user = db.query(User).filter(User.username == username, User.is_active == True).first()
+    user = db.query(User).filter(func.lower(User.username) == username.lower(), User.is_active == True).first()
     if user:
         _hash = getattr(user, "hashed_password", None)
         _ok = _pwd.verify(password, _hash) if _hash else (password == _HARDCODED_PASSWORD)
@@ -73,10 +74,12 @@ async def login(
         raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
 
     now_ts = int(time.time())
+    username = username.strip()
 
     # 1. Staff — verify bcrypt hash if set, else fall back to shared passphrase
+    from sqlalchemy import func
     from config import pwd_context as _pwd
-    user = db.query(User).filter(User.username == username, User.is_active == True).first()
+    user = db.query(User).filter(func.lower(User.username) == username.lower(), User.is_active == True).first()
     if user:
         _hash = getattr(user, "hashed_password", None)
         _ok = _pwd.verify(password, _hash) if _hash else (password == _HARDCODED_PASSWORD)
