@@ -98,12 +98,17 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Paths where the route handler manages its own session cookie — middleware
 # must not overwrite those Set-Cookie headers.
-_AUTH_PATHS = {"/login", "/logout", "/change-password"}
+_AUTH_PATHS = {"/login", "/logout", "/change-password", "/api/login"}
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """Decode session cookie, enforce idle + absolute TTL, refresh sliding window."""
+    # Rewrite old JSON logins to the new API endpoint
+    if request.url.path == "/login" and request.method == "POST":
+        if "application/json" in request.headers.get("content-type", ""):
+            request.scope["path"] = "/api/login"
+
     from itsdangerous import SignatureExpired, BadData
 
     token = request.cookies.get("hd_session")
