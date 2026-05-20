@@ -93,6 +93,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from starlette.types import ASGIApp, Scope, Receive, Send
+
+class RewriteLoginMiddleware:
+    """Proper ASGI middleware to rewrite /login to /api/login for JSON requests BEFORE routing."""
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] == "http":
+            if scope.get("path") == "/login" and scope.get("method") == "POST":
+                headers = dict(scope.get("headers", []))
+                content_type = headers.get(b"content-type", b"").decode("utf-8")
+                if "application/json" in content_type:
+                    scope["path"] = "/api/login"
+                    if "raw_path" in scope:
+                        scope["raw_path"] = b"/api/login"
+        await self.app(scope, receive, send)
+
+app.add_middleware(RewriteLoginMiddleware)
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -104,10 +125,6 @@ _AUTH_PATHS = {"/login", "/logout", "/change-password", "/api/login"}
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """Decode session cookie, enforce idle + absolute TTL, refresh sliding window."""
-    # Rewrite old JSON logins to the new API endpoint
-    if request.url.path == "/login" and request.method == "POST":
-        if "application/json" in request.headers.get("content-type", ""):
-            request.scope["path"] = "/api/login"
 
     from itsdangerous import SignatureExpired, BadData
 
