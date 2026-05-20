@@ -151,10 +151,12 @@
         {% endif %}
     </div>
 
+    {% if user and user.role in ['admin', 'doctor'] %}
     <div class="med-card" style="background:#f1f5f9;">
         <h2><i class="material-icons" style="color:#64748b">history</i> Clinical Background & Comorbidities</h2>
         <div style="line-height:1.6; color:#475569; white-space:pre-wrap;">{{ patient.clinical_background or 'No background documented.' }}</div>
     </div>
+    {% endif %}
 </div>
 
 </body>

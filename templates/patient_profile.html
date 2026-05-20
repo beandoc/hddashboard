@@ -776,10 +776,16 @@
                 <h2 class="section-title" style="font-size: 1rem;">
                     <i class="material-icons" aria-hidden="true">history_edu</i> POMR & Background
                 </h2>
+                {% if user and user.role in ['admin', 'doctor'] %}
                 {% if patient.clinical_background %}
                 <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">
                     <strong>Longitudinal History:</strong><br/>
                     {{ patient.clinical_background }}
+                </div>
+                {% endif %}
+                {% else %}
+                <div style="font-size: 0.8rem; line-height: 1.5; color: #94a3b8; font-style: italic; margin-bottom: 12px;">
+                    POMR clinical background is restricted to Clinicians.
                 </div>
                 {% endif %}
                 
@@ -797,12 +803,20 @@
                 </div>
                 {% endif %}
 
-                {% if patient.handgrip_strength %}
-                <div style="font-size: 0.8rem; line-height: 1.5; background: #f0fdf4; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #bbf7d0; display: flex; align-items: center; gap: 6px;">
-                    <i class="material-icons" style="font-size: 1.1rem; color: #16a34a;">science</i>
-                    <div>
-                        <strong>Research Parameters:</strong><br/>
-                        Handgrip Strength: {{ patient.handgrip_strength }} kg
+                {% if patient.handgrip_strength or (latest_monthly and latest_monthly.hrqol_score) %}
+                <div style="font-size: 0.8rem; line-height: 1.5; background: #f0fdf4; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #bbf7d0; display: flex; align-items: flex-start; gap: 6px;">
+                    <i class="material-icons" style="font-size: 1.1rem; color: #16a34a; margin-top:2px;">science</i>
+                    <div style="width: 100%;">
+                        <strong style="display:block; margin-bottom:4px;">Research Parameters:</strong>
+                        {% if patient.handgrip_strength %}
+                        <div>Handgrip Strength: {{ patient.handgrip_strength }} kg</div>
+                        {% endif %}
+                        {% if latest_monthly and latest_monthly.hrqol_score %}
+                        <div style="display:flex; align-items:center; gap:4px; margin-top:2px;">
+                            <i class="material-icons" style="font-size: 0.95rem; color: #16a34a;">sentiment_satisfied</i>
+                            <span>Quality of Life: <strong>{{ latest_monthly.hrqol_score }}</strong> <small style="color:#64748b;">(0-100 HRQoL Score / EQ-5D or KDQoL)</small></span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -810,6 +824,7 @@
             </div>
 
             <!-- CLINICAL NOTES -->
+            {% if user and user.role in ['admin', 'doctor'] %}
             <div class="card">
                 <h2 class="section-title" style="font-size: 1rem;">
                     <i class="material-icons" aria-hidden="true">description</i> Monthly Clinical Notes
@@ -818,6 +833,7 @@
                     {{ latest_monthly.issues if latest_monthly and latest_monthly.issues else 'No clinician review entries found for the current cycle.' }}
                 </div>
             </div>
+            {% endif %}
         </aside>
     </div>
 </div>

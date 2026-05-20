@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Optional
 
-from database import Patient, MonthlyRecord
+from database import Patient, MonthlyRecord, PatientMealRecord, ResearchRecord
 from alerts import send_entry_alert_email, check_critical_labs, send_critical_lab_alert_email
 from dashboard_logic import get_month_label
 from validators import validate_hard_limits, validate_lab_values
@@ -41,6 +41,152 @@ def save_monthly_record(
                     data["neutrophil_count"] = neut_val / 100.0
             except (ValueError, TypeError):
                 pass
+
+        month_str = data.get("month_str")
+
+        # 1. Residual Urine Output Carry-Forward
+        ruo = data.get("residual_urine_output")
+        if month_str and (ruo is None or ruo == ""):
+            prior_ruo_rec = db.query(MonthlyRecord).filter(
+                MonthlyRecord.patient_id == patient_id,
+                MonthlyRecord.record_month < month_str,
+                MonthlyRecord.residual_urine_output.isnot(None)
+            ).order_by(MonthlyRecord.record_month.desc()).first()
+            if prior_ruo_rec:
+                data["residual_urine_output"] = prior_ruo_rec.residual_urine_output
+
+        # 2. Backend spKt/V and eKt/V Calculation
+        pre_urea = data.get("pre_dialysis_urea")
+        post_urea = data.get("post_dialysis_urea")
+        idwg_val = data.get("idwg")
+        pre_weight = data.get("last_prehd_weight")
+        dry_weight = data.get("target_dry_weight")
+
+        sp_ktv = None
+        e_ktv = None
+
+        if pre_urea and post_urea:
+            try:
+                pre_u = float(pre_urea)
+                post_u = float(post_urea)
+                if pre_u > 0 and post_u > 0 and pre_u > post_u:
+                    R = post_u / pre_u
+                    if R > 0.03:
+                        w = None
+                        if dry_weight is not None:
+                            try: w = float(dry_weight)
+                            except: pass
+                        if (w is None or w <= 0) and pre_weight is not None:
+                            try:
+                                pre_w = float(pre_weight)
+                                uf = float(idwg_val) if idwg_val is not None else 0.0
+                                w = pre_w - uf
+                            except:
+                                pass
+                        if (w is None or w <= 0) and pre_weight is not None:
+                            try: w = float(pre_weight)
+                            except: pass
+                            
+                        if w and w > 0:
+                            uf_vol = 0.0
+                            if idwg_val is not None:
+                                try: uf_vol = float(idwg_val)
+                                except: pass
+                            import math
+                            term1 = -math.log(R - 0.03)
+                            term2 = (4.0 - 3.5 * R) * (uf_vol / w)
+                            sp_ktv = round(term1 + term2, 2)
+                            if sp_ktv > 0:
+                                e_ktv = round(0.945 * sp_ktv + 0.04, 2)
+            except Exception as ktv_err:
+                logger.error(f"Error calculating Kt/V on backend: {ktv_err}")
+
+        if sp_ktv is not None:
+            data["single_pool_ktv"] = sp_ktv
+        if e_ktv is not None:
+            data["equilibrated_ktv"] = e_ktv
+
+        # 3. Backend Phosphate Binder Daily Dose Calculation
+        pb_strength = data.get("pb_strength")
+        pb_freq = data.get("phosphate_binder_freq")
+        pb_dose = data.get("phosphate_binder_dose_mg")
+        
+        if pb_strength and pb_freq and (pb_dose is None or pb_dose == ""):
+            try:
+                strength = float(pb_strength)
+                multiplier = 0
+                if pb_freq == "OD": multiplier = 1
+                elif pb_freq == "BD": multiplier = 2
+                elif pb_freq == "TDS": multiplier = 3
+                elif pb_freq == "QID": multiplier = 4
+                
+                data["phosphate_binder_dose_mg"] = strength * multiplier
+            except Exception as pb_err:
+                logger.error(f"Error calculating phosphate binder dose on backend: {pb_err}")
+
+        # 4. Backend Nutrition Averages and Carry-Forward
+        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
+        p_dry_weight = None
+        if dry_weight is not None:
+            try: p_dry_weight = float(dry_weight)
+            except: pass
+        if (p_dry_weight is None or p_dry_weight <= 0) and p_obj:
+            p_dry_weight = p_obj.dry_weight
+
+        avg_cal = None
+        avg_prot = None
+        
+        if month_str:
+            try:
+                year, month = map(int, month_str.split("-"))
+                import calendar
+                from datetime import date
+                _, last_day = calendar.monthrange(year, month)
+                start_date = date(year, month, 1)
+                end_date = date(year, month, last_day)
+                
+                meal_records = db.query(PatientMealRecord).filter(
+                    PatientMealRecord.patient_id == patient_id,
+                    PatientMealRecord.date >= start_date,
+                    PatientMealRecord.date <= end_date
+                ).all()
+                
+                if meal_records:
+                    daily_stats = {}
+                    for mr in meal_records:
+                        d_key = mr.date
+                        if d_key not in daily_stats:
+                            daily_stats[d_key] = {"calories": 0.0, "protein": 0.0}
+                        daily_stats[d_key]["calories"] += (mr.calories or 0.0)
+                        daily_stats[d_key]["protein"] += (mr.protein or 0.0)
+                        
+                    num_days = len(daily_stats)
+                    sum_cal = sum(s["calories"] for s in daily_stats.values())
+                    sum_prot = sum(s["protein"] for s in daily_stats.values())
+                    avg_cal = round(sum_cal / num_days, 1)
+                    avg_prot_g = sum_prot / num_days
+                    
+                    if p_dry_weight and p_dry_weight > 0:
+                        avg_prot = round(avg_prot_g / p_dry_weight, 2)
+                    else:
+                        avg_prot = round(avg_prot_g, 2)
+            except Exception as nutrition_err:
+                logger.error(f"Error calculating nutrition averages on backend: {nutrition_err}")
+
+        if avg_cal is not None:
+            data["av_daily_calories"] = avg_cal
+        if avg_prot is not None:
+            data["av_daily_protein"] = avg_prot
+
+        if month_str and (data.get("av_daily_calories") is None or data.get("av_daily_calories") == ""):
+            prior_rec = db.query(MonthlyRecord).filter(
+                MonthlyRecord.patient_id == patient_id,
+                MonthlyRecord.record_month < month_str,
+                MonthlyRecord.av_daily_calories.isnot(None)
+            ).order_by(MonthlyRecord.record_month.desc()).first()
+            if prior_rec:
+                data["av_daily_calories"] = prior_rec.av_daily_calories
+                data["av_daily_protein"] = prior_rec.av_daily_protein
 
         # Hard limits — physiologically impossible values. Raises ValueError.
         # This propagates to the router which returns a user-visible 400 error.
@@ -112,6 +258,22 @@ def save_monthly_record(
             MonthlyRecord.record_month == month_str
         ).first()
 
+        user_role = data.get("role")
+        if user_role is None:
+            user_role = "admin"
+
+        if user_role in ["admin", "doctor"]:
+            issues_val = data.get("issues", "")
+        else:
+            issues_val = rec.issues if rec else ""
+
+        # Protect NT-ProBNP (research variable) from being cleared if hidden in the UI
+        is_research = db.query(ResearchRecord).filter(ResearchRecord.patient_id == patient_id).first() is not None
+        if is_research:
+            nt_probnp_val = data.get("nt_probnp")
+        else:
+            nt_probnp_val = rec.nt_probnp if rec else None
+
         fields = dict(
             access_type=data.get("access_type", ""),
             target_dry_weight=data.get("target_dry_weight"),
@@ -143,7 +305,7 @@ def save_monthly_record(
             av_daily_protein=data.get("av_daily_protein"),
             urr=data.get("urr"),
             crp=data.get("crp"),
-            issues=data.get("issues", ""),
+            issues=issues_val,
             entered_by=data.get("entered_by", ""),
             single_pool_ktv=data.get("single_pool_ktv"),
             equilibrated_ktv=data.get("equilibrated_ktv"),
@@ -170,7 +332,7 @@ def save_monthly_record(
             pb_strength=data.get("pb_strength"),
             phosphate_binder_dose_mg=data.get("phosphate_binder_dose_mg"),
             phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
-            nt_probnp=data.get("nt_probnp"),
+            nt_probnp=nt_probnp_val,
             ejection_fraction=data.get("ejection_fraction"),
             diastolic_dysfunction=data.get("diastolic_dysfunction", ""),
             echo_date=_d(data.get("echo_date")),
@@ -203,8 +365,9 @@ def save_monthly_record(
                 p.access_type = data["access_type"]
             if data.get("target_dry_weight") is not None:
                 p.dry_weight = data["target_dry_weight"]
-            if data.get("clinical_background"):
-                p.clinical_background = data["clinical_background"]
+            if user_role in ["admin", "doctor"]:
+                if "clinical_background" in data:
+                    p.clinical_background = data["clinical_background"]
             if data.get("ejection_fraction") is not None:
                 p.ejection_fraction = data["ejection_fraction"]
             if data.get("diastolic_dysfunction"):

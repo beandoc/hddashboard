@@ -137,4 +137,213 @@ def test_tlc_and_neutrophil_boundary_normalization(db):
     assert record.wbc_count == 6.5
     assert record.neutrophil_count == 0.69
 
+def test_backend_ktv_calculation(db):
+    from services.entry_service import save_monthly_record
+    p = Patient(name="KTV Patient", hid_no="T005", is_active=True, dry_weight=70.0)
+    db.add(p)
+    db.commit()
+
+    data = {
+        "month_str": "2026-04",
+        "pre_dialysis_urea": 120.0,
+        "post_dialysis_urea": 35.0,
+        "idwg": 3.0,
+        "last_prehd_weight": 73.0,
+        "target_dry_weight": 70.0,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record = save_monthly_record(db, p.id, data, actor="testadmin")
+    assert record.single_pool_ktv == 1.47
+    assert record.equilibrated_ktv == 1.43
+
+def test_phosphate_binder_dose_calculation(db):
+    from services.entry_service import save_monthly_record
+    p = Patient(name="PB Patient", hid_no="T006", is_active=True)
+    db.add(p)
+    db.commit()
+
+    data = {
+        "month_str": "2026-04",
+        "pb_strength": 667.0,
+        "phosphate_binder_freq": "TDS",
+        "phosphate_binder_dose_mg": None,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record = save_monthly_record(db, p.id, data, actor="testadmin")
+    assert record.phosphate_binder_dose_mg == 2001.0
+
+def test_residual_urine_output_carry_forward(db):
+    from services.entry_service import save_monthly_record
+    p = Patient(name="RUO Patient", hid_no="T007", is_active=True)
+    db.add(p)
+    db.commit()
+
+    # Prior month record with RUO
+    prior_r = MonthlyRecord(
+        patient_id=p.id,
+        record_month="2026-03",
+        residual_urine_output=400.0,
+        hb=10.5,
+        albumin=3.8,
+        calcium=9.0,
+        phosphorus=4.5,
+        serum_ferritin=450.0,
+        serum_creatinine=12.0,
+        serum_potassium=4.8,
+        serum_sodium=140.0,
+    )
+    db.add(prior_r)
+    db.commit()
+
+    # Current month record with missing RUO
+    data = {
+        "month_str": "2026-04",
+        "residual_urine_output": None,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record = save_monthly_record(db, p.id, data, actor="testadmin")
+    assert record.residual_urine_output == 400.0
+
+def test_backend_nutrition_aggregation_and_carry_forward(db):
+    from services.entry_service import save_monthly_record
+    from database import PatientMealRecord
+    from datetime import date
+    p = Patient(name="Nutrition Patient", hid_no="T008", is_active=True, dry_weight=70.0)
+    db.add(p)
+    db.commit()
+
+    # Add PatientMealRecord logs for 2026-04
+    meal1 = PatientMealRecord(patient_id=p.id, date=date(2026, 4, 10), calories=1500.0, protein=60.0)
+    meal2 = PatientMealRecord(patient_id=p.id, date=date(2026, 4, 15), calories=1700.0, protein=80.0)
+    db.add_all([meal1, meal2])
+    db.commit()
+
+    data = {
+        "month_str": "2026-04",
+        "av_daily_calories": None,
+        "av_daily_protein": None,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record = save_monthly_record(db, p.id, data, actor="testadmin")
+    # Avg calories: (1500+1700)/2 = 1600.0
+    # Avg protein: (60+80)/2 = 70.0. Scaled: 70.0 / 70.0 = 1.00
+    assert record.av_daily_calories == 1600.0
+    assert record.av_daily_protein == 1.00
+
+    # Save for next month without logs. Should carry forward.
+    data_may = {
+        "month_str": "2026-05",
+        "av_daily_calories": None,
+        "av_daily_protein": None,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record_may = save_monthly_record(db, p.id, data_may, actor="testadmin")
+    assert record_may.av_daily_calories == 1600.0
+    assert record_may.av_daily_protein == 1.00
+
+
+def test_role_based_clinical_field_restrictions(db):
+    from services.entry_service import save_monthly_record
+    p = Patient(name="Role Patient", hid_no="T009", is_active=True, clinical_background="Initial POMR")
+    db.add(p)
+    db.commit()
+
+    # 1. Save as doctor: should successfully update issues and clinical_background
+    data_doc = {
+        "month_str": "2026-04",
+        "issues": "Complications in April",
+        "clinical_background": "Updated POMR by Doctor",
+        "role": "doctor",
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+    rec = save_monthly_record(db, p.id, data_doc, actor="testdoctor")
+    assert rec.issues == "Complications in April"
+    assert p.clinical_background == "Updated POMR by Doctor"
+
+    # 2. Save/Update as staff: issues and clinical_background should be protected (not overwritten/wiped out)
+    data_staff = {
+        "month_str": "2026-04",
+        "issues": "",  # Form post sends empty fields because they are hidden
+        "clinical_background": "",
+        "role": "staff",
+        "hb": 11.0,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+    rec2 = save_monthly_record(db, p.id, data_staff, actor="teststaff")
+    assert rec2.issues == "Complications in April"  # Retained!
+    assert p.clinical_background == "Updated POMR by Doctor"  # Retained!
+
+    # 3. Save a new month as staff: issues should remain empty and clinical_background preserved
+    data_staff_new = {
+        "month_str": "2026-05",
+        "issues": "",
+        "clinical_background": "",
+        "role": "staff",
+        "hb": 11.2,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+    rec3 = save_monthly_record(db, p.id, data_staff_new, actor="teststaff")
+    assert rec3.issues == ""
+    assert p.clinical_background == "Updated POMR by Doctor"  # Retained!
+
+
 

@@ -223,7 +223,9 @@
             <a href="#sec-metabolic" class="nav-dot">Metabolic</a>
             <a href="#sec-meds" class="nav-dot">Meds</a>
             <a href="#sec-events" class="nav-dot">Events</a>
+            {% if user and user.role in ['admin', 'doctor'] %}
             <a href="#sec-notes" class="nav-dot">Evaluation</a>
+            {% endif %}
         </div>
     </div>
 
@@ -517,10 +519,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1; margin-top: -10px;">
-                        <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg" value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else '' }}">
+                        <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg" value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else (prior_record.phosphate_binder_dose_mg if prior_record and prior_record.phosphate_binder_dose_mg is not none else '') }}">
                         <div id="pb_calc_hint" style="font-size: 0.85em; color: var(--text-muted); font-weight: 600;">
                             {% if record and record.phosphate_binder_dose_mg %}
                             Total Daily Dose: {{ record.phosphate_binder_dose_mg }} mg
+                            {% elif prior_record and prior_record.phosphate_binder_dose_mg %}
+                            Total Daily Dose: {{ prior_record.phosphate_binder_dose_mg }} mg
                             {% endif %}
                         </div>
                     </div>
@@ -534,6 +538,7 @@
                         <label>Albumin (g/dL)</label>
                         <input type="number" step="0.01" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
                     </div>
+                    {% if is_research_mapped %}
                     <div class="form-group">
                         <label>Prealbumin / Transthyretin (mg/dL)</label>
                         <input type="number" step="0.1" name="prealbumin" inputmode="decimal" placeholder="e.g. 20" value="{{ record.prealbumin if record and record.prealbumin else '' }}">
@@ -555,14 +560,7 @@
                         <label>MIS Score (0–30)</label>
                         <input type="number" step="1" min="0" max="30" name="mis_score" inputmode="numeric" placeholder="e.g. 5" value="{{ record.mis_score if record and record.mis_score is not none else '' }}">
                     </div>
-                    <div class="form-group">
-                        <label>Protein Intake (g/kg/d)</label>
-                        <input type="number" step="0.01" name="av_daily_protein" inputmode="decimal" value="{{ record.av_daily_protein if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Daily Caloric Intake (kcal/day)</label>
-                        <input type="number" step="1" name="av_daily_calories" inputmode="numeric" placeholder="e.g. 1800" value="{{ record.av_daily_calories if record and record.av_daily_calories else '' }}">
-                    </div>
+                    {% endif %}
                     <div class="form-group">
                         <label>AST (U/L)</label>
                         <input type="number" step="1" name="ast" inputmode="numeric" value="{{ record.ast if record and record.ast else '' }}">
@@ -580,11 +578,11 @@
                 <div class="grid">
                     <div class="form-group">
                         <label>Single-Pool Kt/V (spKt/V)</label>
-                        <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="e.g. 1.45" value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}">
+                        <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="Calculated" readonly="readonly" style="background: #f1f5f9; font-weight: 700; color: #0ea5e9;" value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Equilibrated Kt/V (eKt/V)</label>
-                        <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="e.g. 1.30" value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}">
+                        <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Calculated" readonly="readonly" style="background: #f1f5f9; font-weight: 700; color: #0ea5e9;" value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Pre-Dialysis Urea (mg/dL)</label>
@@ -600,7 +598,7 @@
                     </div>
                     <div class="form-group">
                         <label>Residual Urine Output (mL/24h)</label>
-                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{{ record.residual_urine_output if record and record.residual_urine_output else '' }}">
+                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
                     </div>
                 </div>
             </div>
@@ -679,10 +677,12 @@
                         <label>Echo Date</label>
                         <input type="date" name="echo_date" value="{{ record.echo_date.strftime('%Y-%m-%d') if record and record.echo_date else (prior_record.echo_date.strftime('%Y-%m-%d') if prior_record and prior_record.echo_date else patient.echo_date.strftime('%Y-%m-%d') if patient and patient.echo_date else '') }}">
                     </div>
+                    {% if is_research_mapped %}
                     <div class="form-group">
                         <label>NT-ProBNP (pg/mL)</label>
                         <input type="number" step="1" name="nt_probnp" inputmode="numeric" placeholder="e.g. 450" value="{{ record.nt_probnp if record and record.nt_probnp else (prior_record.nt_probnp if prior_record and prior_record.nt_probnp else '') }}">
                     </div>
+                    {% endif %}
                 </div>
             </div>
 
@@ -733,17 +733,6 @@
                 </div>
                 <button type="button" onclick="addAntiMedRow()" style="margin-top:10px; background:#f1f5f9; color:#0f172a; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s;">+ Add Another Medication</button>
                 <div style="font-size:0.75rem; color:#64748b; margin-top:8px;">* The total count is automatically saved based on the number of non-empty entries.</div>
-            </div>
-
-            <!-- ── Quality of Life ── -->
-            <div class="form-section">
-                <div class="section-title"><i class="material-icons">sentiment_satisfied</i> Quality of Life</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>HRQoL Score (0–100)</label>
-                        <input type="number" step="1" min="0" max="100" name="hrqol_score" inputmode="numeric" placeholder="EQ-5D or KDQoL" value="{{ record.hrqol_score if record and record.hrqol_score else '' }}">
-                    </div>
-                </div>
             </div>
 
             <!-- ── Emergency & Hospitalizations ── -->
@@ -818,6 +807,7 @@
             </div>
 
             <!-- ── Clinical Evaluation & Notes ── -->
+            {% if user and user.role in ['admin', 'doctor'] %}
             <div class="form-section" id="sec-notes">
                 <div class="section-title"><i class="material-icons">rate_review</i> Clinical Evaluation & Notes</div>
                 
@@ -840,6 +830,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
 
             <div class="save-actions">
                 <button type="submit" name="action" value="save_back" class="btn-save btn-secondary">
@@ -1452,7 +1443,13 @@
         }
 
         window.addEventListener('scroll', updateActiveSection);
-        window.addEventListener('load', updateActiveSection); // Initial check on load
+        window.addEventListener('load', () => {
+            updateActiveSection();
+            calculateKTV();
+            if (typeof calculateTotalBinder === 'function') {
+                calculateTotalBinder();
+            }
+        });
 
         // ── Kt/V Auto-Calculation (Daugirdas II) ──
         function calculateKTV() {
@@ -1463,6 +1460,7 @@
             const targetWeight = parseFloat(document.querySelector('input[name="target_dry_weight"]').value);
             
             const ktvInput = document.querySelector('input[name="single_pool_ktv"]');
+            const eKtvInput = document.querySelector('input[name="equilibrated_ktv"]');
             if (!ktvInput) return;
 
             if (preUrea > 0 && postUrea > 0 && preUrea > postUrea) {
@@ -1472,23 +1470,30 @@
 
                 if (weight > 0) {
                     // Daugirdas II Simplified: Kt/V = -ln(R - 0.03) + (4 - 3.5 * R) * (UF / W)
-                    // Note: 0.03 is a proxy for 0.008 * t (approx 4 hours)
                     try {
                         const term1 = -Math.log(R - 0.03);
                         const term2 = (4 - 3.5 * R) * (uf / weight);
                         const ktv = term1 + term2;
                         
                         if (!isNaN(ktv) && isFinite(ktv) && ktv > 0) {
-                            // Only auto-fill if the field is empty or already contains a calculated value
-                            // We don't want to overwrite a manually entered value unless it's obviously a re-calc
                             ktvInput.value = ktv.toFixed(2);
                             ktvInput.style.color = '#0ea5e9'; // Highlight as auto-calculated
                             ktvInput.style.fontWeight = '700';
+
+                            if (eKtvInput) {
+                                const eKtv = 0.945 * ktv + 0.04;
+                                eKtvInput.value = eKtv.toFixed(2);
+                                eKtvInput.style.color = '#0ea5e9';
+                                eKtvInput.style.fontWeight = '700';
+                            }
                         }
                     } catch (e) {
                         console.error("Kt/V calculation error", e);
                     }
                 }
+            } else {
+                ktvInput.value = '';
+                if (eKtvInput) eKtvInput.value = '';
             }
         }
 

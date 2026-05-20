@@ -6,7 +6,7 @@ from datetime import date, datetime
 import json
 import logging
 
-from database import get_db, Patient, MonthlyRecord
+from database import get_db, Patient, MonthlyRecord, ResearchRecord
 from config import templates, _csrf_signer
 from itsdangerous import BadData
 from dependencies import get_user
@@ -138,6 +138,19 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
         try: hosp_details = json.loads(rec.hospitalization_details)
         except: pass
 
+    # Research Mapped Flag
+    is_research_mapped = db.query(ResearchRecord).filter(ResearchRecord.patient_id == patient_id).first() is not None
+
+    # Residual Urine Output Carry-Forward
+    carried_ruo = None
+    prior_ruo_rec = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month < month_str,
+        MonthlyRecord.residual_urine_output.isnot(None)
+    ).order_by(MonthlyRecord.record_month.desc()).first()
+    if prior_ruo_rec:
+        carried_ruo = prior_ruo_rec.residual_urine_output
+
     csrf_token = _csrf_signer.sign(f"entry-{patient_id}").decode()
     return templates.TemplateResponse("entry_form.html", {
         "request": request, "patient": p, "record": rec,
@@ -150,6 +163,8 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
         "next_month_str": next_month_str, "next_month_label": get_month_label(next_month_str),
         "user": get_user(request),
         "csrf_token": csrf_token,
+        "is_research_mapped": is_research_mapped,
+        "carried_ruo": carried_ruo,
     })
 
 from services import entry_service
@@ -243,8 +258,10 @@ async def save_entry(
     session_user = get_user(request)
     if session_user:
         actor = session_user.get("username") if isinstance(session_user, dict) else getattr(session_user, "username", "unknown")
+        role = getattr(session_user, "role", None) if not isinstance(session_user, dict) else session_user.get("role", "")
     else:
         actor = "unknown"
+        role = ""
 
     try:
         entry_service.save_monthly_record(db, patient_id, locals(), actor=actor)

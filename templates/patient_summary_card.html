@@ -66,10 +66,12 @@
 
     <div class="grid">
         <div class="left-col">
+            {% if user and user.role in ['admin', 'doctor'] %}
             <div class="section">
                 <div class="section-title">Clinical Background</div>
                 <div style="font-size:11px; white-space:pre-wrap;">{{ patient.clinical_background or 'No background documented.' }}</div>
             </div>
+            {% endif %}
 
             <div class="section">
                 <div class="section-title">Dialysis & Access</div>
@@ -123,10 +125,12 @@
                 {% endif %}
             </div>
 
+            {% if user and user.role in ['admin', 'doctor'] %}
             <div class="section">
                 <div class="section-title">Monthly Clinical Issues</div>
                 <div style="font-size:11px; font-style:italic;">{{ record.issues or 'Stable this month.' }}</div>
             </div>
+            {% endif %}
         </div>
     </div>
 
