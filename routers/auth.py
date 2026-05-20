@@ -14,6 +14,43 @@ router = APIRouter()
 _HARDCODED_PASSWORD = "chsc"
 _STAFF_ROLES = {"admin", "staff", "doctor"}
 
+from pydantic import BaseModel
+from fastapi import Response
+
+class LoginPayload(BaseModel):
+    username: str
+    password: str
+
+@router.post("/api/login")
+async def api_login(
+    payload: LoginPayload,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    now_ts = int(time.time())
+    username = payload.username
+    password = payload.password
+
+    from config import pwd_context as _pwd
+    user = db.query(User).filter(User.username == username, User.is_active == True).first()
+    if user:
+        _hash = getattr(user, "hashed_password", None)
+        _ok = _pwd.verify(password, _hash) if _hash else (password == _HARDCODED_PASSWORD)
+        if _ok:
+            if not _hash and password == _HARDCODED_PASSWORD:
+                user.hashed_password = _pwd.hash(password)
+            user.last_login = datetime.utcnow()
+            db.commit()
+            token = serializer.dumps(f"staff:{user.username}:{now_ts}")
+            response.set_cookie(
+                key="hd_session", value=token,
+                httponly=True, secure=COOKIE_SECURE,
+                samesite="strict", max_age=SESSION_MAX_AGE,
+            )
+            return {"access_token": "ok", "message": "Login successful"}
+
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = None):

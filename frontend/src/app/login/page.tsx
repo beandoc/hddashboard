@@ -19,7 +19,7 @@ export default function LoginPage() {
     try {
       console.log(`DEBUG: Final JSON Login attempt at ${API_BASE}/login`);
       
-      const response = await fetch(`${API_BASE}/login`, {
+      const response = await fetch(`${API_BASE}/api/login`, {
         method: "POST",
         body: JSON.stringify({ username, password }),
         headers: {
