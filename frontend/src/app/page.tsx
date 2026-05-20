@@ -71,7 +71,9 @@ export default function DashboardPage() {
 
   if (!data) return <Shell><div className="flex items-center justify-center min-h-[60vh] text-indigo-400 font-bold animate-pulse">Initializing Clinical Intelligence...</div></Shell>;
 
-  const metrics = data.metrics;
+  const metrics = data.metrics || {};
+  const m = (key: string) => metrics[key] || { count: 0, names: [] };
+  const totalPts = metrics.total_patients?.count || 1;
 
   const MetricCard = ({ icon: Icon, title, value, color, highlighted = false, names = [] }: any) => (
     <div className={`relative group bg-white rounded-2xl p-6 shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-xl hover:shadow-gray-200/50 hover:-translate-y-1 ${highlighted ? 'ring-2 ring-red-500/20 bg-red-50/5' : ''}`}>
@@ -141,10 +143,10 @@ export default function DashboardPage() {
       {/* Ward Dynamics */}
       <SectionTitle icon={Users}>Ward Dynamics</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <MetricCard icon={Users} title="Total Patients" value={metrics.total} color="bg-indigo-600" />
-        <MetricCard icon={Calendar} title="Today's Dialysis" value={metrics.todays_hd.count} names={metrics.todays_hd.names} color="bg-emerald-600" />
-        <MetricCard icon={AlertCircle} title="Non-AVF Access" value={metrics.non_avf.count} names={metrics.non_avf.names} highlighted={metrics.non_avf.count > 0} color="bg-amber-600" />
-        <MetricCard icon={ShieldCheck} title="Vaccine Due" value={metrics.vaccine_due.count} names={metrics.vaccine_due.names} highlighted={metrics.vaccine_due.count > 0} color="bg-purple-600" />
+        <MetricCard icon={Users} title="Total Patients" value={metrics.total_patients?.count || 0} color="bg-indigo-600" />
+        <MetricCard icon={Calendar} title="Today's Dialysis" value={m('todays_hd').count} names={m('todays_hd').names} color="bg-emerald-600" />
+        <MetricCard icon={AlertCircle} title="Non-AVF Access" value={m('non_avf').count} names={m('non_avf').names} highlighted={m('non_avf').count > 0} color="bg-amber-600" />
+        <MetricCard icon={ShieldCheck} title="Vaccine Due" value={m('vaccine_due').count} names={m('vaccine_due').names} highlighted={m('vaccine_due').count > 0} color="bg-purple-600" />
       </div>
 
       {/* Clinical Risks */}
@@ -153,10 +155,10 @@ export default function DashboardPage() {
         <section>
           <SectionTitle icon={Droplet}>Anemia & Nutrition</SectionTitle>
           <div className="grid grid-cols-2 gap-6">
-            <MetricCard icon={Droplet} title="Hb Drop Alert" value={metrics.hb_drop_alert.count} names={metrics.hb_drop_alert.names} highlighted={metrics.hb_drop_alert.count > 0} color="bg-red-600" />
-            <MetricCard icon={TrendingDown} title="Low Albumin" value={metrics.low_albumin.count} names={metrics.low_albumin.names} highlighted={metrics.low_albumin.count > 0} color="bg-orange-600" />
-            <MetricCard icon={TestTube} title="IV Iron Rec" value={metrics.iv_iron.count} names={metrics.iv_iron.names} color="bg-pink-600" />
-            <MetricCard icon={Beef} title="Low Protein" value={metrics.low_protein.count} names={metrics.low_protein.names} color="bg-slate-600" />
+            <MetricCard icon={Droplet} title="Hb Drop Alert" value={m('hb_drop_alert').count} names={m('hb_drop_alert').names} highlighted={m('hb_drop_alert').count > 0} color="bg-red-600" />
+            <MetricCard icon={TrendingDown} title="Low Albumin" value={m('albumin_low').count} names={m('albumin_low').names} highlighted={m('albumin_low').count > 0} color="bg-orange-600" />
+            <MetricCard icon={TestTube} title="IV Iron Rec" value={m('iv_iron_rec').count} names={m('iv_iron_rec').names} color="bg-pink-600" />
+            <MetricCard icon={Beef} title="Low Protein" value={m('low_protein').count} names={m('low_protein').names} color="bg-slate-600" />
           </div>
         </section>
 
@@ -164,10 +166,10 @@ export default function DashboardPage() {
         <section>
           <SectionTitle icon={Activity}>Bone & Fluid Health</SectionTitle>
           <div className="grid grid-cols-2 gap-6">
-            <MetricCard icon={Activity} title="High IDWG" value={metrics.high_idwg.count} names={metrics.high_idwg.names} highlighted={metrics.high_idwg.count > 3} color="bg-rose-600" />
-            <MetricCard icon={Zap} title="Intensification" value={metrics.dialysis_intensification.count} names={metrics.dialysis_intensification.names} highlighted={metrics.dialysis_intensification.count > 0} color="bg-yellow-500" />
-            <MetricCard icon={Microscope} title="High Phosphorus" value={metrics.high_phosphorus.count} names={metrics.high_phosphorus.names} color="bg-cyan-600" />
-            <MetricCard icon={Stethoscope} title="Low Calcium" value={metrics.low_calcium.count} names={metrics.low_calcium.names} color="bg-sky-600" />
+            <MetricCard icon={Activity} title="High IDWG" value={m('idwg_high').count} names={m('idwg_high').names} highlighted={m('idwg_high').count > 3} color="bg-rose-600" />
+            <MetricCard icon={Zap} title="Intensification" value={m('dialysis_intensification').count} names={m('dialysis_intensification').names} highlighted={m('dialysis_intensification').count > 0} color="bg-yellow-500" />
+            <MetricCard icon={Microscope} title="High Phosphorus" value={m('phos_high').count} names={m('phos_high').names} color="bg-cyan-600" />
+            <MetricCard icon={Stethoscope} title="Low Calcium" value={m('calcium_low').count} names={m('calcium_low').names} color="bg-sky-600" />
           </div>
         </section>
       </div>
@@ -181,7 +183,7 @@ export default function DashboardPage() {
           
           <div className="space-y-4">
              {/* Combined Feed */}
-             {[...metrics.hb_drop_alert.names, ...metrics.dialysis_intensification.names].slice(0, 5).map((name: string) => (
+             {[...m('hb_drop_alert').names, ...m('dialysis_intensification').names].slice(0, 5).map((name: string) => (
                <div key={name} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200 group cursor-pointer">
                  <div className="flex items-center gap-4">
                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-red-500">
@@ -195,7 +197,7 @@ export default function DashboardPage() {
                  <ChevronRight size={16} className="text-gray-300 transition-transform group-hover:translate-x-1" />
                </div>
              ))}
-             {metrics.hb_drop_alert.names.length === 0 && metrics.dialysis_intensification.names.length === 0 && (
+             {m('hb_drop_alert').names.length === 0 && m('dialysis_intensification').names.length === 0 && (
                <div className="text-center py-12">
                  <p className="text-gray-400 text-sm font-medium italic italic">Ward status optimal. No urgent interventions identified.</p>
                </div>
@@ -206,15 +208,15 @@ export default function DashboardPage() {
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
            <h3 className="text-xl font-black text-gray-900 mb-6">Liver & Metabolic</h3>
            <div className="space-y-6">
-              <div>
+               <div>
                 <div className="flex justify-between items-end mb-2">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Elevated LFTs</p>
-                  <p className="text-xl font-black text-amber-500 tabular-nums">{metrics.elevated_liver.count}</p>
+                  <p className="text-xl font-black text-amber-500 tabular-nums">{m('elevated_liver').count}</p>
                 </div>
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-amber-500 transition-all duration-1000" 
-                    style={{ width: `${(metrics.elevated_liver.count / metrics.total) * 100}%` }}
+                    style={{ width: `${(m('elevated_liver').count / totalPts) * 100}%` }}
                   ></div>
                 </div>
               </div>
@@ -222,12 +224,12 @@ export default function DashboardPage() {
               <div>
                 <div className="flex justify-between items-end mb-2">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Secondary PTH Alert</p>
-                  <p className="text-xl font-black text-purple-500 tabular-nums">{metrics.high_ipth.count}</p>
+                  <p className="text-xl font-black text-purple-500 tabular-nums">{m('high_ipth').count}</p>
                 </div>
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-purple-500 transition-all duration-1000" 
-                    style={{ width: `${(metrics.high_ipth.count / metrics.total) * 100}%` }}
+                    style={{ width: `${(m('high_ipth').count / totalPts) * 100}%` }}
                   ></div>
                 </div>
               </div>

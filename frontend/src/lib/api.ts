@@ -16,7 +16,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}, retr
   for (let i = 0; i < retries; i++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s patience
+      const timeoutId = setTimeout(() => controller.abort(new Error("Request timed out")), 15000); // 15s patience
 
       const res = await fetch(url, { 
         ...options, 

@@ -25,7 +25,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     apiFetch("/api/me")
       .then((data) => {
-        if (!data?.logged_in) {
+        if (!data || (!data.logged_in && !data.username)) {
           router.push("/login");
         } else {
           setUser(data);

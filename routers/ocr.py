@@ -28,6 +28,7 @@ ALLOWED_MIME_TYPES = {
     "image/webp",
     "image/heic",
     "image/heif",
+    "application/pdf",
 }
 MAX_FILE_SIZE_MB = 10
 

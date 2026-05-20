@@ -1,4 +1,12 @@
 import os
+import bcrypt
+
+# Monkey-patch bcrypt to avoid passlib warning (bcrypt 4.0+ removed __about__)
+if getattr(bcrypt, "__about__", None) is None:
+    class _About:
+        __version__ = getattr(bcrypt, "__version__", "4.0.0")
+    bcrypt.__about__ = _About
+
 from passlib.context import CryptContext
 from itsdangerous import URLSafeTimedSerializer, TimestampSigner
 from fastapi.templating import Jinja2Templates

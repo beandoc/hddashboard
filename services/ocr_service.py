@@ -258,7 +258,8 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
 
 
 def _build_extraction_prompt() -> str:
-    """Build the structured prompt for Gemini Vision with full field definitions."""
+    """Build the structured prompt for Gemini Vision with strict field allowlist."""
+    # Build the field description block (label + aliases) for the model
     field_lines = []
     for db_field, info in FIELD_MAP.items():
         aliases = ", ".join(info["aliases"])
@@ -267,26 +268,36 @@ def _build_extraction_prompt() -> str:
 
     fields_block = "\n".join(field_lines)
 
-    return f"""You are a medical lab report OCR expert. Your job is to extract specific lab values from the provided blood/biochemistry report image.
+    # Pass the exhaustive list of valid JSON keys explicitly
+    valid_keys = ", ".join(f'"{k}"' for k in FIELD_MAP.keys())
+
+    return f"""You are a clinical lab report OCR assistant. Your ONLY job is to extract specific numeric lab values for a hemodialysis patient from the provided report image.
 
 TASK:
-Carefully read all text in the image and extract the numeric values for the following fields. These are lab result parameters from a hemodialysis patient's blood report or biochemistry report.
+Read all text in the image. Extract numeric values for the fields listed below. Ignore everything else — patient name, doctor notes, reference ranges, diagnoses, medications, addresses, logos, etc.
 
-FIELDS TO EXTRACT:
+ALLOWED OUTPUT KEYS — these are the ONLY valid keys you may include in "extracted_fields":
+{valid_keys}
+
+FIELD DEFINITIONS (label and common aliases to help you match the report):
 {fields_block}
 
 EXTRACTION RULES:
 1. Extract ONLY numeric values (integers or decimals). Strip units from values.
-2. If a field is not found in the report, omit it from the output entirely — do NOT include null values.
-3. If a value seems clearly erroneous or unreadable, omit it.
-4. For blood pressure given as "120/80", extract 120 as bp_sys and 80 as bp_dia.
-5. For WBC/TLC reported in thousands (e.g. 7.2 x10³/µL), keep as 7.2. If given in millions, convert to thousands.
-6. Pay attention to units — if creatinine is in µmol/L, convert to mg/dL (divide by 88.4).
-7. For urea: if given in mmol/L, convert to mg/dL (multiply by 2.8).
-8. Identify whether urea is "pre-dialysis" or "post-dialysis" from context — map to pre_dialysis_urea or post_dialysis_urea accordingly. If just "Urea" with no context, use pre_dialysis_urea.
-9. Rate your confidence for each field as: "high" (clearly readable), "medium" (somewhat readable), or "low" (inferred/uncertain).
+2. If a field is not present in the report, do NOT include it in the output — omit it entirely.
+3. If a value is unreadable or clearly erroneous, omit it.
+4. For blood pressure written as "120/80": extract 120 → bp_sys, 80 → bp_dia.
+5. For WBC/TLC in thousands (e.g. 7.2 ×10³/µL): keep as 7.2. If given as millions, divide by 1000.
+6. Units conversion: if creatinine is in µmol/L → divide by 88.4 to get mg/dL. If urea is in mmol/L → multiply by 2.8 to get mg/dL.
+7. For urea: if labelled "pre-dialysis" → pre_dialysis_urea; "post-dialysis" → post_dialysis_urea. If ambiguous, use pre_dialysis_urea.
+8. Rate your confidence for each field: "high" (clearly readable), "medium" (partially readable), "low" (uncertain/inferred).
 
-OUTPUT FORMAT (strict JSON only, no markdown, no explanation):
+CRITICAL — STRICT ALLOWLIST:
+- The "extracted_fields" object MUST contain ONLY keys from the allowed list above.
+- DO NOT invent new keys (e.g. do not add "glucose", "troponin", "sodium_potassium_ratio", "egfr", or any other name not in the allowed list).
+- Any value you cannot map to an allowed key must be silently discarded.
+
+OUTPUT FORMAT (strict JSON only — no markdown fences, no explanation, no text outside the JSON):
 {{
   "extracted_fields": {{
     "hb": 8.2,
@@ -299,11 +310,11 @@ OUTPUT FORMAT (strict JSON only, no markdown, no explanation):
     "serum_potassium": "medium"
   }},
   "report_date": "DD/MM/YYYY or empty string if not found",
-  "patient_name_on_report": "name as printed on report, or empty string",
+  "patient_name_on_report": "name as printed on report or empty string",
   "report_type": "biochemistry/haematology/lipid/comprehensive/unknown"
 }}
 
-IMPORTANT: Return ONLY valid JSON. Do not include any text before or after the JSON object."""
+Return ONLY the JSON object. Nothing else."""
 
 
 def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:
@@ -372,16 +383,19 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
 
         for field, value in raw_fields.items():
             if field not in FIELD_MAP:
+                # Log discarded fields for auditability — these are keys Gemini returned
+                # that are NOT mapped in this application and are silently rejected.
+                logger.info("OCR DISCARD — unmapped field '%s' (value=%s) not in application FIELD_MAP", field, value)
                 continue
             try:
                 numeric = float(value)
                 if numeric < 0 or numeric > 100000:
-                    logger.warning("Suspicious value for %s: %s — skipping", field, value)
+                    logger.warning("OCR DISCARD — suspicious value for '%s': %s (out of absolute bounds)", field, value)
                     continue
                 clean_fields[field] = round(numeric, 2)
                 clean_confidence[field] = confidence_map.get(field, "medium")
             except (TypeError, ValueError):
-                logger.warning("Non-numeric value for %s: %s", field, value)
+                logger.warning("OCR DISCARD — non-numeric value for '%s': %s", field, value)
 
         return {
             "extracted_fields": clean_fields,
