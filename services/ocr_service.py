@@ -337,7 +337,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
         prompt = _build_extraction_prompt()
 
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-flash-lite-latest",
             contents=[
                 types.Part.from_bytes(
                     data=image_bytes,
@@ -390,7 +390,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "patient_name_on_report": result.get("patient_name_on_report", ""),
             "report_type": result.get("report_type", "unknown"),
             "fields_found": len(clean_fields),
-            "model": "gemini-1.5-flash",
+            "model": "gemini-flash-lite-latest",
         }
 
     except Exception as exc:
