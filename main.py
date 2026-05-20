@@ -104,7 +104,7 @@ class RewriteLoginMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] == "http":
             if scope.get("path") == "/login" and scope.get("method") == "POST":
-                headers = dict(scope.get("headers", []))
+                headers = {k.lower(): v for k, v in scope.get("headers", [])}
                 content_type = headers.get(b"content-type", b"").decode("utf-8")
                 if "application/json" in content_type:
                     scope["path"] = "/api/login"
