@@ -35,3 +35,6 @@ flower>=2.0.1          # Celery monitoring UI (run: celery -A celery_app flower)
 
 # Explainability — SHAP values for deterioration model
 shap>=0.45.0
+
+# OCR — Gemini Vision API for blood report extraction
+google-genai>=1.0.0

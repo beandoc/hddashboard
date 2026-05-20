@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Shell from "@/components/Shell";
+import OCRUploadModal from "@/components/OCRUploadModal";
 import { apiFetch } from "@/lib/api";
-import { Save, AlertCircle, CheckCircle2, FlaskConical, Filter } from "lucide-react";
+import { Save, AlertCircle, CheckCircle2, FlaskConical, Filter, Scan } from "lucide-react";
 
 export default function DataEntryPage() {
   const [patients, setPatients] = useState<any[]>([]);
@@ -12,6 +13,8 @@ export default function DataEntryPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+  // OCR modal state
+  const [ocrPatient, setOcrPatient] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -55,7 +58,24 @@ export default function DataEntryPage() {
     }
   };
 
+  // Called by OCR modal when user clicks "Apply to Form"
+  const handleOCRApply = (fields: Record<string, string>) => {
+    if (!ocrPatient) return;
+    setData(prev => ({
+      ...prev,
+      [ocrPatient.id]: {
+        ...(prev[ocrPatient.id] || {}),
+        ...fields,
+      }
+    }));
+    setStatus({
+      type: 'success',
+      msg: `${Object.keys(fields).length} lab values extracted and applied for ${ocrPatient.name}. Review and save.`
+    });
+  };
+
   return (
+    <>
     <Shell>
       <div className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -91,6 +111,7 @@ export default function DataEntryPage() {
                 <th className="px-6 py-6"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> Albumin</div></th>
                 <th className="px-6 py-6"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Phosphorus</div></th>
                 <th className="px-6 py-6"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> IDWG (kg)</div></th>
+                <th className="px-6 py-6 text-center">Upload Report</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -138,6 +159,16 @@ export default function DataEntryPage() {
                       className="w-24 p-3 bg-gray-50 border-2 border-transparent rounded-xl focus:border-emerald-200 focus:bg-white transition-all text-center font-bold"
                     />
                   </td>
+                  <td className="px-6 py-6 text-center">
+                    <button
+                      onClick={() => setOcrPatient({ id: p.id, name: p.name })}
+                      title="Upload blood report for AI extraction"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all border-2 border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 hover:border-violet-300 hover:scale-105 active:scale-95"
+                    >
+                      <Scan size={15} />
+                      Scan
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -156,5 +187,16 @@ export default function DataEntryPage() {
         </div>
       </div>
     </Shell>
-  );
+
+    {/* OCR Upload Modal */}
+    {ocrPatient && (
+      <OCRUploadModal
+        patientId={ocrPatient.id}
+        patientName={ocrPatient.name}
+        month={month}
+        onApply={handleOCRApply}
+        onClose={() => setOcrPatient(null)}
+      />
+    )}
+  </>);
 }
