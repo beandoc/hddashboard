@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import imageCompression from "browser-image-compression";
 import { apiFetch } from "@/lib/api";
 import {
   X,
@@ -126,9 +127,24 @@ export default function OCRUploadModal({
     setStep("processing");
 
     try {
+      // Compress image client-side to massively speed up upload & OCR processing
+      const options = {
+        maxSizeMB: 1, // Target max 1MB
+        maxWidthOrHeight: 2000,
+        useWebWorker: true,
+        fileType: "image/jpeg",
+      };
+      
+      let fileToUpload = file;
+      try {
+        fileToUpload = await imageCompression(file, options);
+      } catch (compErr) {
+        console.error("Image compression failed, falling back to original", compErr);
+      }
+
       const formData = new FormData();
       formData.append("patient_id", String(patientId));
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
 
       const res = await fetch("/ocr/extract-report", {
         method: "POST",

@@ -11,6 +11,7 @@ import logging
 import os
 import re
 from typing import Any
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -297,24 +298,21 @@ CRITICAL — STRICT ALLOWLIST:
 - DO NOT invent new keys (e.g. do not add "glucose", "troponin", "sodium_potassium_ratio", "egfr", or any other name not in the allowed list).
 - Any value you cannot map to an allowed key must be silently discarded.
 
-OUTPUT FORMAT (strict JSON only — no markdown fences, no explanation, no text outside the JSON):
-{{
-  "extracted_fields": {{
-    "hb": 8.2,
-    "serum_creatinine": 6.1,
-    "serum_potassium": 4.8
-  }},
-  "confidence": {{
-    "hb": "high",
-    "serum_creatinine": "high",
-    "serum_potassium": "medium"
-  }},
-  "report_date": "DD/MM/YYYY or empty string if not found",
-  "patient_name_on_report": "name as printed on report or empty string",
-  "report_type": "biochemistry/haematology/lipid/comprehensive/unknown"
-}}
+OUTPUT FORMAT: Provide the data matching the requested JSON schema."""
 
-Return ONLY the JSON object. Nothing else."""
+
+class OCRResponse(BaseModel):
+    extracted_fields: dict[str, float] = Field(
+        default_factory=dict,
+        description="Numeric lab values extracted. Keys must strictly match the allowed list."
+    )
+    confidence: dict[str, str] = Field(
+        default_factory=dict,
+        description="Confidence rating for each extracted field (high/medium/low)."
+    )
+    report_date: str = Field(default="", description="Report date as DD/MM/YYYY or empty string")
+    patient_name_on_report: str = Field(default="", description="Patient name on report or empty string")
+    report_type: str = Field(default="unknown", description="biochemistry/haematology/lipid/comprehensive/unknown")
 
 
 def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:
@@ -356,24 +354,16 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
                 ),
                 prompt,
             ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=OCRResponse,
+            )
         )
 
         raw_text = response.text.strip()
         logger.info("Gemini OCR raw response length: %d chars", len(raw_text))
 
-        # Extract JSON from response (handle cases where model wraps in markdown)
-        json_match = re.search(r"\{[\s\S]*\}", raw_text)
-        if not json_match:
-            logger.error("No JSON found in Gemini response: %s", raw_text[:500])
-            return {
-                "extracted_fields": {},
-                "confidence": {},
-                "error": "Could not parse AI response. Please try again with a clearer image.",
-                "model": "gemini-1.5-flash",
-                "raw_text": raw_text[:1000],
-            }
-
-        result = json.loads(json_match.group())
+        result = json.loads(raw_text)
 
         # Validate and sanitize extracted_fields — only keep known fields
         raw_fields = result.get("extracted_fields", {})
