@@ -74,6 +74,8 @@ def normalize_epo_dose(dose_str: str) -> dict:
         frequency = "monthly"
     elif "biweekly" in s or "fortnight" in s or "/2w" in s or "q2w" in s or "eow" in s:
         frequency = "biweekly"
+    elif "10 days" in s or "every 10 days" in s or "q10d" in s:
+        frequency = "every_10_days"
     elif "tiw" in s or "3x" in s or "three" in s:
         frequency = "tiw"
     elif "biw" in s or "2x" in s or "twice" in s:
@@ -90,6 +92,8 @@ def normalize_epo_dose(dose_str: str) -> dict:
             weekly_iu = (dose_value / 4.0) * mult
         elif frequency == "biweekly":
             weekly_iu = (dose_value / 2.0) * mult
+        elif frequency == "every_10_days":
+            weekly_iu = (dose_value / 10.0) * 7.0 * mult
 
     elif drug_type == "darbepoetin":
         # Darbepoetin alfa = 250 units IV epoetin alfa per 1 mcg

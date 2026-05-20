@@ -22,6 +22,26 @@ def save_monthly_record(
     actor: str = "unknown",
 ) -> MonthlyRecord:
     try:
+        # Convert TLC from /cmm to thousands at the boundary
+        wbc = data.get("wbc_count")
+        if wbc is not None and wbc != "":
+            try:
+                wbc_val = float(wbc)
+                if wbc_val > 150.0:  # Entered in /cmm, e.g. 6500
+                    data["wbc_count"] = wbc_val / 1000.0
+            except (ValueError, TypeError):
+                pass
+
+        # Convert Neutrophils from % to fraction at the boundary
+        neut = data.get("neutrophil_count")
+        if neut is not None and neut != "":
+            try:
+                neut_val = float(neut)
+                if neut_val > 1.0:  # Entered as %, e.g. 69
+                    data["neutrophil_count"] = neut_val / 100.0
+            except (ValueError, TypeError):
+                pass
+
         # Hard limits — physiologically impossible values. Raises ValueError.
         # This propagates to the router which returns a user-visible 400 error.
         validate_hard_limits(data)

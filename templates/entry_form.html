@@ -322,11 +322,11 @@
                     </div>
                     <div class="form-group" id="epo_units_group">
                         <label>EPO Units/Week (Total)</label>
-                        <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric" placeholder="e.g. 4000" value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}" style="background: #f1f5f9;">
+                        <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric" placeholder="Calculated from selectors..." value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}" readonly="readonly" style="background: #f1f5f9;">
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>ESA Brand & Prescribed Schedule (Description)</label>
-                        <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="e.g. Mircera 75mcg once a month" value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}">
+                        <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="Auto-populated..." value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}" readonly="readonly" style="background: #f1f5f9;">
                     </div>
                     {# ── Desidustat (HIF-PHI) section — Standalone ── #}
                     <div class="form-group" style="grid-column: 1 / -1;">
@@ -367,12 +367,12 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>TLC / WBC Count (×10³/µL)</label>
-                        <input type="number" step="0.01" name="wbc_count" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.wbc_count if record and record.wbc_count else '' }}">
+                        <label>TLC / WBC Count (/cmm)</label>
+                        <input type="number" step="1" name="wbc_count" inputmode="numeric" placeholder="e.g. 6500" value="{{ (record.wbc_count * 1000)|round|int if record and record.wbc_count else '' }}">
                     </div>
                     <div class="form-group">
-                        <label>Neutrophil Count (×10³/µL)</label>
-                        <input type="number" step="0.01" name="neutrophil_count" inputmode="decimal" placeholder="e.g. 4.2" value="{{ record.neutrophil_count if record and record.neutrophil_count else '' }}">
+                        <label>Neutrophil Count (%)</label>
+                        <input type="number" step="0.1" name="neutrophil_count" inputmode="decimal" placeholder="e.g. 69" value="{{ (record.neutrophil_count * 100)|round|int if record and record.neutrophil_count else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Platelet Count (×10³/µL)</label>
@@ -467,9 +467,28 @@
                         <label>Vitamin D (ng/mL)</label>
                         <input type="number" step="0.01" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
                     </div>
-                    <div class="form-group">
-                        <label>Vitamin D Analog & Dose</label>
-                        <input type="text" name="vitamin_d_analog_dose" placeholder="e.g. Calcitriol 0.25mcg OD" value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else (prior_record.vitamin_d_analog_dose if prior_record and prior_record.vitamin_d_analog_dose else '') }}">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Vitamin D Analogue Selector</label>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <select id="vit_d_analogue_select" onchange="toggleVitDFields()" style="flex: 1.5; min-width: 200px;">
+                                <option value="">-- None / Select --</option>
+                                <option value="Calcirol 60,000 Units/week">Calcirol 60,000 Units/week</option>
+                                <option value="Calcirol 60,000 Units/month">Calcirol 60,000 Units/month</option>
+                                <option value="Calcitriol 0.25 mcg">Calcitriol 0.25 mcg</option>
+                            </select>
+                            
+                            <div id="vit_d_calcitriol_fields" style="display: none; gap: 8px; align-items: center; flex: 2; min-width: 250px;">
+                                <input type="number" id="vit_d_tablet_count" placeholder="Tablet Count" min="1" step="1" value="1" oninput="compileVitDValue()" style="width: 80px;">
+                                <span style="font-size: 0.9rem; color: #64748b;">tab(s)</span>
+                                <select id="vit_d_freq_select" onchange="compileVitDValue()" style="flex: 1;">
+                                    <option value="OD">OD</option>
+                                    <option value="BD">BD</option>
+                                    <option value="Alternate day">Alternate day</option>
+                                </select>
+                            </div>
+                        </div>
+                        <input type="hidden" name="vitamin_d_analog_dose" id="vitamin_d_analog_dose" value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else (prior_record.vitamin_d_analog_dose if prior_record and prior_record.vitamin_d_analog_dose else '') }}">
+                        <div id="vit_d_preview" style="font-size:0.85rem; color:var(--primary); margin-top:6px; font-weight:500;"></div>
                     </div>
                     <div class="form-group">
                         <label>Phosphate Binder</label>
@@ -932,37 +951,86 @@
             }
         }
 
-        function toggleESACalculator() {
+        function toggleESACalculator(shouldReset = true) {
             if (!esaTypeSelect || !mcgInputGroup || !epoUnitsInput) return;
             const type = esaTypeSelect.value;
-            const desidustatGroup = document.getElementById('desidustat_group');
-            const conversionHint  = document.getElementById('conversionHint');
+            const mcgLabel = document.getElementById('mcg_label');
+            const conversionHint = document.getElementById('conversionHint');
 
-            if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
-                // Long-acting ESAs measured in mcg
-                mcgInputGroup.style.display = 'block';
-                epoUnitsInput.readOnly = true;
-                epoUnitsInput.style.background = '#f1f5f9';
-                epoUnitsInput.placeholder = 'Calculated from mcg...';
-                if (conversionHint) conversionHint.style.display = 'none';
-                calculateWeeklyUnits();
-
-            } else if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
-                // Short-acting EPO — direct IU entry
+            if (!type || type === 'None') {
                 mcgInputGroup.style.display = 'none';
-                epoUnitsInput.readOnly = false;
-                epoUnitsInput.style.background = '#ffffff';
-                epoUnitsInput.placeholder = 'e.g. 4000';
-                if (conversionHint) conversionHint.style.display = 'none';
-
-            } else {
-                // "None" or unknown
-                mcgInputGroup.style.display = 'none';
-                epoUnitsInput.readOnly = true;
-                epoUnitsInput.style.background = '#f1f5f9';
                 epoUnitsInput.value = '0';
+                const descInput = document.getElementById('epo_mircera_dose');
+                if (descInput) descInput.value = '';
                 if (conversionHint) conversionHint.style.display = 'none';
+                return;
             }
+
+            mcgInputGroup.style.display = 'block';
+
+            // Configure dynamic frequencies
+            const currentFreqVal = esaFreqSelect.value;
+            esaFreqSelect.innerHTML = '';
+
+            if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
+                if (mcgLabel) mcgLabel.textContent = 'Dose (IU)';
+                if (esaMcgInput) esaMcgInput.placeholder = 'e.g. 4000';
+
+                const options = [
+                    { value: '1', text: 'Weekly' },
+                    { value: '2', text: 'Twice Weekly' },
+                    { value: '3', text: 'Thrice Weekly (TIW)' },
+                    { value: '0.5', text: 'Every 2 Weeks' },
+                    { value: '0.25', text: 'Monthly' }
+                ];
+                options.forEach(opt => {
+                    const el = document.createElement('option');
+                    el.value = opt.value;
+                    el.textContent = opt.text;
+                    esaFreqSelect.appendChild(el);
+                });
+            } else if (type === 'Darbepoetin') {
+                if (mcgLabel) mcgLabel.textContent = 'Dose (mcg)';
+                if (esaMcgInput) esaMcgInput.placeholder = 'e.g. 40';
+
+                const options = [
+                    { value: '1', text: 'Weekly' },
+                    { value: '0.5', text: 'Every 2 Weeks' },
+                    { value: '0.25', text: 'Monthly' }
+                ];
+                options.forEach(opt => {
+                    const el = document.createElement('option');
+                    el.value = opt.value;
+                    el.textContent = opt.text;
+                    esaFreqSelect.appendChild(el);
+                });
+            } else if (type === 'Mircera (CERA)') {
+                if (mcgLabel) mcgLabel.textContent = 'Dose (mcg)';
+                if (esaMcgInput) esaMcgInput.placeholder = 'e.g. 75';
+
+                const options = [
+                    { value: '1', text: 'Weekly' },
+                    { value: '0.7', text: 'Once in every 10 days' },
+                    { value: '0.5', text: 'Every 2 Weeks' },
+                    { value: '0.25', text: 'Monthly' }
+                ];
+                options.forEach(opt => {
+                    const el = document.createElement('option');
+                    el.value = opt.value;
+                    el.textContent = opt.text;
+                    esaFreqSelect.appendChild(el);
+                });
+            }
+
+            // Restore previous selected frequency if valid for new list
+            if (!shouldReset && currentFreqVal) {
+                const hasMatch = Array.from(esaFreqSelect.options).some(o => o.value === currentFreqVal);
+                if (hasMatch) {
+                    esaFreqSelect.value = currentFreqVal;
+                }
+            }
+
+            calculateWeeklyUnits();
         }
 
         function toggleDesidustatSection() {
@@ -1001,7 +1069,6 @@
         function restoreDesidustatFields() {
             const stored = document.getElementById('desidustat_dose')?.value || '';
             if (!stored) return;
-            // Try to parse e.g. "100mg Thrice a week (TIW)"
             const mgMatch = stored.match(/(\d+)\s*mg/);
             if (mgMatch) {
                 const mgEl = document.getElementById('desidustat_mg');
@@ -1017,12 +1084,14 @@
             if (preview && stored) preview.textContent = `📋 Current: "${stored}"`;
         }
 
-        // Initialize Desidustat section visibility on load
+        // Initialize and Restore visibility on load
         document.addEventListener('DOMContentLoaded', () => {
             const desidToggle = document.getElementById('desidustat_toggle');
             if (desidToggle && desidToggle.value === 'Yes') {
                 toggleDesidustatSection();
             }
+            restoreESAFields();
+            restoreVitDFields();
         });
 
         function calculateWeeklyUnits() {
@@ -1032,28 +1101,159 @@
             const freq = parseFloat(esaFreqSelect.value);
             const descInput = document.getElementById('epo_mircera_dose');
             
-            if (isNaN(mcg)) return;
+            if (isNaN(mcg) || !type || type === 'None') {
+                epoUnitsInput.value = '';
+                if (descInput) descInput.value = '';
+                return;
+            }
 
             let weeklyUnits = 0;
-            let freqText = "";
-            if (freq === 1) freqText = "Weekly";
-            else if (freq === 0.5) freqText = "Every 2 Weeks";
-            else if (freq === 0.25) freqText = "Monthly";
+            let freqText = esaFreqSelect.options[esaFreqSelect.selectedIndex]?.text || "Weekly";
 
-            if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
-                // Conversion: 1 mcg approx 200 IU Epoetin
+            if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
+                weeklyUnits = Math.round(mcg * freq);
+                epoUnitsInput.value = weeklyUnits;
+                if (descInput) {
+                    descInput.value = `${type} ${mcg}IU ${freqText}`;
+                }
+            } else if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
                 weeklyUnits = Math.round(mcg * freq * 200);
                 epoUnitsInput.value = weeklyUnits;
-                
-                // Auto-sync description if not already manually edited to something else complex
                 if (descInput) {
                     descInput.value = `${type} ${mcg}mcg ${freqText}`;
                 }
-
-                // Trigger validation and conversion hint
-                validate('epo_weekly_units');
-                updateConversionHint();
             }
+
+            validate('epo_weekly_units');
+            updateConversionHint();
+        }
+
+        function restoreESAFields() {
+            const descInput = document.getElementById('epo_mircera_dose');
+            if (!descInput || !esaTypeSelect || !esaMcgInput || !esaFreqSelect) return;
+            
+            const desc = descInput.value.trim();
+            if (!desc) return;
+
+            let detectedType = "";
+            if (desc.includes("Mircera (CERA)")) detectedType = "Mircera (CERA)";
+            else if (desc.includes("Darbepoetin")) detectedType = "Darbepoetin";
+            else if (desc.includes("Epoetin Alfa")) detectedType = "Epoetin Alfa";
+            else if (desc.includes("Epoetin Beta")) detectedType = "Epoetin Beta";
+            else if (desc.includes("None")) detectedType = "None";
+
+            if (!detectedType) return;
+
+            esaTypeSelect.value = detectedType;
+            toggleESACalculator(false);
+
+            const doseMatch = desc.match(/(\d+(?:\.\d+)?)\s*(?:mcg|IU)/i);
+            if (doseMatch) {
+                esaMcgInput.value = doseMatch[1];
+            }
+
+            if (desc.includes("Once in every 10 days")) {
+                esaFreqSelect.value = "0.7";
+            } else if (desc.includes("Thrice Weekly") || desc.includes("TIW")) {
+                esaFreqSelect.value = "3";
+            } else if (desc.includes("Twice Weekly")) {
+                esaFreqSelect.value = "2";
+            } else if (desc.includes("Every 2 Weeks")) {
+                esaFreqSelect.value = "0.5";
+            } else if (desc.includes("Monthly")) {
+                esaFreqSelect.value = "0.25";
+            } else if (desc.includes("Weekly")) {
+                esaFreqSelect.value = "1";
+            }
+
+            calculateWeeklyUnits();
+        }
+
+        // Vitamin D Analogue Logic
+        function toggleVitDFields(shouldReset = true) {
+            const select = document.getElementById('vit_d_analogue_select');
+            const calcFields = document.getElementById('vit_d_calcitriol_fields');
+            const hidden = document.getElementById('vitamin_d_analog_dose');
+
+            if (!select || !hidden) return;
+
+            const val = select.value;
+            if (val === 'Calcitriol 0.25 mcg') {
+                if (calcFields) calcFields.style.display = 'flex';
+                if (shouldReset) {
+                    const countEl = document.getElementById('vit_d_tablet_count');
+                    if (countEl) countEl.value = '1';
+                    const freqEl = document.getElementById('vit_d_freq_select');
+                    if (freqEl) freqEl.value = 'OD';
+                }
+            } else {
+                if (calcFields) calcFields.style.display = 'none';
+            }
+
+            compileVitDValue();
+        }
+
+        function compileVitDValue() {
+            const select = document.getElementById('vit_d_analogue_select');
+            const hidden = document.getElementById('vitamin_d_analog_dose');
+            const preview = document.getElementById('vit_d_preview');
+
+            if (!select || !hidden) return;
+
+            const val = select.value;
+            if (!val) {
+                hidden.value = '';
+                if (preview) preview.textContent = '';
+                return;
+            }
+
+            if (val === 'Calcitriol 0.25 mcg') {
+                const count = document.getElementById('vit_d_tablet_count')?.value || '1';
+                const freq = document.getElementById('vit_d_freq_select')?.value || 'OD';
+                const compiled = `Calcitriol 0.25 mcg ${count} tab ${freq}`;
+                hidden.value = compiled;
+                if (preview) preview.textContent = `📋 Saving: "${compiled}"`;
+            } else {
+                hidden.value = val;
+                if (preview) preview.textContent = `📋 Saving: "${val}"`;
+            }
+        }
+
+        function restoreVitDFields() {
+            const hidden = document.getElementById('vitamin_d_analog_dose');
+            if (!hidden) return;
+            const val = hidden.value.trim();
+            const select = document.getElementById('vit_d_analogue_select');
+            const countInput = document.getElementById('vit_d_tablet_count');
+            const freqSelect = document.getElementById('vit_d_freq_select');
+            const preview = document.getElementById('vit_d_preview');
+
+            if (!val) {
+                if (select) select.value = '';
+                return;
+            }
+
+            if (val.includes("Calcirol 60,000 Units/week")) {
+                if (select) select.value = "Calcirol 60,000 Units/week";
+            } else if (val.includes("Calcirol 60,000 Units/month")) {
+                if (select) select.value = "Calcirol 60,000 Units/month";
+            } else if (val.includes("Calcitriol 0.25 mcg")) {
+                if (select) select.value = "Calcitriol 0.25 mcg";
+                const countMatch = val.match(/(\d+)\s*tab/);
+                if (countMatch && countInput) countInput.value = countMatch[1];
+                if (freqSelect) {
+                    if (val.includes("BD")) freqSelect.value = "BD";
+                    else if (val.includes("Alternate day")) freqSelect.value = "Alternate day";
+                    else freqSelect.value = "OD";
+                }
+            } else {
+                // Legacy custom text fallback
+                if (select) select.value = '';
+                if (preview) preview.textContent = `📋 Stored: "${val}"`;
+                return;
+            }
+
+            toggleVitDFields(false);
         }
 
         function updateConversionHint() {
@@ -1106,14 +1306,15 @@
         updateTransfusionHint(); // Run on page load if data exists
 
         if(esaTypeSelect) {
-            esaTypeSelect.addEventListener('change', toggleESACalculator);
-            toggleESACalculator();
+            esaTypeSelect.addEventListener('change', () => toggleESACalculator(true));
+            toggleESACalculator(false); // Init without resetting
         }
         
         if(epoUnitsInput) {
             epoUnitsInput.addEventListener('input', updateConversionHint);
             updateConversionHint(); 
         }
+
 
         const thresholds = {
             hb: { bad: 10, warn: 11.5, type: 'low' },
@@ -1129,8 +1330,8 @@
             hb: { lo: 4.0, hi: 18.0, msg: "Expected 4.0-18.0 g/dL" },
             phosphorus: { lo: 1.0, hi: 12.0, msg: "Expected 1.0-12.0 mg/dL" },
             serum_ferritin: { lo: 5, hi: 5000, msg: "Expected 5-5000 ng/mL" },
-            wbc_count: { lo: 1.0, hi: 30.0, msg: "Expected 1.0-30.0 ×10³/µL" },
-            neutrophil_count: { lo: 0.5, hi: 20.0, msg: "Expected 0.5-20.0 ×10³/µL" },
+            wbc_count: { lo: 1000.0, hi: 30000.0, msg: "Expected 1000-30000 /cmm" },
+            neutrophil_count: { lo: 10.0, hi: 100.0, msg: "Expected 10-100%" },
             bp_sys: { lo: 60, hi: 260, msg: "Expected 60-260 mmHg" },
             bp_dia: { lo: 30, hi: 160, msg: "Expected 30-160 mmHg" },
             prealbumin: { lo: 5, hi: 50, msg: "Expected 5-50 mg/dL" },

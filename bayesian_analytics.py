@@ -320,7 +320,15 @@ def _intervention_pseudo_beta(df: List[Dict], param: str) -> Tuple[float, bool]:
                     
                     interval_val = r.get("epo_mircera_interval_days")
                     if not interval_val:
-                        interval = 30.0
+                        desc = str(r.get("epo_mircera_dose") or "").lower()
+                        if "10 days" in desc or "every 10 days" in desc:
+                            interval = 10.0
+                        elif "biweekly" in desc or "every 2 weeks" in desc or "2 weeks" in desc:
+                            interval = 14.0
+                        elif "weekly" in desc or "1 week" in desc:
+                            interval = 7.0
+                        else:
+                            interval = 30.0
                     else:
                         try:
                             interval = float(interval_val)
