@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ patient.name }} - Comprehensive Clinical Profile</title>    <link rel="stylesheet" href="/static/css/patient_profile.css">
+    <title>{{ patient.name }} — Profile | HD Dashboard</title>    <link rel="stylesheet" href="/static/css/patient_profile.css">
     <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -13,6 +13,7 @@
 {% from "_macros.html" import lab_box %}
 
 {% include "_nav.html" %}
+{% include "_patient_context_nav.html" %}
 
 <!-- P2 Breadcrumb -->
 <nav class="nav-breadcrumb" aria-label="Breadcrumb">
@@ -145,7 +146,7 @@
                 <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); font-family: 'Outfit', sans-serif;">
                     {% set rt = (patient.relation_type or '')|upper %}
                     {% if rt in ['SELF', 'SERVICE'] %}
-                        Service Person
+                        Self
                     {% elif rt == 'F/O' %}
                         Dependent (Father)
                     {% elif rt == 'M/O' %}
@@ -172,7 +173,7 @@
                 <span class="stat-sub">
                     {% set rt = (patient.relation_type or '')|upper %}
                     {% if rt in ['SELF', 'SERVICE'] %}
-                        Status: Service Person
+                        Status: Self
                     {% else %}
                         {% set rt_map = {'F/O': 'Father', 'M/O': 'Mother', 'S/O': 'Son', 'D/O': 'Daughter', 'W/O': 'Wife', 'H/O': 'Husband'} %}
                         {% set type_name = rt_map.get(rt, rt) %}
@@ -549,7 +550,7 @@
                         <span style="font-size: 0.85rem; font-weight: 600;">
                             {% set rt = (patient.relation_type or '')|upper %}
                             {% if rt in ['SELF', 'SERVICE'] %}
-                                Self (Service Person)
+                                Self
                             {% elif rt == 'F/O' %}
                                 Father
                             {% elif rt == 'M/O' %}
@@ -757,7 +758,10 @@
                                     {% else %}—{% endif %}
                                 </td>
                                 <td style="padding:6px 8px;">
-                                    <form action="/patients/{{ patient.id }}/hospitalisations/{{ h.id }}/delete" method="post" onsubmit="return confirm('Delete this event?')">
+                                    <form action="/patients/{{ patient.id }}/hospitalisations/{{ h.id }}/delete" method="post"
+                                          data-confirm-name="hospitalisation event"
+                                          data-confirm-type="delete"
+                                          data-confirm-message="This hospitalisation record will be removed from the patient timeline.">
                                         <button type="submit" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:1rem;" title="Delete">×</button>
                                     </form>
                                 </td>

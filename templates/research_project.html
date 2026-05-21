@@ -69,7 +69,10 @@
                 <i class="material-icons">add_box</i> Record New Test
             </button>
             <form method="POST" action="/research/projects/{{ project.id }}/deactivate"
-                  onsubmit="return confirm('Deactivate this project? All data will be preserved.')"
+                  data-confirm-name="{{ project.name }}"
+                  data-confirm-type="deactivate"
+                  data-confirm-message="All collected research records will be preserved. The project can be reactivated later."
+                  data-confirm-danger
                   style="margin:0;">
                 <button type="submit"
                         style="background:#fff7ed; border:1.5px solid #f59e0b; color:#b45309; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
@@ -122,7 +125,12 @@
                             <td data-label="Notes" style="font-size:0.85rem; color:var(--text-muted);">{{ r.record.notes }}</td>
                             <td data-label="Logged By" style="font-size:0.85rem;">{{ r.record.entered_by }}</td>
                             <td data-label="Actions">
-                                <form method="POST" action="/research/projects/{{ project.id }}/records/{{ r.record.id }}/delete" onsubmit="return confirm('Delete this test record?');" style="margin:0;">
+                                <form method="POST" action="/research/projects/{{ project.id }}/records/{{ r.record.id }}/delete"
+                                      data-confirm-name="test record ({{ r.record.entered_by }}, {{ r.record.test_date }})"
+                                      data-confirm-type="delete"
+                                      data-confirm-message="This research record will be permanently removed and cannot be recovered."
+                                      data-confirm-danger
+                                      style="margin:0;">
                                     <button type="submit" style="background:none; border:none; color:#ef4444; cursor:pointer;" title="Delete Record">
                                         <i class="material-icons" style="font-size:1.1rem;">delete_outline</i>
                                     </button>

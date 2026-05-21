@@ -265,20 +265,81 @@ async def save_entry(
 
     try:
         entry_service.save_monthly_record(db, patient_id, locals(), actor=actor)
-    except ValueError as exc:
+    except (ValueError, Exception) as exc:
         db.rollback()
-        logger.warning("VALIDATION ERROR — patient_id=%s: %s", patient_id, exc)
-        return HTMLResponse(
-            content=f"<h3>Validation Error</h3><p>{exc}</p><p><a href='javascript:history.back()'>Go back and correct the value</a></p>",
-            status_code=400,
-        )
-    except Exception as exc:
-        db.rollback()
-        logger.error(
-            "SAVE FAILED — patient_id=%s month=%s error=%s",
-            patient_id, month_str, exc, exc_info=True
-        )
-        return HTMLResponse(content=f"Error saving record: {str(exc)}", status_code=500)
+        is_validation = isinstance(exc, ValueError)
+        if is_validation:
+            logger.warning("VALIDATION ERROR — patient_id=%s: %s", patient_id, exc)
+        else:
+            logger.error("SAVE FAILED — patient_id=%s month=%s error=%s",
+                         patient_id, month_str, exc, exc_info=True)
+
+        # Re-render the form with the error message instead of a blank error page.
+        p = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not p:
+            raise HTTPException(status_code=404)
+
+        year, mon = map(int, month_str.split("-"))
+        prev_y, prev_m = (year, mon - 1) if mon > 1 else (year - 1, 12)
+        next_y, next_m = (year, mon + 1) if mon < 12 else (year + 1, 1)
+        prev_ms = f"{prev_y}-{prev_m:02d}"
+        next_ms = f"{next_y}-{next_m:02d}"
+
+        existing_rec = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.record_month == month_str
+        ).first()
+
+        prior_rec = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.record_month == prev_ms
+        ).first()
+
+        _anti_meds, _prior_anti, _hosp = [], [], []
+        if existing_rec and existing_rec.antihypertensive_details:
+            try: _anti_meds = json.loads(existing_rec.antihypertensive_details)
+            except: pass
+        if prior_rec and prior_rec.antihypertensive_details:
+            try: _prior_anti = json.loads(prior_rec.antihypertensive_details)
+            except: pass
+        if existing_rec and existing_rec.hospitalization_details:
+            try: _hosp = json.loads(existing_rec.hospitalization_details)
+            except: pass
+
+        _ruo = None
+        _ruo_rec = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.record_month < month_str,
+            MonthlyRecord.residual_urine_output.isnot(None)
+        ).order_by(MonthlyRecord.record_month.desc()).first()
+        if _ruo_rec:
+            _ruo = _ruo_rec.residual_urine_output
+
+        _is_research = db.query(ResearchRecord).filter(
+            ResearchRecord.patient_id == patient_id
+        ).first() is not None
+
+        _csrf = _csrf_signer.sign(f"entry-{patient_id}").decode()
+        return templates.TemplateResponse("entry_form.html", {
+            "request": request,
+            "patient": p,
+            "record": existing_rec,
+            "anti_meds": _anti_meds,
+            "hosp_details": _hosp,
+            "prior_record": prior_rec,
+            "prior_anti_meds": _prior_anti,
+            "month_str": month_str,
+            "month_label": get_month_label(month_str),
+            "prev_month_str": prev_ms,
+            "prev_month_label": get_month_label(prev_ms),
+            "next_month_str": next_ms,
+            "next_month_label": get_month_label(next_ms),
+            "user": session_user,
+            "csrf_token": _csrf,
+            "is_research_mapped": _is_research,
+            "carried_ruo": _ruo,
+            "form_error": str(exc),
+        }, status_code=400 if is_validation else 500)
 
     if action == "save_next":
         # Find next pending patient

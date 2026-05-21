@@ -131,6 +131,31 @@ async def login(
     return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
 
 
+@router.post("/auth/ping")
+async def session_ping(request: Request, response: Response):
+    """Keep-alive endpoint for the session timeout warning modal.
+    Re-issues the session cookie to reset the idle timer server-side."""
+    from dependencies import get_user
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    # Re-sign a fresh token with current timestamp so idle clock resets
+    from config import serializer as _ser
+    import time
+    now_ts = int(time.time())
+    if hasattr(user, "username"):
+        username = user.username
+    else:
+        username = user.get("username", "unknown")
+    token = _ser.dumps(f"staff:{username}:{now_ts}")
+    response.set_cookie(
+        key="hd_session", value=token,
+        httponly=True, secure=COOKIE_SECURE,
+        samesite="strict", max_age=SESSION_MAX_AGE,
+    )
+    return {"status": "ok"}
+
+
 @router.get("/logout")
 async def logout():
     response = RedirectResponse(url="/login", status_code=303)

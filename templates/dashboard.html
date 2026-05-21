@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>HD Dashboard</title>
+  <title>Dashboard — {{ data.month_label }} | HD Dashboard</title>
   <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
   <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
   <link rel="stylesheet" href="/static/css/clinical.css"/>
@@ -302,11 +302,11 @@
   <div class="charts-2col">
     <div class="chart-container">
       <h3>Gender Distribution</h3>
-      <div class="chart-content" id="genderChart"></div>
+      <div class="chart-content" id="genderChart"><div class="skeleton chart-skeleton chart-skeleton-sm"></div></div>
     </div>
     <div class="chart-container">
       <h3>Vascular Access Profile</h3>
-      <div class="chart-content" id="accessChart"></div>
+      <div class="chart-content" id="accessChart"><div class="skeleton chart-skeleton chart-skeleton-sm"></div></div>
     </div>
   </div>
 
@@ -320,7 +320,7 @@
   <div class="trend-charts-section">
     <div class="trend-chart-wrapper hb-bg">
       <h3>Hemoglobin Trendline</h3>
-      <div id="hbTrendChart" class="trend-chart-content"></div>
+      <div id="hbTrendChart" class="trend-chart-content"><div class="skeleton chart-skeleton chart-skeleton-md"></div></div>
       <div class="patient-nav">
         <button onclick="navigatePatient('hb',-1)" id="hbPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
         <a id="hbPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
@@ -329,7 +329,7 @@
     </div>
     <div class="trend-chart-wrapper alb-bg">
       <h3>Albumin Trendline</h3>
-      <div id="albTrendChart" class="trend-chart-content"></div>
+      <div id="albTrendChart" class="trend-chart-content"><div class="skeleton chart-skeleton chart-skeleton-md"></div></div>
       <div class="patient-nav">
         <button onclick="navigatePatient('alb',-1)" id="albPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
         <a id="albPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
@@ -338,7 +338,7 @@
     </div>
     <div class="trend-chart-wrapper phos-bg">
       <h3>Phosphorus Trendline</h3>
-      <div id="phosTrendChart" class="trend-chart-content"></div>
+      <div id="phosTrendChart" class="trend-chart-content"><div class="skeleton chart-skeleton chart-skeleton-md"></div></div>
       <div class="patient-nav">
         <button onclick="navigatePatient('phos',-1)" id="phosPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
         <a id="phosPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
@@ -357,38 +357,38 @@
   <div class="trend-charts-section" style="padding-top: 0;">
     <div class="chart-container">
       <h3>Median Hemoglobin</h3>
-      <div id="cohortHbChart" class="chart-content"></div>
+      <div id="cohortHbChart" class="chart-content"><div class="skeleton chart-skeleton chart-skeleton-md"></div></div>
     </div>
     <div class="chart-container">
       <h3>Median Albumin</h3>
-      <div id="cohortAlbChart" class="chart-content"></div>
+      <div id="cohortAlbChart" class="chart-content"><div class="skeleton chart-skeleton chart-skeleton-md"></div></div>
     </div>
     <div class="chart-container">
       <h3>Median Phosphorus</h3>
-      <div id="cohortPhosChart" class="chart-content"></div>
+      <div id="cohortPhosChart" class="chart-content"><div class="skeleton chart-skeleton chart-skeleton-md"></div></div>
     </div>
   </div>
 
-  <!-- DYNAMIC AT-RISK CAROUSEL -->
+  <!-- AT-RISK RANKED TABLE -->
   <div class="section-heading">
     <div>
-      <h2>Dynamic Patient Trends (At-Risk)</h2>
-      <p>Multi-month trendlines for patients outside clinical thresholds</p>
+      <h2>At-Risk Patients</h2>
+      <p>Ranked worst-first — click any row to expand the 6-month trend</p>
     </div>
   </div>
   <div class="at-risk-panel">
     <div class="at-risk-card">
       <div class="at-risk-header">
         <div class="at-risk-header-left">
-          <div class="at-risk-icon"><i class="material-icons">trending_down</i></div>
+          <div class="at-risk-icon"><i class="material-icons">warning</i></div>
           <div>
-            <p class="at-risk-title" id="atRiskChartTitle">Hemoglobin Trends (At-Risk)</p>
-            <p class="at-risk-subtitle">Patients below threshold — last 6 months</p>
+            <p class="at-risk-title" id="atRiskTableTitle">Hemoglobin — At-Risk Patients</p>
+            <p class="at-risk-subtitle">Patients outside clinical threshold · sorted by severity</p>
           </div>
         </div>
         <div class="at-risk-param-selector">
           <label>Parameter:</label>
-          <select id="atRiskParamSelector" onchange="loadAtRiskTrends()">
+          <select id="atRiskParamSelector" onchange="loadAtRiskTable()">
             <option value="hb">Hemoglobin (&lt; 10)</option>
             <option value="albumin">Albumin (&lt; 3.5)</option>
             <option value="phosphorus">Phosphorus (&gt; 5.5)</option>
@@ -404,15 +404,42 @@
         </div>
       </div>
       <div class="at-risk-body">
-        <div id="atRiskTrendChart" class="trend-chart-content" style="height: 280px;"></div>
-        <div id="atRiskEmptyMsg" style="display: none;" class="at-risk-empty">
-          <i class="material-icons">check_circle_outline</i>
-          <p>No patients currently outside threshold for this parameter.</p>
+        <!-- Loading skeleton -->
+        <div id="atRiskLoading" style="padding:16px;">
+          <div class="skeleton" style="height:40px; border-radius:8px; margin-bottom:8px;"></div>
+          <div class="skeleton" style="height:40px; border-radius:8px; margin-bottom:8px; opacity:0.7;"></div>
+          <div class="skeleton" style="height:40px; border-radius:8px; opacity:0.45;"></div>
         </div>
-        <div class="patient-nav" id="atRiskNav" style="display: none;">
-          <button onclick="navigateAtRiskPatient(-1)" id="atRiskPrevBtn"><i class="material-icons">arrow_back_ios</i></button>
-          <a id="atRiskPatientName" class="patient-name-display" href="#" style="color:#0f172a; text-decoration:none;" title="View full analytics for this patient"></a>
-          <button onclick="navigateAtRiskPatient(1)" id="atRiskNextBtn"><i class="material-icons">arrow_forward_ios</i></button>
+        <!-- Table -->
+        <div id="atRiskTableWrap" style="display:none; overflow-x:auto;">
+          <table id="atRiskTable" style="width:100%; border-collapse:collapse; font-size:0.875rem;">
+            <thead>
+              <tr style="border-bottom:2px solid #e2e8f0; text-align:left;">
+                <th style="padding:10px 12px; color:#64748b; font-weight:600; width:44px;">#</th>
+                <th style="padding:10px 12px; color:#64748b; font-weight:600; cursor:pointer;" onclick="sortAtRiskTable('name')">
+                  Patient <span id="arSort-name" class="material-icons" style="font-size:0.85rem;vertical-align:middle;opacity:0.4;">unfold_more</span>
+                </th>
+                <th style="padding:10px 12px; color:#64748b; font-weight:600; cursor:pointer;" onclick="sortAtRiskTable('value')">
+                  Latest Value <span id="arSort-value" class="material-icons" style="font-size:0.85rem;vertical-align:middle;opacity:0.4;">unfold_more</span>
+                </th>
+                <th style="padding:10px 12px; color:#64748b; font-weight:600;">Trend (6m)</th>
+                <th style="padding:10px 12px; color:#64748b; font-weight:600; cursor:pointer;" onclick="sortAtRiskTable('delta')">
+                  Δ <span id="arSort-delta" class="material-icons" style="font-size:0.85rem;vertical-align:middle;opacity:0.4;">unfold_more</span>
+                </th>
+                <th style="padding:10px 12px; color:#64748b; font-weight:600;"></th>
+              </tr>
+            </thead>
+            <tbody id="atRiskTbody"></tbody>
+          </table>
+        </div>
+        <!-- Expanded inline chart -->
+        <div id="atRiskExpandedChart" style="display:none; padding:16px 12px; border-top:1px solid #e2e8f0;">
+          <div id="atRiskExpandedChartInner" style="height:240px;"></div>
+        </div>
+        <!-- Empty state -->
+        <div id="atRiskEmptyMsg" style="display:none; text-align:center; padding:36px 24px;">
+          <i class="material-icons" style="font-size:2.5rem; color:#bbf7d0;">check_circle_outline</i>
+          <p style="margin:8px 0 0; color:#64748b; font-size:0.9rem;">No patients outside threshold for this parameter.</p>
         </div>
       </div>
     </div>
@@ -470,7 +497,13 @@ const currentIdx = { hb:0, alb:0, phos:0 };
 // ── PLOTLY CHARTS ──
 const FONT = { family:"'Roboto',sans-serif", size:12 };
 
+function clearSkeleton(divId) {
+  var el = document.getElementById(divId);
+  if (el) el.querySelectorAll('.skeleton').forEach(function(s) { s.remove(); });
+}
+
 // Gender Pie
+clearSkeleton("genderChart");
 Plotly.newPlot("genderChart", [{
   type:"pie",
   values:[{{ data.metrics.male_patients.count }}, {{ data.metrics.female_patients.count }}],
@@ -497,6 +530,7 @@ if (aNames.length > 0) {
     const palette = ["#dc2626","#ea580c","#d97706","#0284c7","#7c3aed"];
     return palette[i % palette.length];
   });
+  clearSkeleton("accessChart");
   Plotly.newPlot("accessChart",[{
     type:"bar", x:aCounts, y:aNames, orientation:"h",
     marker:{ color:accessColors, opacity:0.85 },
@@ -601,6 +635,7 @@ function renderTrend(key) {
     line:{ color:cfg.color, width:1.5, dash:'dot' }, opacity:0.4
   }] : [];
 
+  clearSkeleton(cfg.div);
   Plotly.newPlot(cfg.div, [{
     type:"scatter",
     x:[PREV_MONTH, CURR_MONTH],
@@ -674,6 +709,7 @@ renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
       hovertemplate: '<b>%{x}</b><br>Median: <b>%{y}</b><extra></extra>',
     });
 
+    clearSkeleton(divId);
     Plotly.newPlot(divId, traces, {
       margin: { t: 10, b: 44, l: 42, r: 10 },
       xaxis: { tickangle: -30, gridcolor: 'rgba(0,0,0,0.05)', tickfont: { size: 10 }, zeroline: false },
@@ -689,116 +725,222 @@ renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
   renderCohort('cohortPhosChart', 'phosphorus', '#16a34a', 'rgba(22,163,74,0.09)');
 })();
 
-// ── DYNAMIC AT-RISK TRENDS ──
-let atRiskData = { months: [], patients: [], parameter: "" };
-let atRiskIdx = 0;
+// ── AT-RISK RANKED TABLE ──────────────────────────────────────────────────────
+const AT_RISK_LABELS = {
+  hb:'Hemoglobin', albumin:'Albumin', phosphorus:'Phosphorus', calcium:'Calcium',
+  serum_ferritin:'Ferritin', tsat:'TSAT', single_pool_ktv:'Kt/V', urr:'URR',
+  ipth:'iPTH', serum_potassium:'Potassium', idwg:'IDWG',
+};
 
-async function loadAtRiskTrends() {
-  const param = document.getElementById("atRiskParamSelector").value;
-  const chartDiv = document.getElementById("atRiskTrendChart");
-  const emptyMsg = document.getElementById("atRiskEmptyMsg");
-  const navDiv = document.getElementById("atRiskNav");
-  const titleEl = document.getElementById("atRiskChartTitle");
+let _arData = { months: [], patients: [], parameter: '' };
+let _arSortKey = 'value';
+let _arSortDir = 'asc'; // ascending = worst first (lowest hb / highest phos)
+let _arExpandedIdx = -1;
 
-  const AT_RISK_LABELS = {
-    hb:'Hemoglobin', albumin:'Albumin', phosphorus:'Phosphorus', calcium:'Calcium',
-    serum_ferritin:'Ferritin', tsat:'TSAT', single_pool_ktv:'Kt/V', urr:'URR',
-    ipth:'iPTH', serum_potassium:'Potassium', idwg:'IDWG',
-  };
-  titleEl.textContent = `${AT_RISK_LABELS[param] || param} — At-Risk Trendlines`;
+async function loadAtRiskTable() {
+  const param = document.getElementById('atRiskParamSelector').value;
+  const titleEl = document.getElementById('atRiskTableTitle');
+  titleEl.textContent = `${AT_RISK_LABELS[param] || param} — At-Risk Patients`;
 
-  // Tint the icon to the parameter's color
-  const iconEl = document.querySelector(".at-risk-icon");
+  const iconEl = document.querySelector('.at-risk-icon i');
   const clr = AT_RISK_CFG[param] || { color: '#6366f1' };
   if (iconEl) iconEl.style.color = clr.color;
 
+  document.getElementById('atRiskLoading').style.display = 'block';
+  document.getElementById('atRiskTableWrap').style.display = 'none';
+  document.getElementById('atRiskEmptyMsg').style.display = 'none';
+  document.getElementById('atRiskExpandedChart').style.display = 'none';
+  _arExpandedIdx = -1;
+
   try {
     const res = await fetch(`/analytics/api/at-risk-trends?parameter=${param}&month=${MONTH_STR}`);
-    atRiskData = await res.json();
-    atRiskIdx = 0;
+    _arData = await res.json();
+    _arSortKey = 'value'; _arSortDir = 'asc'; _arExpandedIdx = -1;
+    renderAtRiskTable();
+  } catch(e) {
+    document.getElementById('atRiskLoading').style.display = 'none';
+    console.error('At-risk table load failed:', e);
+  }
+}
 
-    if (!atRiskData.patients || atRiskData.patients.length === 0) {
-      chartDiv.style.display = "none";
-      emptyMsg.style.display = "block";
-      navDiv.style.display = "none";
-      const nameEl = document.getElementById("atRiskPatientName");
-      nameEl.href = "#";
-      nameEl.style.textDecoration = "none";
-      return;
+function renderAtRiskTable() {
+  document.getElementById('atRiskLoading').style.display = 'none';
+  document.getElementById('atRiskExpandedChart').style.display = 'none';
+
+  const patients = (_arData.patients || []).slice();
+  if (!patients.length) {
+    document.getElementById('atRiskEmptyMsg').style.display = 'block';
+    document.getElementById('atRiskTableWrap').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('atRiskEmptyMsg').style.display = 'none';
+  document.getElementById('atRiskTableWrap').style.display = 'block';
+
+  // Compute delta (last vs first non-null in trend)
+  patients.forEach(function(p) {
+    const vals = (p.trend || []).filter(v => v != null);
+    p._latest = vals.length ? vals[vals.length - 1] : null;
+    p._first  = vals.length ? vals[0] : null;
+    p._delta  = (p._latest != null && p._first != null) ? +(p._latest - p._first).toFixed(2) : null;
+  });
+
+  // Sort
+  patients.sort(function(a, b) {
+    let av, bv;
+    if (_arSortKey === 'name') { av = (a.name||'').toLowerCase(); bv = (b.name||'').toLowerCase(); }
+    else if (_arSortKey === 'delta') { av = a._delta ?? 9999; bv = b._delta ?? 9999; }
+    else { av = a._latest ?? 9999; bv = b._latest ?? 9999; } // 'value'
+
+    if (typeof av === 'number') return _arSortDir === 'asc' ? av - bv : bv - av;
+    return _arSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  // Update sort icons
+  ['name','value','delta'].forEach(function(k) {
+    const el = document.getElementById('arSort-' + k);
+    if (!el) return;
+    el.textContent = k !== _arSortKey ? 'unfold_more'
+      : (_arSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward');
+    el.style.opacity = k === _arSortKey ? '1' : '0.4';
+    el.style.color = k === _arSortKey ? 'var(--primary,#0ea5e9)' : '';
+  });
+
+  const param  = _arData.parameter;
+  const months = _arData.months || [];
+  const clr    = AT_RISK_CFG[param] || { color:'#6366f1', fill:'rgba(99,102,241,0.10)', threshold:null };
+
+  const tbody = document.getElementById('atRiskTbody');
+  tbody.innerHTML = '';
+
+  patients.forEach(function(p, rank) {
+    const latestStr = p._latest != null ? p._latest.toFixed(1) : '—';
+    const deltaStr  = p._delta  != null ? (p._delta > 0 ? '+' : '') + p._delta : '—';
+    const deltaColor = p._delta == null ? '#64748b' : (p._delta < 0 ? '#16a34a' : '#dc2626');
+
+    // Inline sparkline (SVG)
+    const vals = (p.trend || []).map(v => v != null ? v : null);
+    const defined = vals.filter(v => v != null);
+    let sparkSvg = '<span style="color:#94a3b8;font-size:0.75rem;">—</span>';
+    if (defined.length >= 2) {
+      const mn = Math.min(...defined) * 0.95, mx = Math.max(...defined) * 1.05;
+      const W = 70, H = 20;
+      const pts = vals.map(function(v, i) {
+        if (v == null) return null;
+        const x = (i / (vals.length - 1)) * W;
+        const y = H - ((v - mn) / (mx - mn || 1)) * H;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).filter(Boolean).join(' ');
+      sparkSvg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible;">
+        <polyline points="${pts}" fill="none" stroke="${clr.color}" stroke-width="2" stroke-linejoin="round"/>
+      </svg>`;
     }
 
-    chartDiv.style.display = "block";
-    emptyMsg.style.display = "none";
-    navDiv.style.display = "flex";
+    const isExpanded = _arExpandedIdx === rank;
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background 0.12s;';
+    tr.addEventListener('mouseenter', function() { this.style.background='#f8fafc'; });
+    tr.addEventListener('mouseleave', function() { this.style.background=''; });
+    tr.innerHTML = `
+      <td style="padding:10px 12px; color:#94a3b8; font-size:0.8rem; font-weight:700;">${rank+1}</td>
+      <td style="padding:10px 12px;">
+        <span style="font-weight:600; color:#0f172a;">${escHtmlAR(p.name)}</span>
+      </td>
+      <td style="padding:10px 12px;">
+        <span style="font-size:1rem; font-weight:700; color:${clr.color};">${latestStr}</span>
+      </td>
+      <td style="padding:10px 12px;">${sparkSvg}</td>
+      <td style="padding:10px 12px; font-weight:700; color:${deltaColor};">${deltaStr}</td>
+      <td style="padding:10px 12px; text-align:right;">
+        <a href="/patients/${p.id || '#'}/profile" onclick="event.stopPropagation()"
+           style="font-size:0.75rem; color:#0ea5e9; text-decoration:none; font-weight:600;"
+           title="Open patient profile">
+          <i class="material-icons" style="font-size:0.85rem;vertical-align:middle;">open_in_new</i>
+        </a>
+        <i class="material-icons" style="font-size:1rem;vertical-align:middle;color:#94a3b8;margin-left:6px;">
+          ${isExpanded ? 'expand_less' : 'expand_more'}
+        </i>
+      </td>`;
 
-    renderAtRiskTrend();
-  } catch (e) {
-    console.error("Failed to load at-risk trends:", e);
-  }
+    tr.addEventListener('click', function() { toggleAtRiskRow(rank, p, months, clr, param); });
+    tbody.appendChild(tr);
+
+    // Expanded detail row (hidden by default)
+    const expandTr = document.createElement('tr');
+    expandTr.id = 'arExpand-' + rank;
+    expandTr.style.display = isExpanded ? '' : 'none';
+    expandTr.innerHTML = `<td colspan="6" style="padding:0;">
+      <div id="arExpandChart-${rank}" style="height:200px; padding:8px 12px;"></div>
+    </td>`;
+    tbody.appendChild(expandTr);
+
+    if (isExpanded) {
+      requestAnimationFrame(function() { renderArExpandChart(rank, p, months, clr, param); });
+    }
+  });
 }
 
-function renderAtRiskTrend() {
-  const d      = atRiskData.patients[atRiskIdx];
-  const months = atRiskData.months;
-  const param  = atRiskData.parameter;
-  const clr    = AT_RISK_CFG[param] || { color: '#6366f1', fill: 'rgba(99,102,241,0.10)', threshold: null };
+function escHtmlAR(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
-  const nameEl = document.getElementById("atRiskPatientName");
-  nameEl.innerText = `${d.name} (${atRiskIdx+1}/${atRiskData.patients.length})`;
-  nameEl.href = d.id ? `/patients/${d.id}/profile` : '#';
-  nameEl.title = "View patient profile";
-  nameEl.style.textDecoration = d.id ? 'underline' : 'none';
+function toggleAtRiskRow(rank, p, months, clr, param) {
+  const prev = _arExpandedIdx;
+  _arExpandedIdx = prev === rank ? -1 : rank;
 
-  document.getElementById("atRiskPrevBtn").disabled = (atRiskIdx === 0);
-  document.getElementById("atRiskNextBtn").disabled = (atRiskIdx === atRiskData.patients.length - 1);
+  // Hide previous
+  if (prev >= 0) {
+    const prevRow = document.getElementById('arExpand-' + prev);
+    if (prevRow) prevRow.style.display = 'none';
+  }
 
-  const traces = [{
-    type: "scatter",
-    x: months,
-    y: d.trend,
-    mode: "lines+markers",
-    fill: "tozeroy", fillcolor: clr.fill,
-    line: { color: clr.color, width: 2.5, shape: "spline", smoothing: 0.6 },
-    marker: { color: "#fff", size: 9, line: { color: clr.color, width: 2.5 } },
-    hovertemplate: "<b>%{x}</b><br>Value: <b>%{y}</b><extra></extra>",
-    connectgaps: true,
-  }];
+  if (_arExpandedIdx >= 0) {
+    const newRow = document.getElementById('arExpand-' + rank);
+    if (newRow) {
+      newRow.style.display = '';
+      renderArExpandChart(rank, p, months, clr, param);
+    }
+  }
 
-  const shapes = clr.threshold !== null ? [{
-    type: 'line', xref: 'paper', yref: 'y',
-    x0: 0, x1: 1, y0: clr.threshold, y1: clr.threshold,
-    line: { color: clr.color, width: 1.5, dash: 'dot' }, opacity: 0.45,
+  // Re-render expand icons without full rebuild
+  document.querySelectorAll('#atRiskTbody tr:not([id])').forEach(function(tr, i) {
+    const icon = tr.querySelector('td:last-child i:last-child');
+    if (icon) icon.textContent = i === _arExpandedIdx ? 'expand_less' : 'expand_more';
+  });
+}
+
+function renderArExpandChart(rank, p, months, clr, param) {
+  const divId = 'arExpandChart-' + rank;
+  const shapes = clr.threshold != null ? [{
+    type:'line', xref:'paper', yref:'y',
+    x0:0, x1:1, y0:clr.threshold, y1:clr.threshold,
+    line:{ color:clr.color, width:1.5, dash:'dot' }, opacity:0.45,
   }] : [];
 
-  const layout = {
-    margin: { t: 16, b: 44, l: 55, r: 16 },
-    paper_bgcolor: "transparent", plot_bgcolor: "transparent",
-    yaxis: {
-      title: { text: param.replace(/_/g,' '), font: { size: 10, color: '#64748b' } },
-      gridcolor: "rgba(0,0,0,0.07)", zeroline: false, tickfont: { size: 11 },
-    },
-    xaxis: { gridcolor: "rgba(0,0,0,0.04)", tickangle: -30, tickfont: { size: 10 }, zeroline: false },
-    showlegend: false, font: FONT, shapes,
-  };
-
-  const chartEl = document.getElementById("atRiskTrendChart");
-  if (chartEl && chartEl._hasPlot) {
-    Plotly.react("atRiskTrendChart", traces, layout);
-  } else {
-    Plotly.newPlot("atRiskTrendChart", traces, layout, { displayModeBar: false, responsive: true });
-    if (chartEl) chartEl._hasPlot = true;
-  }
+  Plotly.newPlot(divId, [{
+    type:'scatter', x:months, y:p.trend,
+    mode:'lines+markers', fill:'tozeroy', fillcolor:clr.fill,
+    line:{ color:clr.color, width:2.5, shape:'spline', smoothing:0.6 },
+    marker:{ color:'#fff', size:8, line:{ color:clr.color, width:2.5 } },
+    hovertemplate:'<b>%{x}</b><br>%{y}<extra></extra>',
+    connectgaps: true,
+  }], {
+    margin:{ t:10, b:40, l:50, r:10 },
+    paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+    yaxis:{ title:{ text:AT_RISK_LABELS[param]||param, font:{size:10,color:'#64748b'} }, gridcolor:'rgba(0,0,0,0.07)', zeroline:false, tickfont:{size:10} },
+    xaxis:{ gridcolor:'rgba(0,0,0,0.04)', tickangle:-30, tickfont:{size:9}, zeroline:false },
+    showlegend:false, font:FONT, shapes,
+  }, { displayModeBar:false, responsive:true });
 }
 
-function navigateAtRiskPatient(dir) {
-  const n = atRiskIdx + dir;
-  if (n >= 0 && n < atRiskData.patients.length) {
-    atRiskIdx = n;
-    renderAtRiskTrend();
-  }
+function sortAtRiskTable(key) {
+  if (_arSortKey === key) { _arSortDir = _arSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { _arSortKey = key; _arSortDir = 'asc'; }
+  _arExpandedIdx = -1;
+  renderAtRiskTable();
 }
 
-loadAtRiskTrends();
+loadAtRiskTable();
 
 // ── REAL-TIME POLLING ──────────────────────────────────────────
 const POLL_INTERVAL_MS = 120000; // 2 minutes

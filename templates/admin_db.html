@@ -229,7 +229,11 @@
                                     <i class="material-icons" style="font-size:18px;">edit</i>
                                 </button>
                                 <!-- Delete form -->
-                                <form action="/admin/food-items/{{ item.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ item.name }}?')">
+                                <form action="/admin/food-items/{{ item.id }}/delete" method="POST"
+                                      data-confirm-name="{{ item.name }}"
+                                      data-confirm-type="delete"
+                                      data-confirm-message="This food item will be removed from the clinical nutrition dictionary."
+                                      style="display:inline;">
                                     <button type="submit" style="background:none; border:none; color:#dc2626; cursor:pointer; padding:4px;">
                                         <i class="material-icons" style="font-size:18px;">delete</i>
                                     </button>
@@ -256,7 +260,11 @@
                 This tool automatically purges pure western brand entries and fast food descriptions while safely preserving base ingredients (milk, chicken, wheat, apple, banana, tea, etc.) and regional specialties.
             </div>
             
-            <form action="/admin/db/strip-western" method="POST" onsubmit="return confirm('Are you sure you want to strip all pure western brands and processed foods from the master clinical food dictionary? This will clean up autocomplete search results.');">
+            <form action="/admin/db/strip-western" method="POST"
+                  data-confirm-name="western food data"
+                  data-confirm-type="delete"
+                  data-confirm-message="All pure western brand and processed food entries will be permanently purged from the clinical nutrition dictionary. Base ingredients and regional foods are preserved."
+                  data-confirm-danger>
                 <button type="submit" class="btn" style="background:#e11d48; color:white; font-weight:700;">
                     <i class="material-icons">delete_sweep</i> Strip Pure Western Food Data
                 </button>
@@ -285,7 +293,11 @@
                 Upload a previously downloaded JSON backup file to restore your data.
             </p>
             
-            <form action="/admin/db/import" method="POST" enctype="multipart/form-data" id="restoreForm">
+            <form action="/admin/db/import" method="POST" enctype="multipart/form-data" id="restoreForm"
+                  data-confirm-name="database"
+                  data-confirm-type="restore"
+                  data-confirm-message="This will overwrite or merge existing records with the backup file. Download a fresh backup first as a safety net."
+                  data-confirm-danger>
                 <label class="upload-zone" for="backup_file">
                     <i class="material-icons" style="font-size: 48px; color: var(--text-muted); margin-bottom: 12px;">upload_file</i>
                     <div id="file-name" style="font-weight: 600; color: var(--text-header);">Click to select backup file</div>
@@ -300,7 +312,7 @@
                 </ul>
 
                 <div class="action-area">
-                    <button type="submit" class="btn btn-primary" onclick="return confirm('WARNING: You are about to initiate a database restoration. This will overwrite/merge records. Are you sure?')">
+                    <button type="submit" class="btn btn-primary">
                         <i class="material-icons">restore</i> Start Restoration
                     </button>
                 </div>

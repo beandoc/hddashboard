@@ -19,7 +19,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("", response_class=HTMLResponse)
-async def patient_list(request: Request, month: Optional[str] = None, filter: Optional[str] = None, db: Session = Depends(get_db)):
+async def patient_list(
+    request: Request,
+    month: Optional[str] = None,
+    filter: Optional[str] = None,
+    sort: Optional[str] = None,
+    dir: Optional[str] = None,
+    chip: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     month_str, data_note = get_effective_month(db, month)
     try:
         data = compute_dashboard(db, month_str)
@@ -29,12 +37,12 @@ async def patient_list(request: Request, month: Optional[str] = None, filter: Op
         data = {"patient_rows": [], "metrics": {}, "data_note": data_note}
 
     query = db.query(Patient).filter(Patient.is_active == True)
-    
+
     if filter == "Male":
         query = query.filter(Patient.sex == "Male")
     elif filter == "Female":
         query = query.filter(Patient.sex == "Female")
-        
+
     patients = query.order_by(Patient.name).all()
     patients_by_id = {p.id: p for p in patients}
 
@@ -48,7 +56,10 @@ async def patient_list(request: Request, month: Optional[str] = None, filter: Op
         "current_month": _current_month,
         "current_month_label": get_month_label(_current_month),
         "user": get_user(request),
-        "active_filter": filter
+        "active_filter": filter,
+        "active_sort": sort or "name",
+        "active_dir": dir or "asc",
+        "active_chip": chip or "",
     })
 
 @router.get("/new", response_class=HTMLResponse)

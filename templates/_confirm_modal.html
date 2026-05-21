@@ -1,0 +1,199 @@
+<!-- ═══════════════ Shared Destructive-Action Confirm Modal ═══════════════
+  Usage:
+    <form data-confirm-name="John Doe"
+          data-confirm-message="Monthly records will be preserved."
+          data-confirm-type="delete"          ← delete | deactivate | restore
+          [data-confirm-danger]               ← add to require typing DELETE
+          method="POST" action="...">
+
+  JS engine is self-contained below. No per-page duplication needed.
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="confirm-modal"
+     style="display:none; position:fixed; inset:0; z-index:9998;
+            background:rgba(15,23,42,0.72); backdrop-filter:blur(4px);
+            align-items:center; justify-content:center; padding:20px;"
+     role="dialog" aria-modal="true" aria-labelledby="cm-title">
+
+  <div style="background:#fff; border-radius:18px; max-width:460px; width:100%;
+              box-shadow:0 25px 60px rgba(0,0,0,0.3); overflow:hidden;
+              animation:cmSlide 0.2s ease-out;">
+
+    <!-- Header -->
+    <div id="cm-header" style="padding:22px 24px 16px; border-bottom:1px solid #f1f5f9;">
+      <div style="display:flex; align-items:flex-start; gap:14px;">
+        <div id="cm-icon-wrap" style="width:44px; height:44px; border-radius:12px; flex-shrink:0;
+             display:flex; align-items:center; justify-content:center; background:#fef2f2;">
+          <i id="cm-icon" class="material-icons" style="color:#dc2626; font-size:1.4rem;">delete_forever</i>
+        </div>
+        <div>
+          <h3 id="cm-title" style="margin:0 0 4px; font-family:'Outfit',sans-serif;
+               font-size:1.1rem; font-weight:800; color:#0f172a;"></h3>
+          <p id="cm-subtitle" style="margin:0; font-size:0.82rem; color:#64748b;"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:18px 24px;">
+      <p id="cm-body" style="margin:0 0 14px; font-size:0.9rem; color:#374151; line-height:1.6;"></p>
+
+      <!-- Danger: require typing DELETE -->
+      <div id="cm-danger-wrap" style="display:none; background:#fef2f2; border:1px solid #fecaca;
+           border-radius:12px; padding:14px 16px; margin-top:4px;">
+        <p style="margin:0 0 10px; font-size:0.82rem; color:#991b1b; font-weight:600;">
+          <i class="material-icons" style="font-size:0.9rem; vertical-align:middle;">warning</i>
+          This action is permanent and cannot be undone.
+          Type <strong>DELETE</strong> to confirm:
+        </p>
+        <input type="text" id="cm-danger-input" placeholder="DELETE"
+               autocomplete="off" autocorrect="off" spellcheck="false"
+               style="width:100%; padding:10px 14px; border:2px solid #fca5a5;
+                      border-radius:10px; box-sizing:border-box; font-size:0.95rem;
+                      font-family:'Inter',sans-serif; outline:none; transition:border-color 0.2s;"
+               oninput="cmOnDangerInput()"
+               onfocus="this.style.borderColor='#ef4444'"
+               onblur="this.style.borderColor='#fca5a5'">
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:0 24px 20px; display:flex; gap:10px; justify-content:flex-end;">
+      <button id="cm-cancel" type="button"
+              onclick="cmClose()"
+              style="padding:10px 20px; background:#f1f5f9; color:#475569;
+                     border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;
+                     font-size:0.9rem; font-weight:600; font-family:'Inter',sans-serif;
+                     transition:background 0.15s;">
+        Cancel
+      </button>
+      <button id="cm-confirm" type="button"
+              onclick="cmConfirm()"
+              style="padding:10px 22px; background:#dc2626; color:#fff;
+                     border:none; border-radius:10px; cursor:pointer;
+                     font-size:0.9rem; font-weight:700; font-family:'Outfit',sans-serif;
+                     transition:all 0.15s; display:flex; align-items:center; gap:6px;
+                     box-shadow:0 4px 12px rgba(220,38,38,0.25);">
+        <i id="cm-confirm-icon" class="material-icons" style="font-size:1rem;">delete_forever</i>
+        <span id="cm-confirm-label">Delete</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes cmSlide {
+    from { opacity:0; transform:scale(0.96) translateY(-8px); }
+    to   { opacity:1; transform:scale(1)    translateY(0);    }
+  }
+  #cm-cancel:hover  { background:#e2e8f0 !important; }
+  #cm-confirm:hover:not(:disabled) { background:#b91c1c !important; transform:translateY(-1px); }
+  #cm-confirm:disabled { opacity:0.4; cursor:not-allowed; transform:none !important; box-shadow:none !important; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  let _pendingForm = null;
+
+  const TYPE_CONFIG = {
+    delete:     { icon:'delete_forever', iconBg:'#fef2f2', iconColor:'#dc2626', btnBg:'#dc2626', btnHover:'#b91c1c', label:'Delete',     title:'Delete',     subtitle:'This will permanently remove the record.' },
+    deactivate: { icon:'pause_circle',   iconBg:'#fffbeb', iconColor:'#d97706', btnBg:'#d97706', btnHover:'#b45309', label:'Deactivate', title:'Deactivate', subtitle:'The record will be paused but data preserved.' },
+    restore:    { icon:'restore',        iconBg:'#f0fdf4', iconColor:'#16a34a', btnBg:'#16a34a', btnHover:'#15803d', label:'Restore',    title:'Restore',    subtitle:'This will overwrite or merge existing records.' },
+  };
+
+  function cmOpen(form) {
+    const name    = form.dataset.confirmName    || 'this record';
+    const msg     = form.dataset.confirmMessage || '';
+    const type    = form.dataset.confirmType    || 'delete';
+    const danger  = ('confirmDanger' in form.dataset);
+    const cfg     = TYPE_CONFIG[type] || TYPE_CONFIG.delete;
+
+    // Set header
+    document.getElementById('cm-title').textContent    = cfg.title + ' ' + name + '?';
+    document.getElementById('cm-subtitle').textContent = cfg.subtitle;
+    document.getElementById('cm-icon').textContent     = cfg.icon;
+    document.getElementById('cm-icon-wrap').style.background = cfg.iconBg;
+    document.getElementById('cm-icon').style.color    = cfg.iconColor;
+
+    // Body message
+    document.getElementById('cm-body').textContent = msg || '';
+    document.getElementById('cm-body').style.display = msg ? 'block' : 'none';
+
+    // Confirm button styling
+    const btn = document.getElementById('cm-confirm');
+    btn.style.background = cfg.btnBg;
+    btn.style.boxShadow  = '0 4px 12px ' + cfg.btnBg + '66';
+    document.getElementById('cm-confirm-icon').textContent  = cfg.icon;
+    document.getElementById('cm-confirm-label').textContent = cfg.label;
+
+    // Danger input
+    const dWrap = document.getElementById('cm-danger-wrap');
+    const dInp  = document.getElementById('cm-danger-input');
+    if (danger) {
+      dWrap.style.display = 'block';
+      dInp.value          = '';
+      btn.disabled        = true;
+    } else {
+      dWrap.style.display = 'none';
+      btn.disabled        = false;
+    }
+
+    _pendingForm = form;
+    const modal = document.getElementById('confirm-modal');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // Focus: danger input or cancel button
+    setTimeout(() => { (danger ? dInp : document.getElementById('cm-cancel')).focus(); }, 80);
+  }
+
+  window.cmOnDangerInput = function () {
+    const val = document.getElementById('cm-danger-input').value;
+    document.getElementById('cm-confirm').disabled = (val !== 'DELETE');
+  };
+
+  window.cmClose = function () {
+    document.getElementById('confirm-modal').style.display = 'none';
+    document.body.style.overflow = '';
+    _pendingForm = null;
+  };
+
+  window.cmConfirm = function () {
+    if (!_pendingForm) return;
+    const f = _pendingForm;
+    cmClose();
+    // Skip our interceptor on next submit
+    f._cmConfirmed = true;
+    // Use requestSubmit if available (triggers form validation), else submit()
+    if (f.requestSubmit) f.requestSubmit(); else f.submit();
+  };
+
+  // Keyboard: Escape closes, Enter confirms when not danger
+  document.addEventListener('keydown', function (e) {
+    const modal = document.getElementById('confirm-modal');
+    if (!modal || modal.style.display === 'none') return;
+    if (e.key === 'Escape') { e.preventDefault(); cmClose(); }
+    if (e.key === 'Enter') {
+      const btn = document.getElementById('cm-confirm');
+      if (!btn.disabled) { e.preventDefault(); cmConfirm(); }
+    }
+  });
+
+  // Click backdrop to close
+  document.getElementById('confirm-modal').addEventListener('click', function (e) {
+    if (e.target === this) cmClose();
+  });
+
+  // Wire up all forms with data-confirm-name
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('form[data-confirm-name]').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        if (form._cmConfirmed) { form._cmConfirmed = false; return; }
+        e.preventDefault();
+        cmOpen(form);
+      });
+    });
+  });
+})();
+</script>

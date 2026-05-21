@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Patient Analytics | HD Dashboard</title>  <script src="/static/vendor/js/chart.min.js"></script>
+  <title>{% if patient %}{{ patient.name }} — Analytics{% else %}Patient Analytics{% endif %} | HD Dashboard</title>  <script src="/static/vendor/js/chart.min.js"></script>
   
   <style>
     :root {
@@ -164,6 +164,7 @@
 <body>
 
   {% include "_nav.html" %}
+  {% include "_patient_context_nav.html" %}
 <nav class="nav-breadcrumb" aria-label="Breadcrumb">
   <a href="/">Dashboard</a>
   <span class="bc-sep">/</span>
@@ -753,7 +754,10 @@
           {% if ev.notes %}<div style="font-size:0.83rem;color:#64748b;margin-top:4px;font-style:italic;">"{{ ev.notes }}"</div>{% endif %}
           {% if ev.created_by %}<div style="font-size:0.72rem;color:#cbd5e1;margin-top:2px;">by {{ ev.created_by }}</div>{% endif %}
         </div>
-        <form method="POST" action="/events/{{ ev.id }}/delete" onsubmit="return confirm('Delete this event?')">
+        <form method="POST" action="/events/{{ ev.id }}/delete"
+              data-confirm-name="{{ ev.event_type or 'clinical event' }}"
+              data-confirm-type="delete"
+              data-confirm-message="This clinical event will be permanently removed from analytics.">
           <button type="submit" style="background:none;border:none;cursor:pointer;color:#e2e8f0;padding:2px;" title="Delete">
             <i class="material-icons" style="font-size:0.95rem;">delete_outline</i>
           </button>

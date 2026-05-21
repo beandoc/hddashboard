@@ -25,8 +25,10 @@
   '/events' in _path
 ) %}
 {% set _analytics_active = '/analytics' in _path or '/research' in _path %}
+{% set _analytics_sub_active = '/analytics/' in _path and '/analytics/patients' not in _path %}
 {% set _ops_active = '/schedule' in _path or '/entry' in _path or '/alerts' in _path %}
-{% set _admin_active = '/admin' in _path or '/variables/manager' in _path %}
+{% set _admin_active = '/admin' in _path or '/variables/manager' in _path or '/analytics/admin' in _path %}
+{% set _system_active = '/admin/system' in _path or '/analytics/admin' in _path or '/admin/run-migration' in _path %}
 
 <div class="app-nav">
   <a href="/" class="brand">CH(SC) · Nephrology Unit</a>
@@ -46,7 +48,7 @@
             <i class="material-icons">fact_check</i> Review Queue
           </a>
           <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
-            <i class="material-icons">people</i> Patients
+            <i class="material-icons">people</i> All Patients
           </a>
           <div class="dd-divider"></div>
           <a href="/events" class="{{ 'active' if '/events' in _path }}">
@@ -60,12 +62,60 @@
           Analytics <span class="chevron">expand_more</span>
         </button>
         <div class="nav-dropdown">
-          <a href="/analytics" class="{{ 'active' if '/analytics' in _path and '/research' not in _path }}">
-            <i class="material-icons">analytics</i> Analytics Hub
+          <div class="dd-sub-group {{ 'open' if _analytics_sub_active or _path == '/analytics' }}" id="dsg-overview">
+            <div class="dd-sub-header">
+              <a href="/analytics" class="dd-sub-main-link {{ 'active' if _path == '/analytics' }}">
+                <i class="material-icons" style="font-size:15px;opacity:0.6">analytics</i> Overview
+              </a>
+              <button class="dd-sub-expand-btn" onclick="toggleSubGroup('dsg-overview', event)" aria-label="Expand sub-reports">
+                <i class="material-icons dd-sub-chevron">expand_more</i>
+              </button>
+            </div>
+            <div class="dd-sub-items">
+              <a href="/analytics/mortality-risk" class="{{ 'active' if '/analytics/mortality-risk' in _path }}">
+                <i class="material-icons">monitor_heart</i> Mortality Risk
+              </a>
+              <a href="/analytics/hb-variability" class="{{ 'active' if '/analytics/hb-variability' in _path }}">
+                <i class="material-icons">show_chart</i> Hb Variability
+              </a>
+              <a href="/analytics/adherence" class="{{ 'active' if '/analytics/adherence' in _path }}">
+                <i class="material-icons">fact_check</i> Adherence
+              </a>
+              <a href="/analytics/census" class="{{ 'active' if '/analytics/census' in _path }}">
+                <i class="material-icons">groups</i> Census
+              </a>
+              <a href="/analytics/vascular-access" class="{{ 'active' if '/analytics/vascular-access' in _path }}">
+                <i class="material-icons">device_hub</i> Vascular Access
+              </a>
+              <a href="/analytics/krcrw" class="{{ 'active' if '/analytics/krcrw' in _path }}">
+                <i class="material-icons">water_drop</i> KRCRW Modeler
+              </a>
+              <a href="/analytics/phosphate-modeling" class="{{ 'active' if '/analytics/phosphate-modeling' in _path }}">
+                <i class="material-icons">science</i> Phosphate Modeler
+              </a>
+              <a href="/analytics/urea-modeling" class="{{ 'active' if '/analytics/urea-modeling' in _path }}">
+                <i class="material-icons">biotech</i> Urea Modeler
+              </a>
+            </div>
+          </div>
+          <a href="/analytics/patients" class="{{ 'active' if '/analytics/patients' in _path }}">
+            <i class="material-icons">person_search</i> Patient Analytics
           </a>
-          <a href="/research" class="{{ 'active' if '/research' in _path }}">
-            <i class="material-icons">science</i> Research Hub
-          </a>
+          <div class="dd-divider"></div>
+          <div class="dd-sub-group {{ 'open' if '/research' in _path }}" id="dsg-research">
+            <button class="dd-sub-toggle" onclick="toggleSubGroup('dsg-research', event)">
+              <i class="material-icons" style="font-size:15px;opacity:0.6">science</i> Research
+              <i class="material-icons dd-sub-chevron">expand_more</i>
+            </button>
+            <div class="dd-sub-items">
+              <a href="/research" class="{{ 'active' if '/research' in _path and '/research/stats' not in _path }}">
+                <i class="material-icons">folder_open</i> Projects
+              </a>
+              <a href="/research/stats" class="{{ 'active' if '/research/stats' in _path }}">
+                <i class="material-icons">bar_chart</i> Statistics
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -74,11 +124,11 @@
           Operations <span class="chevron">expand_more</span>
         </button>
         <div class="nav-dropdown">
-          <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
-            <i class="material-icons">event</i> Schedule
-          </a>
           <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
             <i class="material-icons">edit_note</i> Data Entry
+          </a>
+          <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
+            <i class="material-icons">event</i> Schedule
           </a>
           <div class="dd-divider"></div>
           <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
@@ -92,12 +142,12 @@
       <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
 
       <div class="nav-group" id="ng-clinical">
-        <button class="nav-group-btn {{ 'active-group' if ('/patients' in _path or '/events' in _path) }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if '/patients' in _path or '/events' in _path }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
           Clinical <span class="chevron">expand_more</span>
         </button>
         <div class="nav-dropdown">
           <a href="/patients" class="{{ 'active' if '/patients' in _path }}">
-            <i class="material-icons">people</i> Patients
+            <i class="material-icons">people</i> All Patients
           </a>
           <a href="/events" class="{{ 'active' if '/events' in _path }}">
             <i class="material-icons">notification_important</i> Clinical Events
@@ -123,8 +173,19 @@
         </div>
       </div>
 
-      <a href="/research" class="{{ 'active' if '/research' in _path }}">Research Hub</a>
-      {# Research Hub kept as a lightweight standalone — staff may contribute records but it is not a primary workflow #}
+      <div class="nav-group" id="ng-research">
+        <button class="nav-group-btn {{ 'active-group' if '/research' in _path }}" onclick="toggleGroup('ng-research', event)" aria-haspopup="true">
+          Research <span class="chevron">expand_more</span>
+        </button>
+        <div class="nav-dropdown">
+          <a href="/research" class="{{ 'active' if '/research' in _path and '/research/stats' not in _path }}">
+            <i class="material-icons">folder_open</i> Projects
+          </a>
+          <a href="/research/stats" class="{{ 'active' if '/research/stats' in _path }}">
+            <i class="material-icons">bar_chart</i> Statistics
+          </a>
+        </div>
+      </div>
 
     {# ─── ADMIN ─── #}
     {% elif _cur_role == 'admin' %}
@@ -139,7 +200,7 @@
             <i class="material-icons">fact_check</i> Review Queue
           </a>
           <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
-            <i class="material-icons">people</i> Patients
+            <i class="material-icons">people</i> All Patients
           </a>
           <div class="dd-divider"></div>
           <a href="/events" class="{{ 'active' if '/events' in _path }}">
@@ -153,12 +214,60 @@
           Analytics <span class="chevron">expand_more</span>
         </button>
         <div class="nav-dropdown">
-          <a href="/analytics" class="{{ 'active' if '/analytics' in _path and '/research' not in _path }}">
-            <i class="material-icons">analytics</i> Analytics Hub
+          <div class="dd-sub-group {{ 'open' if _analytics_sub_active or _path == '/analytics' }}" id="dsg-overview">
+            <div class="dd-sub-header">
+              <a href="/analytics" class="dd-sub-main-link {{ 'active' if _path == '/analytics' }}">
+                <i class="material-icons" style="font-size:15px;opacity:0.6">analytics</i> Overview
+              </a>
+              <button class="dd-sub-expand-btn" onclick="toggleSubGroup('dsg-overview', event)" aria-label="Expand sub-reports">
+                <i class="material-icons dd-sub-chevron">expand_more</i>
+              </button>
+            </div>
+            <div class="dd-sub-items">
+              <a href="/analytics/mortality-risk" class="{{ 'active' if '/analytics/mortality-risk' in _path }}">
+                <i class="material-icons">monitor_heart</i> Mortality Risk
+              </a>
+              <a href="/analytics/hb-variability" class="{{ 'active' if '/analytics/hb-variability' in _path }}">
+                <i class="material-icons">show_chart</i> Hb Variability
+              </a>
+              <a href="/analytics/adherence" class="{{ 'active' if '/analytics/adherence' in _path }}">
+                <i class="material-icons">fact_check</i> Adherence
+              </a>
+              <a href="/analytics/census" class="{{ 'active' if '/analytics/census' in _path }}">
+                <i class="material-icons">groups</i> Census
+              </a>
+              <a href="/analytics/vascular-access" class="{{ 'active' if '/analytics/vascular-access' in _path }}">
+                <i class="material-icons">device_hub</i> Vascular Access
+              </a>
+              <a href="/analytics/krcrw" class="{{ 'active' if '/analytics/krcrw' in _path }}">
+                <i class="material-icons">water_drop</i> KRCRW Modeler
+              </a>
+              <a href="/analytics/phosphate-modeling" class="{{ 'active' if '/analytics/phosphate-modeling' in _path }}">
+                <i class="material-icons">science</i> Phosphate Modeler
+              </a>
+              <a href="/analytics/urea-modeling" class="{{ 'active' if '/analytics/urea-modeling' in _path }}">
+                <i class="material-icons">biotech</i> Urea Modeler
+              </a>
+            </div>
+          </div>
+          <a href="/analytics/patients" class="{{ 'active' if '/analytics/patients' in _path }}">
+            <i class="material-icons">person_search</i> Patient Analytics
           </a>
-          <a href="/research" class="{{ 'active' if '/research' in _path }}">
-            <i class="material-icons">science</i> Research Hub
-          </a>
+          <div class="dd-divider"></div>
+          <div class="dd-sub-group {{ 'open' if '/research' in _path }}" id="dsg-research">
+            <button class="dd-sub-toggle" onclick="toggleSubGroup('dsg-research', event)">
+              <i class="material-icons" style="font-size:15px;opacity:0.6">science</i> Research
+              <i class="material-icons dd-sub-chevron">expand_more</i>
+            </button>
+            <div class="dd-sub-items">
+              <a href="/research" class="{{ 'active' if '/research' in _path and '/research/stats' not in _path }}">
+                <i class="material-icons">folder_open</i> Projects
+              </a>
+              <a href="/research/stats" class="{{ 'active' if '/research/stats' in _path }}">
+                <i class="material-icons">bar_chart</i> Statistics
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -167,11 +276,11 @@
           Operations <span class="chevron">expand_more</span>
         </button>
         <div class="nav-dropdown">
+          <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
+            <i class="material-icons">edit_note</i> Data Entry
+          </a>
           <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
             <i class="material-icons">event</i> Schedule
-          </a>
-          <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
-            <i class="material-icons">edit_note</i> Entry
           </a>
           <div class="dd-divider"></div>
           <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
@@ -186,13 +295,17 @@
         </button>
         <div class="nav-dropdown">
           <a href="/admin/users" class="dd-admin {{ 'active' if '/admin/users' in _path }}">
-            <i class="material-icons">manage_accounts</i> Users
+            <i class="material-icons">manage_accounts</i> User Management
           </a>
           <a href="/admin/backup" class="dd-admin {{ 'active' if '/admin/backup' in _path }}">
             <i class="material-icons">storage</i> Database
           </a>
           <a href="/variables/manager" class="dd-admin {{ 'active' if '/variables/manager' in _path }}">
-            <i class="material-icons">settings_input_component</i> Lab Config
+            <i class="material-icons">settings_input_component</i> Research Variables
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/admin/system" class="dd-admin {{ 'active' if _system_active }}">
+            <i class="material-icons">settings</i> System
           </a>
         </div>
       </div>
@@ -216,10 +329,243 @@
     {% endif %}
   </div>
 
+  {% if user and user.role in ['doctor', 'admin', 'staff'] %}
+  <button class="cmd-k-trigger" id="cmdKTrigger" onclick="openCmdK()" title="Search patients (Cmd+K)" aria-label="Open patient search">
+    <i class="material-icons" style="font-size:1rem;">search</i>
+    <span class="cmd-k-hint">Cmd+K</span>
+  </button>
+  {% endif %}
+
   <button class="mobile-menu-btn" onclick="toggleDrawer()" aria-label="Open navigation">
     <i class="material-icons">menu</i>
   </button>
 </div>
+
+<!-- ═══════════════ Cmd+K Patient Search Palette ═══════════════ -->
+{% if user and user.role in ['doctor', 'admin', 'staff'] %}
+<div id="cmdKOverlay" class="cmdk-overlay" role="dialog" aria-modal="true" aria-label="Patient search"
+     onclick="if(event.target===this)closeCmdK()">
+  <div class="cmdk-panel">
+    <div class="cmdk-search-row">
+      <i class="material-icons cmdk-search-icon">search</i>
+      <input type="text" id="cmdKInput" class="cmdk-input"
+             placeholder="Search patient name or HID…"
+             autocomplete="off" spellcheck="false"
+             oninput="onCmdKInput(this.value)"
+             onkeydown="onCmdKKeydown(event)"
+             aria-autocomplete="list"
+             aria-controls="cmdKResults">
+      <kbd class="cmdk-esc-hint">Esc</kbd>
+    </div>
+    <div id="cmdKResults" class="cmdk-results" role="listbox" aria-live="polite">
+      <div class="cmdk-empty" id="cmdKEmpty">Type to search patients…</div>
+    </div>
+  </div>
+</div>
+
+<style>
+.cmd-k-trigger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; margin-right: 6px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px; cursor: pointer; color: rgba(255,255,255,0.7);
+  font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+.cmd-k-trigger:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.25); color: #fff; }
+.cmd-k-hint { font-size: 0.72rem; opacity: 0.65; }
+@media (max-width: 640px) { .cmd-k-hint { display: none; } .cmd-k-trigger { padding: 5px 8px; } }
+
+.cmdk-overlay {
+  display: none; position: fixed; inset: 0; z-index: 10100;
+  background: rgba(15,23,42,0.65); backdrop-filter: blur(6px);
+  align-items: flex-start; justify-content: center; padding-top: 12vh;
+}
+.cmdk-overlay.open { display: flex; }
+.cmdk-panel {
+  background: #fff; border-radius: 16px; width: 100%; max-width: 560px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.28); overflow: hidden;
+  animation: cmdk-in 0.18s cubic-bezier(0.16,1,0.3,1) both;
+}
+[data-theme="dark"] .cmdk-panel { background: #1e293b; border: 1px solid #334155; }
+@keyframes cmdk-in { from { opacity:0; transform:scale(0.96) translateY(-8px); } to { opacity:1; transform:scale(1) translateY(0); } }
+
+.cmdk-search-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 18px; border-bottom: 1px solid #e2e8f0;
+}
+[data-theme="dark"] .cmdk-search-row { border-color: #334155; }
+.cmdk-search-icon { color: #94a3b8; font-size: 1.2rem; flex-shrink: 0; }
+.cmdk-input {
+  flex: 1; border: none; outline: none; font-size: 1.05rem; font-family: 'Inter', sans-serif;
+  background: transparent; color: #0f172a;
+}
+[data-theme="dark"] .cmdk-input { color: #f1f5f9; }
+.cmdk-input::placeholder { color: #94a3b8; }
+.cmdk-esc-hint {
+  font-size: 0.72rem; padding: 3px 7px; background: #f1f5f9; border: 1px solid #e2e8f0;
+  border-radius: 5px; color: #64748b; font-family: 'Inter', sans-serif; flex-shrink: 0;
+}
+[data-theme="dark"] .cmdk-esc-hint { background: #334155; border-color: #475569; color: #94a3b8; }
+
+.cmdk-results { max-height: 380px; overflow-y: auto; padding: 8px 0; }
+.cmdk-empty { padding: 24px 20px; text-align: center; color: #94a3b8; font-size: 0.88rem; }
+
+.cmdk-result {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 18px; cursor: pointer; text-decoration: none;
+  border-radius: 0; transition: background 0.1s; outline: none;
+}
+.cmdk-result:hover, .cmdk-result[aria-selected="true"] {
+  background: #f0f9ff;
+}
+[data-theme="dark"] .cmdk-result:hover,
+[data-theme="dark"] .cmdk-result[aria-selected="true"] { background: #0f172a; }
+.cmdk-result-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.cmdk-result-icon i { color: #fff; font-size: 1rem; }
+.cmdk-result-main { flex: 1; min-width: 0; }
+.cmdk-result-name { font-weight: 600; font-size: 0.92rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-theme="dark"] .cmdk-result-name { color: #f1f5f9; }
+.cmdk-result-meta { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+.cmdk-risk-badge {
+  font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.cmdk-risk-high { background: #fee2e2; color: #dc2626; }
+.cmdk-risk-moderate { background: #fef3c7; color: #d97706; }
+.cmdk-risk-stable { background: #dcfce7; color: #16a34a; }
+.cmdk-risk-unknown { background: #f1f5f9; color: #64748b; }
+
+.cmdk-loading { padding: 20px; text-align: center; }
+.cmdk-loading-spinner {
+  width: 20px; height: 20px; border: 2px solid #e2e8f0; border-top-color: #0ea5e9;
+  border-radius: 50%; animation: cmdk-spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes cmdk-spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+(function () {
+  'use strict';
+  let _debounce = null;
+  let _activeIdx = -1;
+  let _results = [];
+
+  function openCmdK() {
+    var ov = document.getElementById('cmdKOverlay');
+    if (!ov) return;
+    ov.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { document.getElementById('cmdKInput').focus(); }, 50);
+    _activeIdx = -1;
+    _results = [];
+  }
+  function closeCmdK() {
+    var ov = document.getElementById('cmdKOverlay');
+    if (!ov) return;
+    ov.classList.remove('open');
+    document.body.style.overflow = '';
+    document.getElementById('cmdKInput').value = '';
+    renderEmpty('Type to search patients…');
+    _activeIdx = -1;
+    _results = [];
+  }
+  function renderEmpty(msg) {
+    document.getElementById('cmdKResults').innerHTML =
+      '<div class="cmdk-empty">' + msg + '</div>';
+  }
+  function renderLoading() {
+    document.getElementById('cmdKResults').innerHTML =
+      '<div class="cmdk-loading"><div class="cmdk-loading-spinner"></div></div>';
+  }
+  function renderResults(items) {
+    _results = items;
+    _activeIdx = -1;
+    var el = document.getElementById('cmdKResults');
+    if (!items.length) { renderEmpty('No patients found'); return; }
+    var html = '';
+    var riskLabel = { high:'High Risk', moderate:'Moderate', stable:'Stable', unknown:'No Data' };
+    items.forEach(function (p, i) {
+      var hb = p.last_hb != null ? p.last_hb + ' g/dL' : '—';
+      html += '<a href="/patients/' + p.id + '/profile" class="cmdk-result"'
+        + ' role="option" data-idx="' + i + '" aria-selected="false"'
+        + ' onmouseenter="setActive(' + i + ')">'
+        + '<div class="cmdk-result-icon"><i class="material-icons">person</i></div>'
+        + '<div class="cmdk-result-main">'
+        + '<div class="cmdk-result-name">' + escHtml(p.name) + '</div>'
+        + '<div class="cmdk-result-meta">HID: ' + escHtml(p.hid_no || '—') + ' · Hb: ' + hb + '</div>'
+        + '</div>'
+        + '<span class="cmdk-risk-badge cmdk-risk-' + p.risk_level + '">'
+        + riskLabel[p.risk_level] + '</span>'
+        + '</a>';
+    });
+    el.innerHTML = html;
+    el.setAttribute('aria-live', 'polite');
+  }
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function setActive(idx) {
+    _activeIdx = idx;
+    document.querySelectorAll('#cmdKResults .cmdk-result').forEach(function (el, i) {
+      el.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+    });
+  }
+  window.onCmdKInput = function (val) {
+    clearTimeout(_debounce);
+    if (!val.trim()) { renderEmpty('Type to search patients…'); return; }
+    renderLoading();
+    _debounce = setTimeout(function () {
+      fetch('/api/v1/patients/search?q=' + encodeURIComponent(val.trim()) + '&limit=8')
+        .then(function (r) { return r.json(); })
+        .then(function (d) { renderResults(d.results || []); })
+        .catch(function () { renderEmpty('Search failed — try again'); });
+    }, 200);
+  };
+  window.onCmdKKeydown = function (e) {
+    var items = document.querySelectorAll('#cmdKResults .cmdk-result');
+    if (e.key === 'Escape') { closeCmdK(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      var next = Math.min(_activeIdx + 1, items.length - 1);
+      setActive(next);
+      if (items[next]) items[next].scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      var prev = Math.max(_activeIdx - 1, 0);
+      setActive(prev);
+      if (items[prev]) items[prev].scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (_activeIdx >= 0 && items[_activeIdx]) {
+        window.location.href = items[_activeIdx].getAttribute('href');
+      } else if (items.length === 1) {
+        window.location.href = items[0].getAttribute('href');
+      }
+    }
+  };
+  window.openCmdK = openCmdK;
+  window.closeCmdK = closeCmdK;
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      var ov = document.getElementById('cmdKOverlay');
+      if (ov && ov.classList.contains('open')) closeCmdK();
+      else openCmdK();
+    }
+  });
+})();
+</script>
+{% endif %}
 
 <!-- ═══════════════ Mobile Full-Screen Drawer ═══════════════ -->
 <div class="mobile-drawer" id="mobileDrawer">
@@ -237,26 +583,9 @@
       <i class="material-icons">dashboard</i> Dashboard
     </a>
 
-    {# ── Clinical section ── #}
-    {% if _cur_role in ['doctor', 'admin'] %}
-    <div class="drawer-section {{ 'open' if _clinical_active }}" id="ds-clinical">
-      <button class="drawer-section-toggle {{ 'active-section' if _clinical_active }}" onclick="toggleDrawerSection('ds-clinical')">
-        <span>Clinical</span>
-        <i class="material-icons chevron">expand_more</i>
-      </button>
-      <div class="drawer-section-body">
-        <a href="/review" class="drawer-highlight-link {{ 'active' if '/review' in _path }}">
-          <i class="material-icons">fact_check</i> Review Queue
-        </a>
-        <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
-          <i class="material-icons">people</i> Patients
-        </a>
-        <a href="/events" class="{{ 'active' if '/events' in _path }}">
-          <i class="material-icons">notification_important</i> Clinical Events
-        </a>
-      </div>
-    </div>
-    {% else %}
+    {# ── STAFF mobile drawer ── #}
+    {% if _cur_role == 'staff' %}
+
     <div class="drawer-section {{ 'open' if '/patients' in _path or '/events' in _path }}" id="ds-clinical">
       <button class="drawer-section-toggle {{ 'active-section' if '/patients' in _path or '/events' in _path }}" onclick="toggleDrawerSection('ds-clinical')">
         <span>Clinical</span>
@@ -264,34 +593,14 @@
       </button>
       <div class="drawer-section-body">
         <a href="/patients" class="{{ 'active' if '/patients' in _path }}">
-          <i class="material-icons">people</i> Patients
+          <i class="material-icons">people</i> All Patients
         </a>
         <a href="/events" class="{{ 'active' if '/events' in _path }}">
           <i class="material-icons">notification_important</i> Clinical Events
         </a>
       </div>
     </div>
-    {% endif %}
 
-    {# ── Analytics section (doctor + admin only) ── #}
-    {% if _cur_role in ['doctor', 'admin'] %}
-    <div class="drawer-section {{ 'open' if _analytics_active }}" id="ds-analytics">
-      <button class="drawer-section-toggle {{ 'active-section' if _analytics_active }}" onclick="toggleDrawerSection('ds-analytics')">
-        <span>Analytics</span>
-        <i class="material-icons chevron">expand_more</i>
-      </button>
-      <div class="drawer-section-body">
-        <a href="/analytics" class="{{ 'active' if '/analytics' in _path and '/research' not in _path }}">
-          <i class="material-icons">analytics</i> Analytics Hub
-        </a>
-        <a href="/research" class="{{ 'active' if '/research' in _path }}">
-          <i class="material-icons">science</i> Research Hub
-        </a>
-      </div>
-    </div>
-    {% endif %}
-
-    {# ── Operations section ── #}
     <div class="drawer-section {{ 'open' if _ops_active }}" id="ds-ops">
       <button class="drawer-section-toggle {{ 'active-section' if _ops_active }}" onclick="toggleDrawerSection('ds-ops')">
         <span>Operations</span>
@@ -310,11 +619,121 @@
       </div>
     </div>
 
-    {# ── Research Hub standalone (staff only — after Operations) ── #}
-    {% if _cur_role == 'staff' %}
-    <a href="/research" class="{{ 'active' if '/research' in _path }}">
-      <i class="material-icons">science</i> Research Hub
-    </a>
+    <div class="drawer-section {{ 'open' if '/research' in _path }}" id="ds-research">
+      <button class="drawer-section-toggle {{ 'active-section' if '/research' in _path }}" onclick="toggleDrawerSection('ds-research')">
+        <span>Research</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/research" class="{{ 'active' if '/research' in _path and '/research/stats' not in _path }}">
+          <i class="material-icons">folder_open</i> Projects
+        </a>
+        <a href="/research/stats" class="{{ 'active' if '/research/stats' in _path }}">
+          <i class="material-icons">bar_chart</i> Statistics
+        </a>
+      </div>
+    </div>
+
+    {# ── DOCTOR / ADMIN mobile drawer ── #}
+    {% else %}
+
+    <div class="drawer-section {{ 'open' if _clinical_active }}" id="ds-clinical">
+      <button class="drawer-section-toggle {{ 'active-section' if _clinical_active }}" onclick="toggleDrawerSection('ds-clinical')">
+        <span>Clinical</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/review" class="drawer-highlight-link {{ 'active' if '/review' in _path }}">
+          <i class="material-icons">fact_check</i> Review Queue
+        </a>
+        <a href="/patients" class="{{ 'active' if '/patients' in _path and '/analytics' not in _path }}">
+          <i class="material-icons">people</i> All Patients
+        </a>
+        <a href="/events" class="{{ 'active' if '/events' in _path }}">
+          <i class="material-icons">notification_important</i> Clinical Events
+        </a>
+      </div>
+    </div>
+
+    <div class="drawer-section {{ 'open' if _analytics_active }}" id="ds-analytics">
+      <button class="drawer-section-toggle {{ 'active-section' if _analytics_active }}" onclick="toggleDrawerSection('ds-analytics')">
+        <span>Analytics</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <div class="drawer-sub-section {{ 'open' if _analytics_sub_active or _path == '/analytics' }}" id="dss-overview">
+          <button class="drawer-sub-toggle" onclick="toggleDrawerSection('dss-overview')">
+            <i class="material-icons">analytics</i> Overview
+            <i class="material-icons drawer-sub-chevron">expand_more</i>
+          </button>
+          <div class="drawer-sub-body">
+            <a href="/analytics" class="{{ 'active' if _path == '/analytics' }}">
+              <i class="material-icons">dashboard</i> Analytics Hub
+            </a>
+            <a href="/analytics/mortality-risk" class="{{ 'active' if '/analytics/mortality-risk' in _path }}">
+              <i class="material-icons">monitor_heart</i> Mortality Risk
+            </a>
+            <a href="/analytics/hb-variability" class="{{ 'active' if '/analytics/hb-variability' in _path }}">
+              <i class="material-icons">show_chart</i> Hb Variability
+            </a>
+            <a href="/analytics/adherence" class="{{ 'active' if '/analytics/adherence' in _path }}">
+              <i class="material-icons">fact_check</i> Adherence
+            </a>
+            <a href="/analytics/census" class="{{ 'active' if '/analytics/census' in _path }}">
+              <i class="material-icons">groups</i> Census
+            </a>
+            <a href="/analytics/vascular-access" class="{{ 'active' if '/analytics/vascular-access' in _path }}">
+              <i class="material-icons">device_hub</i> Vascular Access
+            </a>
+            <a href="/analytics/krcrw" class="{{ 'active' if '/analytics/krcrw' in _path }}">
+              <i class="material-icons">water_drop</i> KRCRW Modeler
+            </a>
+            <a href="/analytics/phosphate-modeling" class="{{ 'active' if '/analytics/phosphate-modeling' in _path }}">
+              <i class="material-icons">science</i> Phosphate Modeler
+            </a>
+            <a href="/analytics/urea-modeling" class="{{ 'active' if '/analytics/urea-modeling' in _path }}">
+              <i class="material-icons">biotech</i> Urea Modeler
+            </a>
+          </div>
+        </div>
+        <a href="/analytics/patients" class="{{ 'active' if '/analytics/patients' in _path }}">
+          <i class="material-icons">person_search</i> Patient Analytics
+        </a>
+        <div class="drawer-sub-section {{ 'open' if '/research' in _path }}" id="dss-research">
+          <button class="drawer-sub-toggle" onclick="toggleDrawerSection('dss-research')">
+            <i class="material-icons">science</i> Research
+            <i class="material-icons drawer-sub-chevron">expand_more</i>
+          </button>
+          <div class="drawer-sub-body">
+            <a href="/research" class="{{ 'active' if '/research' in _path and '/research/stats' not in _path }}">
+              <i class="material-icons">folder_open</i> Projects
+            </a>
+            <a href="/research/stats" class="{{ 'active' if '/research/stats' in _path }}">
+              <i class="material-icons">bar_chart</i> Statistics
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="drawer-section {{ 'open' if _ops_active }}" id="ds-ops">
+      <button class="drawer-section-toggle {{ 'active-section' if _ops_active }}" onclick="toggleDrawerSection('ds-ops')">
+        <span>Operations</span>
+        <i class="material-icons chevron">expand_more</i>
+      </button>
+      <div class="drawer-section-body">
+        <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
+          <i class="material-icons">edit_note</i> Data Entry
+        </a>
+        <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
+          <i class="material-icons">event</i> Schedule
+        </a>
+        <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
+          <i class="material-icons">warning</i> Alerts
+        </a>
+      </div>
+    </div>
+
     {% endif %}
 
     {# ── Admin section (admin only) ── #}
@@ -326,13 +745,16 @@
       </button>
       <div class="drawer-section-body">
         <a href="/admin/users" class="drawer-admin-link {{ 'active' if '/admin/users' in _path }}">
-          <i class="material-icons">manage_accounts</i> Users
+          <i class="material-icons">manage_accounts</i> User Management
         </a>
         <a href="/admin/backup" class="drawer-admin-link {{ 'active' if '/admin/backup' in _path }}">
           <i class="material-icons">storage</i> Database
         </a>
         <a href="/variables/manager" class="drawer-admin-link {{ 'active' if '/variables/manager' in _path }}">
-          <i class="material-icons">settings_input_component</i> Lab Config
+          <i class="material-icons">settings_input_component</i> Research Variables
+        </a>
+        <a href="/admin/system" class="drawer-admin-link {{ 'active' if _system_active }}">
+          <i class="material-icons">settings</i> System
         </a>
       </div>
     </div>
@@ -390,6 +812,44 @@
     if (!wasOpen) el.classList.add('open');
   }
 
+  /* ── Nested sub-group toggle inside a dropdown ── */
+  function toggleSubGroup(id, e) {
+    e.stopPropagation();
+    document.getElementById(id).classList.toggle('open');
+  }
+
+  /* ── Admin POST-action confirm (ML training, etc.) ── */
+  function openConfirmModal(titleText, bodyText, action, method, confirmLabel) {
+    var modal = document.getElementById('confirm-modal');
+    if (!modal) return;
+    document.getElementById('cm-title').textContent    = titleText;
+    document.getElementById('cm-subtitle').textContent = '';
+    document.getElementById('cm-body').textContent     = bodyText;
+    document.getElementById('cm-body').style.display   = 'block';
+    document.getElementById('cm-icon').textContent     = 'model_training';
+    document.getElementById('cm-icon-wrap').style.background = '#eff6ff';
+    document.getElementById('cm-icon').style.color     = '#2563eb';
+    document.getElementById('cm-danger-wrap').style.display  = 'none';
+    var btn = document.getElementById('cm-confirm');
+    btn.style.background = '#2563eb';
+    btn.style.boxShadow  = '0 4px 12px rgba(37,99,235,0.3)';
+    btn.disabled         = false;
+    document.getElementById('cm-confirm-icon').textContent  = 'model_training';
+    document.getElementById('cm-confirm-label').textContent = confirmLabel || 'Confirm';
+    /* override cmConfirm once */
+    var _orig = window.cmConfirm;
+    window.cmConfirm = function () {
+      cmClose();
+      window.cmConfirm = _orig;
+      fetch(action, { method: method || 'POST', credentials: 'same-origin' })
+        .then(function () { window.location.reload(); })
+        .catch(function () { alert('Action failed — please try again.'); });
+    };
+    modal.style.display  = 'flex';
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { document.getElementById('cm-cancel').focus(); }, 80);
+  }
+
   /* Close dropdown on outside click */
   document.addEventListener('click', function() {
     document.querySelectorAll('.nav-group.open').forEach(function(g) { g.classList.remove('open'); });
@@ -415,4 +875,267 @@
       if (match) link.classList.add('active');
     });
   })();
+
+  /* ── Double-submit spinner (global) ──────────────────────────────────────
+     Any submit button that doesn't have data-no-spinner gets disabled + shows
+     a spinner on first click. The confirm-modal flow resets this automatically. */
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('form').forEach(function (form) {
+      form.addEventListener('submit', function () {
+        form.querySelectorAll('[type="submit"]:not([data-no-spinner])').forEach(function (btn) {
+          var orig = btn.innerHTML;
+          btn.disabled = true;
+          btn.style.opacity = '0.7';
+          btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;">'
+            + '<svg style="width:16px;height:16px;animation:navSpin 0.8s linear infinite;" viewBox="0 0 24 24" fill="none">'
+            + '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"/>'
+            + '<path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'
+            + '</svg>' + btn.textContent.trim() + '</span>';
+          // Re-enable after 8s fallback (network timeout safety)
+          setTimeout(function () { btn.disabled = false; btn.innerHTML = orig; }, 8000);
+        });
+      });
+    });
+  });
 </script>
+
+<!-- ── Global form-error + has-error CSS ───────────────────────────────── -->
+<style>
+  @keyframes navSpin { to { transform:rotate(360deg); } }
+
+  /* ── Admin action buttons (POST triggers) inside dropdowns ── */
+  .dd-admin-action, .drawer-admin-action {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: transparent; border: none; cursor: pointer; text-align: left;
+    color: rgba(196,181,253,0.75); font-family: 'Inter', sans-serif;
+    transition: color 0.15s, background 0.15s;
+  }
+  .dd-admin-action { padding: 7px 30px; font-size: 0.8rem; }
+  .dd-admin-action i { font-size: 14px !important; opacity: 0.6; }
+  .dd-admin-action:hover { color: #c4b5fd; background: rgba(167,139,250,0.12); }
+  .dd-admin-sub { color: rgba(196,181,253,0.75) !important; }
+  .dd-admin-sub:hover { color: #c4b5fd !important; background: rgba(167,139,250,0.12) !important; }
+  .drawer-admin-action { padding: 10px 16px 10px 36px; font-size: 0.88rem; }
+  .drawer-admin-action i { font-size: 16px; }
+  .drawer-admin-action:hover { color: #c4b5fd; }
+
+  /* ── Nested sub-group inside desktop dropdown ── */
+  .dd-sub-group { }
+  .dd-sub-header {
+    display: flex; align-items: center;
+  }
+  .dd-sub-main-link {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px; color: rgba(255,255,255,0.65);
+    font-size: 0.83rem; font-family: 'Inter', sans-serif;
+    text-decoration: none; transition: color 0.15s, background 0.15s;
+  }
+  .dd-sub-main-link:hover { color: #fff; background: rgba(255,255,255,0.09); }
+  .dd-sub-main-link.active { color: #7dd3fc; background: rgba(14,165,233,0.16); }
+  .dd-sub-expand-btn {
+    padding: 7px 10px; background: transparent; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.4); display: flex; align-items: center;
+    transition: color 0.15s;
+  }
+  .dd-sub-expand-btn:hover { color: rgba(255,255,255,0.75); }
+  .dd-sub-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 7px 14px; background: transparent; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.65); font-size: 0.83rem; font-family: 'Inter', sans-serif;
+    text-align: left; transition: color 0.15s, background 0.15s;
+  }
+  .dd-sub-toggle:hover { color: #fff; background: rgba(255,255,255,0.09); }
+  .dd-sub-chevron {
+    margin-left: auto; font-size: 14px !important;
+    transition: transform 0.2s; opacity: 0.6;
+  }
+  .dd-sub-group.open .dd-sub-chevron { transform: rotate(180deg); }
+  .dd-sub-items { display: none; }
+  .dd-sub-group.open .dd-sub-items { display: block; }
+  .dd-sub-items a {
+    padding-left: 30px !important; font-size: 0.8rem !important;
+    color: rgba(255,255,255,0.55) !important;
+  }
+  .dd-sub-items a:hover { color: #fff !important; }
+  .dd-sub-items a.active { color: #7dd3fc !important; }
+
+  /* ── Nested sub-section inside mobile drawer ── */
+  .drawer-sub-section { }
+  .drawer-sub-toggle {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 16px 10px 20px; background: transparent; border: none; cursor: pointer;
+    font-size: 0.9rem; font-family: 'Inter', sans-serif; font-weight: 500;
+    color: rgba(255,255,255,0.7); text-align: left; transition: color 0.15s;
+  }
+  .drawer-sub-toggle:hover { color: #fff; }
+  .drawer-sub-chevron {
+    margin-left: auto; font-size: 16px !important; transition: transform 0.2s;
+  }
+  .drawer-sub-section.open .drawer-sub-chevron { transform: rotate(180deg); }
+  .drawer-sub-body { display: none; }
+  .drawer-sub-section.open .drawer-sub-body { display: block; }
+  .drawer-sub-body a { padding-left: 36px !important; font-size: 0.85rem !important; }
+
+  /* Inline field-level error states */
+  .form-group.has-error input,
+  .form-group.has-error select,
+  .form-group.has-error textarea {
+    border-color: #ef4444 !important;
+    background: #fef2f2 !important;
+  }
+  .form-error-msg {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #dc2626;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+  .form-error-msg::before {
+    content: 'error';
+    font-family: 'Material Icons';
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  /* Form-level error banner */
+  .form-error-banner {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-left: 4px solid #dc2626;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.88rem;
+    color: #991b1b;
+    line-height: 1.5;
+  }
+  .form-error-banner .feb-icon {
+    font-family: 'Material Icons';
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: #dc2626;
+  }
+</style>
+
+<!-- ── Confirm Modal (shared, one instance) ─────────────────────────────── -->
+{% include "_confirm_modal.html" %}
+
+<!-- ── Session Timeout Warning Modal ────────────────────────────────────── -->
+{% if user %}
+<div id="session-timeout-modal"
+     style="display:none; position:fixed; inset:0; z-index:10001;
+            background:rgba(15,23,42,0.75); backdrop-filter:blur(4px);
+            align-items:center; justify-content:center; padding:20px;"
+     role="alertdialog" aria-modal="true" aria-labelledby="stm-title">
+  <div style="background:#fff; border-radius:18px; max-width:420px; width:100%;
+              box-shadow:0 25px 60px rgba(0,0,0,0.3); overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#f59e0b,#d97706); padding:20px 24px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <i class="material-icons" style="color:#fff; font-size:2.2rem;">timer</i>
+        <div>
+          <div id="stm-title" style="color:#fff; font-weight:800; font-size:1.1rem; font-family:'Outfit',sans-serif;">
+            Session Expiring Soon
+          </div>
+          <div style="color:rgba(255,255,255,0.88); font-size:0.8rem; margin-top:3px;">
+            You will be logged out due to inactivity
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:22px 24px 18px;">
+      <p style="margin:0; color:#374151; font-size:0.95rem; line-height:1.65;">
+        Your session expires in
+        <strong id="stm-countdown" style="color:#d97706; font-size:1.05em; font-variant-numeric:tabular-nums;">120</strong>
+        seconds. Any unsaved work will be lost.
+      </p>
+    </div>
+    <div style="padding:0 24px 22px; display:flex; gap:10px;">
+      <button type="button" onclick="stmLogout()"
+              style="flex:1; padding:11px 16px; background:#f1f5f9; color:#64748b;
+                     border:1px solid #e2e8f0; border-radius:10px; cursor:pointer;
+                     font-size:0.88rem; font-weight:600; font-family:'Inter',sans-serif;">
+        Log Out
+      </button>
+      <button type="button" onclick="stmKeepAlive()"
+              style="flex:2; padding:11px 16px; background:#0ea5e9; color:#fff;
+                     border:none; border-radius:10px; cursor:pointer;
+                     font-size:0.92rem; font-weight:700; font-family:'Outfit',sans-serif;
+                     box-shadow:0 4px 12px rgba(14,165,233,0.3);
+                     display:flex; align-items:center; justify-content:center; gap:6px;">
+        <i class="material-icons" style="font-size:1rem;">refresh</i> Continue Session
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // Must match SESSION_IDLE_TTL in config.py (currently 30 min)
+  var IDLE_TTL_MS  = 30 * 60 * 1000;
+  var WARN_BEFORE  = 120;          // seconds before timeout to show warning
+  var WARN_AT_MS   = IDLE_TTL_MS - WARN_BEFORE * 1000;
+
+  var _idleTimer   = null;
+  var _countdown   = null;
+  var _remaining   = WARN_BEFORE;
+
+  function resetIdleTimer() {
+    if (_idleTimer) clearTimeout(_idleTimer);
+    // If modal is open and user moves, close it and restart
+    var modal = document.getElementById('session-timeout-modal');
+    if (modal && modal.style.display !== 'none') stmClose();
+    _idleTimer = setTimeout(showWarning, WARN_AT_MS);
+  }
+
+  ['mousemove','keydown','click','scroll','touchstart','pointerdown'].forEach(function (ev) {
+    document.addEventListener(ev, resetIdleTimer, { passive: true });
+  });
+
+  function showWarning() {
+    _remaining = WARN_BEFORE;
+    var el = document.getElementById('stm-countdown');
+    if (el) el.textContent = _remaining;
+    var modal = document.getElementById('session-timeout-modal');
+    if (modal) { modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+    if (_countdown) clearInterval(_countdown);
+    _countdown = setInterval(function () {
+      _remaining--;
+      var el2 = document.getElementById('stm-countdown');
+      if (el2) el2.textContent = _remaining;
+      if (_remaining <= 0) {
+        clearInterval(_countdown);
+        window.location.href = '/login?reason=timeout';
+      }
+    }, 1000);
+  }
+
+  function stmClose() {
+    var modal = document.getElementById('session-timeout-modal');
+    if (modal) { modal.style.display = 'none'; document.body.style.overflow = ''; }
+    if (_countdown) clearInterval(_countdown);
+  }
+
+  window.stmKeepAlive = function () {
+    fetch('/auth/ping', { method: 'POST', credentials: 'same-origin' })
+      .then(function (r) {
+        if (r.ok) { stmClose(); resetIdleTimer(); }
+        else window.location.href = '/login?reason=timeout';
+      })
+      .catch(function () { window.location.href = '/login?reason=timeout'; });
+  };
+
+  window.stmLogout = function () { window.location.href = '/logout'; };
+
+  // Boot
+  resetIdleTimer();
+})();
+</script>
+{% endif %}

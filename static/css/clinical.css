@@ -832,3 +832,52 @@ svg.sparkline .stable-trend {
 
 /* Row state */
 [data-theme="dark"] .row-missing { border-left-color: #f97316 !important; }
+
+/* ═══════════════════════════ SKELETON LOADERS ═════════════════════════════ */
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 1200px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 1200px 100%;
+}
+
+/* Chart skeleton wrapper — sits inside the chart container div */
+.chart-skeleton {
+  width: 100%; border-radius: 10px; position: relative;
+}
+.chart-skeleton::after {
+  content: '';
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+}
+/* Preset heights matching chart containers */
+.chart-skeleton-sm  { height: 180px; }
+.chart-skeleton-md  { height: 280px; }
+.chart-skeleton-lg  { height: 340px; }
+
+/* Submit button loading state (CSS-only) */
+.btn-loading {
+  position: relative; pointer-events: none; opacity: 0.75;
+}
+.btn-loading > * { visibility: hidden; }
+.btn-loading::after {
+  content: '';
+  position: absolute; inset: 0; margin: auto;
+  width: 18px; height: 18px;
+  border: 2.5px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: skeleton-spin 0.7s linear infinite;
+}
+@keyframes skeleton-spin { to { transform: rotate(360deg); } }

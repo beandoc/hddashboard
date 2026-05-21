@@ -9,11 +9,21 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 from typing import Any
+
+from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+# ─── Module-level singletons ──────────────────────────────────────────────────
+# API key read once at import time; client created once and reused across requests.
+_GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+_gemini_client: genai.Client | None = (
+    genai.Client(api_key=_GEMINI_API_KEY, http_options={"timeout": 30})
+    if _GEMINI_API_KEY else None
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Field mapping: all MonthlyRecord lab fields with their common aliases.
@@ -259,8 +269,6 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
 
 
 def _build_extraction_prompt() -> str:
-    """Build the structured prompt for Gemini Vision with strict field allowlist."""
-    # Build the field description block (label + aliases) for the model
     field_lines = []
     for db_field, info in FIELD_MAP.items():
         aliases = ", ".join(info["aliases"])
@@ -268,8 +276,6 @@ def _build_extraction_prompt() -> str:
         field_lines.append(f'  - "{db_field}": {info["label"]}{unit} — aliases: {aliases}')
 
     fields_block = "\n".join(field_lines)
-
-    # Pass the exhaustive list of valid JSON keys explicitly
     valid_keys = ", ".join(f'"{k}"' for k in FIELD_MAP.keys())
 
     return f"""You are a clinical lab report OCR assistant. Your ONLY job is to extract specific numeric lab values for a hemodialysis patient from the provided report image.
@@ -301,6 +307,12 @@ CRITICAL — STRICT ALLOWLIST:
 OUTPUT FORMAT: Provide the data matching the requested JSON schema."""
 
 
+# ─── Module-level cached constants (built once at import time) ────────────────
+_EXTRACTION_PROMPT: str = _build_extraction_prompt()
+_FIELD_LABELS: dict[str, str] = {k: v["label"] for k, v in FIELD_MAP.items()}
+_FIELD_UNITS: dict[str, str] = {k: v["unit"] for k, v in FIELD_MAP.items()}
+
+
 class OCRResponse(BaseModel):
     extracted_fields: dict[str, float] = Field(
         default_factory=dict,
@@ -319,16 +331,11 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
     """
     Send image to Gemini Vision and extract lab values.
 
-    Args:
-        image_bytes: Raw image bytes (JPEG, PNG, etc.)
-        mime_type: MIME type of the image
-
     Returns:
         dict with keys: extracted_fields, confidence, report_date,
                         patient_name_on_report, report_type, model, error (if any)
     """
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
+    if not _gemini_client:
         logger.error("GEMINI_API_KEY not set in environment")
         return {
             "extracted_fields": {},
@@ -338,21 +345,14 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
         }
 
     try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=api_key)
-
-        prompt = _build_extraction_prompt()
-
-        response = client.models.generate_content(
+        response = _gemini_client.models.generate_content(
             model="gemini-flash-lite-latest",
             contents=[
                 types.Part.from_bytes(
                     data=image_bytes,
                     mime_type=mime_type,
                 ),
-                prompt,
+                _EXTRACTION_PROMPT,
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -408,10 +408,8 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
 
 
 def get_field_labels() -> dict[str, str]:
-    """Return a mapping of db_field -> human label for frontend display."""
-    return {k: v["label"] for k, v in FIELD_MAP.items()}
+    return _FIELD_LABELS
 
 
 def get_field_units() -> dict[str, str]:
-    """Return a mapping of db_field -> unit for frontend display."""
-    return {k: v["unit"] for k, v in FIELD_MAP.items()}
+    return _FIELD_UNITS

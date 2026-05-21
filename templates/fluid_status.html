@@ -17,7 +17,7 @@
         .header-content { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
         
         .container { max-width: 1100px; margin: -30px auto 60px; padding: 0 20px; }
-        .grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px; }
+        .grid { display: grid; grid-template-columns: 320px 1fr; gap: 30px; align-items: start; }
         
         .card { background: white; border-radius: var(--radius); padding: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05); margin-bottom: 30px; }
         .card h2 { font-family: 'Outfit', sans-serif; margin-top: 0; display: flex; align-items: center; gap: 10px; color: #1e293b; }
@@ -63,6 +63,7 @@
 <body>
 
 {% include "_nav.html" %}
+{% include "_patient_context_nav.html" %}
 <nav class="nav-breadcrumb" aria-label="Breadcrumb">
   <a href="/">Dashboard</a>
   <span class="bc-sep">/</span>
@@ -89,7 +90,7 @@
 
 <div class="container">
     <div class="grid">
-        <!-- Sidebar: Score & Form -->
+        <!-- Sidebar: Score & Info -->
         <div>
             <div class="card">
                 <h2><i class="material-icons">speed</i> Fluid Overload Risk</h2>
@@ -98,7 +99,7 @@
                     <div class="risk-lbl">{{ 'Low Risk' if risk_score < 3 else ('Moderate Risk' if risk_score < 6 else 'High Risk') }}</div>
                 </div>
                 
-                <div style="margin-bottom:20px;">
+                <div style="margin-bottom:10px;">
                     <h3 style="font-size:0.85rem; text-transform:uppercase; color:#64748b; margin-bottom:10px;">Active Risk Factors</h3>
                     {% if risk_factors %}
                         {% for factor in risk_factors %}
@@ -110,44 +111,62 @@
                 </div>
             </div>
 
+            <div class="card" style="background:#f0f9ff; border:1px solid #bae6fd;">
+                <h3 style="margin-top:0; color:#0369a1; font-family:'Outfit'; display:flex; align-items:center; gap:8px;"><i class="material-icons">info</i> Why specialized assessment?</h3>
+                <p style="font-size:0.9rem; line-height:1.6; color:#0c4a6e; margin-bottom:0;">
+                    Dry weight is dynamic. For patients with labile BPs or recurring LVF, clinical assessment alone may be insufficient. 
+                    Tools like <strong>IVC Ultrasound</strong> and <strong>Bioimpedance (BIA)</strong> provide objective markers of "True Dry Weight" to prevent both volume overload and intradialytic hypotension.
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Content: Form & History -->
+        <div>
             <div class="card">
                 <h2><i class="material-icons">add_chart</i> New Assessment</h2>
                 <form action="/patients/{{ patient.id }}/fluid-status/save" method="POST">
-                    <div class="form-group" style="margin-bottom:15px;">
-                        <label>Assessment Date</label>
-                        <input type="date" name="assess_date" value="{{ today }}" required>
-                    </div>
-
-                    <div class="form-row">
+                    <div class="form-row" style="grid-template-columns: 1fr; margin-bottom: 20px;">
                         <div class="form-group">
-                            <label>IVC Max (mm)</label>
-                            <input type="number" name="ivc_max" step="0.1" placeholder="e.g. 18">
-                        </div>
-                        <div class="form-group">
-                            <label>IVC CI (%)</label>
-                            <input type="number" name="ivc_ci" step="1" placeholder="e.g. 55">
+                            <label>Assessment Date</label>
+                            <input type="date" name="assess_date" value="{{ today }}" required style="max-width: 250px;">
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>BIA FO (Litres)</label>
-                            <input type="number" name="bia_fo" step="0.1" placeholder="e.g. 1.5">
-                        </div>
-                        <div class="form-group">
-                            <label>BIA Overhydration (%)</label>
-                            <input type="number" name="bia_oh" step="0.1" placeholder="e.g. 12.5">
+                    <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 15px 0; color: #334155; font-family: 'Outfit';">Ultrasound / IVC</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>IVC Max (mm)</label>
+                                <input type="number" name="ivc_max" step="0.1" placeholder="e.g. 18">
+                            </div>
+                            <div class="form-group">
+                                <label>IVC Collapsibility Index (%)</label>
+                                <input type="number" name="ivc_ci" step="1" placeholder="e.g. 55">
+                            </div>
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>BIA TBW (Litres)</label>
-                            <input type="number" name="bia_tbw" step="0.1" placeholder="e.g. 42.5">
+                    <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 15px 0; color: #334155; font-family: 'Outfit';">Bioimpedance (BIA)</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>BIA FO (Litres)</label>
+                                <input type="number" name="bia_fo" step="0.1" placeholder="e.g. 1.5">
+                            </div>
+                            <div class="form-group">
+                                <label>BIA Overhydration (%)</label>
+                                <input type="number" name="bia_oh" step="0.1" placeholder="e.g. 12.5">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>BIA Phase Angle</label>
-                            <input type="number" name="bia_pa" step="0.1" placeholder="e.g. 4.5">
+                        <div class="form-row" style="margin-bottom: 0;">
+                            <div class="form-group">
+                                <label>BIA TBW (Litres)</label>
+                                <input type="number" name="bia_tbw" step="0.1" placeholder="e.g. 42.5">
+                            </div>
+                            <div class="form-group">
+                                <label>BIA Phase Angle</label>
+                                <input type="number" name="bia_pa" step="0.1" placeholder="e.g. 4.5">
+                            </div>
                         </div>
                     </div>
 
@@ -171,23 +190,20 @@
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-top:15px;">
-                        <label style="color:var(--primary);">Recommended Dry Weight (kg)</label>
-                        <input type="number" name="rec_dw" step="0.1" value="{{ patient.dry_weight }}">
+                    <div class="form-group" style="margin-top:15px; margin-bottom: 20px;">
+                        <label style="color:var(--primary); font-size: 0.9rem;">Recommended Dry Weight (kg)</label>
+                        <input type="number" name="rec_dw" step="0.1" value="{{ patient.dry_weight }}" style="max-width: 250px; font-weight: 700; font-size: 1.1rem;">
                     </div>
 
-                    <div class="form-group" style="margin-top:15px;">
+                    <div class="form-group" style="margin-bottom: 20px;">
                         <label>Assessment Notes</label>
                         <textarea name="notes" rows="3" placeholder="Clinical reasoning..."></textarea>
                     </div>
 
-                    <button type="submit" class="btn-submit">Submit Assessment & Update DW</button>
+                    <button type="submit" class="btn-submit" style="padding: 16px; font-size: 1.05rem;">Submit Assessment & Update DW</button>
                 </form>
             </div>
-        </div>
 
-        <!-- Main Content: History & Details -->
-        <div>
             <div class="card">
                 <h2><i class="material-icons">history</i> Assessment History</h2>
                 {% if assessments %}
@@ -227,14 +243,6 @@
                     ">Start Assessment</button>
                 </div>
                 {% endif %}
-            </div>
-
-            <div class="card" style="background:#f0f9ff; border:1px solid #bae6fd;">
-                <h3><i class="material-icons" style="color:#0369a1">info</i> Why specialized assessment?</h3>
-                <p style="font-size:0.9rem; line-height:1.6; color:#0c4a6e;">
-                    Dry weight is dynamic. For patients with labile BPs or recurring LVF, clinical assessment alone may be insufficient. 
-                    Tools like <strong>IVC Ultrasound</strong> and <strong>Bioimpedance (BIA)</strong> provide objective markers of "True Dry Weight" to prevent both volume overload and intradialytic hypotension.
-                </p>
             </div>
         </div>
     </div>

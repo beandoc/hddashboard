@@ -35,6 +35,16 @@ def _safe_alter_table(conn, table: str, col: str, col_type: str) -> None:
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+@router.get("/system", response_class=HTMLResponse)
+async def admin_system(request: Request):
+    """Consolidated system admin page: ML model management + schema migration."""
+    _require_admin(request)
+    return templates.TemplateResponse("admin_system.html", {
+        "request": request,
+        "user": get_user(request),
+        "migration_results": None,
+    })
+
 @router.get("/run-migration", response_class=HTMLResponse)
 async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
     """Triggers the PDS schema migration. Useful for Render free tier."""

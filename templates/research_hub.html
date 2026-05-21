@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research Hub - HD Dashboard</title>    <style>
+    <title>Research Hub | HD Dashboard</title>    <style>
         :root {
             --primary: #4f46e5;
             --primary-light: #e0e7ff;
@@ -123,7 +123,9 @@
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <a href="/research/projects/{{ project.id }}" class="btn-outline">Open Project</a>
                         <form method="POST" action="/research/projects/{{ project.id }}/deactivate"
-                              onsubmit="return confirm('Deactivate this project? All recorded patient data will be preserved.')"
+                              data-confirm-name="{{ project.name }}"
+                              data-confirm-type="deactivate"
+                              data-confirm-message="All collected research records will be preserved. The project can be reactivated at any time."
                               style="margin:0;">
                             <button type="submit"
                                     style="background:#fff7ed; border:1.5px solid #f59e0b; color:#b45309; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem; font-weight:600; display:flex; align-items:center; gap:5px;"

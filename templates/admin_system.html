@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System — HD Dashboard</title>
+  <style>
+    :root {
+      --primary: #0ea5e9; --primary-dark: #0284c7;
+      --bg-main: #f8fafc; --radius: 12px;
+      --text-main: #1e293b; --text-muted: #64748b; --text-header: #0f172a;
+      --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+    }
+    body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-main); color: var(--text-main); }
+    h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
+    .container { max-width: 860px; margin: 32px auto; padding: 0 24px 80px; }
+    .page-header { margin-bottom: 28px; }
+    .page-header h1 { margin: 0 0 4px; font-size: 1.55rem; color: var(--text-header); }
+    .page-header p  { margin: 0; color: var(--text-muted); font-size: 0.88rem; }
+
+    .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 24px 28px; margin-bottom: 24px; }
+    .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; }
+    .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .card-icon.blue  { background: #eff6ff; }
+    .card-icon.amber { background: #fffbeb; }
+    .card-icon .material-icons { font-size: 1.2rem; }
+    .card-icon.blue  .material-icons { color: #2563eb; }
+    .card-icon.amber .material-icons { color: #d97706; }
+    .card-title { font-size: 1.05rem; font-weight: 700; color: var(--text-header); margin: 0; }
+    .card-sub   { font-size: 0.78rem; color: var(--text-muted); margin: 2px 0 0; }
+
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-box { background: #f8fafc; border-radius: 10px; padding: 14px 16px; border: 1px solid #e2e8f0; }
+    .stat-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; }
+    .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text-header); font-variant-numeric: tabular-nums; }
+    .stat-value.good { color: #16a34a; }
+    .stat-value.warn { color: #d97706; }
+    .stat-value.muted { color: #94a3b8; font-size: 0.95rem; }
+
+    .feature-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .feature-tag { background: #eff6ff; color: #1d4ed8; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.88rem; font-weight: 600; font-family: 'Inter', sans-serif; transition: all 0.2s; text-decoration: none; }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(14,165,233,0.25); }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+    .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-warning { background: #d97706; color: #fff; box-shadow: 0 2px 8px rgba(217,119,6,0.25); }
+    .btn-warning:hover { background: #b45309; transform: translateY(-1px); }
+    .btn-sm { padding: 7px 14px; font-size: 0.8rem; }
+    .btn .material-icons { font-size: 1rem; }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+    .status-trained   { background: #dcfce7; color: #15803d; }
+    .status-untrained { background: #fef9c3; color: #854d0e; }
+    .status-error     { background: #fee2e2; color: #991b1b; }
+
+    .migration-result { background: #0f172a; border-radius: 10px; padding: 16px 18px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.8rem; color: #e2e8f0; line-height: 1.8; white-space: pre-wrap; max-height: 360px; overflow-y: auto; }
+    .migration-result .ok  { color: #4ade80; }
+    .migration-result .err { color: #f87171; }
+
+    .divider { border: none; border-top: 1px solid #f1f5f9; margin: 20px 0; }
+
+    .info-note { display: flex; align-items: flex-start; gap: 10px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px 14px; font-size: 0.82rem; color: #0369a1; }
+    .info-note .material-icons { font-size: 1rem; margin-top: 1px; flex-shrink: 0; }
+
+    #train-result { display: none; }
+    #train-result.visible { display: block; }
+
+    @media (max-width: 640px) {
+      .container { padding: 0 14px 60px; }
+      .card { padding: 18px 16px; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+</head>
+<body>
+
+{% include "_nav.html" %}
+
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+  <a href="/">Dashboard</a>
+  <span class="bc-sep">/</span>
+  <a href="/admin/users">Admin</a>
+  <span class="bc-sep">/</span>
+  <span class="bc-current">System</span>
+</nav>
+
+<div class="container">
+
+  <div class="page-header">
+    <h1>System</h1>
+    <p>ML model management and database schema tools</p>
+  </div>
+
+  <!-- ── ML Model Section ── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon blue"><i class="material-icons">model_training</i></div>
+      <div>
+        <p class="card-title">Deterioration Risk Model</p>
+        <p class="card-sub">Logistic regression trained on monthly clinical records</p>
+      </div>
+      <div style="margin-left:auto" id="model-status-badge">
+        <span class="status-badge status-untrained"><i class="material-icons" style="font-size:0.85rem">hourglass_empty</i> Loading…</span>
+      </div>
+    </div>
+
+    <div id="model-stats" class="stat-grid" style="display:none">
+      <div class="stat-box">
+        <div class="stat-label">Cross-val AUC</div>
+        <div class="stat-value" id="ms-auc">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Training Samples</div>
+        <div class="stat-value" id="ms-samples">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Event Rate</div>
+        <div class="stat-value" id="ms-event-rate">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Last Trained</div>
+        <div class="stat-value" id="ms-trained-at" style="font-size:0.82rem">—</div>
+      </div>
+    </div>
+
+    <div id="model-features" style="display:none; margin-bottom:16px;">
+      <div class="stat-label" style="margin-bottom:8px;">Feature Set</div>
+      <div class="feature-tags" id="ms-features"></div>
+    </div>
+
+    <div id="model-untrained-note" style="display:none" class="info-note">
+      <i class="material-icons">info</i>
+      No model has been trained yet. Click <strong>Train Model</strong> to run the initial training.
+    </div>
+
+    <hr class="divider">
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="trainBtn" onclick="trainModel()">
+        <i class="material-icons">play_arrow</i> Train Model
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="loadModelStatus()">
+        <i class="material-icons">refresh</i> Refresh Status
+      </button>
+    </div>
+
+    <div id="train-result" style="margin-top:16px;"></div>
+  </div>
+
+  <!-- ── Schema Migration Section ── -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon amber"><i class="material-icons">sync_alt</i></div>
+      <div>
+        <p class="card-title">Schema Migration</p>
+        <p class="card-sub">Apply pending column additions and table changes to the live database</p>
+      </div>
+    </div>
+
+    <div class="info-note" style="margin-bottom:18px;">
+      <i class="material-icons">warning_amber</i>
+      This runs <code>ALTER TABLE</code> statements. Safe to run multiple times — existing columns are skipped.
+      Use after a code deploy that adds new database fields.
+    </div>
+
+    {% if migration_results %}
+    <div class="migration-result" id="migrationOutput">{% for line in migration_results %}<span class="{{ 'ok' if line.startswith('✅') else 'err' }}">{{ line }}</span>
+{% endfor %}</div>
+    <hr class="divider">
+    {% endif %}
+
+    <div class="btn-row">
+      <form method="GET" action="/admin/run-migration" style="display:inline">
+        <button type="submit" class="btn btn-warning">
+          <i class="material-icons">sync_alt</i> Run Migration
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+      + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  function fmtPct(v) {
+    return v != null ? (v * 100).toFixed(1) + '%' : '—';
+  }
+
+  window.loadModelStatus = function () {
+    var badge = document.getElementById('model-status-badge');
+    badge.innerHTML = '<span class="status-badge status-untrained"><i class="material-icons" style="font-size:0.85rem">hourglass_empty</i> Loading…</span>';
+
+    fetch('/analytics/admin/deterioration-model-status')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.trained) {
+          badge.innerHTML = '<span class="status-badge status-untrained"><i class="material-icons" style="font-size:0.85rem">warning</i> Not Trained</span>';
+          document.getElementById('model-untrained-note').style.display = 'flex';
+          return;
+        }
+        badge.innerHTML = '<span class="status-badge status-trained"><i class="material-icons" style="font-size:0.85rem">check_circle</i> Trained</span>';
+        document.getElementById('model-untrained-note').style.display = 'none';
+
+        // Stats
+        var auc = d.cv_auc_mean;
+        var aucEl = document.getElementById('ms-auc');
+        aucEl.textContent = auc != null ? auc.toFixed(3) : '—';
+        aucEl.className = 'stat-value' + (auc >= 0.75 ? ' good' : auc >= 0.60 ? ' warn' : '');
+
+        document.getElementById('ms-samples').textContent    = d.n_samples  != null ? d.n_samples  : '—';
+        document.getElementById('ms-event-rate').textContent = fmtPct(d.event_rate);
+        document.getElementById('ms-trained-at').textContent = fmtDate(d.trained_at);
+        document.getElementById('model-stats').style.display = 'grid';
+
+        // Features
+        if (d.feature_names && d.feature_names.length) {
+          var container = document.getElementById('ms-features');
+          container.innerHTML = '';
+          d.feature_names.forEach(function (f) {
+            var t = document.createElement('span');
+            t.className = 'feature-tag';
+            t.textContent = f.replace(/_/g, ' ');
+            container.appendChild(t);
+          });
+          document.getElementById('model-features').style.display = 'block';
+        }
+      })
+      .catch(function () {
+        badge.innerHTML = '<span class="status-badge status-error"><i class="material-icons" style="font-size:0.85rem">error</i> Error</span>';
+      });
+  };
+
+  window.trainModel = function () {
+    var btn = document.getElementById('trainBtn');
+    var result = document.getElementById('train-result');
+
+    if (!confirm('Re-train the deterioration-risk model on current data?\nThis may take a few seconds.')) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg style="width:16px;height:16px;animation:spin 0.8s linear infinite;vertical-align:middle" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg> Training…';
+
+    fetch('/analytics/admin/train-deterioration-model', { method: 'POST', credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="material-icons">play_arrow</i> Train Model';
+        result.className = 'visible';
+
+        if (d.success) {
+          result.innerHTML = '<div class="info-note" style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d">'
+            + '<i class="material-icons">check_circle</i>'
+            + '<span>Training complete — AUC: <strong>' + (d.cv_auc_mean || 0).toFixed(3) + '</strong>'
+            + ' &middot; ' + (d.n_samples || 0) + ' samples'
+            + (d.message ? ' &middot; ' + d.message : '') + '</span></div>';
+        } else {
+          result.innerHTML = '<div class="info-note" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">'
+            + '<i class="material-icons">error</i>'
+            + '<span>' + (d.error || 'Training failed') + '</span></div>';
+        }
+        loadModelStatus();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="material-icons">play_arrow</i> Train Model';
+        result.className = 'visible';
+        result.innerHTML = '<div class="info-note" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">'
+          + '<i class="material-icons">error</i><span>Request failed — check server logs.</span></div>';
+      });
+  };
+
+  loadModelStatus();
+})();
+</script>
+
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+</body>
+</html>

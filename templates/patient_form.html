@@ -185,7 +185,7 @@
                     <div class="form-group">
                         <label>Relation Context</label>
                         <select name="relation_type">
-                            <option value="Self" {{ 'selected' if patient and patient.relation_type|upper == 'SELF' }}>Self (Service Person)</option>
+                            <option value="Self" {{ 'selected' if patient and patient.relation_type|upper == 'SELF' }}>Self</option>
                             <option value="S/O" {{ 'selected' if patient and patient.relation_type|upper == 'S/O' }}>S/O (Son of)</option>
                             <option value="D/O" {{ 'selected' if patient and patient.relation_type|upper == 'D/O' }}>D/O (Daughter of)</option>
                             <option value="W/O" {{ 'selected' if patient and patient.relation_type|upper == 'W/O' }}>W/O (Wife of)</option>
@@ -196,7 +196,7 @@
                     </div>
                     <div class="form-group">
                         <label>Relative / Guardian Name</label>
-                        <input type="text" name="relation" value="{{ patient.relation if patient else '' }}" placeholder="Enter name (or 'SELF' for service person)">
+                        <input type="text" name="relation" value="{{ patient.relation if patient else '' }}" placeholder="Enter name">
                     </div>
                 </div>
                 <div class="form-group">
@@ -499,16 +499,7 @@
                 </div>
             </div>
 
-            <!-- ── Research Parameters ── -->
-            <div class="form-card">
-                <h3><i class="material-icons">science</i> Research Parameters</h3>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Handgrip Strength (kg)</label>
-                        <input type="number" step="0.1" min="0" max="80" name="handgrip_strength" inputmode="decimal" placeholder="e.g. 22.5" value="{{ patient.handgrip_strength if patient and patient.handgrip_strength else '' }}">
-                    </div>
-                </div>
-            </div>
+
 
             <!-- ── Viral Markers ── -->
             <div class="form-card">

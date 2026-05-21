@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Clinical Events Timeline | HD Dashboard</title>  <style>
+  <title>Clinical Events | HD Dashboard</title>  <style>
     :root {
       --primary: #0f172a;
       --accent:  #0ea5e9;
@@ -432,7 +432,10 @@
             Logged {{ ev.created_at.strftime('%-d %b %Y') if ev.created_at else '—' }}
             {% if ev.created_by %} by {{ ev.created_by }}{% endif %}
             <form class="del-form" method="POST" action="/events/{{ ev.id }}/delete"
-                  onsubmit="return confirm('Delete this event?')" style="display:inline;float:right;">
+                  data-confirm-name="{{ ev.event_type or 'clinical event' }}"
+                  data-confirm-type="delete"
+                  data-confirm-message="This clinical event record will be permanently removed."
+                  style="display:inline;float:right;">
               <button type="submit" class="btn-del" title="Delete">
                 <i class="material-icons" style="font-size:0.95rem;">delete_outline</i>
               </button>

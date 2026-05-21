@@ -116,6 +116,73 @@ async def v1_patients(
     )
 
 
+class PatientSearchResult(BaseModel):
+    id: int
+    name: str
+    hid_no: Optional[str] = None
+    last_hb: Optional[float] = None
+    risk_level: str = "stable"  # "high" | "moderate" | "stable" | "unknown"
+
+
+class PatientSearchResponse(BaseModel):
+    count: int
+    results: List[PatientSearchResult]
+
+
+@router.get(
+    "/patients/search",
+    response_model=PatientSearchResponse,
+    summary="Fuzzy patient search with clinical context",
+)
+async def v1_patients_search(
+    q: str = Query(default="", description="Name or HID fuzzy filter"),
+    limit: int = Query(default=8, le=20),
+    db: Session = Depends(get_db),
+    _user=Depends(_require_staff),
+):
+    from sqlalchemy import or_, func
+    from db.models.records import MonthlyRecord as MR
+
+    q = q.strip()
+    base = db.query(Patient).filter(Patient.is_active == True)
+    if q:
+        base = base.filter(
+            or_(
+                Patient.name.ilike(f"%{q}%"),
+                Patient.hid_no.ilike(f"%{q}%"),
+            )
+        )
+    patients = base.order_by(Patient.name).limit(limit).all()
+
+    results = []
+    for p in patients:
+        latest = (
+            db.query(MR)
+            .filter(MR.patient_id == p.id)
+            .order_by(MR.record_month.desc())
+            .first()
+        )
+        last_hb = latest.hb if latest else None
+        albumin = latest.albumin if latest else None
+
+        if last_hb is not None and last_hb < 8:
+            risk = "high"
+        elif last_hb is not None and last_hb < 10:
+            risk = "moderate"
+        elif albumin is not None and albumin < 3.5:
+            risk = "moderate"
+        elif latest is None:
+            risk = "unknown"
+        else:
+            risk = "stable"
+
+        results.append(PatientSearchResult(
+            id=p.id, name=p.name, hid_no=p.hid_no,
+            last_hb=last_hb, risk_level=risk,
+        ))
+    return PatientSearchResponse(count=len(results), results=results)
+
+
 @router.get(
     "/dashboard",
     summary="Dashboard aggregate stats",

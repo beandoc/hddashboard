@@ -250,7 +250,7 @@ async def log_meal(
     )
     db.add(meal)
     db.commit()
-    return RedirectResponse(url="/patient/dashboard", status_code=303)
+    return RedirectResponse(url="/patient/dashboard?tab=nutrition&saved=1", status_code=303)
 
 @router.post("/symptoms")
 async def log_symptoms(
@@ -330,7 +330,7 @@ async def log_symptoms(
     )
     db.add(report)
     db.commit()
-    return RedirectResponse(url="/patient/dashboard", status_code=303)
+    return RedirectResponse(url="/patient/dashboard?tab=symptoms&saved=1", status_code=303)
 
 
 @router.get("/api/foods/search")
@@ -441,10 +441,10 @@ async def delete_meal(
     
     if not meal:
         raise HTTPException(status_code=404, detail="Meal record not found")
-        
+
     db.delete(meal)
     db.commit()
-    return RedirectResponse(url="/patient/dashboard", status_code=303)
+    return RedirectResponse(url="/patient/dashboard?tab=nutrition&deleted=1", status_code=303)
 
 
 @router.post("/meals/bulk")

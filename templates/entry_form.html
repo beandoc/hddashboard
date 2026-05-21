@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Data Entry - {{ patient.name }}</title>    <style>
+    <title>Data Entry · {{ patient.name }} · {{ month_label }} | HD Dashboard</title>    <style>
         :root {
             --primary: #0ea5e9;
             --primary-dark: #0284c7;
@@ -152,12 +152,190 @@
                 min-height: 48px;
             }
         }
+
+        /* ── Multi-Step Wizard ─────────────────────────────────────────── */
+        .wizard-nav {
+            position: sticky;
+            top: 60px;
+            background: rgba(255,255,255,0.97);
+            backdrop-filter: blur(8px);
+            z-index: 400;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .wizard-progress-wrap { height: 3px; background: #e2e8f0; }
+        .wizard-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #6366f1);
+            transition: width 0.4s cubic-bezier(.4,0,.2,1);
+            width: 20%;
+        }
+        .wizard-tabs {
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding: 0 16px;
+            max-width: 832px;
+            margin: 0 auto;
+        }
+        .wizard-tabs::-webkit-scrollbar { display: none; }
+        .wizard-tab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 11px 14px;
+            border: none;
+            border-bottom: 3px solid transparent;
+            background: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #94a3b8;
+            white-space: nowrap;
+            transition: all 0.2s;
+            position: relative;
+            bottom: -1px;
+        }
+        .wizard-tab:hover { color: var(--primary); }
+        .wizard-tab.wiz-active { color: var(--primary); border-bottom-color: var(--primary); }
+        .wizard-tab.wiz-done { color: #10b981; }
+        .tab-num {
+            width: 18px; height: 18px;
+            background: #e2e8f0; color: #64748b;
+            border-radius: 50%; font-size: 0.63rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-weight: 800; flex-shrink: 0; transition: all 0.2s;
+        }
+        .wizard-tab.wiz-active .tab-num { background: var(--primary); color: #fff; }
+        .tab-check {
+            width: 18px; height: 18px;
+            background: #10b981; color: #fff;
+            border-radius: 50%; font-size: 0.75rem;
+            display: none; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .wizard-tab.wiz-done .tab-num { display: none; }
+        .wizard-tab.wiz-done .tab-check { display: inline-flex; }
+        .wizard-step-label-bar {
+            text-align: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            padding: 5px 16px 7px;
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* Step panels */
+        .wizard-step { display: none; }
+        .wizard-step.wiz-active { display: block; padding-bottom: 110px; }
+
+        /* Wizard action bar */
+        .wizard-actions {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            padding-bottom: calc(12px + env(safe-area-inset-bottom));
+            border-top: 1px solid #e2e8f0;
+            z-index: 500;
+        }
+        .wizard-actions-inner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .btn-wiz-back {
+            padding: 11px 18px;
+            background: #f1f5f9; color: #475569;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px; cursor: pointer;
+            font-size: 0.88rem; font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .btn-wiz-back:hover:not(:disabled) { background: #e2e8f0; color: #0f172a; }
+        .btn-wiz-back:disabled { opacity: 0.35; cursor: not-allowed; }
+        .wiz-step-indicator {
+            flex: 1; text-align: center;
+            font-size: 0.75rem; font-weight: 700;
+            color: var(--text-muted); font-family: 'Outfit', sans-serif;
+        }
+        .btn-wiz-next {
+            padding: 11px 18px;
+            background: var(--primary); color: #fff;
+            border: none; border-radius: 12px; cursor: pointer;
+            font-size: 0.88rem; font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
+            display: flex; align-items: center; gap: 4px;
+            box-shadow: 0 4px 12px rgba(14,165,233,0.25);
+        }
+        .btn-wiz-next:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-wiz-next:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none; }
+        .wiz-submit-wrap {
+            display: none; gap: 8px; flex: 1; align-items: center; justify-content: center;
+        }
+        .btn-wiz-submit {
+            flex: 1; max-width: 260px;
+            background: var(--primary); color: #fff;
+            padding: 12px 18px; border: none; border-radius: 12px; cursor: pointer;
+            font-size: 0.9rem; font-weight: 700; font-family: 'Outfit', sans-serif;
+            box-shadow: 0 4px 12px rgba(14,165,233,0.25); transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .btn-wiz-submit.sec { background: #f1f5f9; color: #475569; box-shadow: none; }
+        .btn-wiz-submit:hover:not(.sec) { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-wiz-submit.sec:hover { background: #e2e8f0; }
+        .wiz-req-hint {
+            display: none; font-size: 0.75rem; color: #ef4444; font-weight: 600;
+            text-align: center; padding: 0 8px; flex-shrink: 0;
+        }
+
+        /* Review summary card */
+        .review-card {
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: var(--radius); padding: 20px; margin-bottom: 24px;
+        }
+        .review-card-title {
+            font-family: 'Outfit', sans-serif; font-weight: 700;
+            color: var(--text-header); font-size: 1.05rem;
+            margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+        }
+        .review-group { margin-bottom: 14px; }
+        .review-group-head {
+            font-size: 0.68rem; font-weight: 800; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+        }
+        .review-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .review-chip {
+            background: #fff; border: 1px solid #e2e8f0;
+            border-radius: 8px; padding: 5px 11px;
+            font-size: 0.8rem; color: var(--text-main);
+        }
+        .review-chip strong { color: var(--text-header); }
+        .review-empty { color: #94a3b8; font-size: 0.82rem; font-style: italic; }
+
+        @media (max-width: 640px) {
+            .wizard-tab { padding: 9px 10px; font-size: 0.7rem; gap: 4px; }
+            .wizard-actions { padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+            .btn-wiz-back, .btn-wiz-next { padding: 10px 14px; font-size: 0.82rem; }
+            .btn-wiz-submit { font-size: 0.88rem; min-height: 46px; }
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
 </head>
 <body>
     {% include "_nav.html" %}
+    {% include "_patient_context_nav.html" %}
 
     <!-- P2 Breadcrumb -->
     <nav class="nav-breadcrumb" aria-label="Breadcrumb">
@@ -210,26 +388,52 @@
         </div>
     </header>
 
-    <div class="section-nav">
-        <div class="container" style="display:flex; gap:8px; margin:0 auto; padding:0 16px;">
-            <a href="#sec-weight" class="nav-dot active">Weight</a>
-            <a href="#sec-anemia" class="nav-dot">Anemia</a>
-            <a href="#sec-transfusion" class="nav-dot">Transfusion</a>
-            <a href="#sec-iron" class="nav-dot">Iron</a>
-            <a href="#sec-mbd" class="nav-dot">MBD</a>
-            <a href="#sec-nutrition" class="nav-dot">Nutrition & Liver</a>
-            <a href="#sec-adequacy" class="nav-dot">Adequacy</a>
-            <a href="#sec-electrolytes" class="nav-dot">Electrolytes</a>
-            <a href="#sec-metabolic" class="nav-dot">Metabolic</a>
-            <a href="#sec-meds" class="nav-dot">Meds</a>
-            <a href="#sec-events" class="nav-dot">Events</a>
-            {% if user and user.role in ['admin', 'doctor'] %}
-            <a href="#sec-notes" class="nav-dot">Evaluation</a>
-            {% endif %}
+    <!-- ── Multi-Step Wizard Navigation ── -->
+    <div class="wizard-nav" id="wizard-nav">
+        <div class="wizard-progress-wrap">
+            <div class="wizard-progress-fill" id="wizard-progress-fill"></div>
         </div>
+        <div class="wizard-tabs">
+            <button type="button" class="wizard-tab wiz-active" data-step="1">
+                <span class="tab-num">1</span>
+                <span class="tab-check">✓</span>
+                Vitals
+            </button>
+            <button type="button" class="wizard-tab" data-step="2">
+                <span class="tab-num">2</span>
+                <span class="tab-check">✓</span>
+                Lab Values
+            </button>
+            <button type="button" class="wizard-tab" data-step="3">
+                <span class="tab-num">3</span>
+                <span class="tab-check">✓</span>
+                Dialysis
+            </button>
+            <button type="button" class="wizard-tab" data-step="4">
+                <span class="tab-num">4</span>
+                <span class="tab-check">✓</span>
+                Medications
+            </button>
+            <button type="button" class="wizard-tab" data-step="5">
+                <span class="tab-num">5</span>
+                <span class="tab-check">✓</span>
+                Review
+            </button>
+        </div>
+        <div class="wizard-step-label-bar" id="wizard-step-label">Step 1 of 5 · Vitals</div>
     </div>
 
     <div class="container">
+
+        {% if form_error %}
+        <div class="form-error-banner" id="form-error-banner" role="alert">
+            <span class="feb-icon">error</span>
+            <div>
+                <strong>Save failed:</strong> {{ form_error }}<br>
+                <span style="font-size:0.82rem; color:#b91c1c;">Review your entries and try again. Your data has been preserved in this session.</span>
+            </div>
+        </div>
+        {% endif %}
 
         {% if prior_record and not record %}
         <div style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:10px; font-size:0.85rem; color:#78350f;">
@@ -238,10 +442,13 @@
         </div>
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" {% if record %}data-has-record="1"{% endif %}>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="month_str" value="{{ month_str }}">
-            
+
+            <!-- ═══ Wizard Step 1: Vitals ═══ -->
+            <div class="wizard-step wiz-active" id="wstep-1">
+
             <div class="form-section" id="sec-weight">
                 <div class="section-title"><i class="material-icons">monitor_weight</i> Fluid, Weight & Access</div>
                 <div class="grid">
@@ -414,6 +621,11 @@
                 <div id="transfusion_hint" style="display:none; background:#fff1f2; border:1px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-top:8px; font-size:0.85rem; color:#7f1d1d;"></div>
             </div>
 
+            </div><!-- /wstep-1 -->
+
+            <!-- ═══ Wizard Step 2: Lab Values ═══ -->
+            <div class="wizard-step" id="wstep-2">
+
             <!-- ── IV Iron & Infusions ── -->
             <div class="form-section" id="sec-iron">
                 <div class="section-title"><i class="material-icons">bloodtype</i> IV Iron & Infusions</div>
@@ -572,6 +784,11 @@
                 </div>
             </div>
 
+            </div><!-- /wstep-2 -->
+
+            <!-- ═══ Wizard Step 3: Dialysis Parameters ═══ -->
+            <div class="wizard-step" id="wstep-3">
+
             <!-- ── Dialysis Adequacy ── -->
             <div class="form-section" id="sec-adequacy">
                 <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy & Laboratory Panel</div>
@@ -685,6 +902,11 @@
                     {% endif %}
                 </div>
             </div>
+
+            </div><!-- /wstep-3 -->
+
+            <!-- ═══ Wizard Step 4: Medications & Events ═══ -->
+            <div class="wizard-step" id="wstep-4">
 
             <!-- ── Antihypertensive Medications ── -->
             <div class="form-section" id="sec-meds">
@@ -806,6 +1028,22 @@
                 </div>
             </div>
 
+            </div><!-- /wstep-4 -->
+
+            <!-- ═══ Wizard Step 5: Review & Submit ═══ -->
+            <div class="wizard-step" id="wstep-5">
+
+            <!-- Review Summary Card (populated by JS) -->
+            <div class="form-section review-card" id="review-summary-section">
+                <div class="review-card-title">
+                    <i class="material-icons" style="color:var(--primary);">checklist</i>
+                    Monthly Data Summary — Review Before Saving
+                </div>
+                <div id="review-summary-content">
+                    <div class="review-empty">Navigating to this step will summarise all entered values.</div>
+                </div>
+            </div>
+
             <!-- ── Clinical Evaluation & Notes ── -->
             {% if user and user.role in ['admin', 'doctor'] %}
             <div class="form-section" id="sec-notes">
@@ -832,13 +1070,28 @@
             </div>
             {% endif %}
 
-            <div class="save-actions">
-                <button type="submit" name="action" value="save_back" class="btn-save btn-secondary">
-                    <i class="material-icons">list</i> Save & Exit to List
-                </button>
-                <button type="submit" name="action" value="save_next" class="btn-save">
-                    <i class="material-icons">bolt</i> Save & Next Pending
-                </button>
+            </div><!-- /wstep-5 -->
+
+            <!-- ── Wizard Action Bar (fixed bottom) ── -->
+            <div class="wizard-actions" id="wizard-actions-bar">
+                <div class="wizard-actions-inner">
+                    <button type="button" id="btn-wiz-back" class="btn-wiz-back" onclick="wizardBack()" disabled>
+                        <i class="material-icons" style="font-size:0.9rem;">arrow_back_ios</i> Back
+                    </button>
+                    <span id="wiz-step-indicator" class="wiz-step-indicator">Step 1 of 5</span>
+                    <button type="button" id="btn-wiz-next" class="btn-wiz-next" onclick="wizardNext()">
+                        Next <i class="material-icons" style="font-size:0.9rem;">arrow_forward_ios</i>
+                    </button>
+                    <span id="wiz-req-hint" class="wiz-req-hint">Fill required fields</span>
+                    <div id="wiz-submit-wrap" class="wiz-submit-wrap">
+                        <button type="submit" name="action" value="save_back" class="btn-wiz-submit sec">
+                            <i class="material-icons">list</i> Save &amp; Exit
+                        </button>
+                        <button type="submit" name="action" value="save_next" class="btn-wiz-submit">
+                            <i class="material-icons">bolt</i> Save &amp; Next
+                        </button>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
@@ -1501,6 +1754,272 @@
         ['pre_dialysis_urea', 'post_dialysis_urea', 'idwg', 'last_prehd_weight', 'target_dry_weight'].forEach(name => {
             const el = document.querySelector(`input[name="${name}"]`);
             if (el) el.addEventListener('input', calculateKTV);
+        });
+
+        // ── Multi-Step Wizard ──────────────────────────────────────────────
+        const WIZ_TOTAL   = 5;
+        const WIZ_NAMES   = ['Vitals', 'Lab Values', 'Dialysis Parameters', 'Medications', 'Review'];
+        const WIZ_SS_KEY  = 'hd_wiz_{{ patient.id }}_{{ month_str }}';
+        const WIZ_REQUIRED = { 1: [], 2: ['hb'], 3: [], 4: [], 5: [] };
+
+        let wizStep    = 1;
+        const wizDone  = new Set(); // steps user has completed (advanced past)
+
+        /* ── sessionStorage helpers ─────────────────────────────── */
+        function wizSaveStep(s) {
+            const panel = document.getElementById('wstep-' + s);
+            if (!panel) return;
+            const data = {};
+            panel.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.name && el.type !== 'hidden') data[el.name] = el.value;
+            });
+            try {
+                const stored = JSON.parse(sessionStorage.getItem(WIZ_SS_KEY) || '{}');
+                stored['s' + s] = data;
+                sessionStorage.setItem(WIZ_SS_KEY, JSON.stringify(stored));
+            } catch(e) {}
+        }
+
+        function wizRestoreAll() {
+            // Only restore for new (unsaved) records to avoid overwriting server data
+            if (document.querySelector('form[data-has-record]')) return;
+            try {
+                const stored = JSON.parse(sessionStorage.getItem(WIZ_SS_KEY) || '{}');
+                for (let s = 1; s <= WIZ_TOTAL; s++) {
+                    const data = stored['s' + s];
+                    if (!data) continue;
+                    const panel = document.getElementById('wstep-' + s);
+                    if (!panel) continue;
+                    Object.entries(data).forEach(([name, val]) => {
+                        const inp = panel.querySelector('[name="' + name + '"]');
+                        if (inp && !inp.value && val) {
+                            inp.value = val;
+                            validate(inp.name);
+                        }
+                    });
+                }
+            } catch(e) {}
+        }
+
+        /* ── Validation helper ─────────────────────────────────── */
+        function wizCheckRequired(s) {
+            const reqs = WIZ_REQUIRED[s] || [];
+            return reqs.every(name => {
+                const el = document.querySelector('[name="' + name + '"]');
+                return el && el.value.trim() !== '';
+            });
+        }
+
+        /* ── UI update ─────────────────────────────────────────── */
+        function wizUpdateUI() {
+            const s = wizStep;
+
+            // Tab states
+            document.querySelectorAll('.wizard-tab').forEach((tab, i) => {
+                const n = i + 1;
+                tab.classList.toggle('wiz-active', n === s);
+                tab.classList.toggle('wiz-done',   wizDone.has(n) && n !== s);
+            });
+
+            // Progress bar
+            const fill = document.getElementById('wizard-progress-fill');
+            if (fill) fill.style.width = ((s / WIZ_TOTAL) * 100) + '%';
+
+            // Step label
+            const lbl = document.getElementById('wizard-step-label');
+            if (lbl) lbl.textContent = 'Step ' + s + ' of ' + WIZ_TOTAL + ' · ' + WIZ_NAMES[s - 1];
+
+            // Panel visibility
+            for (let n = 1; n <= WIZ_TOTAL; n++) {
+                const panel = document.getElementById('wstep-' + n);
+                if (panel) panel.classList.toggle('wiz-active', n === s);
+            }
+
+            // Step indicator in action bar
+            const ind = document.getElementById('wiz-step-indicator');
+            if (ind) ind.textContent = 'Step ' + s + ' of ' + WIZ_TOTAL;
+
+            // Back button
+            const btnBack = document.getElementById('btn-wiz-back');
+            if (btnBack) btnBack.disabled = (s === 1);
+
+            // Next / Submit visibility
+            const btnNext   = document.getElementById('btn-wiz-next');
+            const submitWrap = document.getElementById('wiz-submit-wrap');
+            const reqHint   = document.getElementById('wiz-req-hint');
+
+            if (s === WIZ_TOTAL) {
+                if (btnNext)    btnNext.style.display    = 'none';
+                if (ind)        ind.style.display        = 'flex';
+                if (submitWrap) submitWrap.style.display = 'flex';
+                if (reqHint)    reqHint.style.display    = 'none';
+                buildReviewSummary();
+            } else {
+                if (btnNext) {
+                    btnNext.style.display = 'flex';
+                    const ok = wizCheckRequired(s);
+                    btnNext.disabled = !ok;
+                }
+                if (submitWrap) submitWrap.style.display = 'none';
+                if (reqHint)    reqHint.style.display    = (wizCheckRequired(s) ? 'none' : 'block');
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function wizGoTo(target) {
+            if (target < 1 || target > WIZ_TOTAL) return;
+            // Prevent skipping forward past required fields
+            if (target > wizStep && !wizCheckRequired(wizStep)) {
+                const reqs = WIZ_REQUIRED[wizStep] || [];
+                reqs.forEach(name => {
+                    const el = document.querySelector('[name="' + name + '"]');
+                    if (el && !el.value.trim()) {
+                        el.style.borderColor     = '#ef4444';
+                        el.style.backgroundColor = '#fef2f2';
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+                const hint = document.getElementById('wiz-req-hint');
+                if (hint) { hint.style.display = 'block'; }
+                return;
+            }
+            wizSaveStep(wizStep);
+            if (target > wizStep) wizDone.add(wizStep);
+            wizStep = target;
+            wizUpdateUI();
+        }
+
+        function wizardNext() { wizGoTo(wizStep + 1); }
+        function wizardBack() { wizGoTo(wizStep - 1); }
+
+        /* ── Required-field live listeners ─────────────────────── */
+        function wizBindListeners() {
+            Object.entries(WIZ_REQUIRED).forEach(([s, fields]) => {
+                fields.forEach(name => {
+                    const el = document.querySelector('[name="' + name + '"]');
+                    if (!el) return;
+                    el.addEventListener('input', () => {
+                        if (wizStep !== parseInt(s)) return;
+                        const ok  = wizCheckRequired(parseInt(s));
+                        const btn = document.getElementById('btn-wiz-next');
+                        if (btn) btn.disabled = !ok;
+                        const hint = document.getElementById('wiz-req-hint');
+                        if (hint) hint.style.display = ok ? 'none' : 'block';
+                        if (el.value.trim()) {
+                            el.style.borderColor = '';
+                            el.style.backgroundColor = '';
+                        }
+                    });
+                });
+            });
+            // Auto-save on any field change
+            document.querySelectorAll('.wizard-step input, .wizard-step select, .wizard-step textarea').forEach(el => {
+                el.addEventListener('change', () => wizSaveStep(wizStep));
+            });
+        }
+
+        /* ── Tab click navigation ───────────────────────────────── */
+        function wizBindTabs() {
+            document.querySelectorAll('.wizard-tab').forEach((tab, i) => {
+                tab.addEventListener('click', () => wizGoTo(i + 1));
+            });
+        }
+
+        /* ── Review Summary Builder ─────────────────────────────── */
+        function buildReviewSummary() {
+            const container = document.getElementById('review-summary-content');
+            if (!container) return;
+
+            const groups = [
+                { title: 'Vitals & Access', fields: [
+                    { name: 'access_type',          label: 'Vascular Access' },
+                    { name: 'target_dry_weight',     label: 'Dry Weight',     unit: 'kg'   },
+                    { name: 'idwg',                  label: 'IDWG',           unit: 'kg'   },
+                    { name: 'bp_sys',                label: 'BP Systolic',    unit: 'mmHg' },
+                    { name: 'bp_dia',                label: 'BP Diastolic',   unit: 'mmHg' },
+                    { name: 'blood_transfusion_units', label: 'Transfusion',  unit: 'units' },
+                    { name: 'entered_by',            label: 'Entered By' },
+                ]},
+                { title: 'Anemia & Hematology', fields: [
+                    { name: 'hb',              label: 'Hemoglobin',   unit: 'g/dL'  },
+                    { name: 'hct',             label: 'Hematocrit',   unit: '%'     },
+                    { name: 'serum_ferritin',  label: 'Ferritin',     unit: 'ng/mL' },
+                    { name: 'tsat',            label: 'TSAT',         unit: '%'     },
+                    { name: 'epo_mircera_dose', label: 'ESA Regimen' },
+                    { name: 'wbc_count',       label: 'WBC',          unit: '/cmm'  },
+                    { name: 'platelet_count',  label: 'Platelets',    unit: '×10³/µL' },
+                ]},
+                { title: 'Bone & Mineral', fields: [
+                    { name: 'calcium',           label: 'Calcium',    unit: 'mg/dL'  },
+                    { name: 'phosphorus',        label: 'Phosphorus', unit: 'mg/dL'  },
+                    { name: 'ipth',              label: 'iPTH',       unit: 'pg/mL'  },
+                    { name: 'vit_d',             label: 'Vitamin D',  unit: 'ng/mL'  },
+                    { name: 'albumin',           label: 'Albumin',    unit: 'g/dL'   },
+                ]},
+                { title: 'Dialysis Adequacy', fields: [
+                    { name: 'pre_dialysis_urea',  label: 'Pre Urea',  unit: 'mg/dL' },
+                    { name: 'post_dialysis_urea', label: 'Post Urea', unit: 'mg/dL' },
+                    { name: 'single_pool_ktv',    label: 'spKt/V' },
+                    { name: 'equilibrated_ktv',   label: 'eKt/V'  },
+                    { name: 'serum_creatinine',   label: 'Creatinine', unit: 'mg/dL' },
+                ]},
+                { title: 'Electrolytes & Metabolic', fields: [
+                    { name: 'serum_sodium',     label: 'Sodium',     unit: 'mmol/L' },
+                    { name: 'serum_potassium',  label: 'Potassium',  unit: 'mmol/L' },
+                    { name: 'serum_bicarbonate', label: 'Bicarbonate', unit: 'mmol/L' },
+                    { name: 'hba1c',            label: 'HbA1c',      unit: '%'     },
+                    { name: 'crp',              label: 'CRP',        unit: 'mg/L'  },
+                ]},
+            ];
+
+            let html = '';
+            let anyFilled = false;
+            groups.forEach(group => {
+                const filled = group.fields.filter(f => {
+                    const el = document.querySelector('[name="' + f.name + '"]');
+                    return el && el.value.trim() !== '';
+                });
+                if (!filled.length) return;
+                anyFilled = true;
+                html += '<div class="review-group">';
+                html += '<div class="review-group-head">' + group.title + '</div>';
+                html += '<div class="review-chips">';
+                filled.forEach(f => {
+                    const el  = document.querySelector('[name="' + f.name + '"]');
+                    const val = el ? el.value.trim() : '';
+                    const unit = f.unit ? ' <span style="color:#94a3b8;font-size:0.75rem;">' + f.unit + '</span>' : '';
+                    html += '<div class="review-chip"><strong>' + f.label + ':</strong> ' + val + unit + '</div>';
+                });
+                html += '</div></div>';
+            });
+
+            if (!anyFilled) {
+                html = '<div class="review-empty">No values entered yet — go back to fill in the form sections.</div>';
+            }
+            container.innerHTML = html;
+        }
+
+        /* ── Save to sessionStorage on page unload ──────────────── */
+        window.addEventListener('beforeunload', () => wizSaveStep(wizStep));
+
+        /* ── Init ───────────────────────────────────────────────── */
+        document.addEventListener('DOMContentLoaded', () => {
+            wizBindListeners();
+            wizBindTabs();
+            wizRestoreAll();
+            // If server returned a form_error, land on Review step so user sees
+            // the error banner and submit buttons immediately.
+            {% if form_error %}
+            wizStep = WIZ_TOTAL;
+            for (let s = 1; s < WIZ_TOTAL; s++) wizDone.add(s);
+            {% endif %}
+            wizUpdateUI();
+            {% if form_error %}
+            // Scroll error banner into view
+            const banner = document.getElementById('form-error-banner');
+            if (banner) setTimeout(() => banner.scrollIntoView({ behavior:'smooth', block:'center' }), 200);
+            {% endif %}
         });
     </script>
     <style>

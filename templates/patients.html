@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Management — HD Dashboard</title>
+    <title>Patients — {{ data.month_label }} | HD Dashboard</title>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
     <link rel="stylesheet" href="/static/css/clinical.css?v=2.0.2"/>
@@ -125,16 +125,91 @@
     </div>
 </div>
 
+<!-- ── QUICK-FILTER CHIPS ── -->
+<div class="container" style="padding-top: 10px; padding-bottom: 0;">
+  <div id="filterChips" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+    <span style="font-size:0.78rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Quick filter:</span>
+    <button class="chip-btn {% if active_chip == 'high_risk' %}chip-active{% endif %}" onclick="setChip('high_risk')" data-chip="high_risk">
+      <i class="material-icons" style="font-size:0.85rem; color:#dc2626;">warning</i> High Risk
+    </button>
+    <button class="chip-btn {% if active_chip == 'missing' %}chip-active{% endif %}" onclick="setChip('missing')" data-chip="missing">
+      <i class="material-icons" style="font-size:0.85rem; color:#d97706;">assignment_late</i> Missing Records
+    </button>
+    <button class="chip-btn {% if active_chip == 'non_avf' %}chip-active{% endif %}" onclick="setChip('non_avf')" data-chip="non_avf">
+      <i class="material-icons" style="font-size:0.85rem; color:#7c3aed;">device_hub</i> Non-AVF
+    </button>
+    {% if user and user.role in ['admin', 'doctor'] %}
+    <button class="chip-btn" onclick="window.location.href='/patients?inactive=1'" style="border-color:#94a3b8; color:#64748b;">
+      <i class="material-icons" style="font-size:0.85rem;">person_off</i> Inactive
+    </button>
+    {% endif %}
+    <button id="clearChipBtn" class="chip-btn chip-clear" onclick="setChip('')" style="{% if not active_chip %}display:none{% endif %}">
+      <i class="material-icons" style="font-size:0.85rem;">close</i> Clear
+    </button>
+    <span id="chipResultCount" style="font-size:0.8rem; color:var(--text-muted); margin-left:4px;"></span>
+  </div>
+</div>
+
+<style>
+.chip-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border: 1.5px solid var(--border);
+  border-radius: 20px; cursor: pointer; font-size: 0.8rem; font-weight: 600;
+  background: var(--card); color: var(--text); font-family: 'Inter', sans-serif;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.chip-active { background: var(--primary-light) !important; border-color: var(--primary) !important; color: var(--primary) !important; }
+.chip-clear { border-color: #cbd5e1; color: #64748b; }
+
+/* Sortable column headers */
+th[data-sortable] { cursor: pointer; user-select: none; white-space: nowrap; }
+th[data-sortable]:hover { background: rgba(14,165,233,0.06); }
+th[data-sortable] .sort-icon { font-size: 0.85rem; vertical-align: middle; opacity: 0.4; margin-left: 2px; transition: opacity 0.15s; font-family: 'Material Icons'; }
+th[data-sortable].sort-asc .sort-icon,
+th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
+
+/* Empty state */
+#tableEmptyState { display: none; }
+.empty-state-box {
+  text-align: center; padding: 48px 24px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 16px; margin-top: 16px;
+}
+.empty-state-box i { font-size: 3rem; color: #cbd5e1; }
+.empty-state-box h3 { margin: 12px 0 6px; color: var(--text); font-family: 'Outfit', sans-serif; }
+.empty-state-box p { color: var(--text-muted); font-size: 0.875rem; margin: 0 0 16px; }
+
+/* Mobile card layout */
+@media (max-width: 639px) {
+  #patientTable thead { display: none; }
+  #patientTable tbody tr {
+    display: block; border: 1px solid var(--border); border-radius: 12px;
+    margin-bottom: 12px; padding: 14px 16px; background: var(--card);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  #patientTable tbody td { display: block; padding: 4px 0; border: none; }
+  #patientTable tbody td::before {
+    content: attr(data-label) ': ';
+    font-weight: 700; font-size: 0.72rem; text-transform: uppercase;
+    color: var(--text-muted); letter-spacing: 0.04em; margin-right: 4px;
+  }
+  #patientTable tbody td[data-label="Actions"]::before,
+  #patientTable tbody td[data-label="Patient"]::before { content: ''; }
+  #patientTable tbody td[data-label="Patient"] { margin-bottom: 6px; }
+  #patientTable tbody td[data-label="Actions"] { margin-top: 8px; }
+}
+</style>
+
 <!-- ── TABLE ── -->
 <div class="container">
     <div class="table-wrap">
         <table id="patientTable">
             <thead>
                 <tr>
-                    <th data-label="Patient">Patient</th>
-                    <th>Last HD Session</th>
-                    <th>Hb Trend (6m)</th>
-                    <th>Albumin Trend (6m)</th>
+                    <th data-label="Patient" data-sortable data-sort-key="name">Patient <span class="sort-icon">unfold_more</span></th>
+                    <th data-sortable data-sort-key="session">Last HD Session <span class="sort-icon">unfold_more</span></th>
+                    <th data-sortable data-sort-key="hb">Hb <span class="sort-icon">unfold_more</span></th>
+                    <th data-sortable data-sort-key="albumin">Albumin <span class="sort-icon">unfold_more</span></th>
                     <th>Lab Status</th>
                     <th>Clinical Alerts</th>
                     <th data-label="Actions">Actions</th>
@@ -148,6 +223,8 @@
                 <tr data-status="{{ row_status }}"
                     data-urgency="{{ '0' if (not row.has_record or row.has_missing_data) else ('1' if row.alerts else '2') }}"
                     data-relative="{{ p.relation if p.relation else '' }}"
+                    data-last-session="{{ row.last_session_date.strftime('%Y-%m-%d') if row.last_session_date else '' }}"
+                    data-access="{{ p.access_type or '' }}"
                     class="{{ 'row-missing' if (not row.has_record or row.has_missing_data) else '' }}">
 
                     <!-- Patient: name + HID + sex badge -->
@@ -310,6 +387,16 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Empty state -->
+    <div id="tableEmptyState" class="empty-state-box">
+        <i class="material-icons">search_off</i>
+        <h3>No patients match this filter</h3>
+        <p>Try adjusting your search or filters.</p>
+        <button onclick="clearAllFilters()" style="padding:8px 20px; background:var(--primary); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:0.875rem;">
+            Clear filters
+        </button>
     </div>
 </div>
 
@@ -559,10 +646,27 @@
 
 
 <script>
-    // ── FILTER (search name/HID + status) ──────────────────────────────────
+    // ── FILTER CHIPS ─────────────────────────────────────────────────────────
+    let _activeChip = '{{ active_chip }}';
+
+    function setChip(chip) {
+        _activeChip = chip;
+        document.querySelectorAll('.chip-btn[data-chip]').forEach(b => {
+            b.classList.toggle('chip-active', b.dataset.chip === chip);
+        });
+        document.getElementById('clearChipBtn').style.display = chip ? '' : 'none';
+        applyFilters();
+        // Persist in URL without full reload
+        const url = new URL(window.location.href);
+        if (chip) url.searchParams.set('chip', chip); else url.searchParams.delete('chip');
+        history.replaceState(null, '', url.toString());
+    }
+
+    // ── FILTER (search name/HID + status + chip) ─────────────────────────────
     function applyFilters() {
         const query  = document.getElementById('patientSearch').value.toLowerCase().trim();
         const status = document.getElementById('statusFilter').value;
+        let visCount = 0;
         document.querySelectorAll('#patientTable tbody tr').forEach(row => {
             const nameEl = row.querySelector('.cell-name');
             const hidEl  = row.querySelector('.cell-hid');
@@ -572,19 +676,107 @@
             const matchSearch = !query || nameText.includes(query) || hidText.includes(query) || relativeText.includes(query);
             const rowStatus   = row.dataset.status || 'stable';
             const matchStatus = status === 'all' || rowStatus === status;
-            row.style.display = (matchSearch && matchStatus) ? '' : 'none';
+            const matchChip   = !_activeChip ||
+                (_activeChip === 'high_risk' && row.dataset.urgency === '1') ||
+                (_activeChip === 'missing'   && rowStatus === 'missing') ||
+                (_activeChip === 'non_avf'   && row.dataset.access && row.dataset.access !== 'AVF');
+            const visible = matchSearch && matchStatus && matchChip;
+            row.style.display = visible ? '' : 'none';
+            if (visible) visCount++;
         });
+        const countEl = document.getElementById('chipResultCount');
+        if (_activeChip || query || status !== 'all') {
+            countEl.textContent = visCount + ' patient' + (visCount !== 1 ? 's' : '');
+        } else {
+            countEl.textContent = '';
+        }
+        document.getElementById('tableEmptyState').style.display = visCount === 0 ? 'block' : 'none';
     }
 
-    /* 
-    // Sort rows by urgency on page load (0=missing, 1=alert, 2=stable)
-    (function() {
+    function clearAllFilters() {
+        _activeChip = '';
+        document.querySelectorAll('.chip-btn[data-chip]').forEach(b => b.classList.remove('chip-active'));
+        document.getElementById('clearChipBtn').style.display = 'none';
+        document.getElementById('patientSearch').value = '';
+        document.getElementById('statusFilter').value = 'all';
+        applyFilters();
+        const url = new URL(window.location.href);
+        url.searchParams.delete('chip');
+        history.replaceState(null, '', url.toString());
+    }
+
+    // ── COLUMN SORTING ────────────────────────────────────────────────────────
+    let _sortKey = '{{ active_sort }}';
+    let _sortDir = '{{ active_dir }}';
+
+    function getRowSortValue(row, key) {
+        if (key === 'name') {
+            const el = row.querySelector('.cell-name');
+            return el ? el.textContent.trim().toLowerCase() : '';
+        }
+        if (key === 'session') {
+            return row.dataset.lastSession || '9999-99-99';
+        }
+        if (key === 'hb') {
+            const el = row.querySelector('td:nth-child(3) span');
+            if (!el) return 999;
+            const n = parseFloat(el.textContent);
+            return isNaN(n) ? 999 : n;
+        }
+        if (key === 'albumin') {
+            const el = row.querySelector('td:nth-child(4) span');
+            if (!el) return 999;
+            const n = parseFloat(el.textContent);
+            return isNaN(n) ? 999 : n;
+        }
+        return '';
+    }
+
+    function sortTable(key) {
+        if (_sortKey === key) {
+            _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            _sortKey = key; _sortDir = 'asc';
+        }
         const tbody = document.querySelector('#patientTable tbody');
         const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => parseInt(a.dataset.urgency) - parseInt(b.dataset.urgency));
+        rows.sort((a, b) => {
+            const av = getRowSortValue(a, key);
+            const bv = getRowSortValue(b, key);
+            if (typeof av === 'number') return _sortDir === 'asc' ? av - bv : bv - av;
+            return _sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+        });
         rows.forEach(r => tbody.appendChild(r));
+        // Update header icons
+        document.querySelectorAll('th[data-sortable]').forEach(th => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            const icon = th.querySelector('.sort-icon');
+            if (icon) icon.textContent = 'unfold_more';
+        });
+        const activeTh = document.querySelector('th[data-sort-key="' + key + '"]');
+        if (activeTh) {
+            activeTh.classList.add(_sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+            const icon = activeTh.querySelector('.sort-icon');
+            if (icon) icon.textContent = _sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward';
+        }
+        // Persist in URL
+        const url = new URL(window.location.href);
+        url.searchParams.set('sort', key); url.searchParams.set('dir', _sortDir);
+        history.replaceState(null, '', url.toString());
+    }
+
+    // Wire column header clicks
+    document.querySelectorAll('th[data-sortable]').forEach(th => {
+        th.addEventListener('click', function() { sortTable(this.dataset.sortKey); });
+    });
+
+    // Apply initial sort from URL on load
+    (function() {
+        if (_sortKey && _sortKey !== 'name') sortTable(_sortKey);
+        else if (_sortKey === 'name' && _sortDir === 'desc') sortTable('name');
+        if (_activeChip) setChip(_activeChip);
+        applyFilters();
     })();
-    */
 
     // ── OVERFLOW DROPDOWN ─────────────────────────────────────────────────
     let lastToggleTime = 0;
