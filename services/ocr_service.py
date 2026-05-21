@@ -137,24 +137,6 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
         "unit": "mg/dL",
         "type": "float",
     },
-    "urr": {
-        "label": "Urea Reduction Ratio",
-        "aliases": ["URR", "Urea Reduction Ratio"],
-        "unit": "%",
-        "type": "float",
-    },
-    "single_pool_ktv": {
-        "label": "Kt/V (single pool)",
-        "aliases": ["Kt/V", "spKt/V", "Single Pool Kt/V", "KTV"],
-        "unit": "",
-        "type": "float",
-    },
-    "equilibrated_ktv": {
-        "label": "Equilibrated Kt/V",
-        "aliases": ["eKt/V", "Equilibrated Kt/V", "eKTV"],
-        "unit": "",
-        "type": "float",
-    },
     # Nutrition
     "albumin": {
         "label": "Serum Albumin",
@@ -182,6 +164,12 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
         "type": "float",
     },
     # Haematology
+    "hct": {
+        "label": "Hematocrit / PCV",
+        "aliases": ["HCT", "Hematocrit", "PCV", "Packed Cell Volume"],
+        "unit": "%",
+        "type": "float",
+    },
     "wbc_count": {
         "label": "WBC / TLC",
         "aliases": ["WBC", "TLC", "Total Leucocyte Count", "Total WBC", "White Blood Cell Count", "WBC Count"],
@@ -226,43 +214,30 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
         "unit": "mg/L",
         "type": "float",
     },
-    # Cardiac
-    "nt_probnp": {
-        "label": "NT-proBNP",
-        "aliases": ["NT-proBNP", "NT proBNP", "proBNP", "BNP"],
-        "unit": "pg/mL",
-        "type": "float",
+
+    # Medications
+    "epo_mircera_dose": {
+        "label": "ESA / Mircera Dose",
+        "aliases": ["ESA", "Erythropoietin", "Mircera", "Epoetin", "Darbepoetin", "PEG EPO", "Pegylated Erythropoietin"],
+        "unit": "",
+        "type": "string",
     },
-    # Vitals
-    "bp_sys": {
-        "label": "Systolic Blood Pressure",
-        "aliases": ["SBP", "Systolic BP", "Systolic", "BP Systolic"],
-        "unit": "mmHg",
-        "type": "float",
+    "desidustat_dose": {
+        "label": "Desidustat Dose",
+        "aliases": ["Desidustat", "Oxemia"],
+        "unit": "",
+        "type": "string",
     },
-    "bp_dia": {
-        "label": "Diastolic Blood Pressure",
-        "aliases": ["DBP", "Diastolic BP", "Diastolic", "BP Diastolic"],
-        "unit": "mmHg",
-        "type": "float",
+    "iv_iron_product": {
+        "label": "IV Iron Product",
+        "aliases": ["IV Iron", "Iron Sucrose", "Ferric Carboxymaltose", "FCM"],
+        "unit": "",
+        "type": "string",
     },
-    # Fluid
-    "idwg": {
-        "label": "Interdialytic Weight Gain",
-        "aliases": ["IDWG", "Interdialytic Weight Gain", "Weight Gain"],
-        "unit": "kg",
-        "type": "float",
-    },
-    "residual_urine_output": {
-        "label": "Residual Urine Output",
-        "aliases": ["Residual Urine", "RUO", "Urine Output", "Residual Diuresis"],
-        "unit": "mL/day",
-        "type": "float",
-    },
-    "npcr": {
-        "label": "nPCR",
-        "aliases": ["nPCR", "Normalized Protein Catabolic Rate", "PCR"],
-        "unit": "g/kg/day",
+    "iv_iron_dose": {
+        "label": "IV Iron Dose",
+        "aliases": ["IV Iron Dose", "FCM Dose", "Iron Dose"],
+        "unit": "mg",
         "type": "float",
     },
 }
@@ -281,7 +256,7 @@ def _build_extraction_prompt() -> str:
     return f"""You are a clinical lab report OCR assistant. Your ONLY job is to extract specific numeric lab values for a hemodialysis patient from the provided report image.
 
 TASK:
-Read all text in the image. Extract numeric values for the fields listed below. Ignore everything else — patient name, doctor notes, reference ranges, diagnoses, medications, addresses, logos, etc.
+Read all text in the image. Extract values for the fields listed below. Ignore everything else — patient name, doctor notes, reference ranges, diagnoses, addresses, logos, etc. For medication fields, extract the full string (e.g. 'Mircera 75mcg').
 
 ALLOWED OUTPUT KEYS — these are the ONLY valid keys you may include in "extracted_fields":
 {valid_keys}
@@ -290,7 +265,7 @@ FIELD DEFINITIONS (label and common aliases to help you match the report):
 {fields_block}
 
 EXTRACTION RULES:
-1. Extract ONLY numeric values (integers or decimals). Strip units from values.
+1. Extract numeric values (integers or decimals) for lab tests and strip units. For medications, extract the string value including the dose/frequency.
 2. If a field is not present in the report, do NOT include it in the output — omit it entirely.
 3. If a value is unreadable or clearly erroneous, omit it.
 4. For blood pressure written as "120/80": extract 120 → bp_sys, 80 → bp_dia.
@@ -314,9 +289,9 @@ _FIELD_UNITS: dict[str, str] = {k: v["unit"] for k, v in FIELD_MAP.items()}
 
 
 class OCRResponse(BaseModel):
-    extracted_fields: dict[str, float] = Field(
+    extracted_fields: dict[str, Any] = Field(
         default_factory=dict,
-        description="Numeric lab values extracted. Keys must strictly match the allowed list."
+        description="Extracted lab values and medications. Keys must strictly match the allowed list. Values can be float or string."
     )
     confidence: dict[str, str] = Field(
         default_factory=dict,
@@ -367,7 +342,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
 
         # Validate and sanitize extracted_fields — only keep known fields
         raw_fields = result.get("extracted_fields", {})
-        clean_fields: dict[str, float] = {}
+        clean_fields: dict[str, Any] = {}
         clean_confidence: dict[str, str] = {}
         confidence_map = result.get("confidence", {})
 
@@ -377,15 +352,22 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
                 # that are NOT mapped in this application and are silently rejected.
                 logger.info("OCR DISCARD — unmapped field '%s' (value=%s) not in application FIELD_MAP", field, value)
                 continue
-            try:
-                numeric = float(value)
-                if numeric < 0 or numeric > 100000:
-                    logger.warning("OCR DISCARD — suspicious value for '%s': %s (out of absolute bounds)", field, value)
-                    continue
-                clean_fields[field] = round(numeric, 2)
-                clean_confidence[field] = confidence_map.get(field, "medium")
-            except (TypeError, ValueError):
-                logger.warning("OCR DISCARD — non-numeric value for '%s': %s", field, value)
+            expected_type = FIELD_MAP[field].get("type", "float")
+            
+            if expected_type == "float":
+                try:
+                    numeric = float(value)
+                    if numeric < 0 or numeric > 100000:
+                        logger.warning("OCR DISCARD — suspicious value for '%s': %s (out of absolute bounds)", field, value)
+                        continue
+                    clean_fields[field] = round(numeric, 2)
+                    clean_confidence[field] = confidence_map.get(field, "medium")
+                except (TypeError, ValueError):
+                    logger.warning("OCR DISCARD — non-numeric value for '%s': %s", field, value)
+            else:
+                if value and isinstance(value, str):
+                    clean_fields[field] = value.strip()
+                    clean_confidence[field] = confidence_map.get(field, "medium")
 
         return {
             "extracted_fields": clean_fields,

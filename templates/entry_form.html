@@ -519,14 +519,19 @@
                         </select>
                     </div>
                     <div class="form-group" id="mcg_input_group" style="display:none;">
-                        <label id="mcg_label">Dose (mcg)</label>
                         <div style="display:flex; gap:8px;">
-                            <input type="number" id="esa_mcg" placeholder="e.g. 40" oninput="calculateWeeklyUnits()" style="flex:1; width:auto;">
-                            <select id="esa_frequency" onchange="calculateWeeklyUnits()" style="flex:1.5; width:auto;">
-                                <option value="1">Weekly</option>
-                                <option value="0.5">Every 2 Weeks</option>
-                                <option value="0.25">Monthly</option>
-                            </select>
+                            <div style="flex:1;">
+                                <label id="mcg_label">Dose (mcg)</label>
+                                <input type="number" id="esa_mcg" placeholder="e.g. 40" oninput="calculateWeeklyUnits()" style="width:100%;">
+                            </div>
+                            <div style="flex:1.5;">
+                                <label>Frequency</label>
+                                <select id="esa_frequency" onchange="calculateWeeklyUnits()" style="width:100%;">
+                                    <option value="1">Weekly</option>
+                                    <option value="0.5">Every 2 Weeks</option>
+                                    <option value="0.25">Monthly</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group" id="epo_units_group">
@@ -2168,7 +2173,12 @@
             const oor = isOutOfRange(key, val);
             const lbl = FIELD_LABELS[key] || key;
             const unit= FIELD_UNITS[key] ? ` (${FIELD_UNITS[key]})` : '';
-            const autoCheck = c !== 'low' && !oor;          // safety: uncheck low-conf & out-of-range
+            
+            // Safety: check if form field is already populated
+            const existingInput = document.querySelector(`[name="${key}"]`);
+            const alreadyHasValue = existingInput && existingInput.value.trim() !== '';
+            
+            const autoCheck = c !== 'low' && !oor && !alreadyHasValue; // Uncheck if already populated
             const rowBg = oor ? '#fff7ed' : '#fff';
             const borderC = oor ? '#fed7aa' : '#f1f5f9';
             const rangeR = OCR_RANGES[key];
