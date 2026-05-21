@@ -781,12 +781,23 @@
                     <i class="material-icons" aria-hidden="true">history_edu</i> POMR & Background
                 </h2>
                 {% if user and user.role in ['admin', 'doctor'] %}
-                {% if patient.clinical_background %}
-                <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">
-                    <strong>Longitudinal History:</strong><br/>
-                    {{ patient.clinical_background }}
+                <div id="pomr-view">
+                    {% if patient.clinical_background %}
+                    <div style="font-size: 0.85rem; line-height: 1.5; color: var(--text-main); margin-bottom: 12px; white-space:pre-wrap;"><strong>Longitudinal History:</strong><br/>{{ patient.clinical_background }}</div>
+                    {% else %}
+                    <div style="font-size: 0.8rem; line-height: 1.5; color: #94a3b8; font-style: italic; margin-bottom: 12px;">No longitudinal history recorded.</div>
+                    {% endif %}
+                    <button onclick="document.getElementById('pomr-view').style.display='none'; document.getElementById('pomr-edit').style.display='block';" style="background:none; border:none; color:var(--primary); font-size:0.8rem; font-weight:600; cursor:pointer; padding:0; display:flex; align-items:center; gap:4px;"><i class="material-icons" style="font-size:0.9rem;">edit</i> Edit POMR</button>
                 </div>
-                {% endif %}
+                <div id="pomr-edit" style="display:none; margin-bottom: 12px;">
+                    <form action="/patients/{{ patient.id }}/clinical_background" method="POST">
+                        <textarea name="clinical_background" rows="5" style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; font-family:'Inter',sans-serif; font-size:0.85rem; resize:vertical; margin-bottom:8px;">{{ patient.clinical_background or '' }}</textarea>
+                        <div style="display:flex; gap:8px;">
+                            <button type="submit" style="background:var(--primary); color:white; border:none; border-radius:6px; padding:6px 12px; font-size:0.8rem; cursor:pointer; font-weight:600;">Save</button>
+                            <button type="button" onclick="document.getElementById('pomr-edit').style.display='none'; document.getElementById('pomr-view').style.display='block';" style="background:#f1f5f9; color:#475569; border:none; border-radius:6px; padding:6px 12px; font-size:0.8rem; cursor:pointer; font-weight:600;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
                 {% else %}
                 <div style="font-size: 0.8rem; line-height: 1.5; color: #94a3b8; font-style: italic; margin-bottom: 12px;">
                     POMR clinical background is restricted to Clinicians.

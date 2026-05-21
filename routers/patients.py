@@ -740,3 +740,21 @@ async def delete_hospitalisation(
     db.delete(ev)
     db.commit()
     return RedirectResponse(url=f"/patients/{patient_id}", status_code=303)
+
+
+@router.post("/{patient_id}/clinical_background")
+async def update_clinical_background(
+    patient_id: int, 
+    clinical_background: str = Form(""), 
+    db: Session = Depends(get_db), 
+    user=Depends(get_current_user)
+):
+    from services.patient_service import get_patient_by_id
+    p = get_patient_by_id(db, patient_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if user.role in ["admin", "doctor"]:
+        p.clinical_background = clinical_background
+        db.commit()
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/patients/{patient_id}", status_code=303)
