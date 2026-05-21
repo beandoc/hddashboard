@@ -113,17 +113,22 @@
         </div>
 
         <div class="grid">
-            {% for project in projects %}
+            {% set active_projects = projects | selectattr("status", "equalto", "Active") | list %}
+            {% for project in active_projects %}
             <div class="card">
                 <h3>{{ project.title }}</h3>
                 <p>{{ project.description or "No description provided." }}</p>
                 <div class="card-footer">
-                    <span class="status-badge">{{ project.status }}</span>
+                    <span class="status-badge">● Active</span>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <a href="/research/projects/{{ project.id }}" class="btn-outline">Open Project</a>
-                        <form method="POST" action="/research/projects/{{ project.id }}/delete" onsubmit="return confirm('Delete this project and all its records?');" style="margin:0;">
-                            <button type="submit" style="background:none; border:none; color:#ef4444; cursor:pointer; display:flex; align-items:center;" title="Delete Project">
-                                <i class="material-icons" style="font-size:1.2rem;">delete</i>
+                        <form method="POST" action="/research/projects/{{ project.id }}/deactivate"
+                              onsubmit="return confirm('Deactivate this project? All recorded patient data will be preserved.')"
+                              style="margin:0;">
+                            <button type="submit"
+                                    style="background:#fff7ed; border:1.5px solid #f59e0b; color:#b45309; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem; font-weight:600; display:flex; align-items:center; gap:5px;"
+                                    title="Deactivate Project">
+                                <i class="material-icons" style="font-size:1rem;">pause_circle</i> Deactivate
                             </button>
                         </form>
                     </div>
@@ -137,7 +142,39 @@
             </div>
             {% endfor %}
         </div>
+
+        <!-- Inactive Projects -->
+        {% set inactive_projects = projects | selectattr("status", "equalto", "Inactive") | list %}
+        {% if inactive_projects %}
+        <div style="margin-top: 40px;">
+            <h2 style="font-family:'Outfit'; color: #94a3b8; margin-bottom: 16px; display:flex; align-items:center; gap:8px;">
+                <i class="material-icons" style="font-size:1.4rem;">archive</i> Inactive Projects
+            </h2>
+            <div class="grid">
+                {% for project in inactive_projects %}
+                <div class="card" style="opacity: 0.72; border-style: dashed;">
+                    <h3 style="color: #94a3b8;">{{ project.title }}</h3>
+                    <p>{{ project.description or "No description provided." }}</p>
+                    <div class="card-footer">
+                        <span class="status-badge" style="background:#f1f5f9; color:#64748b;">● Inactive</span>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <a href="/research/projects/{{ project.id }}" class="btn-outline" style="opacity:0.7;">View Data</a>
+                            <form method="POST" action="/research/projects/{{ project.id }}/reactivate" style="margin:0;">
+                                <button type="submit"
+                                        style="background:#f0fdf4; border:1.5px solid #22c55e; color:#16a34a; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem; font-weight:600; display:flex; align-items:center; gap:5px;"
+                                        title="Reactivate Project">
+                                    <i class="material-icons" style="font-size:1rem;">play_circle</i> Reactivate
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
+
 
     <!-- New Project Modal -->
     <div id="newProjectModal" class="modal">

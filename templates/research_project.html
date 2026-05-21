@@ -63,10 +63,33 @@
             <h1 style="margin: 10px 0 0 0; font-family: 'Outfit'; color: var(--primary);">{{ project.title }}</h1>
             <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.95rem;">{{ project.description }}</p>
         </div>
-        <button class="btn-primary" onclick="document.getElementById('newRecordModal').style.display='flex'">
-            <i class="material-icons">add_box</i> Record New Test
-        </button>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            {% if project.status == "Active" %}
+            <button class="btn-primary" onclick="document.getElementById('newRecordModal').style.display='flex'">
+                <i class="material-icons">add_box</i> Record New Test
+            </button>
+            <form method="POST" action="/research/projects/{{ project.id }}/deactivate"
+                  onsubmit="return confirm('Deactivate this project? All data will be preserved.')"
+                  style="margin:0;">
+                <button type="submit"
+                        style="background:#fff7ed; border:1.5px solid #f59e0b; color:#b45309; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                    <i class="material-icons" style="font-size:1.1rem;">pause_circle</i> Deactivate
+                </button>
+            </form>
+            {% else %}
+            <span style="background:#f1f5f9; color:#64748b; padding:8px 16px; border-radius:8px; font-weight:600; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
+                <i class="material-icons" style="font-size:1.1rem;">archive</i> Inactive Project
+            </span>
+            <form method="POST" action="/research/projects/{{ project.id }}/reactivate" style="margin:0;">
+                <button type="submit"
+                        style="background:#f0fdf4; border:1.5px solid #22c55e; color:#16a34a; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                    <i class="material-icons" style="font-size:1.1rem;">play_circle</i> Reactivate
+                </button>
+            </form>
+            {% endif %}
+        </div>
     </header>
+
 
     <div class="container">
         <div class="card">

@@ -973,26 +973,30 @@ async def save_record(
     db.commit()
     return RedirectResponse(url=f"/research/projects/{project_id}", status_code=303)
 
-@router.post("/projects/{project_id}/delete")
-async def delete_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+
+@router.post("/projects/{project_id}/deactivate")
+async def deactivate_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+    """Soft-close a project. All patient research records are fully preserved."""
     _require_admin_role(request)
     project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404)
-
-    # ── Data-safety: orphan records before deleting the project ──────────────
-    # Research records contain real patient measurements (e.g. FGF23, biomarkers).
-    # We NEVER silently delete clinical data when a project is removed.
-    # Setting project_id = NULL preserves every record; they remain queryable
-    # by patient and are visible in the patient's own research history.
-    orphaned = db.query(ResearchRecord).filter(ResearchRecord.project_id == project_id).all()
-    for rec in orphaned:
-        rec.project_id = None
-    db.flush()  # persist NULLs before deleting the project row
-
-    db.delete(project)
+    project.status = "Inactive"
     db.commit()
     return RedirectResponse(url="/research", status_code=303)
+
+
+@router.post("/projects/{project_id}/reactivate")
+async def reactivate_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+    """Re-open a previously deactivated project."""
+    _require_admin_role(request)
+    project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404)
+    project.status = "Active"
+    db.commit()
+    return RedirectResponse(url="/research", status_code=303)
+
 
 @router.post("/projects/{project_id}/records/{record_id}/delete")
 async def delete_record(project_id: int, record_id: int, request: Request, db: Session = Depends(get_db)):
