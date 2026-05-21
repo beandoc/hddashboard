@@ -407,12 +407,12 @@
             <button type="button" class="wizard-tab" data-step="3" onclick="wizGoToStep(3)">
                 <span class="tab-num">3</span>
                 <span class="tab-check">✓</span>
-                Dialysis
+                Medications
             </button>
             <button type="button" class="wizard-tab" data-step="4" onclick="wizGoToStep(4)">
                 <span class="tab-num">4</span>
                 <span class="tab-check">✓</span>
-                Medications
+                Dialysis Parameters
             </button>
             <button type="button" class="wizard-tab" data-step="5" onclick="wizGoToStep(5)">
                 <span class="tab-num">5</span>
@@ -752,20 +752,7 @@
             </div
 
             <!-- ── Dialysis Adequacy ── -->
-            <div class="form-section" id="sec-adequacy">
-                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy & Laboratory Panel</div>
-                <div class="grid">
-                    
-                    
-                    
-                    
-                    
-                    <div class="form-group">
-                        <label>Residual Urine Output (mL/24h)</label>
-                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
-                    </div>
-                </div>
-            </div>
+            >
 
 
 
@@ -866,13 +853,8 @@
                 </div>
             </div>
 
-            </div><!-- /wstep-3 -->
-
-            <!-- ═══ Wizard Step 4: Medications & Events ═══ -->
-            <div class="wizard-step" id="wstep-4">
-
-            <!-- ── Antihypertensive Medications ── -->
-            <div class="form-section" id="sec-meds">
+            
+<div class="form-section" id="sec-meds">
                 <div class="section-title"><i class="material-icons">medication</i> Antihypertensive Drugs & Regimen</div>
                 <div id="antiMedsWrapper" style="display:flex; flex-direction:column; gap:8px;">
                     {% set display_meds = anti_meds if anti_meds else (prior_anti_meds if prior_anti_meds and not record else []) %}
@@ -918,7 +900,14 @@
                 </div>
                 <button type="button" onclick="addAntiMedRow()" style="margin-top:10px; background:#f1f5f9; color:#0f172a; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s;">+ Add Another Medication</button>
                 <div style="font-size:0.75rem; color:#64748b; margin-top:8px;">* The total count is automatically saved based on the number of non-empty entries.</div>
-            </div>
+            </div
+</div><!-- /wstep-3 -->
+
+            <!-- ═══ Wizard Step 4: Medications & Events ═══ -->
+            <div class="wizard-step" id="wstep-4">
+
+            <!-- ── Antihypertensive Medications ── -->
+            >
 
             <!-- ── Emergency & Hospitalizations ── -->
             <div class="form-section" id="sec-events">
@@ -991,7 +980,24 @@
                 </div>
             </div>
 
-            </div><!-- /wstep-4 -->
+            
+<div class="form-section" id="sec-adequacy">
+                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy & Laboratory Panel</div>
+                <div class="grid">
+                    
+                    
+                    
+                    
+                    
+                    <div class="form-group">
+                        <label>Residual Urine Output (mL/24h)</label>
+                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
+                    </div>
+                </div>
+            </div
+
+
+</div><!-- /wstep-4 -->
 
             <!-- ═══ Wizard Step 5: Review & Submit ═══ -->
             <div class="wizard-step" id="wstep-5">
@@ -1721,7 +1727,7 @@
 
         // ── Multi-Step Wizard ──────────────────────────────────────────────
         const WIZ_TOTAL   = 5;
-        const WIZ_NAMES   = ['Vitals', 'Lab Values', 'Dialysis Parameters', 'Medications', 'Review'];
+        const WIZ_NAMES   = ['Parameters', 'Lab Values', 'Medications', 'Dialysis Parameters', 'Review'];
         const WIZ_SS_KEY  = 'hd_wiz_{{ patient.id }}_{{ month_str }}';
         const WIZ_REQUIRED = { 1: [], 2: ['hb'], 3: [], 4: [], 5: [] };
 
