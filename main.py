@@ -88,7 +88,14 @@ app = FastAPI(title="Hemodialysis Dashboard", version="2.0.0", lifespan=lifespan
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_origins=[
+        # Local development
+        "http://localhost:3000", "http://localhost:3001",
+        "http://127.0.0.1:3000", "http://127.0.0.1:3001",
+        "http://localhost:8080", "http://127.0.0.1:8080",
+        # Production
+        "https://hddashboard.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -314,8 +321,8 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
         "cohort_data": cohort_data,
     })
 
-# Root health check
-@app.get("/health")
+# Root health check — GET for humans, HEAD for UptimeRobot/monitoring probes
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "version": "2.0.0"}
 
