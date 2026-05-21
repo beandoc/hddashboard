@@ -498,7 +498,7 @@
                     </div>
                     <div class="form-group">
                         <label>Hematocrit (%) <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional)</span></label>
-                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="{{ record.hct if record and record.hct else '' }}">
+                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="{{ record.hct if record and record.hct is not none else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Serum Ferritin (ng/mL)</label>
@@ -1205,7 +1205,7 @@
                 mcgInputGroup.style.display = 'none';
                 epoUnitsInput.value = '0';
                 const descInput = document.getElementById('epo_mircera_dose');
-                if (descInput) descInput.value = '';
+                if (descInput && shouldReset) descInput.value = '';
                 if (conversionHint) conversionHint.style.display = 'none';
                 return;
             }
@@ -1274,7 +1274,9 @@
                 }
             }
 
-            calculateWeeklyUnits();
+            if (shouldReset) {
+                calculateWeeklyUnits();
+            }
         }
 
         function toggleDesidustatSection() {
@@ -1347,7 +1349,11 @@
             
             if (isNaN(mcg) || !type || type === 'None') {
                 epoUnitsInput.value = '';
-                if (descInput) descInput.value = '';
+                // Only clear the hidden desc field if the user actually cleared the MCG input manually
+                // This prevents wiping during initial load parsing.
+                if (descInput && !descInput.value.includes(type)) {
+                    descInput.value = '';
+                }
                 return;
             }
 
@@ -1410,6 +1416,7 @@
                 esaFreqSelect.value = "1";
             }
 
+            // Finally, now that mcg and freq are correctly set, compute to sync everything
             calculateWeeklyUnits();
         }
 

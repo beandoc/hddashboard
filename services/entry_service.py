@@ -280,6 +280,7 @@ def save_monthly_record(
             idwg=idwg,
             last_prehd_weight=data.get("last_prehd_weight"),
             hb=data.get("hb"),
+            hct=data.get("hct"),
             bp_sys=data.get("bp_sys"),
             bp_dia=data.get("bp_dia"),
             serum_ferritin=data.get("serum_ferritin"),

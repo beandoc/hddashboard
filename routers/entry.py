@@ -180,6 +180,7 @@ async def save_entry(
     idwg: Optional[float] = Form(None),
     last_prehd_weight: Optional[float] = Form(None),
     hb: Optional[float] = Form(None),
+    hct: Optional[float] = Form(None),
     bp_sys: Optional[float] = Form(None),
     bp_dia: Optional[float] = Form(None),
     serum_ferritin: Optional[float] = Form(None),

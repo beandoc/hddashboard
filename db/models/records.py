@@ -46,6 +46,7 @@ class MonthlyRecord(Base):
 
     # ── Anemia & ESA ─────────────────────────────────────────────────────────
     hb = Column(Float)
+    hct = Column(Float)
     esa_type = Column(String)
     epo_mircera_dose = Column(String)
     epo_weekly_units = Column(Float)
