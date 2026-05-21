@@ -939,14 +939,21 @@ async def save_record(
     user = get_user(request)
 
     form_data = await request.form()
-    
+
     # Extract all test-specific fields (exclude standard fields)
-    standard_fields = ["patient_id", "test_type", "test_date", "notes"]
+    standard_fields = {"patient_id", "test_type", "test_date", "notes"}
     test_data = {}
     for key, value in form_data.items():
-        if key not in standard_fields and value != "":
-            test_data[key] = value
-            
+        if key not in standard_fields and str(value).strip() != "":
+            test_data[key] = str(value).strip()
+
+    # Guard: at least one research variable must be filled in
+    if not test_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No research variable values were entered. Please fill in at least one variable before saving."
+        )
+
     try:
         parsed_date = datetime.strptime(test_date, "%Y-%m-%d").date()
     except (ValueError, TypeError):
@@ -961,7 +968,7 @@ async def save_record(
         notes=notes,
         entered_by=(user.get("username") if isinstance(user, dict) else user.username) if user else "Admin"
     )
-    
+
     db.add(record)
     db.commit()
     return RedirectResponse(url=f"/research/projects/{project_id}", status_code=303)
@@ -972,6 +979,17 @@ async def delete_project(project_id: int, request: Request, db: Session = Depend
     project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404)
+
+    # ── Data-safety: orphan records before deleting the project ──────────────
+    # Research records contain real patient measurements (e.g. FGF23, biomarkers).
+    # We NEVER silently delete clinical data when a project is removed.
+    # Setting project_id = NULL preserves every record; they remain queryable
+    # by patient and are visible in the patient's own research history.
+    orphaned = db.query(ResearchRecord).filter(ResearchRecord.project_id == project_id).all()
+    for rec in orphaned:
+        rec.project_id = None
+    db.flush()  # persist NULLs before deleting the project row
+
     db.delete(project)
     db.commit()
     return RedirectResponse(url="/research", status_code=303)

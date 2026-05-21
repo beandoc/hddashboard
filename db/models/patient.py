@@ -205,7 +205,7 @@ class Patient(Base):
     reminders            = relationship("PatientReminder",       back_populates="patient", cascade="all, delete-orphan")
     dry_weight_assessments = relationship("DryWeightAssessment", back_populates="patient", cascade="all, delete-orphan")
     events               = relationship("ClinicalEvent",         back_populates="patient", cascade="all, delete-orphan")
-    research_records     = relationship("ResearchRecord",        back_populates="patient", cascade="all, delete-orphan")
+    research_records     = relationship("ResearchRecord",        back_populates="patient")
     hospitalisations     = relationship("HospitalisationEvent",  back_populates="patient", cascade="all, delete-orphan")
 
     # ── Backward-compatible property proxies ─────────────────────────────────

@@ -14,14 +14,17 @@ class ResearchProject(Base):
     status = Column(String, default="Active")
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    records = relationship("ResearchRecord", back_populates="project", cascade="all, delete-orphan")
+    # NO cascade delete — research records (patient data) must survive project deletion.
+    records = relationship("ResearchRecord", back_populates="project", passive_deletes=True)
 
 
 class ResearchRecord(Base):
     __tablename__ = "research_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("research_projects.id"), nullable=False)
+    # nullable=True so records can be orphaned (project_id set to NULL) when a project is deleted
+    # without losing the patient's recorded data.
+    project_id = Column(Integer, ForeignKey("research_projects.id", ondelete="SET NULL"), nullable=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
 
     test_type = Column(String, nullable=False)

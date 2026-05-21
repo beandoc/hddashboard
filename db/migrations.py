@@ -36,6 +36,20 @@ def create_tables():
         db.execute(text("ALTER TABLE food_database_items ADD COLUMN IF NOT EXISTS serving_size VARCHAR;"))
         db.commit()
 
+        # ── Research records data-safety migration (2026-05) ──────────────────
+        # project_id must be nullable so records survive when a project is deleted.
+        db.execute(text("ALTER TABLE research_records ALTER COLUMN project_id DROP NOT NULL;"))
+        try:
+            db.execute(text("ALTER TABLE research_records DROP CONSTRAINT IF EXISTS research_records_project_id_fkey;"))
+            db.execute(text(
+                "ALTER TABLE research_records "
+                "ADD CONSTRAINT research_records_project_id_fkey "
+                "FOREIGN KEY (project_id) REFERENCES research_projects(id) ON DELETE SET NULL;"
+            ))
+        except Exception as fk_err:
+            logging.warning("research_records FK migration (non-fatal): %s", fk_err)
+        db.commit()
+
         serving_backfill = [
             ("Roti / Chapati / Phulka", "1 roti (~30g)"),
             ("Rice / Chawal", "1 katori (100g)"),
