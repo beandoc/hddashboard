@@ -489,38 +489,6 @@
                 </div>
             </div>
 
-            <div class="form-section" id="sec-hematology">
-                <div class="section-title"><i class="material-icons">bloodtype</i> Hematology</div>
-                <div class="grid">
-<div class="form-group">
-                        <label>Hemoglobin (g/dL)</label>
-                        <input type="number" step="0.01" name="hb" min="0" max="25" inputmode="decimal" value="{{ record.hb if record else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Hematocrit (%) <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional)</span></label>
-                        <input type="number" step="0.1" name="hct" placeholder="e.g. 32.5" value="{{ record.hct if record and record.hct is not none else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>TLC / WBC Count (/cmm)</label>
-                        <input type="number" step="1" name="wbc_count" inputmode="numeric" placeholder="e.g. 6500" value="{{ (record.wbc_count * 1000)|round|int if record and record.wbc_count else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Neutrophil Count (%)</label>
-                        <input type="number" step="0.1" name="neutrophil_count" inputmode="decimal" placeholder="e.g. 69" value="{{ (record.neutrophil_count * 100)|round|int if record and record.neutrophil_count else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Platelet Count (×10³/µL)</label>
-                        <input type="number" step="0.01" name="platelet_count" inputmode="decimal" placeholder="e.g. 150" value="{{ record.platelet_count if record and record.platelet_count else '' }}">
-                    </div>
-                    
-                    
-                    
-                    
-                    >
-
-            <!-- ── Blood Transfusion ── -->
-            >
-
             </div><!-- /wstep-1 -->
 
             <!-- ═══ Wizard Step 2: Lab Values ═══ -->
@@ -689,6 +657,45 @@
                         <label>Total Cholesterol (mg/dL)</label>
                         <input type="number" step="1" name="total_cholesterol" inputmode="numeric" value="{{ record.total_cholesterol if record else '' }}">
                     </div>
+                    <div class="form-group">
+                        <label>LDL Cholesterol (mg/dL)</label>
+                        <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" placeholder="e.g. 100" value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Extended Investigations (Cardiac & Others) ── -->
+            <div class="form-section" id="sec-investigations" style="background: #fdf2f8; border-left: 5px solid #db2777;">
+                <div class="section-title" style="color: #9d174d;"><i class="material-icons" style="color:#db2777;">monitor_heart</i> Extended Investigations (Cardiac & Others)</div>
+                <div style="background:#fce7f3; border:1px solid #fbcfe8; border-radius:12px; padding:10px 14px; margin-bottom:18px; font-size:0.82rem; color:#9d174d;">
+                    <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">info</i>
+                    Values here are <strong>carried forward</strong> for analytics if not updated monthly.
+                </div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Ejection Fraction (EF %)</label>
+                        <input type="number" step="0.1" name="ejection_fraction" inputmode="decimal" placeholder="e.g. 60" value="{{ record.ejection_fraction if record and record.ejection_fraction else (prior_record.ejection_fraction if prior_record and prior_record.ejection_fraction else patient.ejection_fraction if patient else '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Diastolic Dysfunction</label>
+                        <select name="diastolic_dysfunction">
+                            <option value="">-- Select --</option>
+                            {% set dd_cur = record.diastolic_dysfunction if record and record.diastolic_dysfunction else (prior_record.diastolic_dysfunction if prior_record and prior_record.diastolic_dysfunction else patient.diastolic_dysfunction if patient else '') %}
+                            {% for g in ["None", "Grade I", "Grade II", "Grade III"] %}
+                            <option value="{{ g }}" {{ 'selected' if dd_cur == g }}>{{ g }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Echo Date</label>
+                        <input type="date" name="echo_date" value="{{ record.echo_date.strftime('%Y-%m-%d') if record and record.echo_date else (prior_record.echo_date.strftime('%Y-%m-%d') if prior_record and prior_record.echo_date else patient.echo_date.strftime('%Y-%m-%d') if patient and patient.echo_date else '') }}">
+                    </div>
+                    {% if is_research_mapped %}
+                    <div class="form-group">
+                        <label>NT-ProBNP (pg/mL)</label>
+                        <input type="number" step="1" name="nt_probnp" inputmode="numeric" placeholder="e.g. 450" value="{{ record.nt_probnp if record and record.nt_probnp else (prior_record.nt_probnp if prior_record and prior_record.nt_probnp else '') }}">
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 </div><!-- /wstep-2 -->
@@ -879,109 +886,6 @@
                 <div id="transfusion_hint" style="display:none; background:#fff1f2; border:1px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-top:8px; font-size:0.85rem; color:#7f1d1d;"></div>
             </div
 
-            <!-- ── Dialysis Adequacy ── -->
-            >
-
-
-
-            <!-- ── Electrolytes & Extended Labs ── -->
-            <div class="form-section" id="sec-kft">
-                <div class="section-title"><i class="material-icons">science</i> Biochemistry (KFT)</div>
-                <div class="grid">
-<div class="form-group">
-                        <label>Pre-Dialysis Urea (mg/dL)</label>
-                        <input type="number" step="1" name="pre_dialysis_urea" inputmode="numeric" placeholder="e.g. 120" value="{{ record.pre_dialysis_urea if record and record.pre_dialysis_urea else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Post-Dialysis Urea (mg/dL)</label>
-                        <input type="number" step="1" name="post_dialysis_urea" inputmode="numeric" placeholder="e.g. 35" value="{{ record.post_dialysis_urea if record and record.post_dialysis_urea else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Serum Creatinine (mg/dL)</label>
-                        <input type="number" step="0.01" name="serum_creatinine" inputmode="decimal" placeholder="e.g. 8.5" value="{{ record.serum_creatinine if record and record.serum_creatinine else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Serum Sodium (mmol/L)</label>
-                        <input type="number" step="1" name="serum_sodium" inputmode="numeric" placeholder="e.g. 138" value="{{ record.serum_sodium if record and record.serum_sodium else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Serum Potassium (mmol/L)</label>
-                        <input type="number" step="0.01" name="serum_potassium" inputmode="decimal" placeholder="e.g. 4.5" value="{{ record.serum_potassium if record and record.serum_potassium else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Serum Uric Acid (mg/dL)</label>
-                        <input type="number" step="0.01" name="serum_uric_acid" inputmode="decimal" placeholder="e.g. 6.5" value="{{ record.serum_uric_acid if record and record.serum_uric_acid else '' }}">
-                    </div>
-<div class="form-group">
-                        <label>Serum Bicarbonate (mmol/L)</label>
-                        <input type="number" step="1" name="serum_bicarbonate" inputmode="numeric" placeholder="e.g. 22" value="{{ record.serum_bicarbonate if record and record.serum_bicarbonate else '' }}">
-                    </div>
-                    
-                    
-                    
-                </div>
-            </div>
-
-            <!-- ── Metabolic & Inflammatory ── -->
-            <div class="form-section" id="sec-metabolic">
-                <div class="section-title"><i class="material-icons">science</i> Metabolic & Inflammatory</div>
-                <div class="grid">
-                    
-                    <div class="form-group">
-                        <label>Total Cholesterol (mg/dL)</label>
-                        <input type="number" step="1" name="total_cholesterol" inputmode="numeric" placeholder="e.g. 180" value="{{ record.total_cholesterol if record and record.total_cholesterol else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>LDL Cholesterol (mg/dL)</label>
-                        <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" placeholder="e.g. 100" value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>HbA1c (%)</label>
-                        <input type="number" step="0.01" name="hba1c" inputmode="decimal" placeholder="e.g. 7.2" value="{{ record.hba1c if record and record.hba1c else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>CRP — C-Reactive Protein (mg/L)</label>
-                        <input type="number" step="0.1" name="crp" inputmode="decimal" placeholder="e.g. 5.0" value="{{ record.crp if record and record.crp else '' }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── Extended Investigations (Cardiac & Others) ── -->
-            <div class="form-section" id="sec-investigations" style="background: #fdf2f8; border-left: 5px solid #db2777;">
-                <div class="section-title" style="color: #9d174d;"><i class="material-icons" style="color:#db2777;">monitor_heart</i> Extended Investigations (Cardiac & Others)</div>
-                <div style="background:#fce7f3; border:1px solid #fbcfe8; border-radius:12px; padding:10px 14px; margin-bottom:18px; font-size:0.82rem; color:#9d174d;">
-                    <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">info</i>
-                    Values here are <strong>carried forward</strong> for analytics if not updated monthly.
-                </div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Ejection Fraction (EF %)</label>
-                        <input type="number" step="0.1" name="ejection_fraction" inputmode="decimal" placeholder="e.g. 60" value="{{ record.ejection_fraction if record and record.ejection_fraction else (prior_record.ejection_fraction if prior_record and prior_record.ejection_fraction else patient.ejection_fraction if patient else '') }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Diastolic Dysfunction</label>
-                        <select name="diastolic_dysfunction">
-                            <option value="">-- Select --</option>
-                            {% set dd_cur = record.diastolic_dysfunction if record and record.diastolic_dysfunction else (prior_record.diastolic_dysfunction if prior_record and prior_record.diastolic_dysfunction else patient.diastolic_dysfunction if patient else '') %}
-                            {% for g in ["None", "Grade I", "Grade II", "Grade III"] %}
-                            <option value="{{ g }}" {{ 'selected' if dd_cur == g }}>{{ g }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Echo Date</label>
-                        <input type="date" name="echo_date" value="{{ record.echo_date.strftime('%Y-%m-%d') if record and record.echo_date else (prior_record.echo_date.strftime('%Y-%m-%d') if prior_record and prior_record.echo_date else patient.echo_date.strftime('%Y-%m-%d') if patient and patient.echo_date else '') }}">
-                    </div>
-                    {% if is_research_mapped %}
-                    <div class="form-group">
-                        <label>NT-ProBNP (pg/mL)</label>
-                        <input type="number" step="1" name="nt_probnp" inputmode="numeric" placeholder="e.g. 450" value="{{ record.nt_probnp if record and record.nt_probnp else (prior_record.nt_probnp if prior_record and prior_record.nt_probnp else '') }}">
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            
 <div class="form-section" id="sec-meds">
                 <div class="section-title"><i class="material-icons">medication</i> Antihypertensive Drugs & Regimen</div>
                 <div id="antiMedsWrapper" style="display:flex; flex-direction:column; gap:8px;">
@@ -1031,11 +935,8 @@
             </div
 </div><!-- /wstep-3 -->
 
-            <!-- ═══ Wizard Step 4: Medications & Events ═══ -->
+            <!-- ═══ Wizard Step 4: Dialysis Parameters ═══ -->
             <div class="wizard-step" id="wstep-4">
-
-            <!-- ── Antihypertensive Medications ── -->
-            >
 
             <!-- ── Emergency & Hospitalizations ── -->
             <div class="form-section" id="sec-events">
@@ -1110,16 +1011,72 @@
 
             
 <div class="form-section" id="sec-adequacy">
-                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy & Laboratory Panel</div>
+                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy</div>
+                <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:0.82rem; color:#0369a1;">
+                    <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">info</i>
+                    Kt/V is auto-calculated from Pre/Post Urea values entered in the Lab Values step.
+                </div>
                 <div class="grid">
-                    
-                    
-                    
-                    
-                    
+                    <div class="form-group">
+                        <label>spKt/V (Single-Pool) <span style="font-size:0.75rem; color:#0ea5e9; font-weight:normal;">(Auto-calculated)</span></label>
+                        <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="Auto from Urea values" value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}" readonly style="background:#f1f5f9; color:#0ea5e9; font-weight:700;">
+                    </div>
+                    <div class="form-group">
+                        <label>eKt/V (Equilibrated) <span style="font-size:0.75rem; color:#0ea5e9; font-weight:normal;">(Auto-calculated)</span></label>
+                        <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Auto from spKt/V" value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}" readonly style="background:#f1f5f9; color:#0ea5e9; font-weight:700;">
+                    </div>
+                    <div class="form-group">
+                        <label>URR — Urea Reduction Ratio (%)</label>
+                        <input type="number" step="0.1" name="urr" inputmode="decimal" placeholder="e.g. 65" value="{{ record.urr if record and record.urr else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>nPCR — Norm. Protein Catabolic Rate (g/kg/day)</label>
+                        <input type="number" step="0.01" name="npcr" inputmode="decimal" placeholder="e.g. 1.1" value="{{ record.npcr if record and record.npcr else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>UFR — Ultrafiltration Rate (mL/hr/kg)</label>
+                        <input type="number" step="0.1" name="ufr" inputmode="decimal" placeholder="e.g. 10" value="{{ record.ufr if record and record.ufr else '' }}">
+                    </div>
                     <div class="form-group">
                         <label>Residual Urine Output (mL/24h)</label>
                         <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Nutrition Assessment ── -->
+            <div class="form-section" id="sec-nutrition">
+                <div class="section-title"><i class="material-icons">restaurant</i> Nutrition Assessment</div>
+                <div class="grid">
+                    <div class="form-group">
+                        <label>Pre-Albumin / Transthyretin (mg/dL)</label>
+                        <input type="number" step="0.1" name="prealbumin" inputmode="decimal" placeholder="e.g. 25" value="{{ record.prealbumin if record and record.prealbumin else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>SGA Score</label>
+                        <select name="sga_score">
+                            <option value="">-- Select --</option>
+                            {% set sga_cur = record.sga_score if record and record.sga_score else '' %}
+                            {% for s in ["A – Well Nourished", "B – Mildly/Moderately Malnourished", "C – Severely Malnourished"] %}
+                            <option value="{{ s }}" {{ 'selected' if sga_cur == s }}>{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>MIS Score (0–30)</label>
+                        <input type="number" step="1" min="0" max="30" name="mis_score" inputmode="numeric" placeholder="e.g. 5" value="{{ record.mis_score if record and record.mis_score is not none else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Avg Daily Calories (kcal/day)</label>
+                        <input type="number" step="10" name="av_daily_calories" inputmode="numeric" placeholder="e.g. 1800" value="{{ record.av_daily_calories if record and record.av_daily_calories else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Avg Daily Protein (g/day)</label>
+                        <input type="number" step="0.1" name="av_daily_protein" inputmode="decimal" placeholder="e.g. 70" value="{{ record.av_daily_protein if record and record.av_daily_protein else '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>HRQoL Score</label>
+                        <input type="number" step="0.1" min="0" max="100" name="hrqol_score" inputmode="decimal" placeholder="e.g. 65" value="{{ record.hrqol_score if record and record.hrqol_score else '' }}">
                     </div>
                 </div>
             </div
@@ -1992,7 +1949,7 @@
             wizSaveStep(wizStep);
             wizDone.add(wizStep);
             wizStep = step;
-            wizShowStep(wizStep);
+            wizUpdateUI();
         }
 
         function checkHardLimits() {
@@ -2114,9 +2071,18 @@
                 { name: 'transfusion_date',     label: 'Transfusion Date' }
             ]},
             { title: 'Dialysis Parameters', fields: [
+                { name: 'single_pool_ktv',      label: 'spKt/V' },
+                { name: 'equilibrated_ktv',     label: 'eKt/V' },
+                { name: 'urr',                  label: 'URR',             unit: '%' },
+                { name: 'npcr',                 label: 'nPCR',            unit: 'g/kg/d' },
+                { name: 'ufr',                  label: 'UFR',             unit: 'mL/hr/kg' },
                 { name: 'residual_urine_output',label: 'Residual UO',     unit: 'mL/24h' },
-                { name: 'intra_dialytic_complications', label: 'Complications' },
-                { name: 'hospitalization',      label: 'Hospitalization' }
+                { name: 'prealbumin',           label: 'Prealbumin',      unit: 'mg/dL' },
+                { name: 'sga_score',            label: 'SGA Score' },
+                { name: 'mis_score',            label: 'MIS Score' },
+                { name: 'av_daily_calories',    label: 'Daily Calories',  unit: 'kcal' },
+                { name: 'av_daily_protein',     label: 'Daily Protein',   unit: 'g' },
+                { name: 'hrqol_score',          label: 'HRQoL Score' }
             ]}
         ];
 
