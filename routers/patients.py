@@ -747,7 +747,7 @@ async def update_clinical_background(
     patient_id: int, 
     clinical_background: str = Form(""), 
     db: Session = Depends(get_db), 
-    user=Depends(get_current_user)
+    user=Depends(get_user)
 ):
     from services.patient_service import get_patient_by_id
     p = get_patient_by_id(db, patient_id)
