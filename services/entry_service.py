@@ -186,6 +186,7 @@ def save_monthly_record(
                 post_u = float(post_urea)
                 if pre_u > 0 and post_u > 0 and pre_u > post_u:
                     R = post_u / pre_u
+                    data["urr"] = round((1 - R) * 100, 1)
                     if R > 0.03:
                         w = None
                         if dry_weight is not None:
@@ -445,6 +446,7 @@ def save_monthly_record(
             phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
             antihypertensive_count=len(meds_list) if meds_list else data.get("antihypertensive_count"),
             antihypertensive_details=antihypertensive_details_json,
+            hospitalization_details=hosp_details_json if hosp_details_json else (rec.hospitalization_details if rec else ""),
             blood_transfusion_units=data.get("blood_transfusion_units"),
             transfusion_date=data.get("transfusion_date") or None,
         )

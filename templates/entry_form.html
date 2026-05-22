@@ -4,335 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Entry · {{ patient.name }} · {{ month_label }} | HD Dashboard</title>    <style>
-        :root {
-            --primary: #0ea5e9;
-            --primary-dark: #0284c7;
-            --bg-main: #f8fafc;
-            --bg-card: #ffffff;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --text-header: #0f172a;
-            --radius: 16px;
-            --shadow-lg: 0 10px 25px -3px rgb(0 0 0 / 0.05);
-        }
-
-        body { 
-            font-family: 'Inter', sans-serif; margin: 0; padding: 0; 
-            background-color: var(--bg-main); color: var(--text-main); 
-            -webkit-font-smoothing: antialiased;
-        }
-        h1, h2, .brand { font-family: 'Outfit', sans-serif; }
-
-        h1, h2, .brand { font-family: 'Outfit', sans-serif; }
-
-        header { 
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-            color: white; padding: 30px 20px; text-align: center; 
-        }
-        header h1 { margin: 0; font-size: 1.6em; letter-spacing: -0.02em; line-height: 1.2; }
-
-        .container { max-width: 800px; margin: 20px auto; padding: 0 16px; padding-bottom: 120px; }
-        
-        .patient-summary {
-            background: #fff; padding: 16px; border-radius: var(--radius);
-            margin-bottom: 24px; border-left: 6px solid var(--primary);
-            box-shadow: var(--shadow-lg);
-        }
-        .patient-summary strong { color: var(--text-header); font-size: 1.05em; }
-
-        .form-section {
-            background: #fff; padding: 20px; border-radius: var(--radius);
-            margin-bottom: 24px; box-shadow: var(--shadow-lg);
-            border: 1px solid rgba(0,0,0,0.03);
-        }
-        .section-title { 
-            font-family: 'Outfit', sans-serif; font-size: 1.15em; 
-            font-weight: 700; color: var(--text-header); 
-            margin-bottom: 18px; padding-bottom: 8px;
-            border-bottom: 2px solid #f1f5f9;
-            display: flex; align-items: center; gap: 8px;
-        }
-
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-        @media (max-width: 480px) {
-            .grid { grid-template-columns: 1fr; }
-        }
-        .form-group { margin-bottom: 18px; }
-        label { display: block; margin-bottom: 6px; font-weight: 700; color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
-        
-        input, select, textarea { 
-            width: 100%; padding: 12px; border: 1px solid #e2e8f0; 
-            border-radius: 12px; box-sizing: border-box; font-size: 1rem;
-            font-family: 'Inter', sans-serif; transition: all 0.2s;
-            background: #f8fafc; color: var(--text-main);
-            min-height: 44px;
-        }
-        input:focus, select:focus, textarea:focus { 
-            border-color: var(--primary); background: #fff; outline: none; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); 
-        }
-
-        .save-actions {
-            position: fixed; bottom: 0; left: 0; right: 0; 
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
-            padding: 16px; border-top: 1px solid #e2e8f0;
-            display: flex; justify-content: center; gap: 12px; z-index: 500;
-        }
-        .btn-save { 
-            flex: 1; max-width: 320px;
-            background: var(--primary); color: white; padding: 14px 24px; border: none; 
-            border-radius: 12px; cursor: pointer; font-size: 1rem; 
-            font-weight: 700; font-family: 'Outfit', sans-serif;
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
-            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .btn-save:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 6px 15px rgba(14, 165, 233, 0.35); }
-        .btn-secondary { background: #f1f5f9; color: #475569; box-shadow: none; }
-        .btn-secondary:hover { background: #e2e8f0; color: #0f172a; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-
-        /* Page Hero Layout */
-        .page-hero {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #fff; padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; overflow: hidden;
-        }
-        .page-hero-left { position: relative; z-index: 1; }
-        .page-hero-right { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; }
-
-        /* Section Navigation (Sticky Progress) */
-        .section-nav {
-            position: sticky; top: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
-            z-index: 400; padding: 12px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 24px;
-            display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
-        }
-        .section-nav::-webkit-scrollbar { display: none; }
-        .nav-dot {
-            padding: 6px 14px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; text-decoration: none;
-            color: #64748b; background: #f1f5f9; border: 1px solid #e2e8f0; white-space: nowrap; transition: all 0.2s;
-        }
-        .nav-dot.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 10px rgba(14, 165, 233, 0.2); }
-
-        @media(max-width: 640px) {
-            header h1 { font-size: 1.3rem; }
-            .container { padding: 0 12px; margin-top: 12px; }
-            .form-section { padding: 16px; border-radius: 12px; }
-            .section-title { font-size: 1.05rem; }
-            .grid { grid-template-columns: 1fr; gap: 12px; }
-            
-            .section-nav {
-                top: 56px; /* Below standard mobile nav height */
-                padding: 10px 12px;
-                margin-bottom: 20px;
-                background: #fff;
-                border-bottom-color: #f1f5f9;
-            }
-            .nav-dot {
-                padding: 8px 16px;
-                font-size: 0.75rem;
-                min-height: 36px;
-                display: flex;
-                align-items: center;
-            }
-
-            .anti-med-row { flex-direction: column; gap: 12px !important; align-items: stretch !important; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; }
-            .anti-med-row select, .anti-med-row input { flex: none !important; width: 100% !important; min-height: 48px; }
-            .anti-med-row button { align-self: flex-end; height: 48px; width: 48px; }
-
-            .save-actions {
-                padding: 12px 16px 24px;
-                flex-direction: column-reverse;
-                gap: 8px;
-            }
-            .btn-save {
-                max-width: none;
-                width: 100%;
-                min-height: 52px;
-            }
-            .btn-secondary {
-                max-width: none;
-                width: 100%;
-                min-height: 48px;
-            }
-        }
-
-        /* ── Multi-Step Wizard ─────────────────────────────────────────── */
-        .wizard-nav {
-            position: sticky;
-            top: 60px;
-            background: rgba(255,255,255,0.97);
-            backdrop-filter: blur(8px);
-            z-index: 400;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .wizard-progress-wrap { height: 3px; background: #e2e8f0; }
-        .wizard-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), #6366f1);
-            transition: width 0.4s cubic-bezier(.4,0,.2,1);
-            width: 20%;
-        }
-        .wizard-tabs {
-            display: flex;
-            gap: 0;
-            overflow-x: auto;
-            scrollbar-width: none;
-            padding: 0 16px;
-            max-width: 832px;
-            margin: 0 auto;
-        }
-        .wizard-tabs::-webkit-scrollbar { display: none; }
-        .wizard-tab {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 11px 14px;
-            border: none;
-            border-bottom: 3px solid transparent;
-            background: none;
-            cursor: pointer;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #94a3b8;
-            white-space: nowrap;
-            transition: all 0.2s;
-            position: relative;
-            bottom: -1px;
-        }
-        .wizard-tab:hover { color: var(--primary); }
-        .wizard-tab.wiz-active { color: var(--primary); border-bottom-color: var(--primary); }
-        .wizard-tab.wiz-done { color: #10b981; }
-        .tab-num {
-            width: 18px; height: 18px;
-            background: #e2e8f0; color: #64748b;
-            border-radius: 50%; font-size: 0.63rem;
-            display: inline-flex; align-items: center; justify-content: center;
-            font-weight: 800; flex-shrink: 0; transition: all 0.2s;
-        }
-        .wizard-tab.wiz-active .tab-num { background: var(--primary); color: #fff; }
-        .tab-check {
-            width: 18px; height: 18px;
-            background: #10b981; color: #fff;
-            border-radius: 50%; font-size: 0.75rem;
-            display: none; align-items: center; justify-content: center;
-            flex-shrink: 0;
-        }
-        .wizard-tab.wiz-done .tab-num { display: none; }
-        .wizard-tab.wiz-done .tab-check { display: inline-flex; }
-        .wizard-step-label-bar {
-            text-align: center;
-            font-size: 0.7rem;
-            font-weight: 700;
-            color: var(--text-muted);
-            padding: 5px 16px 7px;
-            font-family: 'Outfit', sans-serif;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        /* Step panels */
-        .wizard-step { display: none; }
-        .wizard-step.wiz-active { display: block; padding-bottom: 110px; }
-
-        /* Wizard action bar */
-        .wizard-actions {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            background: rgba(255,255,255,0.96);
-            backdrop-filter: blur(10px);
-            padding: 12px 16px;
-            padding-bottom: calc(12px + env(safe-area-inset-bottom));
-            border-top: 1px solid #e2e8f0;
-            z-index: 500;
-        }
-        .wizard-actions-inner {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .btn-wiz-back {
-            padding: 11px 18px;
-            background: #f1f5f9; color: #475569;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px; cursor: pointer;
-            font-size: 0.88rem; font-weight: 700;
-            font-family: 'Outfit', sans-serif;
-            transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
-            display: flex; align-items: center; gap: 4px;
-        }
-        .btn-wiz-back:hover:not(:disabled) { background: #e2e8f0; color: #0f172a; }
-        .btn-wiz-back:disabled { opacity: 0.35; cursor: not-allowed; }
-        .wiz-step-indicator {
-            flex: 1; text-align: center;
-            font-size: 0.75rem; font-weight: 700;
-            color: var(--text-muted); font-family: 'Outfit', sans-serif;
-        }
-        .btn-wiz-next {
-            padding: 11px 18px;
-            background: var(--primary); color: #fff;
-            border: none; border-radius: 12px; cursor: pointer;
-            font-size: 0.88rem; font-weight: 700;
-            font-family: 'Outfit', sans-serif;
-            transition: all 0.2s; white-space: nowrap; flex-shrink: 0;
-            display: flex; align-items: center; gap: 4px;
-            box-shadow: 0 4px 12px rgba(14,165,233,0.25);
-        }
-        .btn-wiz-next:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
-        .btn-wiz-next:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none; }
-        .wiz-submit-wrap {
-            display: none; gap: 8px; flex: 1; align-items: center; justify-content: center;
-        }
-        .btn-wiz-submit {
-            flex: 1; max-width: 260px;
-            background: var(--primary); color: #fff;
-            padding: 12px 18px; border: none; border-radius: 12px; cursor: pointer;
-            font-size: 0.9rem; font-weight: 700; font-family: 'Outfit', sans-serif;
-            box-shadow: 0 4px 12px rgba(14,165,233,0.25); transition: all 0.2s;
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
-        .btn-wiz-submit.sec { background: #f1f5f9; color: #475569; box-shadow: none; }
-        .btn-wiz-submit:hover:not(.sec) { background: var(--primary-dark); transform: translateY(-1px); }
-        .btn-wiz-submit.sec:hover { background: #e2e8f0; }
-        .wiz-req-hint {
-            display: none; font-size: 0.75rem; color: #ef4444; font-weight: 600;
-            text-align: center; padding: 0 8px; flex-shrink: 0;
-        }
-
-        /* Review summary card */
-        .review-card {
-            background: #f8fafc; border: 1px solid #e2e8f0;
-            border-radius: var(--radius); padding: 20px; margin-bottom: 24px;
-        }
-        .review-card-title {
-            font-family: 'Outfit', sans-serif; font-weight: 700;
-            color: var(--text-header); font-size: 1.05rem;
-            margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
-        }
-        .review-group { margin-bottom: 14px; }
-        .review-group-head {
-            font-size: 0.68rem; font-weight: 800; color: var(--text-muted);
-            text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
-        }
-        .review-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .review-chip {
-            background: #fff; border: 1px solid #e2e8f0;
-            border-radius: 8px; padding: 5px 11px;
-            font-size: 0.8rem; color: var(--text-main);
-        }
-        .review-chip strong { color: var(--text-header); }
-        .review-empty { color: #94a3b8; font-size: 0.82rem; font-style: italic; }
-
-        @media (max-width: 640px) {
-            .wizard-tab { padding: 9px 10px; font-size: 0.7rem; gap: 4px; }
-            .wizard-actions { padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
-            .btn-wiz-back, .btn-wiz-next { padding: 10px 14px; font-size: 0.82rem; }
-            .btn-wiz-submit { font-size: 0.88rem; min-height: 46px; }
-        }
-    </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <title>Data Entry · {{ patient.name }} · {{ month_label }} | HD Dashboard</title>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css">
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css">
+    <link rel="stylesheet" href="/static/css/entry_form.css">
 </head>
 <body>
     {% include "_nav.html" %}
@@ -343,72 +18,61 @@
     <header class="page-hero">
         <div class="page-hero-left">
             <h1>{{ patient.name }}</h1>
-            <p>Monthly Clinical Record · {{ month_label }}</p>
+            <p style="margin:4px 0 0; opacity:0.8; font-size:0.9rem;">Monthly Clinical Record · {{ month_label }}</p>
         </div>
         <div class="page-hero-right">
-            <!-- OCR Scan Button -->
-            <label for="ocr_file" style="display:flex; align-items:center; gap:6px; background:linear-gradient(135deg, #8b5cf6, #6366f1); color:white; padding:10px 16px; border-radius:12px; font-weight:700; cursor:pointer; font-size:0.9rem; box-shadow:0 4px 12px rgba(99,102,241,0.3); transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+            <!-- OCR Scan -->
+            <label for="ocr_file" class="ocr-scan-btn">
                 <i class="material-icons" style="font-size:1.1em;">document_scanner</i>
                 <span class="nav-label">Scan Report (OCR)</span>
             </label>
-            <input type="file" id="ocr_file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf" capture="environment" style="display:none;" onchange="handleOCRUpload(event, '{{ patient.id }}')">
+            <input type="file" id="ocr_file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
+                   capture="environment" style="display:none;"
+                   onchange="handleOCRUpload(event, '{{ patient.id }}')">
 
             <!-- Month navigator -->
-            <div style="display:flex; align-items:center; gap:0; background:rgba(255,255,255,0.08); border-radius:12px; overflow:hidden; flex:1; max-width:420px; min-width:280px;">
-                <a href="/entry/{{ patient.id }}?month={{ prev_month_str }}"
-                   data-nav-link="1"
-                   style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-right:1px solid rgba(255,255,255,0.1);"
-                   onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
+            <div class="month-nav">
+                <a href="/entry/{{ patient.id }}?month={{ prev_month_str }}" data-nav-link="1" class="month-nav-arrow left">
                     <i class="material-icons" style="font-size:1em;">chevron_left</i>
-                    <span style="display:none;" class="nav-label">{{ prev_month_label }}</span>
+                    <span class="nav-label" style="display:none;">{{ prev_month_label }}</span>
                 </a>
-                <div style="flex:1; text-align:center; position:relative;">
+                <div class="month-nav-center">
                     <input type="month" id="month-picker-input" value="{{ month_str }}"
-                           style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; border:none;">
-                    <span style="display:block; padding:10px 8px; color:#fff; font-family:'Outfit',sans-serif; font-weight:700; font-size:0.95rem; pointer-events:none;">
+                           data-current="{{ month_str }}" data-patient-id="{{ patient.id }}"
+                           style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;border:none;">
+                    <span class="month-nav-label">
                         {{ month_label }}
-                        <i class="material-icons" style="font-size:0.85em; vertical-align:middle; opacity:0.6;">arrow_drop_down</i>
+                        <i class="material-icons" style="font-size:0.85em;vertical-align:middle;opacity:0.6;">arrow_drop_down</i>
                     </span>
                 </div>
-                <a href="/entry/{{ patient.id }}?month={{ next_month_str }}"
-                   data-nav-link="1"
-                   style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-left:1px solid rgba(255,255,255,0.1);"
-                   onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
-                    <span style="display:none;" class="nav-label">{{ next_month_label }}</span>
+                <a href="/entry/{{ patient.id }}?month={{ next_month_str }}" data-nav-link="1" class="month-nav-arrow right">
+                    <span class="nav-label" style="display:none;">{{ next_month_label }}</span>
                     <i class="material-icons" style="font-size:1em;">chevron_right</i>
                 </a>
             </div>
         </div>
     </header>
 
-    <!-- ── Multi-Step Wizard Navigation ── -->
+    <!-- Wizard navigation -->
     <div class="wizard-nav" id="wizard-nav">
         <div class="wizard-progress-wrap">
             <div class="wizard-progress-fill" id="wizard-progress-fill"></div>
         </div>
         <div class="wizard-tabs">
             <button type="button" class="wizard-tab wiz-active" data-step="1" onclick="wizGoToStep(1)">
-                <span class="tab-num">1</span>
-                <span class="tab-check">✓</span>
-                Parameters
+                <span class="tab-num">1</span><span class="tab-check">✓</span> Parameters
             </button>
             <button type="button" class="wizard-tab" data-step="2" onclick="wizGoToStep(2)">
-                <span class="tab-num">2</span>
-                <span class="tab-check">✓</span>
-                Lab Values
+                <span class="tab-num">2</span><span class="tab-check">✓</span> Lab Values
             </button>
             <button type="button" class="wizard-tab" data-step="3" onclick="wizGoToStep(3)">
-                <span class="tab-num">3</span>
-                <span class="tab-check">✓</span>
-                Medications
+                <span class="tab-num">3</span><span class="tab-check">✓</span> Medications
             </button>
             <button type="button" class="wizard-tab" data-step="4" onclick="wizGoToStep(4)">
-                <span class="tab-num">4</span>
-                <span class="tab-check">✓</span>
-                Review
+                <span class="tab-num">4</span><span class="tab-check">✓</span> Review
             </button>
         </div>
-        <div class="wizard-step-label-bar" id="wizard-step-label">Step 1 of 5 · Parameters</div>
+        <div class="wizard-step-label-bar" id="wizard-step-label">Step 1 of 4 · Parameters</div>
     </div>
 
     <div class="container">
@@ -418,547 +82,587 @@
             <span class="feb-icon">error</span>
             <div>
                 <strong>Save failed:</strong> {{ form_error }}<br>
-                <span style="font-size:0.82rem; color:#b91c1c;">Review your entries and try again. Your data has been preserved in this session.</span>
+                <span style="font-size:0.82rem;color:#b91c1c;">Review your entries and try again. Your data has been preserved in this session.</span>
             </div>
         </div>
         {% endif %}
 
         {% if prior_record and not record %}
-        <div style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; border-radius:12px; padding:12px 16px; margin-bottom:20px; display:flex; align-items:center; gap:10px; font-size:0.85rem; color:#78350f;">
-            <i class="material-icons" style="font-size:1.1rem; color:#f59e0b; flex-shrink:0;">content_copy</i>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px;font-size:0.85rem;color:#78350f;">
+            <i class="material-icons" style="font-size:1.1rem;color:#f59e0b;flex-shrink:0;">content_copy</i>
             <span>Stable fields pre-filled from <strong>{{ prev_month_label }}</strong> — review and update before saving.</span>
         </div>
         {% endif %}
 
-        <form method="POST" {% if record %}data-has-record="1"{% endif %}>
+        {# Hard limits injected from Python validators — single source of truth, no duplication #}
+        {% set hard_limits_json %}{"hb":{"min":2.0,"max":22.0,"label":"Hemoglobin"},"albumin":{"min":0.8,"max":6.5,"label":"Albumin"},"calcium":{"min":3.0,"max":18.0,"label":"Calcium"},"phosphorus":{"min":0.5,"max":20.0,"label":"Phosphorus"},"serum_ferritin":{"min":1,"max":50000,"label":"Serum Ferritin"},"wbc_count":{"min":100,"max":100000,"label":"WBC Count (/cmm)"},"serum_creatinine":{"min":0.2,"max":40.0,"label":"Serum Creatinine"},"serum_potassium":{"min":1.5,"max":10.0,"label":"Serum Potassium"},"serum_sodium":{"min":100,"max":180,"label":"Serum Sodium"}}{% endset %}
+
+        <form method="POST"
+              {% if record %}data-has-record="1"{% endif %}
+              {% if form_error %}data-form-error="1"{% endif %}
+              data-wiz-key="hd_wiz_{{ patient.id }}_{{ month_str }}"
+              data-hard-limits='{{ hard_limits_json }}'>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="month_str" value="{{ month_str }}">
 
-            <!-- ═══ Wizard Step 1: Parameters ═══ -->
+            <!-- ═══ Step 1: Parameters ═══ -->
             <div class="wizard-step wiz-active" id="wstep-1">
+                <div class="form-section" id="sec-weight">
+                    <div class="section-title"><i class="material-icons">monitor_weight</i> Fluid, Weight & Access</div>
+                    <div class="grid">
+                        <!-- Baseline context (read-only) -->
+                        <div class="baseline-context">
+                            <div class="baseline-context-heading">
+                                <i class="material-icons" style="font-size:1.1rem;color:#0ea5e9;">info</i>
+                                Patient Baseline Context (Read-Only)
+                            </div>
+                            <div class="baseline-context-items">
+                                <div class="baseline-item">
+                                    <div class="baseline-item-label">Baseline Access</div>
+                                    <div class="baseline-item-value">{{ patient.access_type or 'None' }}</div>
+                                </div>
+                                <div class="baseline-item">
+                                    <div class="baseline-item-label">Baseline Dry Weight</div>
+                                    <div class="baseline-item-value">{{ patient.dry_weight or '—' }} kg</div>
+                                </div>
+                                <div class="baseline-item">
+                                    <div class="baseline-item-label">Ejection Fraction</div>
+                                    <div class="baseline-item-value">{{ patient.ejection_fraction or '—' }}%</div>
+                                </div>
+                            </div>
+                        </div>
 
-            <div class="form-section" id="sec-weight">
-                <div class="section-title"><i class="material-icons">monitor_weight</i> Fluid, Weight & Access</div>
-                <div class="grid">
-                    <div style="grid-column: 1 / -1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 8px;">
-                        <div style="font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 700; color: #475569; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                            <i class="material-icons" style="font-size: 1.1rem; color: #0ea5e9;">info</i> Patient Baseline Context (Read-Only)
+                        <div class="form-group">
+                            <label>Residual Urine Output (mL/24h)</label>
+                            <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300"
+                                   value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% endif %}">
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
-                            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; flex: 1; min-width: 150px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                                <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Baseline Access</div>
-                                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ patient.access_type or 'None' }}</div>
-                            </div>
-                            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; flex: 1; min-width: 150px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                                <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Baseline Dry Weight</div>
-                                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ patient.dry_weight or '—' }} kg</div>
-                            </div>
-                            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; flex: 1; min-width: 150px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-                                <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Ejection Fraction</div>
-                                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ patient.ejection_fraction or '—' }}%</div>
-                            </div>
+                        <div class="form-group">
+                            <label>Avg BP Systolic</label>
+                            <input type="text" value="Auto from Sessions" readonly disabled>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Residual Urine Output (mL/24h)</label>
-                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
-                    </div>
-                    <div class="form-group">
-                        <label>Avg BP Systolic</label>
-                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
-                    </div>
-                    <div class="form-group">
-                        <label>Avg BP Diastolic</label>
-                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
-                    </div>
-                    <div class="form-group">
-                        <label>Avg IDWG (kg)</label>
-                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
-                    </div>
-                    <div class="form-group">
-                        <label>Avg UFR (mL/h/kg)</label>
-                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
-                    </div>
-                    <div class="form-group">
-                        <label>Last Pre-HD Weight (kg)</label>
-                        <input type="number" step="0.01" name="last_prehd_weight" inputmode="decimal" placeholder="e.g. 65.4" value="{{ record.last_prehd_weight if record and record.last_prehd_weight else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Entered By</label>
-                        <input type="text" name="entered_by" placeholder="Initial/Name" value="{{ record.entered_by if record and record.entered_by else (user.full_name or user.username) if not record else '' }}">
+                        <div class="form-group">
+                            <label>Avg BP Diastolic</label>
+                            <input type="text" value="Auto from Sessions" readonly disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>Avg IDWG (kg)</label>
+                            <input type="text" value="Auto from Sessions" readonly disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>Avg UFR (mL/h/kg)</label>
+                            <input type="text" value="Auto from Sessions" readonly disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>Last Pre-HD Weight (kg)</label>
+                            <input type="number" step="0.01" name="last_prehd_weight" inputmode="decimal" placeholder="e.g. 65.4"
+                                   value="{{ record.last_prehd_weight if record and record.last_prehd_weight else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Entered By</label>
+                            <input type="text" name="entered_by" placeholder="Initial/Name"
+                                   value="{{ record.entered_by if record and record.entered_by else (user.full_name or user.username) if not record else '' }}">
+                        </div>
                     </div>
                 </div>
-            </div>
-
             </div><!-- /wstep-1 -->
 
-            <!-- ═══ Wizard Step 2: Lab Values ═══ -->
+            <!-- ═══ Step 2: Lab Values ═══ -->
             <div class="wizard-step" id="wstep-2">
 
-            {% if soft_warnings %}
-            <div id="soft-warning-banner" style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; border-radius:12px; padding:12px 16px; margin-bottom:20px;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-                    <i class="material-icons" style="color:#f59e0b; font-size:1.1rem;">warning</i>
-                    <strong style="color:#78350f; font-size:0.88rem;">Clinical range warnings — please verify these values before saving</strong>
+                {% if soft_warnings %}
+                <div id="soft-warning-banner" style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:12px;padding:12px 16px;margin-bottom:20px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <i class="material-icons" style="color:#f59e0b;font-size:1.1rem;">warning</i>
+                        <strong style="color:#78350f;font-size:0.88rem;">Clinical range warnings — please verify these values before saving</strong>
+                    </div>
+                    <ul style="margin:0;padding-left:16px;font-size:0.83rem;color:#78350f;line-height:1.8;">
+                        {% for w in soft_warnings %}<li>{{ w }}</li>{% endfor %}
+                    </ul>
                 </div>
-                <ul style="margin:0; padding-left:16px; font-size:0.83rem; color:#78350f; line-height:1.8;">
-                    {% for w in soft_warnings %}<li>{{ w }}</li>{% endfor %}
-                </ul>
-            </div>
-            {% endif %}
+                {% endif %}
 
-            <!-- ── Hematology ── -->
-            <div class="form-section" id="sec-hematology">
-                <div class="section-title"><i class="material-icons">bloodtype</i> Hematology</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Hemoglobin (g/dL)</label>
-                        <input type="number" step="0.1" name="hb" inputmode="decimal" value="{{ record.hb if record else '' }}" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Hematocrit (%)</label>
-                        <input type="number" step="0.1" name="hct" inputmode="decimal" value="{{ record.hct if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>TLC / WBC Count (/cmm)</label>
-                        <input type="number" step="10" name="wbc_count" inputmode="numeric" placeholder="e.g. 6500" value="{{ (record.wbc_count * 1000)|int if record and record.wbc_count else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Neutrophil Count (%)</label>
-                        <input type="number" step="1" name="neutrophil_count" inputmode="numeric" placeholder="e.g. 65" value="{{ ((record.neutrophil_count / record.wbc_count) * 100)|round(1) if record and record.neutrophil_count and record.wbc_count else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Platelet Count (×10³/µL)</label>
-                        <input type="number" step="1" name="platelet_count" inputmode="numeric" value="{{ record.platelet_count if record else '' }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── Iron Profile ── -->
-            <div class="form-section" id="sec-iron">
-                <div class="section-title"><i class="material-icons">vaccines</i> Iron Profile</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Serum Iron (µg/dL)</label>
-                        <input type="number" step="1" name="serum_iron" inputmode="numeric" value="{{ record.serum_iron if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>TIBC (µg/dL)</label>
-                        <input type="number" step="1" name="tibc" inputmode="numeric" value="{{ record.tibc if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Ferritin (ng/mL)</label>
-                        <input type="number" step="1" name="serum_ferritin" inputmode="numeric" value="{{ record.serum_ferritin if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>TSAT (%)</label>
-                        <input type="number" step="0.1" name="tsat" inputmode="decimal" value="{{ record.tsat if record else '' }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── MBD ── -->
-            <div class="form-section" id="sec-mbd">
-                <div class="section-title"><i class="material-icons">science</i> Bone & Mineral Metabolism (MBD)</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Calcium (mg/dL)</label>
-                        <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Phosphorus (mg/dL)</label>
-                        <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Alkaline Phosphate (U/L)</label>
-                        <input type="number" step="1" name="alkaline_phosphate" inputmode="numeric" value="{{ record.alkaline_phosphate if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>iPTH (pg/mL)</label>
-                        <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Vitamin D (ng/mL)</label>
-                        <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Albumin (g/dL)</label>
-                        <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── Biochemistry (KFT) ── -->
-            <div class="form-section" id="sec-kft">
-                <div class="section-title"><i class="material-icons">science</i> Biochemistry (KFT)</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Pre-Dialysis Urea (mg/dL)</label>
-                        <input type="number" step="1" name="pre_dialysis_urea" inputmode="numeric" value="{{ record.pre_dialysis_urea if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Post-Dialysis Urea (mg/dL)</label>
-                        <input type="number" step="1" name="post_dialysis_urea" inputmode="numeric" value="{{ record.post_dialysis_urea if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Creatinine (mg/dL)</label>
-                        <input type="number" step="0.1" name="serum_creatinine" inputmode="decimal" value="{{ record.serum_creatinine if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Post-Dialysis Creatinine (mg/dL)</label>
-                        <input type="number" step="0.1" name="post_dialysis_creatinine" inputmode="decimal" value="{{ record.post_dialysis_creatinine if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Sodium (mmol/L)</label>
-                        <input type="number" step="0.1" name="serum_sodium" inputmode="decimal" value="{{ record.serum_sodium if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Potassium (mmol/L)</label>
-                        <input type="number" step="0.1" name="serum_potassium" inputmode="decimal" value="{{ record.serum_potassium if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Bicarbonate (mmol/L)</label>
-                        <input type="number" step="1" name="serum_bicarbonate" inputmode="numeric" value="{{ record.serum_bicarbonate if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Serum Uric Acid (mg/dL)</label>
-                        <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" value="{{ record.serum_uric_acid if record else '' }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── Liver / Virology ── -->
-            <div class="form-section" id="sec-liver">
-                <div class="section-title"><i class="material-icons">science</i> Liver & Virology</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>AST (U/L)</label>
-                        <input type="number" step="1" name="ast" inputmode="numeric" value="{{ record.ast if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>ALT (U/L)</label>
-                        <input type="number" step="1" name="alt" inputmode="numeric" value="{{ record.alt if record else '' }}">
-                    </div>
-
-                    <div class="form-group">
-                        <label>CRP (mg/L)</label>
-                        <input type="number" step="0.1" name="crp" inputmode="decimal" value="{{ record.crp if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>HbA1c (%)</label>
-                        <input type="number" step="0.1" name="hba1c" inputmode="decimal" value="{{ record.hba1c if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Total Cholesterol (mg/dL)</label>
-                        <input type="number" step="1" name="total_cholesterol" inputmode="numeric" value="{{ record.total_cholesterol if record else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>LDL Cholesterol (mg/dL)</label>
-                        <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" placeholder="e.g. 100" value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── Dialysis Adequacy ── -->
-            <div class="form-section" id="sec-adequacy">
-                <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy</div>
-                <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:0.82rem; color:#0369a1;">
-                    <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">info</i>
-                    Kt/V is auto-calculated from Pre/Post Urea values entered in the Lab Values step.
-                </div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>spKt/V (Single-Pool) <span style="font-size:0.75rem; color:#0ea5e9; font-weight:normal;">(Auto-calculated)</span></label>
-                        <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="Auto from Urea values" value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}" readonly style="background:#f1f5f9; color:#0ea5e9; font-weight:700;">
-                    </div>
-                    <div class="form-group">
-                        <label>eKt/V (Equilibrated) <span style="font-size:0.75rem; color:#0ea5e9; font-weight:normal;">(Auto-calculated)</span></label>
-                        <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Auto from spKt/V" value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}" readonly style="background:#f1f5f9; color:#0ea5e9; font-weight:700;">
-                    </div>
-                    <div class="form-group">
-                        <label>URR — Urea Reduction Ratio (%) <span style="font-size: 0.75rem; color: #8b5cf6; margin-left: 6px;">(Auto-calculated)</span></label>
-                        <input type="number" step="0.1" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto from Urea values" value="{{ record.urr if record and record.urr else '' }}" readonly style="background:#f1f5f9; color:#475569; font-weight:700;">
-                    </div>
-
-                </div>
-            </div>
-
-</div><!-- /wstep-2 -->
-
-            <!-- ═══ Wizard Step 3: Dialysis Parameters ═══ -->
-            <div class="wizard-step" id="wstep-3">
-<div class="form-section" id="sec-med-anemia"><div class="section-title"><i class="material-icons">medication</i> Anemia Medications</div><div class="grid"><div class="form-group">
-                        <label>ESA Type</label>
-                        <select name="esa_type" id="esa_type" onchange="toggleESACalculator()">
-                            <option value="">-- Select --</option>
-                            {% set esa_cur = record.esa_type if record else (prior_record.esa_type if prior_record else '') %}
-                            {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","None"] %}
-                            <option value="{{ t }}" {{ 'selected' if esa_cur == t }}>{{ t }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group" id="mcg_input_group" style="display:none;">
-                        <div style="display:flex; gap:8px;">
-                            <div style="flex:1;">
-                                <label id="mcg_label">Dose (mcg)</label>
-                                <input type="number" id="esa_mcg" placeholder="e.g. 40" oninput="calculateWeeklyUnits()" style="width:100%;">
-                            </div>
-                            <div style="flex:1.5;">
-                                <label>Frequency</label>
-                                <select id="esa_frequency" onchange="calculateWeeklyUnits()" style="width:100%;">
-                                    <option value="1">Weekly</option>
-                                    <option value="0.5">Every 2 Weeks</option>
-                                    <option value="0.25">Monthly</option>
-                                </select>
-                            </div>
+                <!-- Hematology -->
+                <div class="form-section" id="sec-hematology">
+                    <div class="section-title"><i class="material-icons">bloodtype</i> Hematology</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Hemoglobin (g/dL)</label>
+                            <input type="number" step="0.1" name="hb" inputmode="decimal" value="{{ record.hb if record else '' }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Hematocrit (%)</label>
+                            <input type="number" step="0.1" name="hct" inputmode="decimal" value="{{ record.hct if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>TLC / WBC Count (/cmm)</label>
+                            <input type="number" step="10" name="wbc_count" inputmode="numeric" placeholder="e.g. 6500"
+                                   value="{{ (record.wbc_count * 1000)|int if record and record.wbc_count else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Neutrophil Count (%)</label>
+                            <input type="number" step="1" name="neutrophil_count" inputmode="numeric" placeholder="e.g. 65"
+                                   value="{{ ((record.neutrophil_count / record.wbc_count) * 100)|round(1) if record and record.neutrophil_count and record.wbc_count else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Platelet Count (×10³/µL)</label>
+                            <input type="number" step="1" name="platelet_count" inputmode="numeric" value="{{ record.platelet_count if record else '' }}">
                         </div>
                     </div>
-                    <div class="form-group" id="epo_units_group">
-                        <label>EPO Units/Week (Total)</label>
-                        <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric" placeholder="Calculated from selectors..." value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}" readonly="readonly" style="background: #f1f5f9;" aria-describedby="hint-epo-units">
-                        <span id="hint-epo-units" class="form-hint">Auto-calculated from ESA type, dose, and frequency selectors above.</span>
+                </div>
+
+                <!-- Iron Profile -->
+                <div class="form-section" id="sec-iron">
+                    <div class="section-title"><i class="material-icons">vaccines</i> Iron Profile</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Serum Iron (µg/dL)</label>
+                            <input type="number" step="1" name="serum_iron" inputmode="numeric" value="{{ record.serum_iron if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>TIBC (µg/dL)</label>
+                            <input type="number" step="1" name="tibc" inputmode="numeric" value="{{ record.tibc if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Serum Ferritin (ng/mL)</label>
+                            <input type="number" step="1" name="serum_ferritin" inputmode="numeric" value="{{ record.serum_ferritin if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>TSAT (%)</label>
+                            <input type="number" step="0.1" name="tsat" inputmode="decimal" value="{{ record.tsat if record else '' }}">
+                        </div>
                     </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>ESA Brand & Prescribed Schedule (Description)</label>
-                        <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="Auto-populated..." value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}" readonly="readonly" style="background: #f1f5f9;">
+                </div>
+
+                <!-- MBD -->
+                <div class="form-section" id="sec-mbd">
+                    <div class="section-title"><i class="material-icons">science</i> Bone & Mineral Metabolism (MBD)</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Calcium (mg/dL)</label>
+                            <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Phosphorus (mg/dL)</label>
+                            <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Alkaline Phosphate (U/L)</label>
+                            <input type="number" step="1" name="alkaline_phosphate" inputmode="numeric" value="{{ record.alkaline_phosphate if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>iPTH (pg/mL)</label>
+                            <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Vitamin D (ng/mL)</label>
+                            <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Albumin (g/dL)</label>
+                            <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
+                        </div>
                     </div>
-                    {# ── Desidustat (HIF-PHI) section — Standalone ── #}
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label>Is Patient Taking Desidustat (Oxemia)?</label>
-                        <select id="desidustat_toggle" onchange="toggleDesidustatSection()" style="margin-bottom: 12px;">
-                            <option value="No">No</option>
-                            <option value="Yes" {{ 'selected' if record and record.desidustat_dose else (prior_record and prior_record.desidustat_dose and 'selected' or '') }}>Yes</option>
-                        </select>
+                </div>
+
+                <!-- Biochemistry (KFT) -->
+                <div class="form-section" id="sec-kft">
+                    <div class="section-title"><i class="material-icons">science</i> Biochemistry (KFT)</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Pre-Dialysis Urea (mg/dL)</label>
+                            <input type="number" step="1" name="pre_dialysis_urea" inputmode="numeric" value="{{ record.pre_dialysis_urea if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Post-Dialysis Urea (mg/dL)</label>
+                            <input type="number" step="1" name="post_dialysis_urea" inputmode="numeric" value="{{ record.post_dialysis_urea if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Serum Creatinine (mg/dL)</label>
+                            <input type="number" step="0.1" name="serum_creatinine" inputmode="decimal" value="{{ record.serum_creatinine if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Post-Dialysis Creatinine (mg/dL)</label>
+                            <input type="number" step="0.1" name="post_dialysis_creatinine" inputmode="decimal" value="{{ record.post_dialysis_creatinine if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Serum Sodium (mmol/L)</label>
+                            <input type="number" step="0.1" name="serum_sodium" inputmode="decimal" value="{{ record.serum_sodium if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Serum Potassium (mmol/L)</label>
+                            <input type="number" step="0.1" name="serum_potassium" inputmode="decimal" value="{{ record.serum_potassium if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Serum Bicarbonate (mmol/L)</label>
+                            <input type="number" step="1" name="serum_bicarbonate" inputmode="numeric" value="{{ record.serum_bicarbonate if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Serum Uric Acid (mg/dL)</label>
+                            <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" value="{{ record.serum_uric_acid if record else '' }}">
+                        </div>
                     </div>
-                    <div class="form-group" id="desidustat_group" style="grid-column: 1 / -1; display:none;">
-                        <div style="background:#f0f9ff; border:1px solid #7dd3fc; border-radius:12px; padding:14px 16px;">
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                                <i class="material-icons" style="color:#0284c7; font-size:1.1rem;">medication</i>
-                                <span style="font-weight:700; color:#0284c7; font-size:0.88rem;">Desidustat (Oxemia) — HIF Prolyl Hydroxylase Inhibitor</span>
-                                <span style="background:#dbeafe; color:#1e40af; font-size:0.65rem; font-weight:800; padding:2px 8px; border-radius:20px; text-transform:uppercase;">Oral HIF-PHI</span>
-                            </div>
-                            <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:0.8rem; color:#9a3412; display:flex; gap:8px; align-items:flex-start;">
-                                <i class="material-icons" style="font-size:1rem; flex-shrink:0; margin-top:1px;">warning</i>
-                                <span><strong>Analytics note:</strong> ERI and EPO responsiveness calculations are <strong>not applicable</strong> for HIF-PHI agents. The system will flag this patient as <em>"HIF-PHI — ERI excluded"</em> in cohort analytics. Enter dose below for treatment record only.</span>
-                            </div>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                                <div>
-                                    <label style="font-size:0.75rem; color:#0369a1;">Dose (mg)</label>
-                                    <input type="number" step="25" min="50" max="300" id="desidustat_mg" placeholder="e.g. 100" oninput="syncDesidustatDose()" style="width:100%; padding:10px; border:1px solid #bae6fd; border-radius:8px; background:#fff;">
+                </div>
+
+                <!-- Liver & Virology -->
+                <div class="form-section" id="sec-liver">
+                    <div class="section-title"><i class="material-icons">science</i> Liver & Virology</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>AST (U/L)</label>
+                            <input type="number" step="1" name="ast" inputmode="numeric" value="{{ record.ast if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>ALT (U/L)</label>
+                            <input type="number" step="1" name="alt" inputmode="numeric" value="{{ record.alt if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>CRP (mg/L)</label>
+                            <input type="number" step="0.1" name="crp" inputmode="decimal" value="{{ record.crp if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>HbA1c (%)</label>
+                            <input type="number" step="0.1" name="hba1c" inputmode="decimal" value="{{ record.hba1c if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Total Cholesterol (mg/dL)</label>
+                            <input type="number" step="1" name="total_cholesterol" inputmode="numeric" value="{{ record.total_cholesterol if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>LDL Cholesterol (mg/dL)</label>
+                            <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" placeholder="e.g. 100"
+                                   value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dialysis Adequacy -->
+                <div class="form-section" id="sec-adequacy">
+                    <div class="section-title"><i class="material-icons">water_drop</i> Dialysis Adequacy</div>
+                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:0.82rem;color:#0369a1;">
+                        <i class="material-icons" style="font-size:1rem;vertical-align:middle;margin-right:4px;">info</i>
+                        Kt/V and URR are auto-calculated from Pre/Post Urea values above.
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>spKt/V (Single-Pool) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto-calculated)</span></label>
+                            <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="Auto from Urea values"
+                                   value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>eKt/V (Equilibrated) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto-calculated)</span></label>
+                            <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Auto from spKt/V"
+                                   value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>URR — Urea Reduction Ratio (%) <span style="font-size:0.75rem;color:#8b5cf6;margin-left:6px;">(Auto-calculated)</span></label>
+                            <input type="number" step="0.1" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto from Urea values"
+                                   value="{{ record.urr if record and record.urr else '' }}" readonly>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /wstep-2 -->
+
+            <!-- ═══ Step 3: Medications ═══ -->
+            <div class="wizard-step" id="wstep-3">
+
+                <!-- Anemia Medications -->
+                <div class="form-section" id="sec-med-anemia">
+                    <div class="section-title"><i class="material-icons">medication</i> Anemia Medications</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>ESA Type</label>
+                            <select name="esa_type" id="esa_type" onchange="toggleESACalculator()">
+                                <option value="">-- Select --</option>
+                                {% set esa_cur = record.esa_type if record else (prior_record.esa_type if prior_record else '') %}
+                                {% for t in ["Epoetin Alfa","Epoetin Beta","Darbepoetin","Mircera (CERA)","None"] %}
+                                <option value="{{ t }}" {{ 'selected' if esa_cur == t }}>{{ t }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" id="mcg_input_group" style="display:none;">
+                            <div style="display:flex;gap:8px;">
+                                <div style="flex:1;">
+                                    <label id="mcg_label">Dose</label>
+                                    <input type="number" id="esa_mcg" placeholder="e.g. 40" oninput="calculateWeeklyUnits()" style="width:100%;">
                                 </div>
-                                <div>
-                                    <label style="font-size:0.75rem; color:#0369a1;">Frequency</label>
-                                    <select id="desidustat_freq" onchange="syncDesidustatDose()" style="width:100%; padding:10px; border:1px solid #bae6fd; border-radius:8px; background:#fff;">
-                                        <option value="">-- Select --</option>
-                                        <option value="Twice a week (BD)">Twice a week</option>
-                                        <option value="Thrice a week (TIW)">Thrice a week</option>
-                                        <option value="Once daily (OD)">Once daily</option>
+                                <div style="flex:1.5;">
+                                    <label>Frequency</label>
+                                    <select id="esa_frequency" onchange="calculateWeeklyUnits()" style="width:100%;">
+                                        <option value="1">Weekly</option>
                                     </select>
                                 </div>
                             </div>
-                            <input type="hidden" name="desidustat_dose" id="desidustat_dose" value="{{ record.desidustat_dose if record else (prior_record.desidustat_dose if prior_record else '') }}">
-                            <div id="desidustat_preview" style="margin-top:10px; font-size:0.8rem; font-weight:600; color:#0284c7;"></div>
                         </div>
-                    </div>
-                    
-                    
-                    
-       </div></div>
-<div class="form-section" id="sec-med-iron"><div class="section-title"><i class="material-icons">vaccines</i> IV Iron</div><div class="grid"><div class="form-group">
-                        <label>IV Iron Product</label>
-                        <select name="iv_iron_product">
-                            <option value="">-- None / Select --</option>
-                            {% for p in ["Iron Sucrose","Ferric Carboxymaltose","Low Molecular Weight Iron Dextran","Ferumoxytol"] %}
-                            <option value="{{ p }}" {{ 'selected' if record and record.iv_iron_product == p }}>{{ p }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>IV Iron Dose (mg)</label>
-                        <input type="number" step="25" name="iv_iron_dose" inputmode="numeric" placeholder="e.g. 200" value="{{ record.iv_iron_dose if record and record.iv_iron_dose else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>IV Iron Date</label>
-                        <input type="date" name="iv_iron_date" value="{{ record.iv_iron_date.strftime('%Y-%m-%d') if record and record.iv_iron_date else '' }}">
-                    </div>
-       </div></div>
-<div class="form-section" id="sec-med-mbd"><div class="section-title"><i class="material-icons">medication</i> MBD Medications</div><div class="grid"><div class="form-group" style="grid-column: 1 / -1;">
-                        <label>Vitamin D Analogue Selector</label>
-                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                            <select id="vit_d_analogue_select" onchange="toggleVitDFields()" style="flex: 1.5; min-width: 200px;">
-                                <option value="">-- None / Select --</option>
-                                <option value="Calcirol 60,000 Units/week">Calcirol 60,000 Units/week</option>
-                                <option value="Calcirol 60,000 Units/month">Calcirol 60,000 Units/month</option>
-                                <option value="Calcitriol 0.25 mcg">Calcitriol 0.25 mcg</option>
+                        <div class="form-group" id="epo_units_group">
+                            <label>EPO Units/Week (Total)</label>
+                            <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric"
+                                   placeholder="Calculated from selectors..." readonly
+                                   value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}"
+                                   aria-describedby="hint-epo-units">
+                            <span id="hint-epo-units" class="form-hint">Auto-calculated from ESA type, dose, and frequency selectors above.</span>
+                        </div>
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>ESA Brand & Prescribed Schedule</label>
+                            <input type="text" name="epo_mircera_dose" id="epo_mircera_dose" placeholder="Auto-populated..." readonly
+                                   value="{{ record.epo_mircera_dose if record else (prior_record.epo_mircera_dose if prior_record else '') }}">
+                        </div>
+                        <div id="conversionHint" style="display:none;grid-column:1/-1;"></div>
+
+                        <!-- Desidustat -->
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>Is Patient Taking Desidustat (Oxemia)?</label>
+                            <select id="desidustat_toggle" onchange="toggleDesidustatSection()" style="margin-bottom:12px;">
+                                <option value="No">No</option>
+                                <option value="Yes" {{ 'selected' if record and record.desidustat_dose else (prior_record and prior_record.desidustat_dose and 'selected' or '') }}>Yes</option>
                             </select>
-                            
-                            <div id="vit_d_calcitriol_fields" style="display: none; gap: 8px; align-items: center; flex: 2; min-width: 250px;">
-                                <input type="number" id="vit_d_tablet_count" placeholder="Tablet Count" min="1" step="1" value="1" oninput="compileVitDValue()" style="width: 80px;">
-                                <span style="font-size: 0.9rem; color: #64748b;">tab(s)</span>
-                                <select id="vit_d_freq_select" onchange="compileVitDValue()" style="flex: 1;">
-                                    <option value="OD">OD</option>
-                                    <option value="BD">BD</option>
-                                    <option value="Alternate day">Alternate day</option>
-                                </select>
+                        </div>
+                        <div class="form-group" id="desidustat_group" style="grid-column:1/-1;display:none;">
+                            <div style="background:#f0f9ff;border:1px solid #7dd3fc;border-radius:12px;padding:14px 16px;">
+                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                                    <i class="material-icons" style="color:#0284c7;font-size:1.1rem;">medication</i>
+                                    <span style="font-weight:700;color:#0284c7;font-size:0.88rem;">Desidustat (Oxemia) — HIF Prolyl Hydroxylase Inhibitor</span>
+                                    <span style="background:#dbeafe;color:#1e40af;font-size:0.65rem;font-weight:800;padding:2px 8px;border-radius:20px;text-transform:uppercase;">Oral HIF-PHI</span>
+                                </div>
+                                <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:0.8rem;color:#9a3412;display:flex;gap:8px;align-items:flex-start;">
+                                    <i class="material-icons" style="font-size:1rem;flex-shrink:0;margin-top:1px;">warning</i>
+                                    <span><strong>Analytics note:</strong> ERI and EPO responsiveness calculations are <strong>not applicable</strong> for HIF-PHI agents. Enter dose below for treatment record only.</span>
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                    <div>
+                                        <label style="font-size:0.75rem;color:#0369a1;">Dose (mg)</label>
+                                        <input type="number" step="25" min="50" max="300" id="desidustat_mg" placeholder="e.g. 100"
+                                               oninput="syncDesidustatDose()" style="width:100%;padding:10px;border:1px solid #bae6fd;border-radius:8px;background:#fff;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.75rem;color:#0369a1;">Frequency</label>
+                                        <select id="desidustat_freq" onchange="syncDesidustatDose()"
+                                                style="width:100%;padding:10px;border:1px solid #bae6fd;border-radius:8px;background:#fff;">
+                                            <option value="">-- Select --</option>
+                                            <option value="Twice a week (BD)">Twice a week</option>
+                                            <option value="Thrice a week (TIW)">Thrice a week</option>
+                                            <option value="Once daily (OD)">Once daily</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="desidustat_dose" id="desidustat_dose"
+                                       value="{{ record.desidustat_dose if record else (prior_record.desidustat_dose if prior_record else '') }}">
+                                <div id="desidustat_preview" style="margin-top:10px;font-size:0.8rem;font-weight:600;color:#0284c7;"></div>
                             </div>
                         </div>
-                        <input type="hidden" name="vitamin_d_analog_dose" id="vitamin_d_analog_dose" value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else (prior_record.vitamin_d_analog_dose if prior_record and prior_record.vitamin_d_analog_dose else '') }}">
-                        <div id="vit_d_preview" style="font-size:0.85rem; color:var(--primary); margin-top:6px; font-weight:500;"></div>
                     </div>
-                    <div class="form-group">
-                        <label>Phosphate Binder</label>
-                        <select name="phosphate_binder_type">
-                            <option value="">-- None / Select --</option>
-                            {% set binder_cur = record.phosphate_binder_type if record else (prior_record.phosphate_binder_type if prior_record else '') %}
-                            {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)"] %}
-                            <option value="{{ b }}" {{ 'selected' if binder_cur == b }}>{{ b }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Tablet Strength (mg)</label>
-                        <input type="number" id="pb_strength" name="pb_strength" step="1" placeholder="e.g. 800"
-                               value="{{ record.pb_strength if record and record.pb_strength else (prior_record.pb_strength if prior_record else '') }}"
-                               oninput="calculateTotalBinder()"
-                               aria-describedby="pb_calc_hint">
-                    </div>
-                    <div class="form-group">
-                        <label>Frequency</label>
-                        <select id="pb_freq" name="phosphate_binder_freq" onchange="calculateTotalBinder()" aria-describedby="pb_calc_hint">
-                            <option value="">-- Select --</option>
-                            {% set freq_cur = record.phosphate_binder_freq if record else (prior_record.phosphate_binder_freq if prior_record else '') %}
-                            {% for f in ["OD", "BD", "TDS", "QID"] %}
-                            <option value="{{ f }}" {{ 'selected' if freq_cur == f }}>{{ f }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group" style="grid-column: 1 / -1; margin-top: -10px;">
-                        <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg" value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else (prior_record.phosphate_binder_dose_mg if prior_record and prior_record.phosphate_binder_dose_mg is not none else '') }}">
-                        <div id="pb_calc_hint" class="form-hint" style="font-weight: 600;">
-                            {% if record and record.phosphate_binder_dose_mg %}
-                            Total Daily Dose: {{ record.phosphate_binder_dose_mg }} mg
-                            {% elif prior_record and prior_record.phosphate_binder_dose_mg %}
-                            Total Daily Dose: {{ prior_record.phosphate_binder_dose_mg }} mg
-                            {% endif %}
+                </div>
+
+                <!-- IV Iron -->
+                <div class="form-section" id="sec-med-iron">
+                    <div class="section-title"><i class="material-icons">vaccines</i> IV Iron</div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>IV Iron Product</label>
+                            <select name="iv_iron_product">
+                                <option value="">-- None / Select --</option>
+                                {% for p in ["Iron Sucrose","Ferric Carboxymaltose","Low Molecular Weight Iron Dextran","Ferumoxytol"] %}
+                                <option value="{{ p }}" {{ 'selected' if record and record.iv_iron_product == p }}>{{ p }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>IV Iron Dose (mg)</label>
+                            <input type="number" step="25" name="iv_iron_dose" inputmode="numeric" placeholder="e.g. 200"
+                                   value="{{ record.iv_iron_dose if record and record.iv_iron_dose else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>IV Iron Date</label>
+                            <input type="date" name="iv_iron_date"
+                                   value="{{ record.iv_iron_date.strftime('%Y-%m-%d') if record and record.iv_iron_date else '' }}">
                         </div>
                     </div>
-       </div></div>
-<div class="form-section" id="sec-transfusion" style="border-left: 5px solid #dc2626;">
-                <div class="section-title" style="color: #dc2626;">
-                    <i class="material-icons" style="color:#dc2626;">water_drop</i>
-                    Blood Transfusion (PRBC)
-                    <span style="font-size:0.72rem; font-weight:600; background:#fee2e2; color:#dc2626; padding:3px 10px; border-radius:20px; margin-left:8px;">Affects Hb Trajectory &amp; EPO Responsiveness</span>
                 </div>
-                <div style="background:#fff1f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; margin-bottom:18px; font-size:0.83rem; color:#991b1b; display:flex; align-items:flex-start; gap:10px;">
-                    <i class="material-icons" style="font-size:1.1rem; color:#dc2626; flex-shrink:0; margin-top:1px;">info</i>
-                    <span>Recording transfusion units here allows the analytics engine to automatically correct the Hb trajectory (Kalman filter) and EPO Resistance Index (ERI) for transfusion confounding. Failure to record will cause falsely <strong>optimistic</strong> EPO responsiveness scores.</span>
-                </div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>PRBC Units Transfused This Month</label>
-                        <input type="number" step="1" min="0" max="20" name="blood_transfusion_units" id="blood_transfusion_units" inputmode="numeric"
-                               placeholder="0"
-                               value="{{ record.blood_transfusion_units if record and record.blood_transfusion_units else '' }}"
-                               style="border-color: #fca5a5;"
-                               oninput="updateTransfusionHint()"
-                               aria-describedby="hint-transfusion-units">
-                        <span id="hint-transfusion-units" class="form-hint">Each unit raises Hb by ~1 g/dL. Enter 0 or leave blank if no transfusion.</span>
-                    </div>
-                    <div class="form-group">
-                        <label>Date of Transfusion (most recent)</label>
-                        <input type="date" name="transfusion_date" id="transfusion_date"
-                               value="{{ record.transfusion_date if record and record.transfusion_date else '' }}"
-                               style="border-color: #fca5a5;">
-                    </div>
-                </div>
-                <div id="transfusion_hint" style="display:none; background:#fff1f2; border:1px solid #fca5a5; border-radius:10px; padding:10px 14px; margin-top:8px; font-size:0.85rem; color:#7f1d1d;"></div>
-            </div
 
-<div class="form-section" id="sec-meds">
-                <div class="section-title"><i class="material-icons">medication</i> Antihypertensive Drugs & Regimen</div>
-                <div id="antiMedsWrapper" style="display:flex; flex-direction:column; gap:8px;">
-                    {% set display_meds = anti_meds if anti_meds else (prior_anti_meds if prior_anti_meds and not record else []) %}
-                    {% for med in display_meds %}
-                    <div class="anti-med-row" style="display:flex; gap:8px; align-items:center;">
-                        <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
-                            <option value="">-- Choose Drug --</option>
-                            {% for d in ["Nifedipine", "Amlodipine", "Clinidipine", "Prazocin", "Clonidine", "Metoprolol", "Dytor", "Minoxidil", "Telmisartan", "Atenolol", "Other"] %}
-                            <option value="{{ d }}" {{ 'selected' if med.name == d else '' }}>{{ d }}</option>
-                            {% endfor %}
-                        </select>
-                        <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)" value="{{ med.dose }}">
-                        <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
-                            <option value="">Freq</option>
-                            {% for f in ["OD", "BD", "TDS", "QID", "SOS"] %}
-                            <option value="{{ f }}" {{ 'selected' if med.freq == f else '' }}>{{ f }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
+                <!-- MBD Medications -->
+                <div class="form-section" id="sec-med-mbd">
+                    <div class="section-title"><i class="material-icons">medication</i> MBD Medications</div>
+                    <div class="grid">
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>Vitamin D Analogue</label>
+                            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                                <select id="vit_d_analogue_select" onchange="toggleVitDFields()" style="flex:1.5;min-width:200px;">
+                                    <option value="">-- None / Select --</option>
+                                    <option value="Calcirol 60,000 Units/week">Calcirol 60,000 Units/week</option>
+                                    <option value="Calcirol 60,000 Units/month">Calcirol 60,000 Units/month</option>
+                                    <option value="Calcitriol 0.25 mcg">Calcitriol 0.25 mcg</option>
+                                </select>
+                                <div id="vit_d_calcitriol_fields" style="display:none;gap:8px;align-items:center;flex:2;min-width:250px;">
+                                    <input type="number" id="vit_d_tablet_count" placeholder="Tabs" min="1" step="1" value="1"
+                                           oninput="compileVitDValue()" style="width:80px;">
+                                    <span style="font-size:0.9rem;color:#64748b;">tab(s)</span>
+                                    <select id="vit_d_freq_select" onchange="compileVitDValue()" style="flex:1;">
+                                        <option value="OD">OD</option>
+                                        <option value="BD">BD</option>
+                                        <option value="Alternate day">Alternate day</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <input type="hidden" name="vitamin_d_analog_dose" id="vitamin_d_analog_dose"
+                                   value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else (prior_record.vitamin_d_analog_dose if prior_record and prior_record.vitamin_d_analog_dose else '') }}">
+                            <div id="vit_d_preview" style="font-size:0.85rem;color:var(--primary);margin-top:6px;font-weight:500;"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Phosphate Binder</label>
+                            <select name="phosphate_binder_type">
+                                <option value="">-- None / Select --</option>
+                                {% set binder_cur = record.phosphate_binder_type if record else (prior_record.phosphate_binder_type if prior_record else '') %}
+                                {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)"] %}
+                                <option value="{{ b }}" {{ 'selected' if binder_cur == b }}>{{ b }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tablet Strength (mg)</label>
+                            <input type="number" id="pb_strength" name="pb_strength" step="1" placeholder="e.g. 800"
+                                   value="{{ record.pb_strength if record and record.pb_strength else (prior_record.pb_strength if prior_record else '') }}"
+                                   oninput="calculateTotalBinder()" aria-describedby="pb_calc_hint">
+                        </div>
+                        <div class="form-group">
+                            <label>Frequency</label>
+                            <select id="pb_freq" name="phosphate_binder_freq" onchange="calculateTotalBinder()" aria-describedby="pb_calc_hint">
+                                <option value="">-- Select --</option>
+                                {% set freq_cur = record.phosphate_binder_freq if record else (prior_record.phosphate_binder_freq if prior_record else '') %}
+                                {% for f in ["OD","BD","TDS","QID"] %}
+                                <option value="{{ f }}" {{ 'selected' if freq_cur == f }}>{{ f }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group" style="grid-column:1/-1;margin-top:-10px;">
+                            <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg"
+                                   value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else (prior_record.phosphate_binder_dose_mg if prior_record and prior_record.phosphate_binder_dose_mg is not none else '') }}">
+                            <div id="pb_calc_hint" class="form-hint" style="font-weight:600;">
+                                {% if record and record.phosphate_binder_dose_mg %}
+                                Total Daily Dose: {{ record.phosphate_binder_dose_mg }} mg
+                                {% elif prior_record and prior_record.phosphate_binder_dose_mg %}
+                                Total Daily Dose: {{ prior_record.phosphate_binder_dose_mg }} mg
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
-                    {% endfor %}
-
-                    {% if not display_meds %}
-                    <div class="anti-med-row" style="display:flex; gap:8px; align-items:center;">
-                        <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
-                            <option value="">-- Choose Drug --</option>
-                            {% for d in ["Nifedipine", "Amlodipine", "Clinidipine", "Prazocin", "Clonidine", "Metoprolol", "Dytor", "Minoxidil", "Telmisartan", "Atenolol", "Other"] %}
-                            <option value="{{ d }}">{{ d }}</option>
-                            {% endfor %}
-                        </select>
-                        <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)">
-                        <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
-                            <option value="">Freq</option>
-                            <option value="OD">OD</option>
-                            <option value="BD">BD</option>
-                            <option value="TDS">TDS</option>
-                            <option value="QID">QID</option>
-                            <option value="SOS">SOS</option>
-                        </select>
-                        <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
-                    </div>
-                    {% endif %}
                 </div>
-                <button type="button" onclick="addAntiMedRow()" style="margin-top:10px; background:#f1f5f9; color:#0f172a; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s;">+ Add Another Medication</button>
-                <div style="font-size:0.75rem; color:#64748b; margin-top:8px;">* The total count is automatically saved based on the number of non-empty entries.</div>
-            </div
-</div><!-- /wstep-3 -->
 
-            <!-- ═══ Wizard Step 4: Review & Submit ═══ -->
+                <!-- Blood Transfusion -->
+                <div class="form-section" id="sec-transfusion" style="border-left:5px solid #dc2626;">
+                    <div class="section-title" style="color:#dc2626;">
+                        <i class="material-icons" style="color:#dc2626;">water_drop</i>
+                        Blood Transfusion (PRBC)
+                        <span style="font-size:0.72rem;font-weight:600;background:#fee2e2;color:#dc2626;padding:3px 10px;border-radius:20px;margin-left:8px;">Affects Hb Trajectory &amp; EPO Responsiveness</span>
+                    </div>
+                    <div style="background:#fff1f2;border:1px solid #fecaca;border-radius:12px;padding:12px 16px;margin-bottom:18px;font-size:0.83rem;color:#991b1b;display:flex;align-items:flex-start;gap:10px;">
+                        <i class="material-icons" style="font-size:1.1rem;color:#dc2626;flex-shrink:0;margin-top:1px;">info</i>
+                        <span>Recording transfusion units allows the analytics engine to automatically correct the Hb trajectory (Kalman filter) and EPO Resistance Index (ERI) for transfusion confounding. Failure to record will cause falsely <strong>optimistic</strong> EPO responsiveness scores.</span>
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>PRBC Units Transfused This Month</label>
+                            <input type="number" step="1" min="0" max="20" name="blood_transfusion_units" id="blood_transfusion_units"
+                                   inputmode="numeric" placeholder="0"
+                                   value="{{ record.blood_transfusion_units if record and record.blood_transfusion_units else '' }}"
+                                   style="border-color:#fca5a5;" oninput="updateTransfusionHint()"
+                                   aria-describedby="hint-transfusion-units">
+                            <span id="hint-transfusion-units" class="form-hint">Each unit raises Hb by ~1 g/dL. Enter 0 or leave blank if no transfusion.</span>
+                        </div>
+                        <div class="form-group">
+                            <label>Date of Transfusion (most recent)</label>
+                            <input type="date" name="transfusion_date" id="transfusion_date"
+                                   value="{{ record.transfusion_date if record and record.transfusion_date else '' }}"
+                                   style="border-color:#fca5a5;">
+                        </div>
+                    </div>
+                    <div id="transfusion_hint" style="display:none;background:#fff1f2;border:1px solid #fca5a5;border-radius:10px;padding:10px 14px;margin-top:8px;font-size:0.85rem;color:#7f1d1d;"></div>
+                </div>
+
+                <!-- Antihypertensives -->
+                <div class="form-section" id="sec-meds">
+                    <div class="section-title"><i class="material-icons">medication</i> Antihypertensive Drugs & Regimen</div>
+                    <div id="antiMedsWrapper" style="display:flex;flex-direction:column;gap:8px;">
+
+                        {# Single source of truth for the med row — renders existing meds or one blank row #}
+                        {% set display_meds = anti_meds if anti_meds else (prior_anti_meds if prior_anti_meds and not record else []) %}
+                        {% if display_meds %}
+                            {% for med in display_meds %}
+                            <div class="anti-med-row">
+                                <select name="antihypertensive_name">
+                                    <option value="">-- Choose Drug --</option>
+                                    {% for d in ["Nifedipine","Amlodipine","Clinidipine","Prazocin","Clonidine","Metoprolol","Dytor","Minoxidil","Telmisartan","Atenolol","Other"] %}
+                                    <option value="{{ d }}" {{ 'selected' if med.name == d }}>{{ d }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="text" name="antihypertensive_dose" placeholder="Dose (e.g. 5mg)" value="{{ med.dose }}">
+                                <select name="antihypertensive_freq">
+                                    <option value="">Freq</option>
+                                    {% for f in ["OD","BD","TDS","QID","SOS"] %}
+                                    <option value="{{ f }}" {{ 'selected' if med.freq == f }}>{{ f }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn-remove-row" onclick="this.closest('.anti-med-row').remove()">
+                                    <i class="material-icons" style="font-size:1em;">delete</i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="anti-med-row">
+                            <select name="antihypertensive_name">
+                                <option value="">-- Choose Drug --</option>
+                                {% for d in ["Nifedipine","Amlodipine","Clinidipine","Prazocin","Clonidine","Metoprolol","Dytor","Minoxidil","Telmisartan","Atenolol","Other"] %}
+                                <option value="{{ d }}">{{ d }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="text" name="antihypertensive_dose" placeholder="Dose (e.g. 5mg)">
+                            <select name="antihypertensive_freq">
+                                <option value="">Freq</option>
+                                {% for f in ["OD","BD","TDS","QID","SOS"] %}
+                                <option value="{{ f }}">{{ f }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn-remove-row" onclick="this.closest('.anti-med-row').remove()">
+                                <i class="material-icons" style="font-size:1em;">delete</i>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <button type="button" onclick="addAntiMedRow()"
+                            style="margin-top:10px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;transition:all 0.2s;">
+                        + Add Another Medication
+                    </button>
+                    <span class="form-hint" style="margin-top:8px;">Total count is automatically saved based on non-empty entries.</span>
+                </div>
+
+            </div><!-- /wstep-3 -->
+
+            <!-- ═══ Step 4: Review & Submit ═══ -->
             <div class="wizard-step" id="wstep-4">
-
-            <!-- Review Summary Card (populated by JS) -->
-            <div class="form-section review-card" id="review-summary-section">
-                <div class="review-card-title">
-                    <i class="material-icons" style="color:var(--primary);">checklist</i>
-                    Monthly Data Summary — Review Before Saving
-                </div>
-                <div id="review-summary-content">
-                    <div class="review-empty">Navigating to this step will summarise all entered values.</div>
-                </div>
-            </div>
-
-            <!-- ── Clinical Evaluation & Notes ── -->
-            {% if user and user.role in ['admin', 'doctor'] %}
-            <div class="form-section" id="sec-notes">
-                <div class="section-title"><i class="material-icons">rate_review</i> Clinical Evaluation & Notes</div>
-                
-                <div class="form-group">
-                    <label style="color:var(--primary); font-weight:700;">Monthly Clinical Observations</label>
-                    <textarea name="issues" rows="4"
-                        placeholder="Complications, clinical observations, or follow-up actions specific to this month..."
-                        style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;box-sizing:border-box;font-size:1rem;font-family:'Inter',sans-serif;background:#f8fafc;resize:vertical;line-height:1.6;">{{ record.issues if record and record.issues else '' }}</textarea>
+                <div class="form-section review-card" id="review-summary-section">
+                    <div class="review-card-title">
+                        <i class="material-icons" style="color:var(--primary);">checklist</i>
+                        Monthly Data Summary — Review Before Saving
+                    </div>
+                    <div id="review-summary-content">
+                        <div class="review-empty">Navigating to this step will summarise all entered values.</div>
+                    </div>
                 </div>
 
-                <div style="height:1px; background:#e2e8f0; margin:24px 0;"></div>
-
-                
+                {% if user and user.role in ['admin', 'doctor'] %}
+                <div class="form-section" id="sec-notes">
+                    <div class="section-title"><i class="material-icons">rate_review</i> Clinical Evaluation & Notes</div>
+                    <div class="form-group">
+                        <label style="color:var(--primary);font-weight:700;">Monthly Clinical Observations</label>
+                        <textarea name="issues" rows="4"
+                            placeholder="Complications, clinical observations, or follow-up actions specific to this month..."
+                            style="width:100%;padding:14px;border:1px solid #e2e8f0;border-radius:12px;box-sizing:border-box;font-size:1rem;font-family:'Inter',sans-serif;background:#f8fafc;resize:vertical;line-height:1.6;">{{ record.issues if record and record.issues else '' }}</textarea>
+                    </div>
                 </div>
-            </div>
-            {% endif %}
-
+                {% endif %}
             </div><!-- /wstep-4 -->
 
-            <!-- ── Wizard Action Bar (fixed bottom) ── -->
+            <!-- Wizard action bar -->
             <div class="wizard-actions" id="wizard-actions-bar">
                 <div class="wizard-actions-inner">
                     <button type="button" id="btn-wiz-back" class="btn-wiz-back" onclick="wizardBack()" disabled>
@@ -982,1334 +686,83 @@
         </form>
     </div>
 
-    <script>
-        function addHospRow() {
-            const wrap = document.getElementById('hospWrapper');
-            const row = document.createElement('div');
-            row.className = 'hosp-row';
-            row.style.cssText = "background:#f1f5f9; padding:20px; border-radius:12px; position:relative; border:1px solid #e2e8f0; margin-top:10px;";
-            row.innerHTML = `
-                <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:10px; right:10px; background:#fee2e2; color:#ef4444; border:none; padding:6px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1.2rem;">delete</i></button>
-                <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-                    <div class="form-group">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">Event Date</label>
-                        <input type="date" name="hospitalization_date" style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
-                    </div>
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">Clinical Diagnosis</label>
-                        <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD" style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
-                    </div>
-                    <div class="form-group">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">ICD-10 Code</label>
-                        <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1" style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
-                    </div>
-                    <div class="form-group">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #64748b; font-size: 0.85em; text-transform: uppercase;">ICD-10 Diagnosis</label>
-                        <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease..." style="width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;">
+    <!-- Anti-med row template — single source of truth for JS cloneNode -->
+    <template id="anti-med-template">
+        <div class="anti-med-row">
+            <select name="antihypertensive_name">
+                <option value="">-- Choose Drug --</option>
+                <option value="Nifedipine">Nifedipine</option>
+                <option value="Amlodipine">Amlodipine</option>
+                <option value="Clinidipine">Clinidipine</option>
+                <option value="Prazocin">Prazocin</option>
+                <option value="Clonidine">Clonidine</option>
+                <option value="Metoprolol">Metoprolol</option>
+                <option value="Dytor">Dytor</option>
+                <option value="Minoxidil">Minoxidil</option>
+                <option value="Telmisartan">Telmisartan</option>
+                <option value="Atenolol">Atenolol</option>
+                <option value="Other">Other</option>
+            </select>
+            <input type="text" name="antihypertensive_dose" placeholder="Dose (e.g. 5mg)">
+            <select name="antihypertensive_freq">
+                <option value="">Freq</option>
+                <option value="OD">OD</option>
+                <option value="BD">BD</option>
+                <option value="TDS">TDS</option>
+                <option value="QID">QID</option>
+                <option value="SOS">SOS</option>
+            </select>
+            <button type="button" class="btn-remove-row" onclick="this.closest('.anti-med-row').remove()">
+                <i class="material-icons" style="font-size:1em;">delete</i>
+            </button>
+        </div>
+    </template>
+
+    <!-- OCR Modal -->
+    <div id="ocr_modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);overflow-y:auto;padding:20px;box-sizing:border-box;">
+        <div style="max-width:660px;margin:0 auto;background:#fff;border-radius:20px;box-shadow:0 25px 60px rgba(0,0,0,0.3);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#8b5cf6,#6366f1);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <i class="material-icons" style="color:#fff;font-size:1.6rem;">document_scanner</i>
+                    <div>
+                        <div style="color:#fff;font-weight:800;font-size:1.1rem;font-family:'Outfit',sans-serif;">OCR Scan — Review Before Applying</div>
+                        <div id="ocr_modal_subtitle" style="color:rgba(255,255,255,0.8);font-size:0.78rem;margin-top:2px;"></div>
                     </div>
                 </div>
-            `;
-            wrap.appendChild(row);
-            
-            // Re-bind validation listeners to new inputs
-            row.querySelectorAll('input').forEach(input => {
-                input.addEventListener('input', () => validate(input.name));
-            });
-        }
-
-        function addAntiMedRow() {
-            const wrap = document.getElementById('antiMedsWrapper');
-            const row = document.createElement('div');
-            row.className = 'anti-med-row';
-            row.style.cssText = "display:flex; gap:8px; align-items:center;";
-            row.innerHTML = `
-                <select name="antihypertensive_name" class="search-input" style="flex:2; padding:10px;">
-                    <option value="">-- Choose Drug --</option>
-                    <option value="Nifedipine">Nifedipine</option>
-                    <option value="Amlodipine">Amlodipine</option>
-                    <option value="Clinidipine">Clinidipine</option>
-                    <option value="Prazocin">Prazocin</option>
-                    <option value="Clonidine">Clonidine</option>
-                    <option value="Metoprolol">Metoprolol</option>
-                    <option value="Dytor">Dytor</option>
-                    <option value="Minoxidil">Minoxidil</option>
-                    <option value="Telmisartan">Telmisartan</option>
-                    <option value="Atenolol">Atenolol</option>
-                    <option value="Other">Other</option>
-                </select>
-                <input type="text" name="antihypertensive_dose" class="search-input" style="flex:1; padding:10px;" placeholder="Dose (e.g. 5mg)">
-                <select name="antihypertensive_freq" class="search-input" style="flex:1; padding:10px;">
-                    <option value="">Freq</option>
-                    <option value="OD">OD</option>
-                    <option value="BD">BD</option>
-                    <option value="TDS">TDS</option>
-                    <option value="QID">QID</option>
-                    <option value="SOS">SOS</option>
-                </select>
-                <button type="button" onclick="this.parentElement.remove()" style="background:#ef4444; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1em;">delete</i></button>
-            `;
-            wrap.appendChild(row);
-        }
-
-        const epoUnitsInput = document.getElementById('epo_weekly_units');
-        const esaTypeSelect = document.getElementById('esa_type');
-        const mcgInputGroup = document.getElementById('mcg_input_group');
-        const esaMcgInput = document.getElementById('esa_mcg');
-        const esaFreqSelect = document.getElementById('esa_frequency');
-        const conversionHint = document.getElementById('conversionHint');
-
-        function calculateTotalBinder() {
-            const strength = parseFloat(document.getElementById('pb_strength').value) || 0;
-            const freq = document.getElementById('pb_freq').value;
-            const totalInput = document.getElementById('pb_total');
-            const hint = document.getElementById('pb_calc_hint');
-            
-            let multiplier = 0;
-            if (freq === "OD") multiplier = 1;
-            else if (freq === "BD") multiplier = 2;
-            else if (freq === "TDS") multiplier = 3;
-            else if (freq === "QID") multiplier = 4;
-            
-            const total = strength * multiplier;
-            totalInput.value = total || "";
-            
-            if (total > 0) {
-                hint.textContent = `Total Daily Dose: ${total} mg (${strength} mg ${freq})`;
-                hint.style.color = "var(--primary)";
-            } else {
-                hint.textContent = "";
-            }
-        }
-
-        function toggleESACalculator(shouldReset = true) {
-            if (!esaTypeSelect || !mcgInputGroup || !epoUnitsInput) return;
-            const type = esaTypeSelect.value;
-            const mcgLabel = document.getElementById('mcg_label');
-            const conversionHint = document.getElementById('conversionHint');
-
-            if (!type || type === 'None') {
-                mcgInputGroup.style.display = 'none';
-                epoUnitsInput.value = '0';
-                const descInput = document.getElementById('epo_mircera_dose');
-                if (descInput && shouldReset) descInput.value = '';
-                if (conversionHint) conversionHint.style.display = 'none';
-                return;
-            }
-
-            mcgInputGroup.style.display = 'block';
-
-            // Configure dynamic frequencies
-            const currentFreqVal = esaFreqSelect.value;
-            esaFreqSelect.innerHTML = '';
-
-            if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
-                if (mcgLabel) mcgLabel.textContent = 'Dose (IU)';
-                if (esaMcgInput) esaMcgInput.placeholder = 'e.g. 4000';
-
-                const options = [
-                    { value: '1', text: 'Weekly' },
-                    { value: '2', text: 'Twice Weekly' },
-                    { value: '3', text: 'Thrice Weekly (TIW)' },
-                    { value: '0.5', text: 'Every 2 Weeks' },
-                    { value: '0.25', text: 'Monthly' }
-                ];
-                options.forEach(opt => {
-                    const el = document.createElement('option');
-                    el.value = opt.value;
-                    el.textContent = opt.text;
-                    esaFreqSelect.appendChild(el);
-                });
-            } else if (type === 'Darbepoetin') {
-                if (mcgLabel) mcgLabel.textContent = 'Dose (mcg)';
-                if (esaMcgInput) esaMcgInput.placeholder = 'e.g. 40';
-
-                const options = [
-                    { value: '1', text: 'Weekly' },
-                    { value: '0.5', text: 'Every 2 Weeks' },
-                    { value: '0.25', text: 'Monthly' }
-                ];
-                options.forEach(opt => {
-                    const el = document.createElement('option');
-                    el.value = opt.value;
-                    el.textContent = opt.text;
-                    esaFreqSelect.appendChild(el);
-                });
-            } else if (type === 'Mircera (CERA)') {
-                if (mcgLabel) mcgLabel.textContent = 'Dose (mcg)';
-                if (esaMcgInput) esaMcgInput.placeholder = 'e.g. 75';
-
-                const options = [
-                    { value: '1', text: 'Weekly' },
-                    { value: '0.7', text: 'Once in every 10 days' },
-                    { value: '0.5', text: 'Every 2 Weeks' },
-                    { value: '0.25', text: 'Monthly' }
-                ];
-                options.forEach(opt => {
-                    const el = document.createElement('option');
-                    el.value = opt.value;
-                    el.textContent = opt.text;
-                    esaFreqSelect.appendChild(el);
-                });
-            }
-
-            // Restore previous selected frequency if valid for new list
-            if (!shouldReset && currentFreqVal) {
-                const hasMatch = Array.from(esaFreqSelect.options).some(o => o.value === currentFreqVal);
-                if (hasMatch) {
-                    esaFreqSelect.value = currentFreqVal;
-                }
-            }
-
-            if (shouldReset) {
-                calculateWeeklyUnits();
-            }
-        }
-
-        function toggleDesidustatSection() {
-            const val = document.getElementById('desidustat_toggle').value;
-            const group = document.getElementById('desidustat_group');
-            if (val === 'Yes') {
-                if (group) group.style.display = 'block';
-                restoreDesidustatFields();
-            } else {
-                if (group) group.style.display = 'none';
-                const mgEl = document.getElementById('desidustat_mg');
-                const freqEl = document.getElementById('desidustat_freq');
-                if (mgEl) mgEl.value = '';
-                if (freqEl) freqEl.value = '';
-                syncDesidustatDose();
-            }
-        }
-
-        // Sync Desidustat UI selectors → hidden text input
-        function syncDesidustatDose() {
-            const mg   = document.getElementById('desidustat_mg')?.value;
-            const freq = document.getElementById('desidustat_freq')?.value;
-            const hidden  = document.getElementById('desidustat_dose');
-            const preview = document.getElementById('desidustat_preview');
-            if (!hidden) return;
-            if (mg && freq) {
-                const val = `${mg}mg ${freq}`;
-                hidden.value = val;
-                if (preview) preview.textContent = `📋 Saving: "${val}"`;
-            } else {
-                if (preview) preview.textContent = '';
-            }
-        }
-
-        // On page load: if an existing desidustat_dose value is stored, parse it back into the UI selectors
-        function restoreDesidustatFields() {
-            const stored = document.getElementById('desidustat_dose')?.value || '';
-            if (!stored) return;
-            const mgMatch = stored.match(/(\d+)\s*mg/);
-            if (mgMatch) {
-                const mgEl = document.getElementById('desidustat_mg');
-                if (mgEl) mgEl.value = mgMatch[1];
-            }
-            const freqEl = document.getElementById('desidustat_freq');
-            if (freqEl) {
-                if (/thrice|TIW/i.test(stored)) freqEl.value = 'Thrice a week (TIW)';
-                else if (/twice|BD/i.test(stored)) freqEl.value = 'Twice a week (BD)';
-                else if (/daily|OD/i.test(stored)) freqEl.value = 'Once daily (OD)';
-            }
-            const preview = document.getElementById('desidustat_preview');
-            if (preview && stored) preview.textContent = `📋 Current: "${stored}"`;
-        }
-
-        // Initialize and Restore visibility on load
-        document.addEventListener('DOMContentLoaded', () => {
-            const desidToggle = document.getElementById('desidustat_toggle');
-            if (desidToggle && desidToggle.value === 'Yes') {
-                toggleDesidustatSection();
-            }
-            restoreESAFields();
-            restoreVitDFields();
-        });
-
-        function calculateWeeklyUnits() {
-            if (!esaTypeSelect || !esaMcgInput || !esaFreqSelect || !epoUnitsInput) return;
-            const type = esaTypeSelect.value;
-            const mcg = parseFloat(esaMcgInput.value);
-            const freq = parseFloat(esaFreqSelect.value);
-            const descInput = document.getElementById('epo_mircera_dose');
-            
-            if (isNaN(mcg) || !type || type === 'None') {
-                epoUnitsInput.value = '';
-                // Only clear the hidden desc field if the user actually cleared the MCG input manually
-                // This prevents wiping during initial load parsing.
-                if (descInput && !descInput.value.includes(type)) {
-                    descInput.value = '';
-                }
-                return;
-            }
-
-            let weeklyUnits = 0;
-            let freqText = esaFreqSelect.options[esaFreqSelect.selectedIndex]?.text || "Weekly";
-
-            if (type === 'Epoetin Alfa' || type === 'Epoetin Beta') {
-                weeklyUnits = Math.round(mcg * freq);
-                epoUnitsInput.value = weeklyUnits;
-                if (descInput) {
-                    descInput.value = `${type} ${mcg}IU ${freqText}`;
-                }
-            } else if (type === 'Darbepoetin' || type === 'Mircera (CERA)') {
-                weeklyUnits = Math.round(mcg * freq * 200);
-                epoUnitsInput.value = weeklyUnits;
-                if (descInput) {
-                    descInput.value = `${type} ${mcg}mcg ${freqText}`;
-                }
-            }
-
-            validate('epo_weekly_units');
-            updateConversionHint();
-        }
-
-        function restoreESAFields() {
-            const descInput = document.getElementById('epo_mircera_dose');
-            if (!descInput || !esaTypeSelect || !esaMcgInput || !esaFreqSelect) return;
-            
-            const desc = descInput.value.trim();
-            if (!desc) return;
-
-            let detectedType = "";
-            if (desc.includes("Mircera (CERA)")) detectedType = "Mircera (CERA)";
-            else if (desc.includes("Darbepoetin")) detectedType = "Darbepoetin";
-            else if (desc.includes("Epoetin Alfa")) detectedType = "Epoetin Alfa";
-            else if (desc.includes("Epoetin Beta")) detectedType = "Epoetin Beta";
-            else if (desc.includes("None")) detectedType = "None";
-
-            if (!detectedType) return;
-
-            esaTypeSelect.value = detectedType;
-            toggleESACalculator(false);
-
-            const doseMatch = desc.match(/(\d+(?:\.\d+)?)\s*(?:mcg|IU)/i);
-            if (doseMatch) {
-                esaMcgInput.value = doseMatch[1];
-            }
-
-            if (desc.includes("Once in every 10 days")) {
-                esaFreqSelect.value = "0.7";
-            } else if (desc.includes("Thrice Weekly") || desc.includes("TIW")) {
-                esaFreqSelect.value = "3";
-            } else if (desc.includes("Twice Weekly")) {
-                esaFreqSelect.value = "2";
-            } else if (desc.includes("Every 2 Weeks")) {
-                esaFreqSelect.value = "0.5";
-            } else if (desc.includes("Monthly")) {
-                esaFreqSelect.value = "0.25";
-            } else if (desc.includes("Weekly")) {
-                esaFreqSelect.value = "1";
-            }
-
-            // Finally, now that mcg and freq are correctly set, compute to sync everything
-            calculateWeeklyUnits();
-        }
-
-        // Vitamin D Analogue Logic
-        function toggleVitDFields(shouldReset = true) {
-            const select = document.getElementById('vit_d_analogue_select');
-            const calcFields = document.getElementById('vit_d_calcitriol_fields');
-            const hidden = document.getElementById('vitamin_d_analog_dose');
-
-            if (!select || !hidden) return;
-
-            const val = select.value;
-            if (val === 'Calcitriol 0.25 mcg') {
-                if (calcFields) calcFields.style.display = 'flex';
-                if (shouldReset) {
-                    const countEl = document.getElementById('vit_d_tablet_count');
-                    if (countEl) countEl.value = '1';
-                    const freqEl = document.getElementById('vit_d_freq_select');
-                    if (freqEl) freqEl.value = 'OD';
-                }
-            } else {
-                if (calcFields) calcFields.style.display = 'none';
-            }
-
-            compileVitDValue();
-        }
-
-        function compileVitDValue() {
-            const select = document.getElementById('vit_d_analogue_select');
-            const hidden = document.getElementById('vitamin_d_analog_dose');
-            const preview = document.getElementById('vit_d_preview');
-
-            if (!select || !hidden) return;
-
-            const val = select.value;
-            if (!val) {
-                hidden.value = '';
-                if (preview) preview.textContent = '';
-                return;
-            }
-
-            if (val === 'Calcitriol 0.25 mcg') {
-                const count = document.getElementById('vit_d_tablet_count')?.value || '1';
-                const freq = document.getElementById('vit_d_freq_select')?.value || 'OD';
-                const compiled = `Calcitriol 0.25 mcg ${count} tab ${freq}`;
-                hidden.value = compiled;
-                if (preview) preview.textContent = `📋 Saving: "${compiled}"`;
-            } else {
-                hidden.value = val;
-                if (preview) preview.textContent = `📋 Saving: "${val}"`;
-            }
-        }
-
-        function restoreVitDFields() {
-            const hidden = document.getElementById('vitamin_d_analog_dose');
-            if (!hidden) return;
-            const val = hidden.value.trim();
-            const select = document.getElementById('vit_d_analogue_select');
-            const countInput = document.getElementById('vit_d_tablet_count');
-            const freqSelect = document.getElementById('vit_d_freq_select');
-            const preview = document.getElementById('vit_d_preview');
-
-            if (!val) {
-                if (select) select.value = '';
-                return;
-            }
-
-            if (val.includes("Calcirol 60,000 Units/week")) {
-                if (select) select.value = "Calcirol 60,000 Units/week";
-            } else if (val.includes("Calcirol 60,000 Units/month")) {
-                if (select) select.value = "Calcirol 60,000 Units/month";
-            } else if (val.includes("Calcitriol 0.25 mcg")) {
-                if (select) select.value = "Calcitriol 0.25 mcg";
-                const countMatch = val.match(/(\d+)\s*tab/);
-                if (countMatch && countInput) countInput.value = countMatch[1];
-                if (freqSelect) {
-                    if (val.includes("BD")) freqSelect.value = "BD";
-                    else if (val.includes("Alternate day")) freqSelect.value = "Alternate day";
-                    else freqSelect.value = "OD";
-                }
-            } else {
-                // Legacy custom text fallback
-                if (select) select.value = '';
-                if (preview) preview.textContent = `📋 Stored: "${val}"`;
-                return;
-            }
-
-            toggleVitDFields(false);
-        }
-
-        function updateConversionHint() {
-            if (!epoUnitsInput || !conversionHint) return;
-            const uiVal = parseFloat(epoUnitsInput.value);
-            if (isNaN(uiVal)) {
-                conversionHint.style.display = 'none';
-                return;
-            }
-            
-            let suggested = '';
-            if (uiVal < 8000) {
-                suggested = '100 mg thrice a week';
-            } else if (uiVal <= 16000) {
-                suggested = '125 mg thrice a week';
-            } else {
-                suggested = '150 mg thrice a week';
-            }
-            
-            conversionHint.innerHTML = `<strong>Suggested Oxemia (Desidustat) Conversion:</strong> ${suggested} <br><em style="opacity:0.8">(Based on ${uiVal} IU/week Epoetin equivalent)</em>`;
-            conversionHint.style.display = 'block';
-            conversionHint.style.color = '#0284c7';
-            conversionHint.style.background = '#f0f9ff';
-            conversionHint.style.padding = '10px 12px';
-            conversionHint.style.borderRadius = '8px';
-            conversionHint.style.borderLeft = '4px solid #0ea5e9';
-        }
-
-        function updateTransfusionHint() {
-            const units = parseInt(document.getElementById('blood_transfusion_units')?.value);
-            const hintEl = document.getElementById('transfusion_hint');
-            if (!hintEl) return;
-            if (!units || units <= 0) {
-                hintEl.style.display = 'none';
-                return;
-            }
-            const hbInput = document.querySelector('input[name="hb"]');
-            const rawHb = parseFloat(hbInput?.value);
-            let correctionNote = '';
-            if (!isNaN(rawHb)) {
-                const corrected = Math.max(rawHb - units, 5.0).toFixed(1);
-                correctionNote = ` Entered Hb: <strong>${rawHb} g/dL</strong> → Endogenous (corrected) Hb: <strong>${corrected} g/dL</strong>.`;
-            }
-            hintEl.innerHTML = `<strong>⚠ Transfusion Confounding Detected:</strong> ${units} unit(s) transfused.${correctionNote} The analytics engine will use the corrected Hb to compute accurate ERI and Hb trajectory.`;
-            hintEl.style.display = 'block';
-        }
-
-        // Also update hint when Hb changes
-        document.querySelector('input[name="hb"]')?.addEventListener('input', updateTransfusionHint);
-        updateTransfusionHint(); // Run on page load if data exists
-
-        if(esaTypeSelect) {
-            esaTypeSelect.addEventListener('change', () => toggleESACalculator(true));
-            toggleESACalculator(false); // Init without resetting
-        }
-        
-        if(epoUnitsInput) {
-            epoUnitsInput.addEventListener('input', updateConversionHint);
-            updateConversionHint(); 
-        }
-
-
-        const thresholds = {
-            hb: { bad: 10, warn: 11.5, type: 'low' },
-            phosphorus: { bad: 5.5, warn: 5.0, type: 'high' },
-            albumin: { bad: 2.5, warn: 3.5, type: 'low' },
-            tsat: { bad: 20, warn: 30, type: 'low' },
-            idwg: { bad: 2.5, warn: 2.0, type: 'high' },
-            calcium: { bad: 8.0, warn: 8.5, type: 'low' }
-        };
-
-        const physiologicalRanges = {
-            albumin: { lo: 1.5, hi: 6.0, msg: "Likely g/L error? Expected 1.5-6.0 g/dL" },
-            hb: { lo: 4.0, hi: 18.0, msg: "Expected 4.0-18.0 g/dL" },
-            phosphorus: { lo: 1.0, hi: 12.0, msg: "Expected 1.0-12.0 mg/dL" },
-            serum_ferritin: { lo: 5, hi: 5000, msg: "Expected 5-5000 ng/mL" },
-            wbc_count: { lo: 1000.0, hi: 30000.0, msg: "Expected 1000-30000 /cmm" },
-            neutrophil_count: { lo: 10.0, hi: 100.0, msg: "Expected 10-100%" },
-            bp_sys: { lo: 60, hi: 260, msg: "Expected 60-260 mmHg" },
-            bp_dia: { lo: 30, hi: 160, msg: "Expected 30-160 mmHg" },
-            prealbumin: { lo: 5, hi: 50, msg: "Expected 5-50 mg/dL" },
-            npcr: { lo: 0.4, hi: 2.5, msg: "Expected 0.4-2.5 g/kg/day" },
-            mis_score: { lo: 0, hi: 30, msg: "Expected 0-30" }
-        };
-
-        function validate(field) {
-            const input = document.querySelector(`input[name="${field}"]`);
-            if (!input) return;
-
-            const val = parseFloat(input.value);
-            
-            // Clear existing status
-            input.style.backgroundColor = '';
-            input.style.borderColor = '#e2e8f0';
-            let warningEl = input.parentElement.querySelector('.phys-warning');
-            if (warningEl) warningEl.remove();
-
-            if (isNaN(val)) return;
-
-            // 1. Check Physiological Range (Critical Unit Check)
-            if (physiologicalRanges[field]) {
-                const range = physiologicalRanges[field];
-                if (val < range.lo || val > range.hi) {
-                    input.style.backgroundColor = '#fff1f2';
-                    input.style.borderColor = '#e11d48';
-                    const msg = document.createElement('div');
-                    msg.className = 'phys-warning';
-                    msg.style.cssText = "color:#e11d48; font-size:0.75rem; font-weight:700; margin-top:4px; display:flex; align-items:center; gap:4px;";
-                    msg.innerHTML = `<i class="material-icons" style="font-size:1rem;">warning</i> ${range.msg}`;
-                    input.parentElement.appendChild(msg);
-                    return; // Don't show clinical risk warnings if unit error is suspected
-                }
-            }
-
-            // 2. Check Clinical Risk Thresholds
-            if (thresholds[field]) {
-                const t = thresholds[field];
-                if (t.type === 'low') {
-                    if (val < t.bad) {
-                        input.style.backgroundColor = '#ffe6e6';
-                        input.style.borderColor = '#dc3545';
-                    } else if (val < t.warn) {
-                        input.style.backgroundColor = '#fff3e0';
-                        input.style.borderColor = '#e67e22';
-                    }
-                } else {
-                    if (val > t.bad) {
-                        input.style.backgroundColor = '#ffe6e6';
-                        input.style.borderColor = '#dc3545';
-                    } else if (val > t.warn) {
-                        input.style.backgroundColor = '#fff3e0';
-                        input.style.borderColor = '#e67e22';
-                    }
-                }
-            }
-        }
-
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('input', () => validate(input.name));
-            validate(input.name); // Initial check
-        });
-
-        // Hide Save button when keyboard is visible on mobile
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', () => {
-                const btn = document.querySelector('.btn-save');
-                if (btn) {
-                    btn.style.display = window.visualViewport.height < window.innerHeight * 0.75 ? 'none' : 'block';
-                }
-            });
-        }
-
-        // Success toast on redirect
-        const params = new URLSearchParams(window.location.search);
-        if (params.get("saved") === "1") {
-            const toast = document.createElement("div");
-            toast.textContent = "✅ Record saved. Next patient loaded.";
-            toast.style.cssText = `position:fixed;top:24px;right:24px;background:#10b981;
-                color:#fff;padding:12px 20px;border-radius:12px;font-size:0.9rem;font-weight:600;
-                z-index:1000;box-shadow:0 10px 25px rgba(0,0,0,0.1); animation: slideDown 0.3s ease-out;`;
-            document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transition = 'opacity 0.5s';
-                setTimeout(() => toast.remove(), 500);
-            }, 3000);
-        }
-
-        // Hide Save buttons when keyboard is visible on mobile
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', () => {
-                const actions = document.querySelector('.save-actions');
-                if (actions) {
-                    actions.style.display = window.visualViewport.height < window.innerHeight * 0.75 ? 'none' : 'flex';
-                }
-            });
-        }
-
-        // Scroll Spy for Section Nav
-        const dots = document.querySelectorAll('.nav-dot');
-        const sections = Array.from(dots).map(dot => document.querySelector(dot.getAttribute('href')));
-
-        function updateActiveSection() {
-            let current = "";
-            const scrollPos = window.scrollY + 120; // Offset for sticky nav height
-
-            sections.forEach(sec => {
-                if (sec && scrollPos >= sec.offsetTop) {
-                    current = sec.getAttribute('id');
-                }
-            });
-
-            dots.forEach(dot => {
-                dot.classList.toggle('active', dot.getAttribute('href') === `#${current}`);
-            });
-        }
-
-        window.addEventListener('scroll', updateActiveSection);
-        window.addEventListener('load', () => {
-            updateActiveSection();
-            calculateKTV();
-            if (typeof calculateTotalBinder === 'function') {
-                calculateTotalBinder();
-            }
-        });
-
-        // ── Kt/V Auto-Calculation (Daugirdas II) ──
-        function calculateKTV() {
-            const preUrea = parseFloat(document.querySelector('input[name="pre_dialysis_urea"]').value);
-            const postUrea = parseFloat(document.querySelector('input[name="post_dialysis_urea"]').value);
-            
-            // IDWG might be missing or read-only now, default to 0 for Daugirdas if missing
-            const idwgEl = document.querySelector('input[name="idwg"]');
-            const idwg = idwgEl && !isNaN(parseFloat(idwgEl.value)) ? parseFloat(idwgEl.value) : 0; 
-            
-            const preWeight = parseFloat(document.querySelector('input[name="last_prehd_weight"]').value);
-            const targetWeightEl = document.querySelector('input[name="target_dry_weight"]');
-            const targetWeight = targetWeightEl ? parseFloat(targetWeightEl.value) : NaN;
-            
-            const ktvInput = document.querySelector('input[name="single_pool_ktv"]');
-            const eKtvInput = document.querySelector('input[name="equilibrated_ktv"]');
-            const urrInput = document.querySelector('input[name="urr"]');
-
-            if (preUrea > 0 && postUrea > 0 && preUrea > postUrea) {
-                const R = postUrea / preUrea;
-                
-                // 1. Calculate URR
-                if (urrInput) {
-                    const urr = (1 - R) * 100;
-                    urrInput.value = urr.toFixed(1);
-                    urrInput.style.color = '#0ea5e9';
-                    urrInput.style.fontWeight = '700';
-                }
-
-                // 2. Calculate Kt/V
-                const weight = targetWeight || (preWeight - idwg) || preWeight;
-                const uf = idwg || 0;
-
-                if (weight > 0 && ktvInput) {
-                    // Daugirdas II Simplified: Kt/V = -ln(R - 0.03) + (4 - 3.5 * R) * (UF / W)
-                    try {
-                        const term1 = -Math.log(R - 0.03);
-                        const term2 = (4 - 3.5 * R) * (uf / weight);
-                        const ktv = term1 + term2;
-                        
-                        if (!isNaN(ktv) && isFinite(ktv) && ktv > 0) {
-                            ktvInput.value = ktv.toFixed(2);
-                            ktvInput.style.color = '#0ea5e9'; 
-                            ktvInput.style.fontWeight = '700';
-
-                            if (eKtvInput) {
-                                const eKtv = 0.945 * ktv + 0.04;
-                                eKtvInput.value = eKtv.toFixed(2);
-                                eKtvInput.style.color = '#0ea5e9';
-                                eKtvInput.style.fontWeight = '700';
-                            }
-                        }
-                    } catch (e) {
-                        console.error("Kt/V calculation error", e);
-                    }
-                }
-            } else {
-                if (ktvInput) ktvInput.value = '';
-                if (eKtvInput) eKtvInput.value = '';
-                if (urrInput) urrInput.value = '';
-            }
-        }
-
-        // Attach listeners to trigger Kt/V calculation
-        ['pre_dialysis_urea', 'post_dialysis_urea', 'last_prehd_weight'].forEach(name => {
-            const el = document.querySelector(`input[name="${name}"]`);
-            if (el) el.addEventListener('input', calculateKTV);
-        });
-
-        // ── Multi-Step Wizard ──────────────────────────────────────────────
-        const WIZ_TOTAL   = 4;
-        const WIZ_NAMES   = ['Parameters', 'Lab Values', 'Medications', 'Review'];
-        const WIZ_SS_KEY  = 'hd_wiz_{{ patient.id }}_{{ month_str }}';
-        const WIZ_REQUIRED = { 1: [], 2: ['hb'], 3: [], 4: [] };
-
-        let wizStep    = 1;
-        const wizDone  = new Set(); // steps user has completed (advanced past)
-
-        /* ── sessionStorage helpers ─────────────────────────────── */
-        function wizSaveStep(s) {
-            const panel = document.getElementById('wstep-' + s);
-            if (!panel) return;
-            const data = {};
-            panel.querySelectorAll('input, select, textarea').forEach(el => {
-                if (el.name && el.type !== 'hidden') data[el.name] = el.value;
-            });
-            try {
-                const stored = JSON.parse(sessionStorage.getItem(WIZ_SS_KEY) || '{}');
-                stored['s' + s] = data;
-                sessionStorage.setItem(WIZ_SS_KEY, JSON.stringify(stored));
-            } catch(e) {}
-        }
-
-        function wizRestoreAll() {
-            // On error, always restore submitted values from sessionStorage even for existing records,
-            // so the user sees what they typed rather than the stale DB values.
-            const onError = {{ 'true' if form_error else 'false' }};
-            if (!onError && document.querySelector('form[data-has-record]')) return;
-            try {
-                const stored = JSON.parse(sessionStorage.getItem(WIZ_SS_KEY) || '{}');
-                for (let s = 1; s <= WIZ_TOTAL; s++) {
-                    const data = stored['s' + s];
-                    if (!data) continue;
-                    const panel = document.getElementById('wstep-' + s);
-                    if (!panel) continue;
-                    Object.entries(data).forEach(([name, val]) => {
-                        const inp = panel.querySelector('[name="' + name + '"]');
-                        if (!inp || val === undefined || val === null) return;
-                        // On error: overwrite DB-prefilled values with what the user submitted.
-                        // On new record: only fill blanks.
-                        if (onError || !inp.value) {
-                            inp.value = val;
-                            validate(inp.name);
-                        }
-                    });
-                }
-            } catch(e) {}
-        }
-
-        /* ── Validation helper ─────────────────────────────────── */
-        function wizCheckRequired(s) {
-            const reqs = WIZ_REQUIRED[s] || [];
-            return reqs.every(name => {
-                const el = document.querySelector('[name="' + name + '"]');
-                return el && el.value.trim() !== '';
-            });
-        }
-
-        /* ── UI update ─────────────────────────────────────────── */
-        function wizUpdateUI() {
-            const s = wizStep;
-
-            // Tab states
-            document.querySelectorAll('.wizard-tab').forEach((tab, i) => {
-                const n = i + 1;
-                tab.classList.toggle('wiz-active', n === s);
-                tab.classList.toggle('wiz-done',   wizDone.has(n) && n !== s);
-            });
-
-            // Progress bar
-            const fill = document.getElementById('wizard-progress-fill');
-            if (fill) fill.style.width = ((s / WIZ_TOTAL) * 100) + '%';
-
-            // Step label
-            const lbl = document.getElementById('wizard-step-label');
-            if (lbl) lbl.textContent = 'Step ' + s + ' of ' + WIZ_TOTAL + ' · ' + WIZ_NAMES[s - 1];
-
-            // Panel visibility
-            for (let n = 1; n <= WIZ_TOTAL; n++) {
-                const panel = document.getElementById('wstep-' + n);
-                if (panel) panel.classList.toggle('wiz-active', n === s);
-            }
-
-            // Step indicator in action bar
-            const ind = document.getElementById('wiz-step-indicator');
-            if (ind) ind.textContent = 'Step ' + s + ' of ' + WIZ_TOTAL;
-
-            // Back button
-            const btnBack = document.getElementById('btn-wiz-back');
-            if (btnBack) btnBack.disabled = (s === 1);
-
-            // Next / Submit visibility
-            const btnNext   = document.getElementById('btn-wiz-next');
-            const submitWrap = document.getElementById('wiz-submit-wrap');
-            const reqHint   = document.getElementById('wiz-req-hint');
-
-            if (s === WIZ_TOTAL) {
-                if (btnNext)    btnNext.style.display    = 'none';
-                if (ind)        ind.style.display        = 'flex';
-                if (submitWrap) submitWrap.style.display = 'flex';
-                if (reqHint)    reqHint.style.display    = 'none';
-                buildReviewSummary();
-            } else {
-                if (btnNext) {
-                    btnNext.style.display = 'flex';
-                    const ok = wizCheckRequired(s);
-                    btnNext.disabled = !ok;
-                }
-                if (submitWrap) submitWrap.style.display = 'none';
-                if (reqHint)    reqHint.style.display    = (wizCheckRequired(s) ? 'none' : 'block');
-            }
-
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function wizGoTo(target) {
-            if (target < 1 || target > WIZ_TOTAL) return;
-            // Prevent skipping forward past required fields
-            if (target > wizStep && !wizCheckRequired(wizStep)) {
-                const reqs = WIZ_REQUIRED[wizStep] || [];
-                reqs.forEach(name => {
-                    const el = document.querySelector('[name="' + name + '"]');
-                    if (el && !el.value.trim()) {
-                        el.style.borderColor     = '#ef4444';
-                        el.style.backgroundColor = '#fef2f2';
-                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                });
-                const hint = document.getElementById('wiz-req-hint');
-                if (hint) { hint.style.display = 'block'; }
-                return;
-            }
-            wizSaveStep(wizStep);
-            if (target > wizStep) wizDone.add(wizStep);
-            wizStep = target;
-            wizUpdateUI();
-        }
-
-        
-        function wizGoToStep(step) {
-            wizSaveStep(wizStep);
-            wizDone.add(wizStep);
-            wizStep = step;
-            wizUpdateUI();
-        }
-
-        // Hard limits that block saving — mirrors validators.py HARD_LIMITS
-        const JS_HARD_LIMITS = {
-            hb:               { min: 2.0,  max: 22.0,  label: 'Hemoglobin' },
-            albumin:          { min: 0.8,  max: 6.5,   label: 'Albumin' },
-            calcium:          { min: 3.0,  max: 18.0,  label: 'Calcium' },
-            phosphorus:       { min: 0.5,  max: 20.0,  label: 'Phosphorus' },
-            serum_ferritin:   { min: 1,    max: 50000, label: 'Serum Ferritin' },
-            wbc_count:        { min: 500,  max: 100000, label: 'WBC Count (/cmm)' },
-            neutrophil_count: { min: 0,    max: 100,   label: 'Neutrophils (%)' },
-            serum_creatinine: { min: 0.2,  max: 40.0,  label: 'Serum Creatinine' },
-            serum_potassium:  { min: 1.5,  max: 10.0,  label: 'Serum Potassium' },
-            serum_sodium:     { min: 100,  max: 180,   label: 'Serum Sodium' },
-        };
-
-        function checkHardLimits() {
-            let valid = true;
-            const activePanel = document.querySelector('.wizard-step.wiz-active');
-            const inputs = activePanel
-                ? activePanel.querySelectorAll('input[type="number"]')
-                : document.querySelectorAll('input[type="number"]');
-            inputs.forEach(input => {
-                const name = input.name;
-                const val = parseFloat(input.value);
-                if (!name || isNaN(val)) return;
-                const limits = JS_HARD_LIMITS[name];
-                if (!limits) return;
-                if (val < limits.min || val > limits.max) {
-                    alert(`Impossible value for ${limits.label}: ${val}.\nAllowed range is ${limits.min}–${limits.max}. Please verify units and re-enter.`);
-                    input.style.borderColor = '#ef4444';
-                    input.style.backgroundColor = '#fef2f2';
-                    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    input.focus();
-                    valid = false;
-                }
-            });
-            return valid;
-        }
-
-        function validateCurrentStepFields() {
-            const panel = document.getElementById('wstep-' + wizStep);
-            if (!panel) return 0;
-            let warningCount = 0;
-            panel.querySelectorAll('input[name]').forEach(inp => {
-                if (inp.value) validate(inp.name);
-            });
-            panel.querySelectorAll('.phys-warning').forEach(() => warningCount++);
-            return warningCount;
-        }
-
-        function wizardNext() {
-            if (!checkHardLimits()) return;
-            const warnings = validateCurrentStepFields();
-            // On step 2 (Lab Values), ask confirmation if soft range warnings exist
-            if (wizStep === 2 && warnings > 0) {
-                const ok = confirm(
-                    `${warnings} clinical range warning(s) found on this step.\n\n` +
-                    `Fields highlighted in red are outside typical physiological ranges — ` +
-                    `this may indicate a unit error.\n\nAre you sure the values are correct?`
-                );
-                if (!ok) return;
-            }
-            wizGoTo(wizStep + 1);
-        }
-        function wizardBack() { wizGoTo(wizStep - 1); }
-
-        /* ── Required-field live listeners ─────────────────────── */
-        function wizBindListeners() {
-            Object.entries(WIZ_REQUIRED).forEach(([s, fields]) => {
-                fields.forEach(name => {
-                    const el = document.querySelector('[name="' + name + '"]');
-                    if (!el) return;
-                    el.addEventListener('input', () => {
-                        if (wizStep !== parseInt(s)) return;
-                        const ok  = wizCheckRequired(parseInt(s));
-                        const btn = document.getElementById('btn-wiz-next');
-                        if (btn) btn.disabled = !ok;
-                        const hint = document.getElementById('wiz-req-hint');
-                        if (hint) hint.style.display = ok ? 'none' : 'block';
-                        if (el.value.trim()) {
-                            el.style.borderColor = '';
-                            el.style.backgroundColor = '';
-                        }
-                    });
-                });
-            });
-            // Auto-save on any field change
-            document.querySelectorAll('.wizard-step input, .wizard-step select, .wizard-step textarea').forEach(el => {
-                el.addEventListener('change', () => wizSaveStep(wizStep));
-            });
-        }
-
-        /* ── Tab click navigation ───────────────────────────────── */
-        function wizBindTabs() {
-            document.querySelectorAll('.wizard-tab').forEach((tab, i) => {
-                tab.addEventListener('click', () => wizGoTo(i + 1));
-            });
-        }
-
-        /* ── Review Summary Builder ─────────────────────────────── */
-        function buildReviewSummary() {
-            const container = document.getElementById('review-summary-content');
-            if (!container) return;
-
-            const groups = [
-            { title: 'Parameters', fields: [
-                { name: 'residual_urine_output', label: 'Residual UO',     unit: 'mL/24h' },
-                { name: 'last_prehd_weight',    label: 'Last Pre-HD Wt',  unit: 'kg'   }
-            ]},
-            { title: 'Lab Reports', fields: [
-                { name: 'hb',                   label: 'Hemoglobin',      unit: 'g/dL' },
-                { name: 'hct',                  label: 'Hematocrit',      unit: '%'    },
-                { name: 'wbc_count',            label: 'TLC/WBC' },
-                { name: 'neutrophil_count',     label: 'Neutrophils',     unit: '%' },
-                { name: 'platelet_count',       label: 'Platelets' },
-                { name: 'serum_iron',           label: 'Serum Iron',      unit: 'µg/dL' },
-                { name: 'tibc',                 label: 'TIBC',            unit: 'µg/dL' },
-                { name: 'serum_ferritin',       label: 'Ferritin',        unit: 'ng/mL' },
-                { name: 'tsat',                 label: 'TSAT',            unit: '%'    },
-                { name: 'calcium',              label: 'Calcium',         unit: 'mg/dL' },
-                { name: 'phosphorus',           label: 'Phosphorus',      unit: 'mg/dL' },
-                { name: 'alkaline_phosphate',   label: 'Alk Phos',        unit: 'U/L'  },
-                { name: 'ipth',                 label: 'iPTH',            unit: 'pg/mL' },
-                { name: 'vit_d',                label: 'Vit D',           unit: 'ng/mL' },
-                { name: 'pre_dialysis_urea',    label: 'Pre-HD Urea',     unit: 'mg/dL' },
-                { name: 'post_dialysis_urea',   label: 'Post-HD Urea',    unit: 'mg/dL' },
-                { name: 'serum_creatinine',     label: 'Creatinine',      unit: 'mg/dL' },
-                { name: 'serum_sodium',         label: 'Sodium',          unit: 'mmol/L' },
-                { name: 'serum_potassium',      label: 'Potassium',       unit: 'mmol/L' },
-                { name: 'serum_bicarbonate',    label: 'Bicarbonate',     unit: 'mmol/L' },
-                { name: 'serum_uric_acid',      label: 'Uric Acid',       unit: 'mg/dL' },
-                { name: 'total_cholesterol',    label: 'Cholesterol',     unit: 'mg/dL' },
-                { name: 'albumin',              label: 'Albumin',         unit: 'g/dL' },
-                { name: 'ast',                  label: 'AST',             unit: 'U/L' },
-                { name: 'alt',                  label: 'ALT',             unit: 'U/L' },
-                { name: 'crp',                  label: 'CRP',             unit: 'mg/L' }
-            ]},
-            { title: 'Medications', fields: [
-                { name: 'esa_type',             label: 'ESA Type' },
-                { name: 'epo_mircera_dose',     label: 'ESA Dose' },
-                { name: 'desidustat_dose',      label: 'Desidustat' },
-                { name: 'iv_iron_product',      label: 'IV Iron Prod' },
-                { name: 'iv_iron_dose',         label: 'IV Iron Dose',    unit: 'mg' },
-                { name: 'iv_iron_date',         label: 'IV Iron Date' },
-                { name: 'vitamin_d_analog_dose',label: 'Vit D Analogue' },
-                { name: 'phosphate_binder_type',label: 'PO4 Binder' },
-                { name: 'phosphate_binder_dose_mg', label: 'PO4 Dose',    unit: 'mg' },
-                { name: 'anti_hypertensives',   label: 'Anti-HTNs' },
-                { name: 'other_medications',    label: 'Other Meds' },
-                { name: 'blood_transfusion_units', label: 'Transfusion Units' },
-                { name: 'transfusion_date',     label: 'Transfusion Date' }
-            ]},
-            { title: 'Dialysis Parameters', fields: [
-                { name: 'single_pool_ktv',      label: 'spKt/V' },
-                { name: 'equilibrated_ktv',     label: 'eKt/V' },
-                { name: 'urr',                  label: 'URR',             unit: '%' }
-            ]}
-        ];
-
-            let html = '';
-            let anyFilled = false;
-            groups.forEach(group => {
-                const filled = group.fields.filter(f => {
-                    const el = document.querySelector('[name="' + f.name + '"]');
-                    return el && el.value.trim() !== '';
-                });
-                if (!filled.length) return;
-                anyFilled = true;
-                html += '<div class="review-group">';
-                html += '<div class="review-group-head">' + group.title + '</div>';
-                html += '<div class="review-chips">';
-                filled.forEach(f => {
-                    const el  = document.querySelector('[name="' + f.name + '"]');
-                    const val = el ? el.value.trim() : '';
-                    const unit = f.unit ? ' <span style="color:#94a3b8;font-size:0.75rem;">' + f.unit + '</span>' : '';
-                    html += '<div class="review-chip"><strong>' + f.label + ':</strong> ' + val + unit + '</div>';
-                });
-                html += '</div></div>';
-            });
-
-            if (!anyFilled) {
-                html = '<div class="review-empty">No values entered yet — go back to fill in the form sections.</div>';
-            }
-            container.innerHTML = html;
-        }
-
-        /* ── Unsaved-data tracking ──────────────────────────────── */
-        let formDirty = false;
-        // Clear dirty flag when user intentionally submits the form
-        document.querySelector('form')?.addEventListener('submit', () => { formDirty = false; });
-
-        /* ── Save to sessionStorage on page unload + dirty warning ─ */
-        window.addEventListener('beforeunload', e => {
-            wizSaveStep(wizStep); // always persist current step
-            if (formDirty) {
-                e.preventDefault();
-                e.returnValue = ''; // triggers browser's native "Leave site?" dialog
-            }
-        });
-
-        /* ── Init ───────────────────────────────────────────────── */
-        document.addEventListener('DOMContentLoaded', () => {
-            wizBindListeners();
-            wizBindTabs();
-            wizRestoreAll();
-            // If server returned a form_error, land on Review step so user sees
-            // the error banner and submit buttons immediately.
-            {% if form_error %}
-            wizStep = WIZ_TOTAL;
-            for (let s = 1; s < WIZ_TOTAL; s++) wizDone.add(s);
-            {% endif %}
-            wizUpdateUI();
-            {% if form_error %}
-            // Scroll error banner into view
-            const banner = document.getElementById('form-error-banner');
-            if (banner) setTimeout(() => banner.scrollIntoView({ behavior:'smooth', block:'center' }), 200);
-            // Re-run inline validation on all restored fields to surface soft warnings
-            setTimeout(() => {
-                document.querySelectorAll('.wizard-step input[name]').forEach(inp => {
-                    if (inp.value) validate(inp.name);
-                });
-            }, 150);
-            {% endif %}
-
-            // ── Month picker navigation with dirty check ──────────
-            const monthPicker = document.getElementById('month-picker-input');
-            if (monthPicker) {
-                monthPicker.addEventListener('change', function() {
-                    if (formDirty && !confirm('You have unsaved changes. Discard and change month?')) {
-                        this.value = '{{ month_str }}'; // reset picker to current month
-                        return;
-                    }
-                    formDirty = false;
-                    location.href = '/entry/{{ patient.id }}?month=' + this.value;
-                });
-            }
-
-            // ── Prev/Next month links with dirty check ────────────
-            document.querySelectorAll('a[data-nav-link]').forEach(link => {
-                link.addEventListener('click', e => {
-                    if (formDirty && !confirm('You have unsaved changes. Discard and navigate away?')) {
-                        e.preventDefault();
-                    }
-                });
-            });
-
-            // ── Start tracking form dirtiness after restore ───────
-            // Delay so sessionStorage restore doesn't immediately mark form as dirty
-            setTimeout(() => {
-                document.querySelectorAll(
-                    'form input:not([type=hidden]):not([readonly]), form select, form textarea'
-                ).forEach(el => {
-                    el.addEventListener('input',  () => { formDirty = true; });
-                    el.addEventListener('change', () => { formDirty = true; });
-                });
-            }, 300);
-        });
-    </script>
-    <style>
-        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    </style>
-    <!-- ═══════════════════════════════════════════ OCR REVIEW MODAL ═══ -->
-    <div id="ocr_modal" style="display:none; position:fixed; inset:0; z-index:10000; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); overflow-y:auto; padding:20px; box-sizing:border-box;">
-      <div style="max-width:660px; margin:0 auto; background:#fff; border-radius:20px; box-shadow:0 25px 60px rgba(0,0,0,0.3); overflow:hidden;">
-
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,#8b5cf6,#6366f1); padding:20px 24px; display:flex; align-items:center; justify-content:space-between;">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <i class="material-icons" style="color:#fff; font-size:1.6rem;">document_scanner</i>
-            <div>
-              <div style="color:#fff; font-weight:800; font-size:1.1rem; font-family:'Outfit',sans-serif;">OCR Scan — Review Before Applying</div>
-              <div id="ocr_modal_subtitle" style="color:rgba(255,255,255,0.8); font-size:0.78rem; margin-top:2px;"></div>
+                <button onclick="closeOCRModal()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;">✕</button>
             </div>
-          </div>
-          <button onclick="closeOCRModal()" style="background:rgba(255,255,255,0.15); border:none; color:#fff; width:36px; height:36px; border-radius:50%; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; justify-content:center;">✕</button>
+            <div style="background:#fffbeb;border-bottom:1px solid #fde68a;padding:12px 20px;display:flex;gap:10px;align-items:flex-start;">
+                <i class="material-icons" style="color:#d97706;font-size:1.1rem;flex-shrink:0;margin-top:1px;">warning</i>
+                <div style="font-size:0.8rem;color:#92400e;line-height:1.5;">
+                    <strong>Clinician verification required.</strong> AI-extracted values may contain errors. Review each value — <strong>Low-confidence and out-of-range fields are unchecked by default.</strong>
+                </div>
+            </div>
+            <div id="ocr_fields_list" style="max-height:52vh;overflow-y:auto;padding:4px 0;"></div>
+            <div style="padding:14px 20px;border-top:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:0.78rem;color:#64748b;flex:1;min-width:180px;"><span id="ocr_selected_count" style="font-weight:700;">0</span> field(s) selected</span>
+                <button onclick="selectAllOCR(true)" style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#475569;">✓ All</button>
+                <button onclick="selectAllOCR(false)" style="padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#475569;">✗ None</button>
+                <button onclick="closeOCRModal()" style="padding:8px 18px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;cursor:pointer;font-weight:600;color:#475569;">Cancel</button>
+                <button onclick="applyOCRValues()" style="padding:10px 22px;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:0.95rem;box-shadow:0 4px 12px rgba(99,102,241,0.3);">Apply to Form</button>
+            </div>
         </div>
-
-        <!-- Safety Banner -->
-        <div style="background:#fffbeb; border-bottom:1px solid #fde68a; padding:12px 20px; display:flex; gap:10px; align-items:flex-start;">
-          <i class="material-icons" style="color:#d97706; font-size:1.1rem; flex-shrink:0; margin-top:1px;">warning</i>
-          <div style="font-size:0.8rem; color:#92400e; line-height:1.5;">
-            <strong>Clinician verification required.</strong> AI-extracted values may contain errors — especially from blurry or angled photos. Review each value, edit if wrong. <strong>Low-confidence and out-of-range fields are unchecked by default.</strong> Only ticked fields will be applied.
-          </div>
-        </div>
-
-        <!-- Fields List -->
-        <div id="ocr_fields_list" style="max-height:52vh; overflow-y:auto; padding:4px 0;"></div>
-
-        <!-- Footer -->
-        <div style="padding:14px 20px; border-top:1px solid #e2e8f0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-          <span style="font-size:0.78rem; color:#64748b; flex:1; min-width:180px;"><span id="ocr_selected_count" style="font-weight:700;">0</span> field(s) selected</span>
-          <button onclick="selectAllOCR(true)" style="padding:8px 12px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; cursor:pointer; font-size:0.82rem; font-weight:600; color:#475569;">✓ All</button>
-          <button onclick="selectAllOCR(false)" style="padding:8px 12px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; cursor:pointer; font-size:0.82rem; font-weight:600; color:#475569;">✗ None</button>
-          <button onclick="closeOCRModal()" style="padding:8px 18px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; cursor:pointer; font-weight:600; color:#475569;">Cancel</button>
-          <button onclick="applyOCRValues()" style="padding:10px 22px; background:linear-gradient(135deg,#8b5cf6,#6366f1); color:#fff; border:none; border-radius:10px; cursor:pointer; font-weight:700; font-size:0.95rem; box-shadow:0 4px 12px rgba(99,102,241,0.3);">Apply to Form</button>
-        </div>
-      </div>
     </div>
 
+    <!-- Inline bootstrap for addAntiMedRow using the <template> -->
     <script>
-      // ─── Clinical range guards ────────────────────────────────────────────
-      const OCR_RANGES = {
-        hb:{min:3,max:20}, hct:{min:10,max:60}, serum_ferritin:{min:0,max:5000},
-        tsat:{min:0,max:100}, serum_iron:{min:20,max:400}, tibc:{min:100,max:600},
-        calcium:{min:5,max:15}, phosphorus:{min:1,max:15},
-        alkaline_phosphate:{min:10,max:2000}, ipth:{min:0,max:3000},
-        vit_d:{min:0,max:200}, serum_sodium:{min:110,max:165},
-        serum_potassium:{min:2,max:8}, serum_bicarbonate:{min:10,max:42},
-        serum_creatinine:{min:0.5,max:30}, serum_uric_acid:{min:1,max:20},
-        pre_dialysis_urea:{min:10,max:500}, post_dialysis_urea:{min:5,max:200},
-        albumin:{min:1,max:6}, prealbumin:{min:1,max:60},
-        total_cholesterol:{min:50,max:500}, ldl_cholesterol:{min:20,max:400},
-        wbc_count:{min:1,max:100}, platelet_count:{min:10,max:1000},
-        hba1c:{min:3,max:18}, ast:{min:5,max:3000}, alt:{min:5,max:3000},
-        crp:{min:0,max:500}, single_pool_ktv:{min:0.5,max:3},
-        bp_sys:{min:60,max:260}, bp_dia:{min:30,max:160},
-      };
-
-      const FIELD_LABELS = {
-        hb:"Hemoglobin",hct:"Hematocrit",serum_ferritin:"Ferritin",tsat:"TSAT",
-        serum_iron:"Serum Iron",tibc:"TIBC",calcium:"Calcium",phosphorus:"Phosphorus",
-        alkaline_phosphate:"ALP",ipth:"iPTH",vit_d:"Vitamin D",serum_sodium:"Sodium",
-        serum_potassium:"Potassium",serum_bicarbonate:"Bicarbonate",
-        serum_creatinine:"Creatinine",serum_uric_acid:"Uric Acid",
-        pre_dialysis_urea:"Pre-HD Urea",post_dialysis_urea:"Post-HD Urea",
-        albumin:"Albumin",prealbumin:"Prealbumin",total_cholesterol:"Total Cholesterol",
-        ldl_cholesterol:"LDL",wbc_count:"WBC / TLC",neutrophil_count:"Neutrophils",
-        platelet_count:"Platelets",hba1c:"HbA1c",ast:"AST (SGOT)",alt:"ALT (SGPT)",
-        crp:"CRP",nt_probnp:"NT-proBNP",single_pool_ktv:"Kt/V (spKt/V)",
-        equilibrated_ktv:"Kt/V (eKt/V)",bp_sys:"Systolic BP",bp_dia:"Diastolic BP",
-        idwg:"IDWG",residual_urine_output:"Urine Output",npcr:"nPCR",
-      };
-
-      const FIELD_UNITS = {
-        hb:"g/dL",hct:"%",serum_ferritin:"ng/mL",tsat:"%",serum_iron:"µg/dL",
-        tibc:"µg/dL",calcium:"mg/dL",phosphorus:"mg/dL",alkaline_phosphate:"U/L",
-        ipth:"pg/mL",vit_d:"ng/mL",serum_sodium:"mmol/L",serum_potassium:"mmol/L",
-        serum_bicarbonate:"mmol/L",serum_creatinine:"mg/dL",serum_uric_acid:"mg/dL",
-        pre_dialysis_urea:"mg/dL",post_dialysis_urea:"mg/dL",albumin:"g/dL",
-        prealbumin:"mg/dL",total_cholesterol:"mg/dL",ldl_cholesterol:"mg/dL",
-        wbc_count:"/cmm",neutrophil_count:"%",platelet_count:"×10³/µL",
-        hba1c:"%",ast:"U/L",alt:"U/L",crp:"mg/L",nt_probnp:"pg/mL",
-        single_pool_ktv:"",equilibrated_ktv:"",bp_sys:"mmHg",bp_dia:"mmHg",
-        idwg:"kg",residual_urine_output:"mL/day",npcr:"g/kg/d",
-      };
-
-      function isOutOfRange(field, val) {
-        const r = OCR_RANGES[field]; if (!r) return false;
-        const n = parseFloat(val); return isNaN(n) || n < r.min || n > r.max;
-      }
-
-      function confidenceBadge(conf) {
-        const map = {
-          high:  {bg:'#dcfce7',cl:'#16a34a',ic:'verified'},
-          medium:{bg:'#fef9c3',cl:'#ca8a04',ic:'help_outline'},
-          low:   {bg:'#fee2e2',cl:'#dc2626',ic:'error_outline'},
-        };
-        const s = map[conf] || map.medium;
-        return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:0.7rem;font-weight:700;background:${s.bg};color:${s.cl};">
-                  <i class="material-icons" style="font-size:0.8rem;">${s.ic}</i>${conf||'medium'}</span>`;
-      }
-
-      function updateSelectedCount() {
-        document.getElementById('ocr_selected_count').textContent =
-          document.querySelectorAll('.ocr-check:checked').length;
-      }
-
-      function selectAllOCR(v) {
-        document.querySelectorAll('.ocr-check').forEach(cb => cb.checked = v);
-        updateSelectedCount();
-      }
-
-      function closeOCRModal() {
-        document.getElementById('ocr_modal').style.display = 'none';
-        document.body.style.overflow = '';
-      }
-
-      function showOCRModal(data) {
-        const fields = data.extracted_fields || {};
-        const conf   = data.confidence || {};
-        let subtitle = `${Object.keys(fields).length} field(s) found`;
-        if (data.report_date) subtitle += ' · ' + data.report_date;
-        if (data.report_type && data.report_type !== 'unknown') subtitle += ' · ' + data.report_type;
-        document.getElementById('ocr_modal_subtitle').textContent = subtitle;
-
-        const list = document.getElementById('ocr_fields_list');
-        if (Object.keys(fields).length === 0) {
-          list.innerHTML = `<div style="padding:32px;text-align:center;color:#64748b;">
-            <i class="material-icons" style="font-size:2.5rem;color:#cbd5e1;">search_off</i>
-            <div style="margin-top:8px;font-weight:600;">No lab values found in this image.</div>
-            <div style="font-size:0.82rem;margin-top:4px;">Try a clearer, well-lit photo of the full report page.</div></div>`;
-        } else {
-          list.innerHTML = Object.entries(fields).map(([key, val]) => {
-            const c   = conf[key] || 'medium';
-            const oor = isOutOfRange(key, val);
-            const lbl = FIELD_LABELS[key] || key;
-            const unit= FIELD_UNITS[key] ? ` (${FIELD_UNITS[key]})` : '';
-            
-            // Safety: check if form field is already populated
-            const existingInput = document.querySelector(`[name="${key}"]`);
-            const alreadyHasValue = existingInput && existingInput.value.trim() !== '';
-            
-            const autoCheck = c !== 'low' && !oor && !alreadyHasValue; // Uncheck if already populated
-            const rowBg = oor ? '#fff7ed' : '#fff';
-            const borderC = oor ? '#fed7aa' : '#f1f5f9';
-            const rangeR = OCR_RANGES[key];
-            const rangeHint = rangeR ? `Expected ${rangeR.min}–${rangeR.max}` : '';
-            return `
-              <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 20px;border-bottom:1px solid ${borderC};background:${rowBg};">
-                <div style="padding-top:3px;">
-                  <input type="checkbox" class="ocr-check" data-field="${key}"
-                    ${autoCheck ? 'checked' : ''} onchange="updateSelectedCount()"
-                    style="width:18px;height:18px;accent-color:#6366f1;cursor:pointer;">
-                </div>
-                <div style="flex:1;">
-                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
-                    <span style="font-weight:700;font-size:0.88rem;color:#1e293b;">${lbl}${unit}</span>
-                    ${confidenceBadge(c)}
-                    ${oor ? '<span style="background:#fff7ed;color:#c2410c;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid #fed7aa;">⚠ Out of Range</span>' : ''}
-                  </div>
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <input type="number" class="ocr-val" data-field="${key}" value="${val}" step="any"
-                      style="width:110px;padding:7px 10px;border:1.5px solid ${oor?'#fbbf24':'#e2e8f0'};border-radius:8px;font-size:1rem;font-weight:700;color:#1e293b;"
-                      oninput="onRangeInput(this,'${key}')">
-                    <span style="font-size:0.78rem;color:#94a3b8;">${rangeHint}</span>
-                  </div>
-                  ${oor ? `<div style="margin-top:6px;display:flex;align-items:center;gap:4px;font-size:0.75rem;color:#c2410c;"><i class="material-icons" style="font-size:0.9rem;">report_problem</i>Value outside expected clinical range — verify before applying.</div>` : ''}
-                  ${c==='low' ? `<div style="margin-top:5px;font-size:0.75rem;color:#dc2626;"><i class="material-icons" style="font-size:0.9rem;vertical-align:middle;">visibility_off</i> Low AI confidence — verify from the original report.</div>` : ''}
-                </div>
-              </div>`;
-          }).join('');
-        }
-        updateSelectedCount();
-        document.getElementById('ocr_modal').style.display = 'block';
-        document.body.style.overflow = 'hidden';
-      }
-
-      function onRangeInput(input, field) {
-        input.style.borderColor = isOutOfRange(field, input.value) ? '#f97316' : '#6366f1';
-      }
-
-      function applyOCRValues() {
-        let count = 0;
-        document.querySelectorAll('.ocr-check:checked').forEach(cb => {
-          const field = cb.dataset.field;
-          const valEl = document.querySelector(`.ocr-val[data-field="${field}"]`);
-          const val   = valEl ? valEl.value : null;
-          if (val === null || val === '') return;
-          const formEl = document.querySelector(`[name="${field}"]`);
-          if (formEl) {
-            formEl.value = val;
-            formEl.style.background = '#ecfdf5';
-            formEl.style.borderColor = '#10b981';
-            formEl.style.transition = 'all 0.5s';
-            setTimeout(() => { formEl.style.background=''; formEl.style.borderColor=''; }, 6000);
-            count++;
-          }
-        });
-        closeOCRModal();
-        const t = document.createElement('div');
-        t.innerHTML = `<div style="position:fixed;top:20px;right:20px;background:#fff;padding:16px 20px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.1);border-left:4px solid #10b981;display:flex;align-items:center;gap:12px;z-index:9999;">
-          <i class="material-icons" style="color:#10b981;">check_circle</i>
-          <div><div style="font-weight:700;color:#1e293b;">Applied ${count} value(s)</div>
-          <div style="font-size:0.8rem;color:#64748b;">Highlighted green — verify then click Save.</div></div></div>`;
-        document.body.appendChild(t);
-        setTimeout(() => document.body.removeChild(t), 4000);
-      }
-
-      // ─── Main upload handler ──────────────────────────────────────────────
-      async function handleOCRUpload(event, patientId) {
-        const file = event.target.files[0]; if (!file) return;
-
-        const toast = document.createElement('div');
-        toast.innerHTML = `
-          <div style="position:fixed;top:20px;right:20px;background:#fff;padding:16px 20px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.1);border-left:4px solid #8b5cf6;display:flex;align-items:center;gap:12px;z-index:9999;">
-            <div style="width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:#8b5cf6;border-radius:50%;animation:spin 1s linear infinite;"></div>
-            <div><div style="font-weight:700;color:#1e293b;">Gemini AI is scanning...</div>
-            <div style="font-size:0.8rem;color:#64748b;">Extracting lab values from report</div></div>
-          </div>
-          <style>@keyframes spin{to{transform:rotate(360deg);}}</style>`;
-        document.body.appendChild(toast);
-
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('patient_id', patientId);
-
-        try {
-          const res  = await fetch('/ocr/extract-report', { method:'POST', body:fd });
-          const data = await res.json();
-          document.body.removeChild(toast);
-          if (data.error) { alert('OCR Error: ' + data.error); return; }
-          showOCRModal(data);          // open review modal — nothing pushed yet
-        } catch (err) {
-          document.body.removeChild(toast);
-          alert('Network error during OCR. Ensure backend is running on port 8080.');
-          console.error(err);
-        }
-        event.target.value = '';
-      }
+    function addAntiMedRow() {
+        const tmpl = document.getElementById('anti-med-template');
+        const wrap = document.getElementById('antiMedsWrapper');
+        if (!tmpl || !wrap) return;
+        wrap.appendChild(tmpl.content.cloneNode(true));
+    }
     </script>
+
+    <!-- External JS modules — order matters: validation → calc → wizard → ocr -->
+    <script src="/static/js/entry_validation.js"></script>
+    <script src="/static/js/entry_calc.js"></script>
+    <script src="/static/js/entry_wizard.js"></script>
+    <script src="/static/js/entry_ocr.js"></script>
+
 </body>
 </html>
