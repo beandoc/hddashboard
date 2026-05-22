@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Date, DateTime, Text, ForeignKey,
+    Column, Integer, String, Float, Date, DateTime, Text, ForeignKey, Index,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -21,6 +21,10 @@ class PatientMealRecord(Base):
     meal_type = Column(String)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('ix_patient_meal_records_patient_date', 'patient_id', 'date'),
+    )
 
     patient = relationship("Patient", back_populates="meal_records")
 

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 import json
 import logging
@@ -92,6 +92,17 @@ def save_monthly_record(
             except (ValueError, TypeError):
                 pass
 
+        # Convert Platelet Count from lacs/cmm to ×10³/µL (multiply by 100)
+        # User enters e.g. 2.5 (lacs) → stored as 250 (×10³/µL)
+        plt = data.get("platelet_count")
+        if plt is not None and plt != "":
+            try:
+                plt_val = float(plt)
+                if plt_val > 0:
+                    data["platelet_count"] = round(plt_val * 100.0, 1)
+            except (ValueError, TypeError):
+                pass
+
         # Convert Neutrophils from % to absolute count (x10^3/uL) at the boundary
         neut = data.get("neutrophil_count")
         if neut is not None and neut != "":
@@ -108,24 +119,54 @@ def save_monthly_record(
 
         month_str = data.get("month_str")
 
+        # Fire 4 independent read queries concurrently to minimise round-trip latency.
+        import threading
+        from database import SessionLocal as _SessionLocal
+
+        _results: dict = {}
+        _errors: list = []
+
+        def _fetch(key, fn):
+            _db = _SessionLocal()
+            try:
+                _results[key] = fn(_db)
+            except Exception as exc:
+                _errors.append((key, exc))
+                _results[key] = None
+            finally:
+                _db.close()
+
+        threads = [
+            threading.Thread(target=_fetch, args=("p_obj", lambda d: d.query(Patient).options(joinedload(Patient.vascular_access)).filter(Patient.id == patient_id).first())),
+            threading.Thread(target=_fetch, args=("sessions", lambda d: d.query(SessionRecord).filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.record_month == month_str,
+            ).order_by(SessionRecord.session_date.asc()).all() if month_str else [])),
+            threading.Thread(target=_fetch, args=("prior_rec", lambda d: d.query(MonthlyRecord).filter(
+                MonthlyRecord.patient_id == patient_id,
+                MonthlyRecord.record_month < month_str,
+            ).order_by(MonthlyRecord.record_month.desc()).first() if month_str else None)),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        for key, exc in _errors:
+            logger.warning("Parallel fetch failed for '%s': %s", key, exc)
+
+        p_obj = _results.get("p_obj")
+        _prior_rec_cache = _results.get("prior_rec")
+        sessions_this_month = _results.get("sessions") or []
+
         # 1. Residual Urine Output Carry-Forward
         ruo = data.get("residual_urine_output")
         if month_str and (ruo is None or ruo == ""):
-            prior_ruo_rec = db.query(MonthlyRecord).filter(
-                MonthlyRecord.patient_id == patient_id,
-                MonthlyRecord.record_month < month_str,
-                MonthlyRecord.residual_urine_output.isnot(None)
-            ).order_by(MonthlyRecord.record_month.desc()).first()
-            if prior_ruo_rec:
-                data["residual_urine_output"] = prior_ruo_rec.residual_urine_output
+            if _prior_rec_cache and _prior_rec_cache.residual_urine_output is not None:
+                data["residual_urine_output"] = _prior_rec_cache.residual_urine_output
 
         # 1.5 Calculate monthly BP, IDWG, and UFR from sessions dynamically
-        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
         if month_str:
-            sessions_this_month = db.query(SessionRecord).filter(
-                SessionRecord.patient_id == patient_id,
-                SessionRecord.record_month == month_str
-            ).order_by(SessionRecord.session_date.asc()).all()
 
             if sessions_this_month:
                 sys_vals = [s.bp_pre_sys for s in sessions_this_month if s.bp_pre_sys is not None]
@@ -294,14 +335,9 @@ def save_monthly_record(
             data["av_daily_protein"] = avg_prot
 
         if month_str and (data.get("av_daily_calories") is None or data.get("av_daily_calories") == ""):
-            prior_rec = db.query(MonthlyRecord).filter(
-                MonthlyRecord.patient_id == patient_id,
-                MonthlyRecord.record_month < month_str,
-                MonthlyRecord.av_daily_calories.isnot(None)
-            ).order_by(MonthlyRecord.record_month.desc()).first()
-            if prior_rec:
-                data["av_daily_calories"] = prior_rec.av_daily_calories
-                data["av_daily_protein"] = prior_rec.av_daily_protein
+            if _prior_rec_cache and _prior_rec_cache.av_daily_calories is not None:
+                data["av_daily_calories"] = _prior_rec_cache.av_daily_calories
+                data["av_daily_protein"] = _prior_rec_cache.av_daily_protein
 
         # Hard limits — physiologically impossible values. Raises ValueError.
         # This propagates to the router which returns a user-visible 400 error.
@@ -460,8 +496,8 @@ def save_monthly_record(
             rec = MonthlyRecord(patient_id=patient_id, record_month=month_str, **fields)
             db.add(rec)
 
-        # Sync certain fields back to Patient model
-        p = db.query(Patient).filter(Patient.id == patient_id).first()
+        # Sync certain fields back to Patient model (reuse p_obj fetched above)
+        p = p_obj
         if p:
             if user_role in ["admin", "doctor"]:
                 if "clinical_background" in data:

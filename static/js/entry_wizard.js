@@ -182,7 +182,7 @@ function buildReviewSummary() {
             { name: 'hct',                 label: 'Hematocrit',    unit: '%' },
             { name: 'wbc_count',           label: 'TLC/WBC' },
             { name: 'neutrophil_count',    label: 'Neutrophils',   unit: '%' },
-            { name: 'platelet_count',      label: 'Platelets' },
+            { name: 'platelet_count',      label: 'Platelets',     unit: 'lacs/cmm' },
             { name: 'serum_iron',          label: 'Serum Iron',    unit: 'µg/dL' },
             { name: 'tibc',                label: 'TIBC',          unit: 'µg/dL' },
             { name: 'serum_ferritin',      label: 'Ferritin',      unit: 'ng/mL' },

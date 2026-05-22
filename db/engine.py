@@ -36,10 +36,10 @@ else:
     engine = create_engine(
         DATABASE_URL,
         connect_args=_connect_args,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        pool_size=5,
-        max_overflow=10,
+        pool_pre_ping=False,
+        pool_recycle=1800,
+        pool_size=10,
+        max_overflow=20,
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

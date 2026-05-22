@@ -132,6 +132,10 @@ class SessionRecord(Base):
     interim_ca = Column(Float)
     interim_trigger = Column(String)
 
+    __table_args__ = (
+        Index('ix_session_records_patient_month', 'patient_id', 'record_month'),
+    )
+
     patient = relationship("Patient", back_populates="sessions")
 
 

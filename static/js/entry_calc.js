@@ -61,6 +61,7 @@ const ESA_CONFIG = {
     'Epoetin Beta':  { unit: 'IU',  placeholder: 'e.g. 4000', freqs: [{v:'3',t:'Thrice Weekly (TIW)'},{v:'2',t:'Twice Weekly'},{v:'1',t:'Weekly'},{v:'0.5',t:'Every 2 Weeks'},{v:'0.25',t:'Monthly'}] },
     'Darbepoetin':   { unit: 'mcg', placeholder: 'e.g. 40',   freqs: [{v:'1',t:'Weekly'},{v:'0.5',t:'Every 2 Weeks'},{v:'0.25',t:'Monthly'}] },
     'Mircera (CERA)':{ unit: 'mcg', placeholder: 'e.g. 75',   freqs: [{v:'1',t:'Weekly'},{v:'0.7',t:'Once in every 10 days'},{v:'0.5',t:'Every 2 Weeks'},{v:'0.25',t:'Monthly'}] },
+    'PEG-EPO (Pegylated EPO)': { unit: 'mcg', placeholder: 'e.g. 50', freqs: [{v:'0.7',t:'Once in every 10 days'},{v:'0.5',t:'Every 2 Weeks'},{v:'0.25',t:'Monthly'}] },
 };
 
 function toggleESACalculator(shouldReset = true) {
