@@ -29,7 +29,15 @@ async def fluid_status_dashboard(patient_id: int, request: Request, db: Session 
         risk_score += 2
         risk_factors.append("High NT-proBNP (>1000 pg/mL)")
         
-    avg_idwg = sum([s.weight_pre - s.weight_post for s in latest_sessions if s.weight_pre and s.weight_post]) / len(latest_sessions) if latest_sessions else 0
+    # IDWG = weight gained between sessions = current pre - previous post
+    # Sessions are ordered desc (newest first), so sessions[i] is newer, sessions[i+1] is older
+    idwg_values = []
+    for i in range(len(latest_sessions) - 1):
+        curr = latest_sessions[i]
+        prev = latest_sessions[i + 1]
+        if curr.weight_pre and prev.weight_post:
+            idwg_values.append(curr.weight_pre - prev.weight_post)
+    avg_idwg = sum(idwg_values) / len(idwg_values) if idwg_values else 0
     if avg_idwg > 2.5:
         risk_score += 2
         risk_factors.append(f"High IDWG (Avg {round(avg_idwg,1)} kg)")
