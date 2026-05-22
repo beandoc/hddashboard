@@ -679,13 +679,23 @@
                     </button>
                     <span id="wiz-req-hint" class="wiz-req-hint">Fill required fields</span>
                     <div id="wiz-submit-wrap" class="wiz-submit-wrap">
-                        <button type="submit" name="action" value="save_back" class="btn-wiz-submit sec">
+                        <button type="submit" name="action" value="save_back" class="btn-wiz-submit sec" onclick="showSaveSpinner(this)">
                             <i class="material-icons">list</i> Save &amp; Exit
                         </button>
-                        <button type="submit" name="action" value="save_next" class="btn-wiz-submit">
+                        <button type="submit" name="action" value="save_next" class="btn-wiz-submit" onclick="showSaveSpinner(this)">
                             <i class="material-icons">bolt</i> Save &amp; Next
                         </button>
                     </div>
+                    <div id="save-spinner" style="display:none;margin-top:14px;text-align:center;">
+                        <span style="display:inline-flex;align-items:center;gap:8px;font-size:0.95rem;color:#0284c7;font-weight:600;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="animation:spin 0.8s linear infinite;">
+                                <circle cx="12" cy="12" r="10" stroke="#bae6fd" stroke-width="3"/>
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="#0284c7" stroke-width="3" stroke-linecap="round"/>
+                            </svg>
+                            Saving data, please wait…
+                        </span>
+                    </div>
+                    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
                 </div>
             </div>
         </form>
