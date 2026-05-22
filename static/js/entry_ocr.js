@@ -41,7 +41,7 @@ const OCR_FIELD_UNITS = {
     serum_bicarbonate:'mmol/L', serum_creatinine:'mg/dL', serum_uric_acid:'mg/dL',
     pre_dialysis_urea:'mg/dL', post_dialysis_urea:'mg/dL', albumin:'g/dL',
     prealbumin:'mg/dL', total_cholesterol:'mg/dL', ldl_cholesterol:'mg/dL',
-    wbc_count:'/cmm', neutrophil_count:'%', platelet_count:'lacs/cmm',
+    wbc_count:'/cmm', neutrophil_count:'%', platelet_count:'lakh/cmm',
     hba1c:'%', ast:'U/L', alt:'U/L', crp:'mg/L', nt_probnp:'pg/mL',
     single_pool_ktv:'', equilibrated_ktv:'', bp_sys:'mmHg', bp_dia:'mmHg',
     idwg:'kg', residual_urine_output:'mL/day', npcr:'g/kg/d',

@@ -234,6 +234,7 @@ async def save_entry(
     transfusion_date: Optional[str] = Form(None),
     clinical_background: str = Form(""),
     issues: str = Form(""),
+    total_protein: Optional[float] = Form(None),
     action: str = Form("save_back")
 ):
     try:
