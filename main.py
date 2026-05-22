@@ -381,7 +381,21 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
 # Root health check — GET for humans, HEAD for UptimeRobot/monitoring probes
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
-    return {"status": "ok", "version": "2.0.0"}
+    import time, os
+    from sqlalchemy import text
+    db_host = os.environ.get("DATABASE_URL", "").split("@")[-1].split("/")[0] if "@" in os.environ.get("DATABASE_URL", "") else "unknown"
+    region = "Mumbai (ap-south-1)" if "ap-south-1" in db_host else ("Tokyo (ap-northeast-1)" if "ap-northeast-1" in db_host else db_host)
+    try:
+        db = SessionLocal()
+        t0 = time.time()
+        db.execute(text("SELECT 1"))
+        db_latency_ms = round((time.time() - t0) * 1000, 1)
+        db.close()
+        db_status = "ok"
+    except Exception as e:
+        db_latency_ms = None
+        db_status = str(e)
+    return {"status": "ok", "version": "2.0.0", "db_region": region, "db_host": db_host, "db_latency_ms": db_latency_ms, "db_status": db_status}
 
 if __name__ == "__main__":
     import uvicorn
