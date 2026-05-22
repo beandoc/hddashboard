@@ -877,18 +877,19 @@ def analyze_pds(db: Session, patient_id: int) -> Dict:
         }
         all_reports.append(report_dict)
 
-        # Only include in correlated_events when DRT is available (needed for avg calc)
+        # correlated_events: matched + DRT (used for clinical flag checks against session data)
         if rep.dialysis_recovery_time_mins is not None and sess:
             correlated_events.append(report_dict)
 
-    # DRT-based analytics (only when we have correlated events with DRT)
+    # DRT-based analytics — avg uses ALL reports with a DRT value (matched or not)
+    reports_with_drt = [r for r in all_reports if r["drt_mins"] is not None]
     avg_drt = None
     flags = []
     interventions = []
     risk_level = "low"
 
-    if correlated_events:
-        avg_drt = sum(e["drt_mins"] for e in correlated_events) / len(correlated_events)
+    if reports_with_drt:
+        avg_drt = sum(e["drt_mins"] for e in reports_with_drt) / len(reports_with_drt)
 
         if avg_drt > 360:  # > 6 hours
             risk_level = "high"

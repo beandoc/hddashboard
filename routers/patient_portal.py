@@ -327,6 +327,21 @@ async def log_symptoms(
     conv_missed = parse_bool(missed_social_or_work_event)
 
     try:
+        # Guard against double-submit: reject if an identical report was saved in the last 60s
+        from datetime import datetime, timezone
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=60)
+        recent_dup = (
+            db.query(PatientSymptomReport)
+            .filter(
+                PatientSymptomReport.patient_id == u["id"],
+                PatientSymptomReport.session_date == conv_session_date,
+                PatientSymptomReport.reported_at >= cutoff,
+            )
+            .first()
+        )
+        if recent_dup:
+            return RedirectResponse(url="/patient/dashboard?tab=symptoms&saved=1", status_code=303)
+
         report = PatientSymptomReport(
             patient_id=u["id"],
             session_date=conv_session_date,
