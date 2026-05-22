@@ -41,6 +41,7 @@ class MonthlyRecord(Base):
     pre_dialysis_urea = Column(Float)
     post_dialysis_urea = Column(Float)
     serum_creatinine = Column(Float)
+    post_dialysis_creatinine = Column(Float)
     krcrw = Column(Float)
     krcr = Column(Float)
 

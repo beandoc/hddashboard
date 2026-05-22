@@ -36,6 +36,37 @@ def create_tables():
         db.execute(text("ALTER TABLE food_database_items ADD COLUMN IF NOT EXISTS serving_size VARCHAR;"))
         db.commit()
 
+        # ── variable_definitions extra columns (2026-05) ─────────────────────
+        try:
+            db.execute(text("ALTER TABLE variable_definitions ADD COLUMN normal_range TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        try:
+            db.execute(text("ALTER TABLE variable_definitions ADD COLUMN clinical_significance TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        # ── Research projects extra columns (2026-05) ─────────────────────────
+        try:
+            db.execute(text("ALTER TABLE research_projects ADD COLUMN start_date DATE"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        try:
+            db.execute(text("ALTER TABLE research_projects ADD COLUMN test_types TEXT"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        # ── patient_symptom_reports: session_date column (2026-05) ───────────
+        try:
+            db.execute(text("ALTER TABLE patient_symptom_reports ADD COLUMN IF NOT EXISTS session_date DATE;"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         # ── Research records data-safety migration (2026-05) ──────────────────
         # project_id must be nullable so records survive when a project is deleted.
         db.execute(text("ALTER TABLE research_records ALTER COLUMN project_id DROP NOT NULL;"))

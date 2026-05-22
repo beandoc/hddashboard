@@ -1,3 +1,4 @@
+{% from "_macros.html" import breadcrumb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -165,15 +166,7 @@
 
   {% include "_nav.html" %}
   {% include "_patient_context_nav.html" %}
-<nav class="nav-breadcrumb" aria-label="Breadcrumb">
-  <a href="/">Dashboard</a>
-  <span class="bc-sep">/</span>
-  <a href="/patients">Patients</a>
-  <span class="bc-sep">/</span>
-  <a href="/patients/{{ patient.id }}/profile">{{ patient.name }}</a>
-  <span class="bc-sep">/</span>
-  <span class="bc-current">Analytics</span>
-</nav>
+{{ breadcrumb([("Dashboard", "/"), ("Analytics", "/analytics"), ("Patient Analytics", None)]) }}
 
 
   <header class="content-header">
@@ -581,17 +574,30 @@
         </div>
         <div style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px;">
           {% for s in recent_sessions %}
-          <div style="min-width: 160px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; flex-shrink: 0; position: relative;">
+          <a href="/sessions/{{ s.id }}/edit" style="display:block; text-decoration:none; color:inherit; min-width: 160px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; flex-shrink: 0; position: relative; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.05)';" onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
               <div style="font-size: 0.75rem; font-weight: 700; color: #64748b;">{{ s.session_date }}</div>
-              <a href="/sessions/{{ s.id }}/edit" style="color: #0ea5e9; font-size: 0.75rem; font-weight: 600; text-decoration: none;"><i class="material-icons" style="font-size:0.9rem; vertical-align:middle;">edit</i></a>
+              <i class="material-icons" style="font-size:0.9rem; color:#94a3b8; vertical-align:middle;">chevron_right</i>
             </div>
             <div style="font-size: 0.85rem; color: #1e293b;">
               <strong>Pre:</strong> {{ s.weight_pre or '—' }} kg<br>
               <strong>Post:</strong> {{ s.weight_post or '—' }} kg
             </div>
             <div style="font-size: 0.82rem; color: #0ea5e9; font-weight: 600; margin-top: 4px;">{{ s.bp_pre_sys or '—' }}/{{ s.bp_pre_dia or '—' }} mmHg</div>
-          </div>
+            
+            {% if s.symptom_report %}
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #cbd5e1; display:flex; align-items:center; gap:4px;">
+                {% set sev = s.symptom_report.severity or 1 %}
+                <span class="material-icons" style="font-size: 14px; color: {% if sev > 3 %}#ef4444{% elif sev > 1 %}#f59e0b{% else %}#10b981{% endif %};">
+                    {% if sev > 3 %}sentiment_very_dissatisfied{% elif sev > 1 %}sentiment_dissatisfied{% else %}sentiment_satisfied{% endif %}
+                </span>
+                <span style="font-size: 0.7rem; font-weight:600; color:#475569;">
+                    {% set symp_count = s.symptom_report.symptoms.split(',')|length if s.symptom_report.symptoms else 0 %}
+                    {{ symp_count }} Symptom{{ 's' if symp_count != 1 else '' }}
+                </span>
+            </div>
+            {% endif %}
+          </a>
           {% endfor %}
           {% if not recent_sessions %}
           <div style="text-align: center; padding: 48px 24px; color: #94a3b8; font-family: 'Inter', sans-serif; width: 100%;">
@@ -672,8 +678,89 @@
           </ul>
           {% endif %}
           
-          <div style="margin-top: 20px; height: 250px;">
+          <div style="margin-top: 20px; height: 250px; margin-bottom: 24px;">
             <canvas id="pdsChart"></canvas>
+          </div>
+
+          <div style="margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+            <h4 style="margin: 0 0 12px; font-family: 'Outfit', sans-serif; font-size: 0.95rem; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+              <i class="material-icons" style="font-size: 1.1rem; color: #7c3aed;">list_alt</i>
+              Patient-Reported Symptom Logs
+            </h4>
+            <div style="overflow-x: auto;">
+              <table style="width: 100%; border-collapse: collapse; min-width: 600px; font-size: 0.85rem; text-align: left;">
+                <thead>
+                  <tr style="border-bottom: 2px solid #e2e8f0; color: #64748b; font-weight: 600;">
+                    <th style="padding: 10px 8px;">Date</th>
+                    <th style="padding: 10px 8px;">Session Match</th>
+                    <th style="padding: 10px 8px;">Recovery Time (DRT)</th>
+                    <th style="padding: 10px 8px; text-align: center;">Tiredness</th>
+                    <th style="padding: 10px 8px; text-align: center;">Energy</th>
+                    <th style="padding: 10px 8px;">Symptoms & Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for rep in pds.all_reports %}
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 10px 8px;">
+                      <div style="font-weight: 600; color: #1e293b;">{{ rep.date }}</div>
+                      <div style="font-size: 0.75rem; color: #94a3b8;">Logged: {{ rep.reported_at }}</div>
+                    </td>
+                    <td style="padding: 10px 8px;">
+                      {% if rep.session_matched %}
+                        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #e0f2fe; color: #0369a1; border-radius: 12px; font-size: 0.72rem; font-weight: 600;">
+                          <i class="material-icons" style="font-size: 0.85rem;">link</i> Matched
+                        </span>
+                      {% else %}
+                        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #f1f5f9; color: #64748b; border-radius: 12px; font-size: 0.72rem; font-weight: 500;">
+                          <i class="material-icons" style="font-size: 0.85rem;">link_off</i> Unmatched
+                        </span>
+                      {% endif %}
+                    </td>
+                    <td style="padding: 10px 8px;">
+                      {% if rep.drt_mins is not none %}
+                        <strong style="color: #334155;">{{ (rep.drt_mins / 60) | round(1) }} hrs</strong>
+                        <span style="font-size: 0.75rem; color: #64748b;">({{ rep.drt_mins }} mins)</span>
+                      {% else %}
+                        <span style="color: #94a3b8;">Not reported</span>
+                      {% endif %}
+                    </td>
+                    <td style="padding: 10px 8px; text-align: center;">
+                      {% if rep.tiredness is not none %}
+                        <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: 600; 
+                          background: {% if rep.tiredness >= 7 %}#fee2e2; color: #991b1b;{% elif rep.tiredness >= 4 %}#fef3c7; color: #92400e;{% else %}#dcfce7; color: #166534;{% endif %}">
+                          {{ rep.tiredness }}/10
+                        </span>
+                      {% else %}
+                        <span style="color: #94a3b8;">—</span>
+                      {% endif %}
+                    </td>
+                    <td style="padding: 10px 8px; text-align: center;">
+                      {% if rep.energy is not none %}
+                        <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: 600; 
+                          background: {% if rep.energy <= 3 %}#fee2e2; color: #991b1b;{% elif rep.energy <= 6 %}#fef3c7; color: #92400e;{% else %}#dcfce7; color: #166534;{% endif %} font-weight: bold;">
+                          {{ rep.energy }}/10
+                        </span>
+                      {% else %}
+                        <span style="color: #94a3b8;">—</span>
+                      {% endif %}
+                    </td>
+                    <td style="padding: 10px 8px;">
+                      {% if rep.symptoms %}
+                        <div style="font-weight: 500; color: #334155; display: inline-block; margin-right: 8px;">{{ rep.symptoms }}</div>
+                      {% endif %}
+                      {% if rep.notes %}
+                        <div style="font-size: 0.78rem; color: #64748b; font-style: italic; margin-top: 2px;">"{{ rep.notes }}"</div>
+                      {% endif %}
+                      {% if not rep.symptoms and not rep.notes %}
+                        <span style="color: #94a3b8; font-style: italic;">No notes/symptoms entered</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         {% else %}
           <div class="card-val" style="font-size:1rem;color:#94a3b8;">No PDS Data</div>
@@ -917,7 +1004,7 @@
           <div style="font-size:0.83rem;color:#7f1d1d;margin-top:4px;">{{ mia_cascade.cascade_reason }}</div>
           {% if dc < 50 %}
           <div style="margin-top:8px;font-size:0.78rem;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;">
-            <strong>⚠ Low data completeness ({{ dc }}%).</strong> Some domains are scoring 0 because no values were entered, not because the patient is stable. Enter CRP, nPCR, UFR, Kt/V to improve reliability.
+            <strong>⚠ Low data completeness ({{ dc }}%).</strong> Some domains are scoring 0 because no values were entered, not because the patient is stable. Enter CRP, UFR, Kt/V to improve reliability.
           </div>
           {% endif %}
         </div>
@@ -941,7 +1028,7 @@
         {% if last %}
         <div style="display:flex;flex-direction:column;gap:10px;">
           {% for dom_key, dom_name, icon, required_fields in [
-            ('nutrition',       'Nutrition (PEM)',    '🥩', 'albumin, nPCR'),
+            ('nutrition',       'Nutrition (PEM)',    '🥩', 'albumin'),
             ('inflammation',    'Inflammation',       '🔥', 'CRP, ferritin, TSAT'),
             ('atherosclerosis', 'Vascular Stress',    '🫀', 'BP sys/dia'),
             ('dialysis',        'Dialysis Factors',   '⚙️', 'UFR, Kt/V, IDWG'),
@@ -1233,7 +1320,14 @@
       {% endif %}
 
       <div style="background:#fff; border-radius:12px; padding:20px 24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); border:1px solid #e2e8f0; margin-top:24px; margin-bottom: 24px;">
-        <details>
+        {% if note_saved %}
+        <div id="noteSavedBanner" style="display:flex; align-items:center; gap:8px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:0.85rem; color:#166534;">
+          <i class="material-icons" style="font-size:1rem; color:#16a34a;">check_circle</i>
+          <span>Note saved successfully.</span>
+        </div>
+        <script>setTimeout(function(){ var b=document.getElementById('noteSavedBanner'); if(b) b.style.display='none'; }, 4000);</script>
+        {% endif %}
+        <details {% if note_saved %}open{% endif %}>
           <summary style="font-family:'Outfit',sans-serif; font-weight:700; font-size:0.95rem; cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px;">
             <i class="material-icons" style="color:#7c3aed; font-size:1.1rem;">rate_review</i>
             Doctor's Review Note
@@ -1244,7 +1338,7 @@
             {% endif %}
           </summary>
           <form method="POST" action="/analytics/patients/{{ patient.id }}/note" style="margin-top:14px;">
-            <input type="hidden" name="record_month" value="{{ selected_month or current_month }}">
+            <input type="hidden" name="record_month" value="{{ current_month }}">
             <textarea name="note" rows="3" placeholder="Clinical impression, prescription change, follow-up action..."
               style="width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:9px; font-family:'Inter',sans-serif; font-size:0.9rem; resize:vertical; box-sizing:border-box;">{{ doctor_note.doctor_notes if doctor_note else '' }}</textarea>
             <button type="submit" style="margin-top:8px; padding:8px 20px; background:#7c3aed; color:#fff; border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer;">

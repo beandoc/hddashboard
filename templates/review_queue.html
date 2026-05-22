@@ -156,7 +156,8 @@
     /* Insights toggle button */
     .insights-toggle {
       display: inline-flex; align-items: center; gap: 4px;
-      margin-top: 8px; padding: 3px 10px 3px 8px;
+      margin-top: 8px; padding: 10px 14px;
+      min-height: 44px; min-width: 44px;
       background: none; border: 1px solid #e9d5ff; border-radius: 20px;
       font-size: 0.7rem; font-weight: 600; color: #7c3aed;
       cursor: pointer; transition: background 0.15s, border-color 0.15s;
@@ -171,7 +172,7 @@
 
     /* Bayesian + SHAP panels hidden by default */
     .bay-panel, .shap-panel { display: none; }
-    .bay-panel.open { display: flex; }
+    .bay-panel.open { display: flex; flex-direction: column; }
     .shap-panel.open { display: block; }
 
     /* SHAP "why this score" panel */
@@ -306,14 +307,22 @@
         {% set bay = item.bay_profile if item.bay_profile and item.bay_profile.available else None %}
         <tr>
           <td>
-            <div class="priority-circle {% if item.priority >= 4 %}priority-high{% endif %}">
+            <div class="priority-circle {% if item.priority >= 4 %}priority-high{% endif %}"
+                 aria-label="{{ item.flags | length }} flag{{ 's' if item.flags | length != 1 }}{% if item.priority >= 4 %}, high priority{% endif %}">
               {{ item.flags | length }}
             </div>
           </td>
           <td>
             <div class="patient-info">
-              <a href="/patients/{{ item.patient.id }}/profile" class="name">{{ item.patient.name }}</a>
+              <a href="/analytics/patients/{{ item.patient.id }}" class="name">{{ item.patient.name }}</a>
               <div class="hid">HID: {{ item.patient.hid_no }}</div>
+              <div class="last-review" style="margin-top:4px;">
+                {% if item.last_review %}
+                  Last review: {{ item.last_review.strftime('%d %b %Y') }}
+                {% else %}
+                  <span class="review-never">Never reviewed</span>
+                {% endif %}
+              </div>
             </div>
           </td>
           <td>
@@ -333,8 +342,9 @@
                   {% elif 'Fluid' in flag %}flag-fluid
                   {% elif 'IDWG' in flag %}flag-idwg
                   {% elif 'Dry Weight' in flag %}flag-weight
-                  {% endif %}">
-                  {{ flag }}
+                  {% endif %}"
+                  role="img" aria-label="{{ flag }}">
+                  {% if 'Mortality' in flag or 'Critical Hb' in flag %}<i class="material-icons" style="font-size:0.75rem;vertical-align:middle;">emergency</i> {% elif 'Hb Drop' in flag or 'Acute Hb Drop' in flag %}<i class="material-icons" style="font-size:0.75rem;vertical-align:middle;">trending_down</i> {% endif %}{{ flag }}
                 </span>
               {% endfor %}
             </div>
@@ -477,7 +487,23 @@ function toggleInsights(pid) {
   btn.setAttribute('aria-expanded', open);
   if (bay)  bay.classList.toggle('open',  open);
   if (shap) shap.classList.toggle('open', open);
+  sessionStorage.setItem('shap_panel_' + pid, open ? '1' : '0');
 }
+
+// Restore SHAP panel open states from sessionStorage on page load
+(function() {
+  document.querySelectorAll('[id^="toggle-"]').forEach(function(btn) {
+    const pid = btn.id.replace('toggle-', '');
+    if (sessionStorage.getItem('shap_panel_' + pid) === '1') {
+      const bay  = document.getElementById('bay-'  + pid);
+      const shap = document.getElementById('shap-' + pid);
+      btn.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      if (bay)  bay.classList.add('open');
+      if (shap) shap.classList.add('open');
+    }
+  });
+})();
 </script>
 
 </body>

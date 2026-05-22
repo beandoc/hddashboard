@@ -206,6 +206,8 @@ textarea { resize:vertical; min-height:70px; }
           {% if v.threshold_low %}⬇ Alert below {{ v.threshold_low }} {{ v.unit }}<br/>{% endif %}
           {% if v.threshold_high %}⬆ Alert above {{ v.threshold_high }} {{ v.unit }}<br/>{% endif %}
           {% if v.description %}<span style="color:#aaa">{{ v.description[:80] }}{% if v.description|length > 80 %}…{% endif %}</span>{% endif %}
+          {% if v.normal_range %}<br/><span style="font-size:0.72em;color:#64748b">📏 Normal: {{ v.normal_range }}</span>{% endif %}
+          {% if v.clinical_significance %}<br/><span style="font-size:0.72em;color:#64748b;font-style:italic">{{ v.clinical_significance[:70] }}{% if v.clinical_significance|length > 70 %}…{% endif %}</span>{% endif %}
         </div>
         <div class="var-actions">
           {% if v.id > 0 %}
@@ -345,6 +347,23 @@ textarea { resize:vertical; min-height:70px; }
         </div>
       </div>
 
+      <!-- DATE RANGE & PATIENT FILTER -->
+      <div class="form-grid four" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="field">
+          <label>From Month</label>
+          <input type="month" id="viewFromMonth" value="{{ default_from }}" onchange="loadVariableChart()"/>
+        </div>
+        <div class="field">
+          <label>To Month</label>
+          <input type="month" id="viewToMonth" value="{{ default_to }}" onchange="loadVariableChart()"/>
+        </div>
+        <div class="field span-2">
+          <label>Filter by Patient (optional)</label>
+          <input type="text" id="viewPatientFilter" placeholder="Type patient name (partial match)…"
+                 oninput="loadVariableChart()" style="width:100%"/>
+        </div>
+      </div>
+
       <!-- SUB-OPTIONS (Dynamic) -->
       <div id="viewSubOptions" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
         <div class="form-grid three">
@@ -470,6 +489,18 @@ textarea { resize:vertical; min-height:70px; }
       <textarea id="newVarDesc" placeholder="What this variable measures, clinical significance, reference ranges…"></textarea>
     </div>
 
+    <div class="form-grid two" style="margin-bottom:14px">
+      <div class="field">
+        <label>Normal Range</label>
+        <input type="text" id="newVarNormalRange" placeholder="e.g. 10–15 g/dL"/>
+        <span class="hint">Reference range for healthy / target population</span>
+      </div>
+      <div class="field">
+        <label>Clinical Significance</label>
+        <textarea id="newVarClinicalSig" placeholder="e.g. Indicates anemia risk" style="min-height:52px"></textarea>
+      </div>
+    </div>
+
     <div class="form-grid two" style="margin-bottom:6px">
       <div class="field">
         <label style="flex-direction:row;align-items:center;gap:8px;text-transform:none;font-size:0.85em">
@@ -500,6 +531,18 @@ textarea { resize:vertical; min-height:70px; }
 const ALL_PATIENTS = {{ patient_list_data | tojson }};
 const ALL_VARS     = {{ variables_json | tojson }};
 
+// ── Default date range for View tab: 12 months ago → today ──
+(function() {
+  const now  = new Date();
+  const to   = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const past = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const from = `${past.getFullYear()}-${String(past.getMonth()+1).padStart(2,'0')}`;
+  const fromEl = document.getElementById('viewFromMonth');
+  const toEl   = document.getElementById('viewToMonth');
+  if (fromEl && !fromEl.value) fromEl.value = from;
+  if (toEl   && !toEl.value)   toEl.value   = to;
+})();
+
 // ── TABS ──
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.remove('active'));
@@ -522,7 +565,8 @@ function openNewVarModal() {
   document.getElementById('editVarId').value = '';
   document.getElementById('modalTitle').textContent = 'Define New Clinical Variable';
   ['newVarName','newVarDisplayName','newVarUnit','newVarDesc',
-   'newVarThreshLow','newVarThreshHigh','newVarTargetLow','newVarTargetHigh']
+   'newVarThreshLow','newVarThreshHigh','newVarTargetLow','newVarTargetHigh',
+   'newVarNormalRange','newVarClinicalSig']
     .forEach(id => document.getElementById(id).value = '');
   document.getElementById('newVarCategory').value = 'Lab';
   document.getElementById('newVarDataType').value = 'number';
@@ -548,6 +592,8 @@ function editVariable(varId) {
   document.getElementById('newVarTargetLow').value = v.target_low || '';
   document.getElementById('newVarTargetHigh').value = v.target_high || '';
   document.getElementById('newVarDesc').value = v.description || '';
+  document.getElementById('newVarNormalRange').value = v.normal_range || '';
+  document.getElementById('newVarClinicalSig').value = v.clinical_significance || '';
   document.getElementById('newVarShowDash').checked = v.show_in_dashboard;
   document.getElementById('newVarShowTimeline').checked = v.show_in_timeline;
   document.getElementById('newVarModal').classList.add('open');
@@ -570,7 +616,9 @@ async function saveVariable() {
     threshold_high:   parseFloat(document.getElementById('newVarThreshHigh').value) || null,
     target_low:       parseFloat(document.getElementById('newVarTargetLow').value) || null,
     target_high:      parseFloat(document.getElementById('newVarTargetHigh').value) || null,
-    description:      document.getElementById('newVarDesc').value.trim(),
+    description:          document.getElementById('newVarDesc').value.trim(),
+    normal_range:         document.getElementById('newVarNormalRange').value.trim() || null,
+    clinical_significance: document.getElementById('newVarClinicalSig').value.trim() || null,
     show_in_dashboard: document.getElementById('newVarShowDash').checked,
     show_in_timeline:  document.getElementById('newVarShowTimeline').checked,
   };
@@ -790,11 +838,17 @@ async function loadVariableChart() {
   const varName = opt.dataset.name;
   const varUnit = opt.dataset.unit;
 
-  // Optimize: Pass var2Id/var3Id if needed
+  // Build query params — include date range, patient filter, and optional var2/var3
   let url = `/variables/${varId}/summary`;
   const params = new URLSearchParams();
   if ((viewType === 'correlation' || viewType === 'bubble' || viewType === 'quadrant' || viewType === 'bland_altman') && var2Id) params.append('var2_id', var2Id);
   if (viewType === 'bubble' && var3Id) params.append('var3_id', var3Id);
+  const dateFrom = document.getElementById('viewFromMonth').value;
+  const dateTo   = document.getElementById('viewToMonth').value;
+  const patFilter = document.getElementById('viewPatientFilter').value.trim();
+  if (dateFrom) params.append('date_from', dateFrom);
+  if (dateTo)   params.append('date_to',   dateTo);
+  if (patFilter) params.append('patient_filter', patFilter);
   if (params.toString()) url += `?${params.toString()}`;
 
   const chartDiv = document.getElementById('viewChart');

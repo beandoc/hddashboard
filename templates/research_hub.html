@@ -107,9 +107,11 @@
 
         <div class="top-actions">
             <h2 style="margin:0; font-family:'Outfit';">Active Projects</h2>
+            {% if user and user.role == 'admin' %}
             <button class="btn-primary" onclick="document.getElementById('newProjectModal').style.display='flex'">
                 <i class="material-icons">add</i> New Project
             </button>
+            {% endif %}
         </div>
 
         <div class="grid">
@@ -123,7 +125,7 @@
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <a href="/research/projects/{{ project.id }}" class="btn-outline">Open Project</a>
                         <form method="POST" action="/research/projects/{{ project.id }}/deactivate"
-                              data-confirm-name="{{ project.name }}"
+                              data-confirm-name="{{ project.title }}"
                               data-confirm-type="deactivate"
                               data-confirm-message="All collected research records will be preserved. The project can be reactivated at any time."
                               style="margin:0;">
@@ -161,7 +163,11 @@
                         <span class="status-badge" style="background:#f1f5f9; color:#64748b;">● Inactive</span>
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <a href="/research/projects/{{ project.id }}" class="btn-outline" style="opacity:0.7;">View Data</a>
-                            <form method="POST" action="/research/projects/{{ project.id }}/reactivate" style="margin:0;">
+                            <form method="POST" action="/research/projects/{{ project.id }}/reactivate"
+                                  data-confirm-name="{{ project.title }}"
+                                  data-confirm-type="reactivate"
+                                  data-confirm-message="This project will become active again and accept new records."
+                                  style="margin:0;">
                                 <button type="submit"
                                         style="background:#f0fdf4; border:1.5px solid #22c55e; color:#16a34a; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:0.82rem; font-weight:600; display:flex; align-items:center; gap:5px;"
                                         title="Reactivate Project">
@@ -180,7 +186,7 @@
 
     <!-- New Project Modal -->
     <div id="newProjectModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width:580px;">
             <h2 style="margin-top:0; color:var(--primary); font-family:'Outfit';">Create Research Project</h2>
             <form method="POST" action="/research/projects">
                 <div class="form-group">
@@ -189,7 +195,52 @@
                 </div>
                 <div class="form-group">
                     <label>Description & Objectives</label>
-                    <textarea name="description" rows="4" placeholder="Briefly describe the study goals..."></textarea>
+                    <textarea name="description" rows="3" placeholder="Briefly describe the study goals..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" name="start_date">
+                </div>
+                <div class="form-group">
+                    <label>Enabled Test Types <span style="font-weight:400; color:var(--text-muted); font-size:0.8rem;">(leave all unchecked to allow any)</span></label>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; padding:10px;">
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="NT_PRO_BNP"> NT Pro BNP</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="HANDGRIP_STRENGTH"> Handgrip Strength</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="KDQOL_36"> KDQOL-36</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="SF_36"> SF-36 QoL</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="CGMS_METRICS"> CGMS Metrics</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="HB_VARIABILITY"> Hb Variability</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="M_3MS"> Modified 3MS</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="VASCULAR_STIFFNESS"> Vascular Stiffness</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="FALL_RISK"> Fall Risk (TUG)</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="SGA"> SGA</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="BIA"> BIA</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="LUNG_USG"> Lung Ultrasound</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="VEXUS"> VExUS</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="DIASTOLIC_ECHO"> Diastolic Echo</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="MIA_SCORING"> MIA Scoring</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="FGF23"> FGF-23</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="STEPS_ACTIVITY"> Physical Activity</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="SKIN_FOLD"> Skin Fold</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="MOCA"> MOCA</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="EDMONTON_FRAIL_SCALE"> Edmonton Frail Scale</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="PSQI"> PSQI</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="CIMT"> CIMT</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="AVF_PAIN"> AVF Pain (VAS)</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="HDF_CONVECTION"> HDF Convection</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="IDH_FREQUENCY"> IDH Frequency</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="MORSE_FALL_SCALE"> Morse Fall Scale</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="BECK_DEPRESSION_INVENTORY"> Beck Depression</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="PSYCHIATRIC_SCALES"> Psychiatric Scales</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="FRIED_FRAILTY"> Fried Frailty</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="GNRI"> GNRI</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="SARC_F"> SARC-F</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="GERIATRIC_EXTENDED"> Geriatric Extended</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="AUTONOMIC_TEST"> Autonomic Test</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="CUSTOM_VARIABLE"> Custom Variable</label>
+                        <label style="font-weight:400; display:flex; align-items:center; gap:6px; font-size:0.85rem;"><input type="checkbox" name="test_types_check" value="OTHER"> Other</label>
+                    </div>
+                    <input type="hidden" name="test_types" id="testTypesHidden">
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-cancel" onclick="document.getElementById('newProjectModal').style.display='none'">Cancel</button>
@@ -198,5 +249,12 @@
             </form>
         </div>
     </div>
+    <script>
+    document.querySelector('#newProjectModal form').addEventListener('submit', function() {
+        const checked = Array.from(document.querySelectorAll('input[name="test_types_check"]:checked'))
+            .map(cb => cb.value);
+        document.getElementById('testTypesHidden').value = checked.length ? checked.join(',') : '';
+    });
+    </script>
 </body>
 </html>

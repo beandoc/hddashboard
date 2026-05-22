@@ -50,7 +50,7 @@
     <strong>Good {{ greeting }}, Dr. {{ user.full_name or user.username }}.</strong>
     {% if high_risk_count %}
       <span style="background:rgba(255,255,255,0.2); padding:2px 10px; border-radius:20px; margin-left:8px; font-weight:700;">
-        {{ high_risk_count }} high-risk patient{{ 's' if high_risk_count != 1 }} need review.
+        {{ high_risk_count }} high-risk patient{{ 's' if high_risk_count != 1 else '' }} need review.
       </span>
     {% else %}
       No critical alerts at this time.
@@ -80,8 +80,9 @@
   <div class="header-sub">
     <div class="month-picker-wrap">
       <label>Month:</label>
-      <input type="month" value="{{ month_str }}" onchange="location.href='/?month='+this.value"/>
-      <span id="liveIndicator" style="font-size:0.75em;opacity:0.7;font-family:monospace;margin-left:6px;">● Live</span>
+      <input type="month" value="{{ month_str }}" max="{{ month_str }}" onchange="location.href='/?month='+this.value"/>
+      <span id="lastUpdated" style="font-size:0.75em;opacity:0.7;font-family:monospace;margin-left:6px;"></span>
+      <button onclick="location.href=location.href" title="Refresh data" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:inherit;border-radius:5px;padding:2px 6px;cursor:pointer;font-size:0.75em;margin-left:4px;">↻ Refresh</button>
     </div>
     {% if user and user.role in ['staff', 'admin'] %}
       <a href="/entry?month={{ month_str }}" class="btn btn-primary">
@@ -117,7 +118,7 @@
       <div class="card-icon-wrap icon-blue"><i class="material-icons">people</i></div>
       <div class="card-body">
         <div class="value">{{ data.metrics.total_patients.count }}</div>
-        <div class="title">Total Patients</div>
+        <div class="title">Active</div>
       </div>
     {% if user.role in ['admin', 'doctor'] and data.metrics.total_patients.count > 0 %}</a>{% else %}</div>{% endif %}
 
@@ -137,6 +138,14 @@
         <div class="title">Female</div>
       </div>
       {% if data.metrics.female_patients.names %}<div class="tooltip">{{ data.metrics.female_patients.names | join('\n') }}</div>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-icon-wrap icon-red"><i class="material-icons">bloodtype</i></div>
+      <div class="card-body">
+        <div class="value">{{ data.metrics.avg_hb if data.metrics.avg_hb is not none else '—' }}</div>
+        <div class="title">Avg Hb (g/dL)</div>
+      </div>
     </div>
 
     <!-- ── Anemia Management ─────────────────────────── -->
@@ -1043,11 +1052,8 @@ function refreshTrendData(data) {
 }
 
 function showLiveIndicator() {
-  const el = document.getElementById("liveIndicator");
-  if (!el) return;
-  el.textContent = "● Live — updated " + new Date().toLocaleTimeString("en-GB");
-  el.style.color = "#27ae60";
-  setTimeout(() => { el.style.color = "#888"; }, 3000);
+  const el = document.getElementById('lastUpdated');
+  if (el) el.textContent = "Last updated: " + new Date().toLocaleTimeString("en-GB");
 }
 
 // Start polling when page loads
@@ -1064,6 +1070,39 @@ if ('ontouchstart' in window) {
     });
   });
 }
+</script>
+
+<!-- ── Password-changed success toast ── -->
+<div id="pw-changed-toast" style="
+  display:none; position:fixed; bottom:28px; right:28px; z-index:9999;
+  background:#16a34a; color:#fff; border-radius:12px;
+  padding:14px 20px; box-shadow:0 8px 28px rgba(0,0,0,0.2);
+  display:none; align-items:center; gap:10px;
+  font-family:'Inter',sans-serif; font-size:0.9rem; font-weight:600;
+  animation:pwToastIn 0.3s cubic-bezier(0.16,1,0.3,1) both;
+" role="status" aria-live="polite">
+  <i class="material-icons" style="font-size:1.2rem;">check_circle</i>
+  Password updated successfully.
+  <button onclick="document.getElementById('pw-changed-toast').style.display='none';"
+          style="background:transparent;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:1.1rem;line-height:1;padding:0;margin-left:4px;"
+          aria-label="Dismiss">&times;</button>
+</div>
+<style>@keyframes pwToastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }</style>
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('msg') === 'password_changed') {
+    var t = document.getElementById('pw-changed-toast');
+    if (t) {
+      t.style.display = 'flex';
+      setTimeout(function () { t.style.display = 'none'; }, 5000);
+      // Clean the query param from the URL without reloading
+      var url = new URL(window.location.href);
+      url.searchParams.delete('msg');
+      history.replaceState(null, '', url.toString());
+    }
+  }
+})();
 </script>
 </body>
 </html>

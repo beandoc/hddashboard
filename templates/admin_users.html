@@ -29,6 +29,8 @@
         .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 600; }
         .badge-admin { background: #fef3c7; color: #92400e; }
         .badge-staff { background: #e0f2fe; color: #0369a1; }
+        .badge-doctor { background: #dbeafe; color: #1d4ed8; }
+        .badge-viewer { background: #f3f4f6; color: #374151; }
         .badge-active { background: #dcfce7; color: #166534; }
         .badge-inactive { background: #fee2e2; color: #991b1b; }
 
@@ -82,6 +84,22 @@
     </header>
 
     <div class="container">
+
+        {% if reset_msg %}
+        <div style="color:#166534; background:#dcfce7; border:1.5px solid #bbf7d0; padding:14px 16px; border-radius:10px; margin-bottom:20px; display:flex; align-items:flex-start; gap:10px;">
+            <i class="material-icons" style="font-size:1.3rem;flex-shrink:0;">check_circle</i>
+            <div>
+                <strong>{{ reset_msg }}</strong>
+                {% if temp_pw %}
+                <div style="margin-top:6px;font-size:0.9em;">
+                    Temporary password: <code style="background:#bbf7d0;padding:2px 8px;border-radius:4px;font-size:1em;letter-spacing:0.04em;">{{ temp_pw }}</code>
+                    &nbsp;<span style="color:#4b7a58;font-size:0.85em;">(share securely — ask the user to change it on first login)</span>
+                </div>
+                {% endif %}
+            </div>
+            <a href="/admin/users" style="margin-left:auto;color:#166534;text-decoration:none;font-size:1.2rem;line-height:1;" title="Dismiss">&times;</a>
+        </div>
+        {% endif %}
 
         <!-- Existing users table -->
         <div class="card">
@@ -137,6 +155,12 @@
         <!-- Add new user -->
         <div class="card">
             <h3><i class="material-icons">person_add</i> Add New User</h3>
+            {% if error %}
+            <div style="color:#dc2626; background:#fef2f2; border:1.5px solid #fee2e2; padding:12px 16px; border-radius:8px; margin-bottom:20px; font-weight:500; font-size:0.95rem; display:flex; align-items:center; gap:8px;">
+                <i class="material-icons" style="font-size:1.2rem;">error_outline</i>
+                {{ error }}
+            </div>
+            {% endif %}
             <form method="POST" action="/admin/users/create">
                 <div class="form-row">
                     <div class="form-group">
@@ -168,16 +192,16 @@
 
     <!-- Reset password modal -->
     <div id="resetModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;align-items:center;justify-content:center;">
-        <div style="background:#fff;border-radius:16px;padding:32px;width:360px;max-width:90vw;box-shadow:0 20px 40px rgb(0,0,0,0.25);">
+        <div style="background:#fff;border-radius:16px;padding:32px;width:380px;max-width:90vw;box-shadow:0 20px 40px rgb(0,0,0,0.25);">
             <h3 style="margin:0 0 8px;font-family:'Outfit',sans-serif;">Reset Password</h3>
-            <p style="margin:0 0 20px;color:#64748b;font-size:0.9em;">New password for <strong id="resetUsername"></strong></p>
+            <p style="margin:0 0 20px;color:#64748b;font-size:0.9em;">
+                A secure temporary password will be auto-generated for <strong id="resetUsername"></strong> and displayed on the next screen.
+            </p>
             <form method="POST" id="resetForm">
-                <div class="form-group">
-                    <label>New Password</label>
-                    <input type="password" name="new_password" id="resetPwInput" required autocomplete="new-password" placeholder="Min 6 characters">
-                </div>
                 <div style="display:flex;gap:10px;margin-top:8px;">
-                    <button type="submit" class="btn btn-primary" style="flex:1">Save</button>
+                    <button type="submit" class="btn btn-primary" style="flex:1">
+                        <i class="material-icons" style="font-size:16px;">lock_reset</i> Generate &amp; Reset
+                    </button>
                     <button type="button" class="btn" style="background:#f1f5f9;flex:1;" onclick="closeReset()">Cancel</button>
                 </div>
             </form>
@@ -188,10 +212,7 @@
         function showReset(userId, username) {
             document.getElementById('resetUsername').textContent = username;
             document.getElementById('resetForm').action = `/admin/users/${userId}/reset-password`;
-            document.getElementById('resetPwInput').value = '';
-            const modal = document.getElementById('resetModal');
-            modal.style.display = 'flex';
-            setTimeout(() => document.getElementById('resetPwInput').focus(), 50);
+            document.getElementById('resetModal').style.display = 'flex';
         }
         function closeReset() {
             document.getElementById('resetModal').style.display = 'none';

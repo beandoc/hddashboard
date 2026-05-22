@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, date
@@ -42,6 +42,7 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
         rec_obj = _month_rec_map.get(p.id)
         link = build_individual_whatsapp_link(p, rec_obj, month_label)
         alert_links.append({
+            "id": p.id,
             "name": p.name, "hid": p.hid_no, "contact": p.contact_no,
             "alerts": ap["alerts"], "link": link,
         })
@@ -70,6 +71,7 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
         "request": request, "alert_links": alert_links,
         "schedule_links": schedule_links,
         "clinical_reminders": clinical_reminders,
+        "patients": active,
         "month_str": month_str,
         "month_label": month_label,
         "data_note": data_note,
@@ -92,23 +94,95 @@ async def api_wa_link(patient_id: int, month: Optional[str] = None, db: Session 
     return JSONResponse(content={"url": link})
 
 @router.post("/send-whatsapp")
-async def api_send_whatsapp_bulk(month: Optional[str] = None, db: Session = Depends(get_db)):
+async def api_send_whatsapp_bulk(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     try:
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        
+        patient_ids = body.get("patient_ids")
         patients = get_patients_needing_alerts(db, month_str)
+        if patient_ids is not None:
+            patients = [p for p in patients if p["patient"].id in patient_ids]
+            
         result = send_bulk_whatsapp_alerts(patients, get_month_label(month_str))
-        return JSONResponse(content={"message": result.get("message", "✅ Done.")})
+        
+        if result.get("mode") == "links":
+            # For each patient in filtered set, generate success/fail status
+            results = []
+            for p_info in patients:
+                p = p_info["patient"]
+                if p.contact_no:
+                    results.append({
+                        "id": p.id,
+                        "name": p.name,
+                        "status": "success",
+                        "detail": f"Simulated: Message prepared for {p.contact_no}"
+                    })
+                else:
+                    results.append({
+                        "id": p.id,
+                        "name": p.name,
+                        "status": "failed",
+                        "detail": "No contact number on file"
+                    })
+            return JSONResponse(content={
+                "status": "success",
+                "mode": "simulated",
+                "message": f"Simulated dispatch for {len(patients)} patients.",
+                "results": results
+            })
+        else:
+            enriched_results = []
+            for res in result.get("results", []):
+                matching_p = next((p_info["patient"] for p_info in patients if p_info["patient"].name == res["name"]), None)
+                enriched_results.append({
+                    "id": matching_p.id if matching_p else None,
+                    "name": res["name"],
+                    "status": res["status"],
+                    "detail": f"Twilio status: {res['status']}"
+                })
+            return JSONResponse(content={
+                "status": "success",
+                "mode": "twilio",
+                "message": result.get("message"),
+                "results": enriched_results
+            })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/send-email")
-async def api_send_email_bulk(month: Optional[str] = None, db: Session = Depends(get_db)):
+async def api_send_email_bulk(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     month_str = month or get_current_month_str()
     try:
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+            
+        patient_ids = body.get("patient_ids")
         patients = get_patients_needing_alerts(db, month_str)
+        if patient_ids is not None:
+            patients = [p for p in patients if p["patient"].id in patient_ids]
+            
+        if not patients:
+            return JSONResponse(content={"status": "success", "message": "No patients selected or no alerts found."})
+            
         success, detail = send_ward_email(patients, get_month_label(month_str), month_str[:4])
-        if not success: raise HTTPException(status_code=500, detail=detail)
-        return JSONResponse(content={"message": f"✅ {detail}"})
+        if not success:
+            from alerts import SMTP_USER, SMTP_PASSWORD
+            if not SMTP_USER or not SMTP_PASSWORD:
+                return JSONResponse(content={
+                    "status": "success",
+                    "mode": "simulated",
+                    "message": f"✅ [Simulated] Email ward report prepared for {len(patients)} patients (SMTP not configured)."
+                })
+            raise HTTPException(status_code=500, detail=detail)
+        return JSONResponse(content={"status": "success", "mode": "smtp", "message": f"✅ {detail}"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -240,7 +314,8 @@ async def create_reminder(
     )
     db.add(new_rem)
     db.commit()
-    return RedirectResponse(url="/patients", status_code=303)
+    db.refresh(new_rem)
+    return JSONResponse(content={"status": "success", "id": new_rem.id})
 
 @router.post("/reminders/{reminder_id}/complete")
 async def complete_reminder(reminder_id: int, db: Session = Depends(get_db)):

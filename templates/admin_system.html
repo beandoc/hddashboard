@@ -117,6 +117,18 @@
         <div class="stat-value" id="ms-auc">—</div>
       </div>
       <div class="stat-box">
+        <div class="stat-label">PR-AUC</div>
+        <div class="stat-value" id="ms-pr-auc">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Brier Score</div>
+        <div class="stat-value" id="ms-brier">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Calibration Slope</div>
+        <div class="stat-value" id="ms-cal-slope">—</div>
+      </div>
+      <div class="stat-box">
         <div class="stat-label">Training Samples</div>
         <div class="stat-value" id="ms-samples">—</div>
       </div>
@@ -127,6 +139,10 @@
       <div class="stat-box">
         <div class="stat-label">Last Trained</div>
         <div class="stat-value" id="ms-trained-at" style="font-size:0.82rem">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Drift</div>
+        <div id="ms-drift">—</div>
       </div>
     </div>
 
@@ -149,7 +165,11 @@
       <button class="btn btn-secondary btn-sm" onclick="loadModelStatus()">
         <i class="material-icons">refresh</i> Refresh Status
       </button>
+      <a class="btn btn-secondary btn-sm" href="/analytics/admin/model-card" target="_blank">
+        <i class="material-icons">description</i> View Model Card
+      </a>
     </div>
+    <div id="new-records-hint" style="margin-top:8px; font-size:0.8rem; color:var(--text-muted);"></div>
 
     <div id="train-result" style="margin-top:16px;"></div>
   </div>
@@ -212,21 +232,61 @@
         if (!d.trained) {
           badge.innerHTML = '<span class="status-badge status-untrained"><i class="material-icons" style="font-size:0.85rem">warning</i> Not Trained</span>';
           document.getElementById('model-untrained-note').style.display = 'flex';
+          // Still show new-records hint even when untrained
+          var hint = document.getElementById('new-records-hint');
+          if (hint && d.new_records_since_training != null) {
+            hint.textContent = d.new_records_since_training + ' records available for training';
+          }
           return;
         }
         badge.innerHTML = '<span class="status-badge status-trained"><i class="material-icons" style="font-size:0.85rem">check_circle</i> Trained</span>';
         document.getElementById('model-untrained-note').style.display = 'none';
 
-        // Stats
-        var auc = d.cv_auc_mean;
+        // Stats — Fix 1: use d.cv_auc (not d.cv_auc_mean)
+        var auc = d.cv_auc;
         var aucEl = document.getElementById('ms-auc');
         aucEl.textContent = auc != null ? auc.toFixed(3) : '—';
         aucEl.className = 'stat-value' + (auc >= 0.75 ? ' good' : auc >= 0.60 ? ' warn' : '');
+
+        // Fix 2: PR-AUC tile
+        var prAucEl = document.getElementById('ms-pr-auc');
+        prAucEl.textContent = d.pr_auc != null ? d.pr_auc.toFixed(3) : '—';
+        prAucEl.className = 'stat-value' + (d.pr_auc != null && d.pr_auc >= 0.75 ? ' good' : d.pr_auc != null && d.pr_auc >= 0.50 ? ' warn' : ' muted');
+
+        // Fix 2: Brier score tile (lower is better; ≤0.20 good, ≤0.25 warn)
+        var brierEl = document.getElementById('ms-brier');
+        brierEl.textContent = d.brier_score != null ? d.brier_score.toFixed(4) : '—';
+        brierEl.className = 'stat-value' + (d.brier_score != null && d.brier_score <= 0.20 ? ' good' : d.brier_score != null && d.brier_score <= 0.25 ? ' warn' : ' muted');
+
+        // Fix 2: Calibration slope tile (ideal = 1.0; warn if |slope-1|>0.15)
+        var slopeEl = document.getElementById('ms-cal-slope');
+        slopeEl.textContent = d.calibration_slope != null ? d.calibration_slope.toFixed(3) : '—';
+        slopeEl.className = 'stat-value' + (d.calibration_slope != null && Math.abs(d.calibration_slope - 1.0) <= 0.15 ? ' good' : d.calibration_slope != null ? ' warn' : ' muted');
 
         document.getElementById('ms-samples').textContent    = d.n_samples  != null ? d.n_samples  : '—';
         document.getElementById('ms-event-rate').textContent = fmtPct(d.event_rate);
         document.getElementById('ms-trained-at').textContent = fmtDate(d.trained_at);
         document.getElementById('model-stats').style.display = 'grid';
+
+        // Fix 2: Drift badge
+        var driftEl = document.getElementById('ms-drift');
+        if (d.drift_flagged === true) {
+          driftEl.innerHTML = '<span class="status-badge status-error" style="font-size:0.72rem">DRIFT DETECTED</span>';
+        } else if (d.drift_flagged === false) {
+          driftEl.innerHTML = '<span class="status-badge status-trained" style="font-size:0.72rem">OK</span>';
+        } else {
+          driftEl.innerHTML = '<span class="status-badge" style="background:#f1f5f9;color:#64748b;font-size:0.72rem">Unknown</span>';
+        }
+
+        // Fix 4: new records hint
+        var hint = document.getElementById('new-records-hint');
+        if (hint) {
+          if (d.new_records_since_training != null) {
+            hint.textContent = d.new_records_since_training + ' new record' + (d.new_records_since_training !== 1 ? 's' : '') + ' available since last training';
+          } else {
+            hint.textContent = '';
+          }
+        }
 
         // Features
         if (d.feature_names && d.feature_names.length) {
@@ -262,18 +322,24 @@
         btn.innerHTML = '<i class="material-icons">play_arrow</i> Train Model';
         result.className = 'visible';
 
-        if (d.success) {
+        if (d.queued) {
+          // Fix 3: async queued response — show message and auto-refresh after 30s
+          result.innerHTML = '<div class="info-note" style="background:#f0f9ff;border-color:#bae6fd;color:#0369a1">'
+            + '<i class="material-icons">schedule</i>'
+            + '<span>Training queued — refreshing in 30s&hellip;</span></div>';
+          setTimeout(function () { location.reload(); }, 30000);
+        } else if (d.success) {
           result.innerHTML = '<div class="info-note" style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d">'
             + '<i class="material-icons">check_circle</i>'
-            + '<span>Training complete — AUC: <strong>' + (d.cv_auc_mean || 0).toFixed(3) + '</strong>'
+            + '<span>Training complete — AUC: <strong>' + (d.cv_auc != null ? d.cv_auc.toFixed(3) : '—') + '</strong>'
             + ' &middot; ' + (d.n_samples || 0) + ' samples'
             + (d.message ? ' &middot; ' + d.message : '') + '</span></div>';
+          loadModelStatus();
         } else {
           result.innerHTML = '<div class="info-note" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">'
             + '<i class="material-icons">error</i>'
             + '<span>' + (d.error || 'Training failed') + '</span></div>';
         }
-        loadModelStatus();
       })
       .catch(function (err) {
         btn.disabled = false;

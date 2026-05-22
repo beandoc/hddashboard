@@ -287,7 +287,7 @@
         <select name="patient_id">
           <option value="">All Patients</option>
           {% for p in patients %}
-          <option value="{{ p.id }}" {{ 'selected' if filter_pid == p.id }}>{{ p.name }}</option>
+          <option value="{{ p.id }}" {{ 'selected' if filter_pid == p.id|string }}>{{ p.name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -331,6 +331,7 @@
   <div class="log-panel" id="logPanel">
     <h3><i class="material-icons" style="vertical-align:middle;font-size:1rem;margin-right:6px;">edit</i>Log New Clinical Event</h3>
     <form method="POST" action="/events/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="log-grid">
         <div class="fg">
           <label>Patient *</label>
@@ -436,6 +437,7 @@
                   data-confirm-type="delete"
                   data-confirm-message="This clinical event record will be permanently removed."
                   style="display:inline;float:right;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button type="submit" class="btn-del" title="Delete">
                 <i class="material-icons" style="font-size:0.95rem;">delete_outline</i>
               </button>
@@ -444,6 +446,7 @@
         </div>
       </div>
     {% endfor %}
+    {% if events %}</div>{% endif %}
     </div>
   </div>
   {% endif %}
@@ -485,6 +488,7 @@
             <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-field">
                 <label>Patient *</label>
                 <select name="patient_id" id="admit_patient_id" required>
@@ -544,6 +548,7 @@
             <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-field">
                 <label>Patient *</label>
                 <select name="patient_id" id="discharge_patient_id" required>
@@ -584,6 +589,42 @@
 <script>
   var today = new Date().toISOString().split('T')[0];
   document.querySelector('input[name="event_date"]') && (document.querySelector('input[name="event_date"]').value = today);
+
+  // Show success toast if redirected back with ?event_saved=1
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    if (!p.get('event_saved')) return;
+    const t = document.createElement('div');
+    t.innerHTML = `<div style="position:fixed;top:20px;right:20px;background:#fff;padding:14px 18px;border-radius:12px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.12);border-left:4px solid #16a34a;display:flex;align-items:center;
+      gap:12px;z-index:9999;max-width:380px;font-size:0.9rem;">
+      <i class="material-icons" style="color:#16a34a;flex-shrink:0;">check_circle</i>
+      <span style="color:#1e293b;font-weight:500;">Clinical event saved successfully.</span>
+      <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:2px;margin-left:auto;line-height:1;">✕</button>
+    </div>`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 5000);
+    window.history.replaceState({}, '', window.location.pathname);
+  })();
+
+  // Show error toast if redirected back with ?event_error=
+  (function() {
+    const p = new URLSearchParams(window.location.search);
+    const msg = p.get('event_error');
+    if (!msg) return;
+    const t = document.createElement('div');
+    t.innerHTML = `<div style="position:fixed;top:20px;right:20px;background:#fff;padding:14px 18px;border-radius:12px;
+      box-shadow:0 8px 24px rgba(0,0,0,0.12);border-left:4px solid #dc2626;display:flex;align-items:center;
+      gap:12px;z-index:9999;max-width:380px;font-size:0.9rem;">
+      <i class="material-icons" style="color:#dc2626;flex-shrink:0;">error</i>
+      <span style="color:#1e293b;font-weight:500;">${decodeURIComponent(msg.replace(/\+/g,' '))}</span>
+      <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:2px;margin-left:auto;line-height:1;">✕</button>
+    </div>`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 6000);
+    window.history.replaceState({}, '', window.location.pathname +
+      window.location.search.replace(/[?&]event_error=[^&]*/g,'').replace(/^&/,'?'));
+  })();
 
   // Prefill logic
   (function() {
@@ -677,5 +718,6 @@
     }
 </script>
 
+{% include "_confirm_modal.html" %}
 </body>
 </html>

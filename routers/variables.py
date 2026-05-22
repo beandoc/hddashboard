@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -90,6 +90,8 @@ async def variable_manager(request: Request, db: Session = Depends(get_db)):
             "target_low": getattr(v, "target_low", None),
             "target_high": getattr(v, "target_high", None),
             "description": getattr(v, "description", ""),
+            "normal_range": getattr(v, "normal_range", None),
+            "clinical_significance": getattr(v, "clinical_significance", None),
             "show_in_dashboard": getattr(v, "show_in_dashboard", True),
             "show_in_timeline": getattr(v, "show_in_timeline", True),
             "alert_direction": getattr(v, "alert_direction", "both"),
@@ -275,11 +277,21 @@ async def api_variable_summary(
     var_id: int,
     var2_id: Optional[int] = None,
     var3_id: Optional[int] = None,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    patient_filter: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    patient_ids = [p.id for p in db.query(Patient).filter(Patient.is_active == True).all()]
-    all_data, thresholds, var_name, unit = _get_var_data(db, var_id, patient_ids)
-    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    patients_q = db.query(Patient).filter(Patient.is_active == True)
+    if patient_filter:
+        patients_q = patients_q.filter(Patient.name.ilike(f"%{patient_filter}%"))
+    patients_q = patients_q.order_by(Patient.name)
+    patients = patients_q.all()
+    patient_ids = [p.id for p in patients]
+
+    from_m = date_from or "2020-01"
+    to_m   = date_to   or get_current_month_str()
+    all_data, thresholds, var_name, unit = _get_var_data(db, var_id, patient_ids, from_m=from_m, to_m=to_m)
 
     patient_rows = [
         {

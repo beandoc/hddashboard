@@ -266,7 +266,8 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
                 "missing_records": {"count": 0, "names": []},
                 "trend_hb": [],
                 "trend_albumin": [],
-                "trend_phosphorus": []
+                "trend_phosphorus": [],
+                "avg_hb": None,
             },
             "patient_rows": [],
             "month_label": get_month_label(month_str),
@@ -285,7 +286,7 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
     elif hour < 17: greeting = "afternoon"
     else: greeting = "evening"
 
-    pending_entry_count = 0
+    pending_entry_count = data.get("metrics", {}).get("missing_records", {}).get("count", 0)
 
     # Authentication check
     user = get_user(request)

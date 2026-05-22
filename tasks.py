@@ -391,3 +391,35 @@ def task_refresh_feature_snapshots(month_str: str = None, force: bool = False):
         return {"month": month, "refreshed": refreshed, "skipped": skipped, "errors": errors}
     finally:
         db.close()
+
+
+# ── ML model retraining task ──────────────────────────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_train_deterioration_model():
+    """Async Celery task to train (or retrain) the deterioration risk model.
+
+    Called via .delay() from the admin POST endpoint so the HTTP request returns
+    immediately.  Persists the model to disk and registers a ModelArtifact row.
+    """
+    from ml_risk import train_deterioration_model
+    db = SessionLocal()
+    try:
+        result = train_deterioration_model(db)
+        if result.get("success"):
+            logger.info(
+                "task_train_deterioration_model: training complete — "
+                "cv_auc=%.3f n_samples=%d",
+                result.get("cv_auc", 0), result.get("n_samples", 0),
+            )
+        else:
+            logger.error(
+                "task_train_deterioration_model: training failed — %s",
+                result.get("error", "unknown error"),
+            )
+        return result
+    except Exception as exc:
+        logger.exception("task_train_deterioration_model: unhandled exception")
+        raise
+    finally:
+        db.close()

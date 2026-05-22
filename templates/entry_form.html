@@ -1,3 +1,4 @@
+{% from "_macros.html" import breadcrumb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -337,16 +338,7 @@
     {% include "_nav.html" %}
     {% include "_patient_context_nav.html" %}
 
-    <!-- P2 Breadcrumb -->
-    <nav class="nav-breadcrumb" aria-label="Breadcrumb">
-      <a href="/">Dashboard</a>
-      <span class="bc-sep">/</span>
-      <a href="/patients">Patients</a>
-      <span class="bc-sep">/</span>
-      <a href="/patients/{{ patient.id }}/profile">{{ patient.name }}</a>
-      <span class="bc-sep">/</span>
-      <span class="bc-current">Data Entry</span>
-    </nav>
+    {{ breadcrumb([("Dashboard", "/"), ("Data Entry", "/entry"), ("New Entry", None)]) }}
 
     <header class="page-hero">
         <div class="page-hero-left">
@@ -364,14 +356,14 @@
             <!-- Month navigator -->
             <div style="display:flex; align-items:center; gap:0; background:rgba(255,255,255,0.08); border-radius:12px; overflow:hidden; flex:1; max-width:420px; min-width:280px;">
                 <a href="/entry/{{ patient.id }}?month={{ prev_month_str }}"
+                   data-nav-link="1"
                    style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-right:1px solid rgba(255,255,255,0.1);"
                    onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
                     <i class="material-icons" style="font-size:1em;">chevron_left</i>
                     <span style="display:none;" class="nav-label">{{ prev_month_label }}</span>
                 </a>
                 <div style="flex:1; text-align:center; position:relative;">
-                    <input type="month" value="{{ month_str }}"
-                           onchange="location.href='/entry/{{ patient.id }}?month='+this.value"
+                    <input type="month" id="month-picker-input" value="{{ month_str }}"
                            style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; border:none;">
                     <span style="display:block; padding:10px 8px; color:#fff; font-family:'Outfit',sans-serif; font-weight:700; font-size:0.95rem; pointer-events:none;">
                         {{ month_label }}
@@ -379,6 +371,7 @@
                     </span>
                 </div>
                 <a href="/entry/{{ patient.id }}?month={{ next_month_str }}"
+                   data-nav-link="1"
                    style="display:flex; align-items:center; gap:4px; padding:10px 14px; color:rgba(255,255,255,0.8); text-decoration:none; font-size:0.8rem; font-weight:600; white-space:nowrap; transition:background 0.2s; border-left:1px solid rgba(255,255,255,0.1);"
                    onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background=''">
                     <span style="display:none;" class="nav-label">{{ next_month_label }}</span>
@@ -452,31 +445,44 @@
             <div class="form-section" id="sec-weight">
                 <div class="section-title"><i class="material-icons">monitor_weight</i> Fluid, Weight & Access</div>
                 <div class="grid">
-                    <div class="form-group">
-                        <label>Vascular Access Type</label>
-                        {% set access_opts = ["RC AVF Rt","RC AVF Lt","Rt BC AVF","Left BC AVF","Rt IJV TCC","Lt IJV TCC","Rt EJV TCC","Rt Femoral TCC","Lt Femoral TCC","RT DLJC","Lt DLJC","Rt Femoral","Lt Femoral"] %}
-                        <select name="access_type">
-                            {% set cur = (record.access_type if record and record.access_type else (prior_record.access_type if prior_record and not record else patient.access_type)) or '' %}
-                            {% for opt in access_opts %}
-                            <option value="{{ opt }}" {{ 'selected' if cur == opt else '' }}>{{ opt }}</option>
-                            {% endfor %}
-                        </select>
+                    <div style="grid-column: 1 / -1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 8px;">
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 700; color: #475569; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                            <i class="material-icons" style="font-size: 1.1rem; color: #0ea5e9;">info</i> Patient Baseline Context (Read-Only)
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; flex: 1; min-width: 150px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                                <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Baseline Access</div>
+                                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ patient.access_type or 'None' }}</div>
+                            </div>
+                            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; flex: 1; min-width: 150px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                                <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Baseline Dry Weight</div>
+                                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ patient.dry_weight or '—' }} kg</div>
+                            </div>
+                            <div style="background: #fff; padding: 10px 14px; border-radius: 8px; border: 1px solid #f1f5f9; flex: 1; min-width: 150px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+                                <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Ejection Fraction</div>
+                                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0f172a; font-size: 0.95rem;">{{ patient.ejection_fraction or '—' }}%</div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Target Dry Weight (kg) <span style="font-size:0.8em; color:#0ea5e9; font-weight:normal; text-transform:none;">(Auto-syncs to Master Profile)</span></label>
-                        <input type="number" step="0.01" name="target_dry_weight" inputmode="decimal" value="{{ record.target_dry_weight if record and record.target_dry_weight else patient.dry_weight if patient else '' }}">
+                        <label>Residual Urine Output (mL/24h)</label>
+                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
                     </div>
                     <div class="form-group">
-                        <label>Interdialytic Weight Gain (kg)</label>
-                        <input type="number" step="0.01" name="idwg" min="0" max="15" inputmode="decimal" value="{{ record.idwg if record else '' }}">
+                        <label>Avg BP Systolic</label>
+                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
                     </div>
                     <div class="form-group">
-                        <label>Systolic BP (mmHg)</label>
-                        <input type="number" step="1" name="bp_sys" min="60" max="260" inputmode="numeric" placeholder="e.g. 140" value="{{ record.bp_sys if record and record.bp_sys else '' }}">
+                        <label>Avg BP Diastolic</label>
+                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
                     </div>
                     <div class="form-group">
-                        <label>Diastolic BP (mmHg)</label>
-                        <input type="number" step="1" name="bp_dia" min="30" max="160" inputmode="numeric" placeholder="e.g. 80" value="{{ record.bp_dia if record and record.bp_dia else '' }}">
+                        <label>Avg IDWG (kg)</label>
+                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
+                    </div>
+                    <div class="form-group">
+                        <label>Avg UFR (mL/h/kg)</label>
+                        <input type="text" value="Auto from Sessions" readonly disabled style="background:#f1f5f9; color:#64748b; font-weight:600; cursor:not-allowed;">
                     </div>
                     <div class="form-group">
                         <label>Last Pre-HD Weight (kg)</label>
@@ -493,6 +499,19 @@
 
             <!-- ═══ Wizard Step 2: Lab Values ═══ -->
             <div class="wizard-step" id="wstep-2">
+
+            {% if soft_warnings %}
+            <div id="soft-warning-banner" style="background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #f59e0b; border-radius:12px; padding:12px 16px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                    <i class="material-icons" style="color:#f59e0b; font-size:1.1rem;">warning</i>
+                    <strong style="color:#78350f; font-size:0.88rem;">Clinical range warnings — please verify these values before saving</strong>
+                </div>
+                <ul style="margin:0; padding-left:16px; font-size:0.83rem; color:#78350f; line-height:1.8;">
+                    {% for w in soft_warnings %}<li>{{ w }}</li>{% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
             <!-- ── Hematology ── -->
             <div class="form-section" id="sec-hematology">
                 <div class="section-title"><i class="material-icons">bloodtype</i> Hematology</div>
@@ -506,12 +525,12 @@
                         <input type="number" step="0.1" name="hct" inputmode="decimal" value="{{ record.hct if record else '' }}">
                     </div>
                     <div class="form-group">
-                        <label>TLC / WBC Count</label>
-                        <input type="number" step="0.1" name="wbc_count" inputmode="decimal" value="{{ record.wbc_count if record else '' }}">
+                        <label>TLC / WBC Count (/cmm)</label>
+                        <input type="number" step="10" name="wbc_count" inputmode="numeric" placeholder="e.g. 6500" value="{{ (record.wbc_count * 1000)|int if record and record.wbc_count else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Neutrophil Count (%)</label>
-                        <input type="number" step="0.1" name="neutrophil_count" inputmode="decimal" value="{{ record.neutrophil_count if record else '' }}">
+                        <input type="number" step="1" name="neutrophil_count" inputmode="numeric" placeholder="e.g. 65" value="{{ ((record.neutrophil_count / record.wbc_count) * 100)|round(1) if record and record.neutrophil_count and record.wbc_count else '' }}">
                     </div>
                     <div class="form-group">
                         <label>Platelet Count (×10³/µL)</label>
@@ -591,6 +610,10 @@
                         <input type="number" step="0.1" name="serum_creatinine" inputmode="decimal" value="{{ record.serum_creatinine if record else '' }}">
                     </div>
                     <div class="form-group">
+                        <label>Post-Dialysis Creatinine (mg/dL)</label>
+                        <input type="number" step="0.1" name="post_dialysis_creatinine" inputmode="decimal" value="{{ record.post_dialysis_creatinine if record else '' }}">
+                    </div>
+                    <div class="form-group">
                         <label>Serum Sodium (mmol/L)</label>
                         <input type="number" step="0.1" name="serum_sodium" inputmode="decimal" value="{{ record.serum_sodium if record else '' }}">
                     </div>
@@ -621,30 +644,7 @@
                         <label>ALT (U/L)</label>
                         <input type="number" step="1" name="alt" inputmode="numeric" value="{{ record.alt if record else '' }}">
                     </div>
-                    <div class="form-group">
-                        <label>HBsAg</label>
-                        <select name="hbsag">
-                            <option value="">--</option>
-                            <option value="Negative" {{ 'selected' if record and record.hbsag == 'Negative' else '' }}>Negative</option>
-                            <option value="Positive" {{ 'selected' if record and record.hbsag == 'Positive' else '' }}>Positive</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>HCV</label>
-                        <select name="hcv">
-                            <option value="">--</option>
-                            <option value="Negative" {{ 'selected' if record and record.hcv == 'Negative' else '' }}>Negative</option>
-                            <option value="Positive" {{ 'selected' if record and record.hcv == 'Positive' else '' }}>Positive</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>HIV</label>
-                        <select name="hiv">
-                            <option value="">--</option>
-                            <option value="Negative" {{ 'selected' if record and record.hiv == 'Negative' else '' }}>Negative</option>
-                            <option value="Positive" {{ 'selected' if record and record.hiv == 'Positive' else '' }}>Positive</option>
-                        </select>
-                    </div>
+
                     <div class="form-group">
                         <label>CRP (mg/L)</label>
                         <input type="number" step="0.1" name="crp" inputmode="decimal" value="{{ record.crp if record else '' }}">
@@ -664,40 +664,7 @@
                 </div>
             </div>
 
-            <!-- ── Extended Investigations (Cardiac & Others) ── -->
-            <div class="form-section" id="sec-investigations" style="background: #fdf2f8; border-left: 5px solid #db2777;">
-                <div class="section-title" style="color: #9d174d;"><i class="material-icons" style="color:#db2777;">monitor_heart</i> Extended Investigations (Cardiac & Others)</div>
-                <div style="background:#fce7f3; border:1px solid #fbcfe8; border-radius:12px; padding:10px 14px; margin-bottom:18px; font-size:0.82rem; color:#9d174d;">
-                    <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">info</i>
-                    Values here are <strong>carried forward</strong> for analytics if not updated monthly.
-                </div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Ejection Fraction (EF %)</label>
-                        <input type="number" step="0.1" name="ejection_fraction" inputmode="decimal" placeholder="e.g. 60" value="{{ record.ejection_fraction if record and record.ejection_fraction else (prior_record.ejection_fraction if prior_record and prior_record.ejection_fraction else patient.ejection_fraction if patient else '') }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Diastolic Dysfunction</label>
-                        <select name="diastolic_dysfunction">
-                            <option value="">-- Select --</option>
-                            {% set dd_cur = record.diastolic_dysfunction if record and record.diastolic_dysfunction else (prior_record.diastolic_dysfunction if prior_record and prior_record.diastolic_dysfunction else patient.diastolic_dysfunction if patient else '') %}
-                            {% for g in ["None", "Grade I", "Grade II", "Grade III"] %}
-                            <option value="{{ g }}" {{ 'selected' if dd_cur == g }}>{{ g }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Echo Date</label>
-                        <input type="date" name="echo_date" value="{{ record.echo_date.strftime('%Y-%m-%d') if record and record.echo_date else (prior_record.echo_date.strftime('%Y-%m-%d') if prior_record and prior_record.echo_date else patient.echo_date.strftime('%Y-%m-%d') if patient and patient.echo_date else '') }}">
-                    </div>
-                    {% if is_research_mapped %}
-                    <div class="form-group">
-                        <label>NT-ProBNP (pg/mL)</label>
-                        <input type="number" step="1" name="nt_probnp" inputmode="numeric" placeholder="e.g. 450" value="{{ record.nt_probnp if record and record.nt_probnp else (prior_record.nt_probnp if prior_record and prior_record.nt_probnp else '') }}">
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+
 </div><!-- /wstep-2 -->
 
             <!-- ═══ Wizard Step 3: Dialysis Parameters ═══ -->
@@ -730,7 +697,8 @@
                     </div>
                     <div class="form-group" id="epo_units_group">
                         <label>EPO Units/Week (Total)</label>
-                        <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric" placeholder="Calculated from selectors..." value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}" readonly="readonly" style="background: #f1f5f9;">
+                        <input type="number" step="1" min="0" name="epo_weekly_units" id="epo_weekly_units" inputmode="numeric" placeholder="Calculated from selectors..." value="{{ '%.0f'|format(record.epo_weekly_units|abs) if record and record.epo_weekly_units else '' }}" readonly="readonly" style="background: #f1f5f9;" aria-describedby="hint-epo-units">
+                        <span id="hint-epo-units" class="form-hint">Auto-calculated from ESA type, dose, and frequency selectors above.</span>
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label>ESA Brand & Prescribed Schedule (Description)</label>
@@ -831,13 +799,14 @@
                     </div>
                     <div class="form-group">
                         <label>Tablet Strength (mg)</label>
-                        <input type="number" id="pb_strength" name="pb_strength" step="1" placeholder="e.g. 800" 
+                        <input type="number" id="pb_strength" name="pb_strength" step="1" placeholder="e.g. 800"
                                value="{{ record.pb_strength if record and record.pb_strength else (prior_record.pb_strength if prior_record else '') }}"
-                               oninput="calculateTotalBinder()">
+                               oninput="calculateTotalBinder()"
+                               aria-describedby="pb_calc_hint">
                     </div>
                     <div class="form-group">
                         <label>Frequency</label>
-                        <select id="pb_freq" name="phosphate_binder_freq" onchange="calculateTotalBinder()">
+                        <select id="pb_freq" name="phosphate_binder_freq" onchange="calculateTotalBinder()" aria-describedby="pb_calc_hint">
                             <option value="">-- Select --</option>
                             {% set freq_cur = record.phosphate_binder_freq if record else (prior_record.phosphate_binder_freq if prior_record else '') %}
                             {% for f in ["OD", "BD", "TDS", "QID"] %}
@@ -847,7 +816,7 @@
                     </div>
                     <div class="form-group" style="grid-column: 1 / -1; margin-top: -10px;">
                         <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg" value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else (prior_record.phosphate_binder_dose_mg if prior_record and prior_record.phosphate_binder_dose_mg is not none else '') }}">
-                        <div id="pb_calc_hint" style="font-size: 0.85em; color: var(--text-muted); font-weight: 600;">
+                        <div id="pb_calc_hint" class="form-hint" style="font-weight: 600;">
                             {% if record and record.phosphate_binder_dose_mg %}
                             Total Daily Dose: {{ record.phosphate_binder_dose_mg }} mg
                             {% elif prior_record and prior_record.phosphate_binder_dose_mg %}
@@ -873,8 +842,9 @@
                                placeholder="0"
                                value="{{ record.blood_transfusion_units if record and record.blood_transfusion_units else '' }}"
                                style="border-color: #fca5a5;"
-                               oninput="updateTransfusionHint()">
-                        <div style="font-size:0.78rem; color:#64748b; margin-top:5px;">Each unit raises Hb by ~1 g/dL. Enter 0 or leave blank if no transfusion.</div>
+                               oninput="updateTransfusionHint()"
+                               aria-describedby="hint-transfusion-units">
+                        <span id="hint-transfusion-units" class="form-hint">Each unit raises Hb by ~1 g/dL. Enter 0 or leave blank if no transfusion.</span>
                     </div>
                     <div class="form-group">
                         <label>Date of Transfusion (most recent)</label>
@@ -938,76 +908,7 @@
             <!-- ═══ Wizard Step 4: Dialysis Parameters ═══ -->
             <div class="wizard-step" id="wstep-4">
 
-            <!-- ── Emergency & Hospitalizations ── -->
-            <div class="form-section" id="sec-events">
-                <div class="section-title"><i class="material-icons">emergency</i> Emergency Events & Hospitalizations</div>
-                
-                <div id="hospWrapper" style="display:flex; flex-direction:column; gap:20px;">
-                    {% set display_hosp = hosp_details if hosp_details else [] %}
-                    {% if not display_hosp and record and record.hospitalization_diagnosis %}
-                        {# Fallback for legacy single-record entries #}
-                        {% set display_hosp = [{"date": record.hospitalization_date, "diagnosis": record.hospitalization_diagnosis, "icd_code": record.hospitalization_icd_code, "icd_diagnosis": record.hospitalization_icd_diagnosis}] %}
-                    {% endif %}
 
-                    {% for item in display_hosp %}
-                    <div class="hosp-row" style="background:#f1f5f9; padding:20px; border-radius:12px; position:relative; border:1px solid #e2e8f0;">
-                        <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:10px; right:10px; background:#fee2e2; color:#ef4444; border:none; padding:6px; border-radius:8px; cursor:pointer;"><i class="material-icons" style="font-size:1.2rem;">delete</i></button>
-                        <div class="grid">
-                            <div class="form-group">
-                                <label>Event Date</label>
-                                <input type="date" name="hospitalization_date" value="{{ item.date }}">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label>Clinical Diagnosis</label>
-                                <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD" value="{{ item.diagnosis }}">
-                            </div>
-                            <div class="form-group">
-                                <label>ICD-10 Code</label>
-                                <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1" value="{{ item.icd_code }}">
-                            </div>
-                            <div class="form-group">
-                                <label>ICD-10 Diagnosis</label>
-                                <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease..." value="{{ item.icd_diagnosis }}">
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-
-                    {% if not display_hosp %}
-                    <div class="hosp-row" style="background:#f8fafc; padding:20px; border-radius:12px; position:relative; border:1px dashed #cbd5e1;">
-                        <div class="grid">
-                            <div class="form-group">
-                                <label>Event Date</label>
-                                <input type="date" name="hospitalization_date">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label>Clinical Diagnosis</label>
-                                <input type="text" name="hospitalization_diagnosis" placeholder="e.g. Acute exacerbation of COPD">
-                            </div>
-                            <div class="form-group">
-                                <label>ICD-10 Code</label>
-                                <input type="text" name="hospitalization_icd_code" placeholder="e.g. J44.1">
-                            </div>
-                            <div class="form-group">
-                                <label>ICD-10 Diagnosis</label>
-                                <input type="text" name="hospitalization_icd_diagnosis" placeholder="e.g. Chronic obstructive pulmonary disease...">
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <button type="button" onclick="addHospRow()" style="margin-top:16px; background:#0ea5e9; color:white; border:none; padding:12px 20px; border-radius:10px; cursor:pointer; font-size:0.9rem; font-weight:700; display:flex; align-items:center; gap:8px; transition:all 0.2s;">
-                    <i class="material-icons">add_circle</i> Add Another Admission Diagnosis
-                </button>
-
-                <div class="form-group" style="margin-top:24px;">
-                    <label style="display:flex;align-items:center;gap:10px;text-transform:none;cursor:pointer; background:#fff1f2; padding:12px; border-radius:10px; border:1px solid #fecaca;">
-                        <input type="checkbox" name="hospitalization_this_month" value="true" {{ 'checked' if record and record.hospitalization_this_month }} style="width:20px;height:20px;">
-                        <span style="font-weight:700; color:#be123c;">Emergency / Hospitalization this month</span>
-                    </label>
-                </div>
-            </div>
 
             
 <div class="form-section" id="sec-adequacy">
@@ -1026,60 +927,14 @@
                         <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Auto from spKt/V" value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}" readonly style="background:#f1f5f9; color:#0ea5e9; font-weight:700;">
                     </div>
                     <div class="form-group">
-                        <label>URR — Urea Reduction Ratio (%)</label>
-                        <input type="number" step="0.1" name="urr" inputmode="decimal" placeholder="e.g. 65" value="{{ record.urr if record and record.urr else '' }}">
+                        <label>URR — Urea Reduction Ratio (%) <span style="font-size: 0.75rem; color: #8b5cf6; margin-left: 6px;">(Auto-calculated)</span></label>
+                        <input type="number" step="0.1" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto from Urea values" value="{{ record.urr if record and record.urr else '' }}" readonly style="background:#f1f5f9; color:#475569; font-weight:700;">
                     </div>
-                    <div class="form-group">
-                        <label>nPCR — Norm. Protein Catabolic Rate (g/kg/day)</label>
-                        <input type="number" step="0.01" name="npcr" inputmode="decimal" placeholder="e.g. 1.1" value="{{ record.npcr if record and record.npcr else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>UFR — Ultrafiltration Rate (mL/hr/kg)</label>
-                        <input type="number" step="0.1" name="ufr" inputmode="decimal" placeholder="e.g. 10" value="{{ record.ufr if record and record.ufr else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Residual Urine Output (mL/24h)</label>
-                        <input type="number" step="10" name="residual_urine_output" inputmode="numeric" placeholder="e.g. 300" value="{% if record and record.residual_urine_output is not none %}{{ record.residual_urine_output }}{% elif carried_ruo is not none %}{{ carried_ruo }}{% else %}{% endif %}">
-                    </div>
+
                 </div>
             </div>
 
-            <!-- ── Nutrition Assessment ── -->
-            <div class="form-section" id="sec-nutrition">
-                <div class="section-title"><i class="material-icons">restaurant</i> Nutrition Assessment</div>
-                <div class="grid">
-                    <div class="form-group">
-                        <label>Pre-Albumin / Transthyretin (mg/dL)</label>
-                        <input type="number" step="0.1" name="prealbumin" inputmode="decimal" placeholder="e.g. 25" value="{{ record.prealbumin if record and record.prealbumin else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>SGA Score</label>
-                        <select name="sga_score">
-                            <option value="">-- Select --</option>
-                            {% set sga_cur = record.sga_score if record and record.sga_score else '' %}
-                            {% for s in ["A – Well Nourished", "B – Mildly/Moderately Malnourished", "C – Severely Malnourished"] %}
-                            <option value="{{ s }}" {{ 'selected' if sga_cur == s }}>{{ s }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>MIS Score (0–30)</label>
-                        <input type="number" step="1" min="0" max="30" name="mis_score" inputmode="numeric" placeholder="e.g. 5" value="{{ record.mis_score if record and record.mis_score is not none else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Avg Daily Calories (kcal/day)</label>
-                        <input type="number" step="10" name="av_daily_calories" inputmode="numeric" placeholder="e.g. 1800" value="{{ record.av_daily_calories if record and record.av_daily_calories else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Avg Daily Protein (g/day)</label>
-                        <input type="number" step="0.1" name="av_daily_protein" inputmode="decimal" placeholder="e.g. 70" value="{{ record.av_daily_protein if record and record.av_daily_protein else '' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>HRQoL Score</label>
-                        <input type="number" step="0.1" min="0" max="100" name="hrqol_score" inputmode="decimal" placeholder="e.g. 65" value="{{ record.hrqol_score if record and record.hrqol_score else '' }}">
-                    </div>
-                </div>
-            </div
+
 
 
 </div><!-- /wstep-4 -->
@@ -1762,20 +1617,35 @@
         function calculateKTV() {
             const preUrea = parseFloat(document.querySelector('input[name="pre_dialysis_urea"]').value);
             const postUrea = parseFloat(document.querySelector('input[name="post_dialysis_urea"]').value);
-            const idwg = parseFloat(document.querySelector('input[name="idwg"]').value); // UF in L
+            
+            // IDWG might be missing or read-only now, default to 0 for Daugirdas if missing
+            const idwgEl = document.querySelector('input[name="idwg"]');
+            const idwg = idwgEl && !isNaN(parseFloat(idwgEl.value)) ? parseFloat(idwgEl.value) : 0; 
+            
             const preWeight = parseFloat(document.querySelector('input[name="last_prehd_weight"]').value);
-            const targetWeight = parseFloat(document.querySelector('input[name="target_dry_weight"]').value);
+            const targetWeightEl = document.querySelector('input[name="target_dry_weight"]');
+            const targetWeight = targetWeightEl ? parseFloat(targetWeightEl.value) : NaN;
             
             const ktvInput = document.querySelector('input[name="single_pool_ktv"]');
             const eKtvInput = document.querySelector('input[name="equilibrated_ktv"]');
-            if (!ktvInput) return;
+            const urrInput = document.querySelector('input[name="urr"]');
 
             if (preUrea > 0 && postUrea > 0 && preUrea > postUrea) {
                 const R = postUrea / preUrea;
+                
+                // 1. Calculate URR
+                if (urrInput) {
+                    const urr = (1 - R) * 100;
+                    urrInput.value = urr.toFixed(1);
+                    urrInput.style.color = '#0ea5e9';
+                    urrInput.style.fontWeight = '700';
+                }
+
+                // 2. Calculate Kt/V
                 const weight = targetWeight || (preWeight - idwg) || preWeight;
                 const uf = idwg || 0;
 
-                if (weight > 0) {
+                if (weight > 0 && ktvInput) {
                     // Daugirdas II Simplified: Kt/V = -ln(R - 0.03) + (4 - 3.5 * R) * (UF / W)
                     try {
                         const term1 = -Math.log(R - 0.03);
@@ -1784,7 +1654,7 @@
                         
                         if (!isNaN(ktv) && isFinite(ktv) && ktv > 0) {
                             ktvInput.value = ktv.toFixed(2);
-                            ktvInput.style.color = '#0ea5e9'; // Highlight as auto-calculated
+                            ktvInput.style.color = '#0ea5e9'; 
                             ktvInput.style.fontWeight = '700';
 
                             if (eKtvInput) {
@@ -1799,13 +1669,14 @@
                     }
                 }
             } else {
-                ktvInput.value = '';
+                if (ktvInput) ktvInput.value = '';
                 if (eKtvInput) eKtvInput.value = '';
+                if (urrInput) urrInput.value = '';
             }
         }
 
         // Attach listeners to trigger Kt/V calculation
-        ['pre_dialysis_urea', 'post_dialysis_urea', 'idwg', 'last_prehd_weight', 'target_dry_weight'].forEach(name => {
+        ['pre_dialysis_urea', 'post_dialysis_urea', 'last_prehd_weight'].forEach(name => {
             const el = document.querySelector(`input[name="${name}"]`);
             if (el) el.addEventListener('input', calculateKTV);
         });
@@ -1835,8 +1706,10 @@
         }
 
         function wizRestoreAll() {
-            // Only restore for new (unsaved) records to avoid overwriting server data
-            if (document.querySelector('form[data-has-record]')) return;
+            // On error, always restore submitted values from sessionStorage even for existing records,
+            // so the user sees what they typed rather than the stale DB values.
+            const onError = {{ 'true' if form_error else 'false' }};
+            if (!onError && document.querySelector('form[data-has-record]')) return;
             try {
                 const stored = JSON.parse(sessionStorage.getItem(WIZ_SS_KEY) || '{}');
                 for (let s = 1; s <= WIZ_TOTAL; s++) {
@@ -1846,7 +1719,10 @@
                     if (!panel) continue;
                     Object.entries(data).forEach(([name, val]) => {
                         const inp = panel.querySelector('[name="' + name + '"]');
-                        if (inp && !inp.value && val) {
+                        if (!inp || val === undefined || val === null) return;
+                        // On error: overwrite DB-prefilled values with what the user submitted.
+                        // On new record: only fill blanks.
+                        if (onError || !inp.value) {
                             inp.value = val;
                             validate(inp.name);
                         }
@@ -1952,29 +1828,69 @@
             wizUpdateUI();
         }
 
+        // Hard limits that block saving — mirrors validators.py HARD_LIMITS
+        const JS_HARD_LIMITS = {
+            hb:               { min: 2.0,  max: 22.0,  label: 'Hemoglobin' },
+            albumin:          { min: 0.8,  max: 6.5,   label: 'Albumin' },
+            calcium:          { min: 3.0,  max: 18.0,  label: 'Calcium' },
+            phosphorus:       { min: 0.5,  max: 20.0,  label: 'Phosphorus' },
+            serum_ferritin:   { min: 1,    max: 50000, label: 'Serum Ferritin' },
+            wbc_count:        { min: 500,  max: 100000, label: 'WBC Count (/cmm)' },
+            neutrophil_count: { min: 0,    max: 100,   label: 'Neutrophils (%)' },
+            serum_creatinine: { min: 0.2,  max: 40.0,  label: 'Serum Creatinine' },
+            serum_potassium:  { min: 1.5,  max: 10.0,  label: 'Serum Potassium' },
+            serum_sodium:     { min: 100,  max: 180,   label: 'Serum Sodium' },
+        };
+
         function checkHardLimits() {
             let valid = true;
-            document.querySelectorAll('input[type="number"]').forEach(input => {
+            const activePanel = document.querySelector('.wizard-step.wiz-active');
+            const inputs = activePanel
+                ? activePanel.querySelectorAll('input[type="number"]')
+                : document.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
                 const name = input.name;
                 const val = parseFloat(input.value);
                 if (!name || isNaN(val)) return;
-                const limits = HARD_LIMITS[name];
-                if (limits) {
-                    if (val < limits.min || val > limits.max) {
-                        alert(`Impossible value for ${FIELD_LABELS[name] || name}: ${val}. Allowed range is ${limits.min} to ${limits.max}. Please correct it.`);
-                        input.style.borderColor = 'red';
-                        input.focus();
-                        valid = false;
-                    } else {
-                        input.style.borderColor = '';
-                    }
+                const limits = JS_HARD_LIMITS[name];
+                if (!limits) return;
+                if (val < limits.min || val > limits.max) {
+                    alert(`Impossible value for ${limits.label}: ${val}.\nAllowed range is ${limits.min}–${limits.max}. Please verify units and re-enter.`);
+                    input.style.borderColor = '#ef4444';
+                    input.style.backgroundColor = '#fef2f2';
+                    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    input.focus();
+                    valid = false;
                 }
             });
             return valid;
         }
 
+        function validateCurrentStepFields() {
+            const panel = document.getElementById('wstep-' + wizStep);
+            if (!panel) return 0;
+            let warningCount = 0;
+            panel.querySelectorAll('input[name]').forEach(inp => {
+                if (inp.value) validate(inp.name);
+            });
+            panel.querySelectorAll('.phys-warning').forEach(() => warningCount++);
+            return warningCount;
+        }
+
         function wizardNext() {
-            if (!checkHardLimits()) return; wizGoTo(wizStep + 1); }
+            if (!checkHardLimits()) return;
+            const warnings = validateCurrentStepFields();
+            // On step 2 (Lab Values), ask confirmation if soft range warnings exist
+            if (wizStep === 2 && warnings > 0) {
+                const ok = confirm(
+                    `${warnings} clinical range warning(s) found on this step.\n\n` +
+                    `Fields highlighted in red are outside typical physiological ranges — ` +
+                    `this may indicate a unit error.\n\nAre you sure the values are correct?`
+                );
+                if (!ok) return;
+            }
+            wizGoTo(wizStep + 1);
+        }
         function wizardBack() { wizGoTo(wizStep - 1); }
 
         /* ── Required-field live listeners ─────────────────────── */
@@ -2016,12 +1932,8 @@
             if (!container) return;
 
             const groups = [
-            { title: 'Parameters & Access', fields: [
-                { name: 'access_type',          label: 'Vascular Access' },
-                { name: 'target_dry_weight',     label: 'Dry Weight',     unit: 'kg'   },
-                { name: 'idwg',                  label: 'IDWG',           unit: 'kg'   },
-                { name: 'bp_sys',               label: 'BP Sys',          unit: 'mmHg' },
-                { name: 'bp_dia',               label: 'BP Dia',          unit: 'mmHg' },
+            { title: 'Parameters', fields: [
+                { name: 'residual_urine_output', label: 'Residual UO',     unit: 'mL/24h' },
                 { name: 'last_prehd_weight',    label: 'Last Pre-HD Wt',  unit: 'kg'   }
             ]},
             { title: 'Lab Reports', fields: [
@@ -2050,9 +1962,6 @@
                 { name: 'albumin',              label: 'Albumin',         unit: 'g/dL' },
                 { name: 'ast',                  label: 'AST',             unit: 'U/L' },
                 { name: 'alt',                  label: 'ALT',             unit: 'U/L' },
-                { name: 'hbsag',                label: 'HBsAg' },
-                { name: 'hcv',                  label: 'HCV' },
-                { name: 'hiv',                  label: 'HIV' },
                 { name: 'crp',                  label: 'CRP',             unit: 'mg/L' }
             ]},
             { title: 'Medications', fields: [
@@ -2073,16 +1982,7 @@
             { title: 'Dialysis Parameters', fields: [
                 { name: 'single_pool_ktv',      label: 'spKt/V' },
                 { name: 'equilibrated_ktv',     label: 'eKt/V' },
-                { name: 'urr',                  label: 'URR',             unit: '%' },
-                { name: 'npcr',                 label: 'nPCR',            unit: 'g/kg/d' },
-                { name: 'ufr',                  label: 'UFR',             unit: 'mL/hr/kg' },
-                { name: 'residual_urine_output',label: 'Residual UO',     unit: 'mL/24h' },
-                { name: 'prealbumin',           label: 'Prealbumin',      unit: 'mg/dL' },
-                { name: 'sga_score',            label: 'SGA Score' },
-                { name: 'mis_score',            label: 'MIS Score' },
-                { name: 'av_daily_calories',    label: 'Daily Calories',  unit: 'kcal' },
-                { name: 'av_daily_protein',     label: 'Daily Protein',   unit: 'g' },
-                { name: 'hrqol_score',          label: 'HRQoL Score' }
+                { name: 'urr',                  label: 'URR',             unit: '%' }
             ]}
         ];
 
@@ -2113,8 +2013,19 @@
             container.innerHTML = html;
         }
 
-        /* ── Save to sessionStorage on page unload ──────────────── */
-        window.addEventListener('beforeunload', () => wizSaveStep(wizStep));
+        /* ── Unsaved-data tracking ──────────────────────────────── */
+        let formDirty = false;
+        // Clear dirty flag when user intentionally submits the form
+        document.querySelector('form')?.addEventListener('submit', () => { formDirty = false; });
+
+        /* ── Save to sessionStorage on page unload + dirty warning ─ */
+        window.addEventListener('beforeunload', e => {
+            wizSaveStep(wizStep); // always persist current step
+            if (formDirty) {
+                e.preventDefault();
+                e.returnValue = ''; // triggers browser's native "Leave site?" dialog
+            }
+        });
 
         /* ── Init ───────────────────────────────────────────────── */
         document.addEventListener('DOMContentLoaded', () => {
@@ -2132,7 +2043,46 @@
             // Scroll error banner into view
             const banner = document.getElementById('form-error-banner');
             if (banner) setTimeout(() => banner.scrollIntoView({ behavior:'smooth', block:'center' }), 200);
+            // Re-run inline validation on all restored fields to surface soft warnings
+            setTimeout(() => {
+                document.querySelectorAll('.wizard-step input[name]').forEach(inp => {
+                    if (inp.value) validate(inp.name);
+                });
+            }, 150);
             {% endif %}
+
+            // ── Month picker navigation with dirty check ──────────
+            const monthPicker = document.getElementById('month-picker-input');
+            if (monthPicker) {
+                monthPicker.addEventListener('change', function() {
+                    if (formDirty && !confirm('You have unsaved changes. Discard and change month?')) {
+                        this.value = '{{ month_str }}'; // reset picker to current month
+                        return;
+                    }
+                    formDirty = false;
+                    location.href = '/entry/{{ patient.id }}?month=' + this.value;
+                });
+            }
+
+            // ── Prev/Next month links with dirty check ────────────
+            document.querySelectorAll('a[data-nav-link]').forEach(link => {
+                link.addEventListener('click', e => {
+                    if (formDirty && !confirm('You have unsaved changes. Discard and navigate away?')) {
+                        e.preventDefault();
+                    }
+                });
+            });
+
+            // ── Start tracking form dirtiness after restore ───────
+            // Delay so sessionStorage restore doesn't immediately mark form as dirty
+            setTimeout(() => {
+                document.querySelectorAll(
+                    'form input:not([type=hidden]):not([readonly]), form select, form textarea'
+                ).forEach(el => {
+                    el.addEventListener('input',  () => { formDirty = true; });
+                    el.addEventListener('change', () => { formDirty = true; });
+                });
+            }, 300);
         });
     </script>
     <style>
@@ -2217,7 +2167,7 @@
         serum_bicarbonate:"mmol/L",serum_creatinine:"mg/dL",serum_uric_acid:"mg/dL",
         pre_dialysis_urea:"mg/dL",post_dialysis_urea:"mg/dL",albumin:"g/dL",
         prealbumin:"mg/dL",total_cholesterol:"mg/dL",ldl_cholesterol:"mg/dL",
-        wbc_count:"×10³/µL",neutrophil_count:"×10³/µL",platelet_count:"×10³/µL",
+        wbc_count:"/cmm",neutrophil_count:"%",platelet_count:"×10³/µL",
         hba1c:"%",ast:"U/L",alt:"U/L",crp:"mg/L",nt_probnp:"pg/mL",
         single_pool_ktv:"",equilibrated_ktv:"",bp_sys:"mmHg",bp_dia:"mmHg",
         idwg:"kg",residual_urine_output:"mL/day",npcr:"g/kg/d",

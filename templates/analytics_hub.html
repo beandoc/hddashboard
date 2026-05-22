@@ -1,3 +1,4 @@
+{% from "_macros.html" import breadcrumb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -126,11 +127,7 @@
 <body>
 
 {% include "_nav.html" %}
-<nav class="nav-breadcrumb" aria-label="Breadcrumb">
-  <a href="/">Dashboard</a>
-  <span class="bc-sep">/</span>
-  <span class="bc-current">Analytics Hub</span>
-</nav>
+{{ breadcrumb([("Dashboard", "/"), ("Analytics", None)]) }}
 
 
 <div class="analytics-header">

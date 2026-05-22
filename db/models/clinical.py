@@ -46,6 +46,9 @@ class PatientSymptomReport(Base):
     session_id = Column(Integer, ForeignKey("session_records.id"), nullable=True)
     reported_at = Column(DateTime, default=datetime.utcnow)
 
+    # Date of the dialysis session being reported on
+    session_date = Column(Date, nullable=True)
+
     # Legacy generic symptoms
     symptoms = Column(Text)
     severity = Column(Integer)

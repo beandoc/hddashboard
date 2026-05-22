@@ -858,24 +858,42 @@ async def create_project(
     request: Request,
     title: str = Form(...),
     description: str = Form(""),
+    start_date: Optional[str] = Form(None),
+    test_types: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     _require_admin_role(request)
-    project = ResearchProject(title=title, description=description)
+    parsed_start_date = None
+    if start_date:
+        try:
+            from datetime import date as _date
+            parsed_start_date = _date.fromisoformat(start_date)
+        except ValueError:
+            parsed_start_date = None
+    project = ResearchProject(
+        title=title,
+        description=description,
+        start_date=parsed_start_date,
+        test_types=test_types or None,
+    )
     db.add(project)
     db.commit()
     return RedirectResponse(url="/research", status_code=303)
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
-async def view_project(project_id: int, request: Request, db: Session = Depends(get_db)):
+async def view_project(project_id: int, request: Request, page: int = 1, per_page: int = 25, db: Session = Depends(get_db)):
     _require_researcher_role(request)
     project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404)
-        
-    records = db.query(ResearchRecord).filter(ResearchRecord.project_id == project_id).order_by(ResearchRecord.test_date.desc()).all()
+
+    total_records = db.query(ResearchRecord).filter(ResearchRecord.project_id == project_id).count()
+    offset = (page - 1) * per_page
+    records = db.query(ResearchRecord).filter(ResearchRecord.project_id == project_id).order_by(ResearchRecord.test_date.desc()).offset(offset).limit(per_page).all()
+    total_pages = (total_records + per_page - 1) // per_page
+
     patients = db.query(Patient).filter(Patient.is_active == True).all()
-    
+
     # Parse JSON data for display
     parsed_records = []
     for r in records:
@@ -884,12 +902,16 @@ async def view_project(project_id: int, request: Request, db: Session = Depends(
         except:
             parsed_data = {}
         parsed_records.append({"record": r, "parsed_data": parsed_data, "patient": r.patient})
-        
+
     return templates.TemplateResponse("research_project.html", {
         "request": request,
         "project": project,
         "records": parsed_records,
         "patients": patients,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "total_records": total_records,
         "user": get_user(request)
     })
 
@@ -949,10 +971,35 @@ async def save_record(
 
     # Guard: at least one research variable must be filled in
     if not test_data:
-        raise HTTPException(
-            status_code=400,
-            detail="No research variable values were entered. Please fill in at least one variable before saving."
-        )
+        project = db.query(ResearchProject).filter(ResearchProject.id == project_id).first()
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not project or not patient:
+            raise HTTPException(status_code=404)
+            
+        from dynamic_vars import get_all_variables
+        all_variables = get_all_variables(db)
+        
+        latest_monthly = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
+        latest_session = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).first()
+        
+        dialysis_years = None
+        if patient.hd_wef_date:
+            from datetime import date as date_obj
+            delta = date_obj.today() - patient.hd_wef_date
+            dialysis_years = round(delta.days / 365.25, 1)
+            
+        return templates.TemplateResponse("research_record_form.html", {
+            "request": request,
+            "project": project,
+            "patient": patient,
+            "test_type": test_type,
+            "all_variables": all_variables,
+            "latest_monthly": latest_monthly,
+            "latest_session": latest_session,
+            "dialysis_years": dialysis_years,
+            "user": user,
+            "error": "No research variable values were entered. Please fill in at least one variable before saving."
+        })
 
     try:
         parsed_date = datetime.strptime(test_date, "%Y-%m-%d").date()

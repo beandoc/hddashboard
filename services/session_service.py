@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 
-from database import Patient, SessionRecord, InterimLabRecord
+from database import Patient, SessionRecord, InterimLabRecord, PatientSymptomReport
 
 def promote_session_labs(db: Session, sess: SessionRecord):
     """Hybrid logic: promote session labs to the longitudinal InterimLabRecord table."""
@@ -95,6 +95,28 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
     db.add(rec)
     db.commit()
     db.refresh(rec)
+    
+    # Process symptom report if any symptom data is provided
+    if any(data.get(k) is not None and data.get(k) != "" for k in ['dialysis_recovery_time_mins', 'symptoms', 'symptom_notes']):
+        symptom_report = PatientSymptomReport(
+            patient_id=patient_id,
+            session_date=rec.session_date,
+            session_id=rec.id,
+            dialysis_recovery_time_mins=data.get("dialysis_recovery_time_mins"),
+            tiredness_score=data.get("tiredness_score"),
+            energy_level_score=data.get("energy_level_score"),
+            sleepiness_severity=data.get("sleepiness_severity"),
+            daily_activity_impact=data.get("daily_activity_impact"),
+            cognitive_alertness=data.get("cognitive_alertness"),
+            post_hd_mood=data.get("post_hd_mood"),
+            symptoms=data.get("symptoms", ""),
+            severity=data.get("severity"),
+            missed_social_or_work_event=data.get("missed_social_or_work_event", False),
+            notes=data.get("symptom_notes")
+        )
+        db.add(symptom_report)
+        db.commit()
+
     promote_session_labs(db, rec)
     return rec
 
@@ -149,6 +171,31 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.access_recirculation_percent = data.get("access_recirculation_percent")
     sess.access_flow_qa = data.get("access_flow_qa")
     
+    # Process symptom report
+    symptom_report = db.query(PatientSymptomReport).filter(PatientSymptomReport.session_id == session_id).first()
+    if any(data.get(k) is not None and data.get(k) != "" for k in ['dialysis_recovery_time_mins', 'symptoms', 'symptom_notes']):
+        if not symptom_report:
+            symptom_report = PatientSymptomReport(
+                patient_id=sess.patient_id,
+                session_date=sess.session_date,
+                session_id=session_id
+            )
+            db.add(symptom_report)
+            
+        symptom_report.dialysis_recovery_time_mins = data.get("dialysis_recovery_time_mins")
+        symptom_report.tiredness_score = data.get("tiredness_score")
+        symptom_report.energy_level_score = data.get("energy_level_score")
+        symptom_report.sleepiness_severity = data.get("sleepiness_severity")
+        symptom_report.daily_activity_impact = data.get("daily_activity_impact")
+        symptom_report.cognitive_alertness = data.get("cognitive_alertness")
+        symptom_report.post_hd_mood = data.get("post_hd_mood")
+        symptom_report.symptoms = data.get("symptoms", "")
+        symptom_report.severity = data.get("severity")
+        symptom_report.missed_social_or_work_event = data.get("missed_social_or_work_event", False)
+        symptom_report.notes = data.get("symptom_notes")
+    elif symptom_report:
+        db.delete(symptom_report)
+
     db.commit()
     db.refresh(sess)
     promote_session_labs(db, sess)

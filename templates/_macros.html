@@ -21,3 +21,22 @@
         {% endif %}
     </div>
 {% endmacro %}
+
+{% macro breadcrumb(items) %}
+<nav class="nav-breadcrumb" aria-label="breadcrumb">
+  <ol class="bc-list">
+    {% for label, url in items %}
+      {% if loop.last %}
+        <li class="bc-item">
+          <span class="bc-current" aria-current="page">{{ label }}</span>
+        </li>
+      {% else %}
+        <li class="bc-item">
+          <a href="{{ url }}">{{ label }}</a>
+          <i class="material-icons bc-sep" aria-hidden="true">chevron_right</i>
+        </li>
+      {% endif %}
+    {% endfor %}
+  </ol>
+</nav>
+{% endmacro %}

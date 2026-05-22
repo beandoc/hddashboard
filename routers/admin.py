@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from typing import Optional
 import json
 import io
 import logging
 import re
+import secrets
 
 from datetime import date, datetime
 from database import get_db, User, Patient, MonthlyRecord, SessionRecord, InterimLabRecord, ClinicalEvent, engine
@@ -142,10 +144,17 @@ async def run_pds_migration(request: Request, db: Session = Depends(get_db)):
     return HTMLResponse(content=res_html)
 
 @router.get("/users", response_class=HTMLResponse)
-async def user_manager(request: Request, db: Session = Depends(get_db)):
+async def user_manager(request: Request, reset_ok: Optional[str] = None, temp_pw: Optional[str] = None, db: Session = Depends(get_db)):
     _require_admin(request)
     users = db.query(User).all()
-    return templates.TemplateResponse("admin_users.html", {"request": request, "users": users, "user": get_user(request)})
+    reset_msg = f"Password for {reset_ok} has been reset." if reset_ok else None
+    return templates.TemplateResponse("admin_users.html", {
+        "request": request,
+        "users": users,
+        "user": get_user(request),
+        "reset_msg": reset_msg,
+        "temp_pw": temp_pw,
+    })
 
 @router.post("/users/create")
 async def create_user(request: Request, username: str = Form(...), full_name: str = Form(""), password: str = Form(...), role: str = Form("viewer"), db: Session = Depends(get_db)):
@@ -153,7 +162,19 @@ async def create_user(request: Request, username: str = Form(...), full_name: st
     hashed = pwd_context.hash(password)
     new_user = User(username=username, full_name=full_name, hashed_password=hashed, role=role)
     db.add(new_user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        users = db.query(User).all()
+        return templates.TemplateResponse("admin_users.html", {
+            "request": request,
+            "users": users,
+            "user": get_user(request),
+            "error": "Username already exists.",
+            "reset_msg": None,
+            "temp_pw": None,
+        })
     return RedirectResponse(url="/admin/users", status_code=303)
 
 @router.post("/users/{user_id}/toggle")
@@ -166,12 +187,17 @@ async def toggle_user(user_id: int, request: Request, db: Session = Depends(get_
     return RedirectResponse(url="/admin/users", status_code=303)
 
 @router.post("/users/{user_id}/reset-password")
-async def reset_password(user_id: int, request: Request, new_password: str = Form(...), db: Session = Depends(get_db)):
+async def reset_password(user_id: int, request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
     u = db.query(User).filter(User.id == user_id).first()
     if u:
-        u.hashed_password = pwd_context.hash(new_password)
+        temp_pw = secrets.token_urlsafe(8)
+        u.hashed_password = pwd_context.hash(temp_pw)
         db.commit()
+        return RedirectResponse(
+            url=f"/admin/users?reset_ok={u.username}&temp_pw={temp_pw}",
+            status_code=303,
+        )
     return RedirectResponse(url="/admin/users", status_code=303)
 
 @router.get("/backup", response_class=HTMLResponse)
@@ -320,13 +346,15 @@ async def strip_western_foods(request: Request, db: Session = Depends(get_db)):
 @router.get("/db/export")
 async def download_backup(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
+    from database import FoodDatabaseItem
     data = {
         "patients": [p.__dict__ for p in db.query(Patient).all()],
         "monthly_records": [r.__dict__ for r in db.query(MonthlyRecord).all()],
         "session_records": [s.__dict__ for s in db.query(SessionRecord).all()],
         "interim_labs": [l.__dict__ for l in db.query(InterimLabRecord).all()],
         "clinical_events": [e.__dict__ for e in db.query(ClinicalEvent).all()],
-        "users": [u.__dict__ for u in db.query(User).all()]
+        "users": [u.__dict__ for u in db.query(User).all()],
+        "food_items": [f.__dict__ for f in db.query(FoodDatabaseItem).all()],
     }
     # Remove SQLAlchemy internal state
     for key in data:
@@ -347,11 +375,27 @@ async def download_backup(request: Request, db: Session = Depends(get_db)):
 @router.post("/db/import")
 async def restore_backup(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
     _require_admin(request)
+    from database import FoodDatabaseItem
     content = await file.read()
     data = json.loads(content)
-    
+
     # Simple restore logic (clear and insert) - CAUTION: High Risk
     # In a real app, you'd want to merge or handle conflicts
     # For now, let's just log and provide a placeholder
     logger.warning("Restore initiated by %s", get_user(request).get("username"))
-    return templates.TemplateResponse("admin_db.html", {"request": request, "error": "Restore feature is under development. Please contact support.", "user": get_user(request)})
+
+    inactive_patients = (
+        db.query(Patient)
+        .filter(Patient.is_active == False)
+        .order_by(Patient.name)
+        .all()
+    )
+    food_items = db.query(FoodDatabaseItem).order_by(FoodDatabaseItem.name).all()
+    return templates.TemplateResponse("admin_db.html", {
+        "request": request,
+        "user": get_user(request),
+        "inactive_patients": inactive_patients,
+        "food_items": food_items,
+        "error": "Restore feature is under development. Please contact support.",
+        "success": None,
+    })

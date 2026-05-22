@@ -198,7 +198,8 @@ def compute_dashboard(db: Session, month: str = None):
         'adherence_risk':  {'count': 0, 'names': [], 'flags': {}}, # USRDS criteria
         'trend_hb': [],
         'trend_albumin': [],
-        'trend_phosphorus': []
+        'trend_phosphorus': [],
+        'avg_hb': None,
     }
 
     # 6-month list for Hb Variability
@@ -696,6 +697,9 @@ def compute_dashboard(db: Session, month: str = None):
         except Exception as e:
             logger.error(f"Error processing row for patient {p.id}: {e}")
             raise
+
+    _hb_vals = [row["hb"] for row in patient_rows if row.get("hb") is not None]
+    metrics['avg_hb'] = round(sum(_hb_vals) / len(_hb_vals), 1) if _hb_vals else None
 
     result = {
         "metrics": metrics,

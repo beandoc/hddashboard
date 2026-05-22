@@ -11,6 +11,7 @@
       const mobileIcon = document.getElementById('mobileThemeToggleIcon');
       if (icon) icon.textContent = savedTheme === 'dark' ? 'light_mode' : 'dark_mode';
       if (mobileIcon) mobileIcon.textContent = savedTheme === 'dark' ? 'light_mode' : 'dark_mode';
+      document.getElementById('themeToggleBtn').classList.toggle('theme-active', savedTheme === 'dark');
     });
   })();
 </script>
@@ -40,10 +41,10 @@
       <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
 
       <div class="nav-group" id="ng-clinical">
-        <button class="nav-group-btn {{ 'active-group' if _clinical_active }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _clinical_active }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-clinical" id="btn-ng-clinical">
           Clinical <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/review" class="dd-highlight {{ 'active' if '/review' in _path }}">
             <i class="material-icons">fact_check</i> Review Queue
           </a>
@@ -58,10 +59,10 @@
       </div>
 
       <div class="nav-group" id="ng-analytics">
-        <button class="nav-group-btn {{ 'active-group' if _analytics_active }}" onclick="toggleGroup('ng-analytics', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _analytics_active }}" onclick="toggleGroup('ng-analytics', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-analytics" id="btn-ng-analytics">
           Analytics <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <div class="dd-sub-group {{ 'open' if _analytics_sub_active or _path == '/analytics' }}" id="dsg-overview">
             <div class="dd-sub-header">
               <a href="/analytics" class="dd-sub-main-link {{ 'active' if _path == '/analytics' }}">
@@ -120,10 +121,10 @@
       </div>
 
       <div class="nav-group" id="ng-ops">
-        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-ops" id="btn-ng-ops">
           Operations <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
             <i class="material-icons">edit_note</i> Data Entry
           </a>
@@ -142,10 +143,10 @@
       <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
 
       <div class="nav-group" id="ng-clinical">
-        <button class="nav-group-btn {{ 'active-group' if '/patients' in _path or '/events' in _path }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if '/patients' in _path or '/events' in _path }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-clinical" id="btn-ng-clinical">
           Clinical <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/patients" class="{{ 'active' if '/patients' in _path }}">
             <i class="material-icons">people</i> All Patients
           </a>
@@ -156,10 +157,10 @@
       </div>
 
       <div class="nav-group" id="ng-ops">
-        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-ops" id="btn-ng-ops">
           Operations <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
             <i class="material-icons">edit_note</i> Data Entry
           </a>
@@ -174,10 +175,10 @@
       </div>
 
       <div class="nav-group" id="ng-research">
-        <button class="nav-group-btn {{ 'active-group' if '/research' in _path }}" onclick="toggleGroup('ng-research', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if '/research' in _path }}" onclick="toggleGroup('ng-research', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-research" id="btn-ng-research">
           Research <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/research" class="{{ 'active' if '/research' in _path and '/research/stats' not in _path }}">
             <i class="material-icons">folder_open</i> Projects
           </a>
@@ -192,10 +193,10 @@
       <a href="/" class="{{ 'active' if _path == '/' }}">Dashboard</a>
 
       <div class="nav-group" id="ng-clinical">
-        <button class="nav-group-btn {{ 'active-group' if _clinical_active }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _clinical_active }}" onclick="toggleGroup('ng-clinical', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-clinical" id="btn-ng-clinical">
           Clinical <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/review" class="dd-highlight {{ 'active' if '/review' in _path }}">
             <i class="material-icons">fact_check</i> Review Queue
           </a>
@@ -210,10 +211,10 @@
       </div>
 
       <div class="nav-group" id="ng-analytics">
-        <button class="nav-group-btn {{ 'active-group' if _analytics_active }}" onclick="toggleGroup('ng-analytics', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _analytics_active }}" onclick="toggleGroup('ng-analytics', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-analytics" id="btn-ng-analytics">
           Analytics <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <div class="dd-sub-group {{ 'open' if _analytics_sub_active or _path == '/analytics' }}" id="dsg-overview">
             <div class="dd-sub-header">
               <a href="/analytics" class="dd-sub-main-link {{ 'active' if _path == '/analytics' }}">
@@ -272,10 +273,10 @@
       </div>
 
       <div class="nav-group" id="ng-ops">
-        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true">
+        <button class="nav-group-btn {{ 'active-group' if _ops_active }}" onclick="toggleGroup('ng-ops', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-ops" id="btn-ng-ops">
           Operations <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/entry" class="{{ 'active' if '/entry' in _path }}">
             <i class="material-icons">edit_note</i> Data Entry
           </a>
@@ -290,10 +291,10 @@
       </div>
 
       <div class="nav-group" id="ng-admin">
-        <button class="nav-group-btn admin-group-btn {{ 'active-group' if _admin_active }}" onclick="toggleGroup('ng-admin', event)" aria-haspopup="true">
+        <button class="nav-group-btn admin-group-btn {{ 'active-group' if _admin_active }}" onclick="toggleGroup('ng-admin', event)" aria-haspopup="true" aria-expanded="false" aria-controls="ng-admin" id="btn-ng-admin">
           Admin <span class="chevron">expand_more</span>
         </button>
-        <div class="nav-dropdown">
+        <div class="nav-dropdown" role="menu">
           <a href="/admin/users" class="dd-admin {{ 'active' if '/admin/users' in _path }}">
             <i class="material-icons">manage_accounts</i> User Management
           </a>
@@ -808,8 +809,15 @@
     var el = document.getElementById(id);
     var wasOpen = el.classList.contains('open');
     /* close all others first */
-    document.querySelectorAll('.nav-group.open').forEach(function(g) { g.classList.remove('open'); });
-    if (!wasOpen) el.classList.add('open');
+    document.querySelectorAll('.nav-group.open').forEach(function(g) {
+      g.classList.remove('open');
+      var gBtn = document.getElementById('btn-' + g.id);
+      if (gBtn) gBtn.setAttribute('aria-expanded', 'false');
+    });
+    var isOpen = !wasOpen;
+    if (isOpen) el.classList.add('open');
+    var btn = document.getElementById('btn-' + id);
+    if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
   }
 
   /* ── Nested sub-group toggle inside a dropdown ── */
@@ -875,6 +883,50 @@
       if (match) link.classList.add('active');
     });
   })();
+
+  /* ── Focus trap utility ──────────────────────────────────────────────────
+     trapFocus(modalEl): trap keyboard focus within a modal element.
+     Returns the handler so callers can remove it via releaseFocus(). */
+  function trapFocus(modalEl) {
+    var focusable = modalEl.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    var first = focusable[0];
+    var last  = focusable[focusable.length - 1];
+    function handler(e) {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last)  { e.preventDefault(); first.focus(); }
+      }
+    }
+    modalEl.addEventListener('keydown', handler);
+    if (first) first.focus();
+    return handler;
+  }
+  function releaseFocus(modalEl, handler) {
+    modalEl.removeEventListener('keydown', handler);
+  }
+  window.trapFocus    = trapFocus;
+  window.releaseFocus = releaseFocus;
+
+  /* ── Global Escape key handler ───────────────────────────────────────── */
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      // Close any open modal overlay
+      document.querySelectorAll('.modal-overlay[aria-hidden="false"]').forEach(function(m) {
+        var closeBtn = m.querySelector('.modal-close, [data-dismiss="modal"]');
+        if (closeBtn) closeBtn.click();
+      });
+      // Close any open nav dropdown
+      document.querySelectorAll('.nav-group.open').forEach(function(g) {
+        g.classList.remove('open');
+        var btn = g.querySelector('.nav-group-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
 
   /* ── Double-submit spinner (global) ──────────────────────────────────────
      Any submit button that doesn't have data-no-spinner gets disabled + shows

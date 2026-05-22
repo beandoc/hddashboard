@@ -93,6 +93,75 @@
           .tab { flex: 1 1 calc(50% - 2px); border-radius: 8px; }
           .btn-send { width: 100%; justify-content: center; min-height: 44px; }
         }
+
+        /* ── New Reminder Modal ── */
+        .rem-modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15,23,42,0.6); backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 16px; box-sizing: border-box;
+        }
+        .rem-modal-overlay.open { display: flex; }
+        .rem-modal-box {
+            background: #fff; width: 100%; max-width: 460px; border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.18);
+            border-top: 4px solid #f59e0b;
+            padding: 24px; animation: remModalIn 0.25s ease-out;
+        }
+        @keyframes remModalIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        .rem-modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+        .rem-modal-header h3 { margin:0; font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px; }
+        .rem-ff { margin-bottom: 14px; }
+        .rem-ff label { display:block; font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:5px; }
+        .rem-ff input, .rem-ff select, .rem-ff textarea {
+            width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px;
+            font-size:0.95rem; font-family:'Inter',sans-serif; background:#f8fafc; box-sizing:border-box;
+        }
+        .rem-ff textarea { resize:vertical; min-height:80px; }
+        .rem-ff input:focus, .rem-ff select:focus, .rem-ff textarea:focus { border-color:#f59e0b; outline:none; background:#fff; }
+
+        /* ── Toasts Styling ── */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+            width: calc(100% - 48px);
+        }
+        .toast-card {
+            background: #ffffff;
+            color: #1e293b;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #64748b;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: toastIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transition: all 0.3s ease;
+        }
+        @keyframes toastIn {
+            from { transform: translateX(100%) translateY(-10px); opacity: 0; }
+            to { transform: translateX(0) translateY(0); opacity: 1; }
+        }
+        .toast-card.success { border-left-color: #22c55e; }
+        .toast-card.error { border-left-color: #ef4444; }
+        .toast-card.warning { border-left-color: #f59e0b; }
+        .toast-card.info { border-left-color: #0ea5e9; }
+        .toast-card.fade-out {
+            transform: translateX(100%);
+            opacity: 0;
+            margin-top: -60px; /* Collapse space */
+        }
+        .toast-title { font-weight: 700; font-size: 0.9rem; color: #0f172a; margin-bottom: 2px; }
+        .toast-desc { font-size: 0.82rem; color: #64748b; line-height: 1.4; }
+        .toast-close { background: none; border: none; cursor: pointer; color: #94a3b8; padding: 0; margin-left: auto; display: flex; align-items: center; }
+        .toast-close:hover { color: #475569; }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -171,27 +240,46 @@
                     <i class="material-icons" style="font-size:3em; color:#22c55e; margin-bottom:10px;">check_circle</i>
                     <p style="font-weight:500;">Clinical status for all patients is stable this month. ✅</p>
                 </div>
-            {% endif %}
-            {% for a in alert_links %}
-                <div class="patient-card">
-                    <div class="patient-info">
-                        <h3>{{ a.name }} <span style="font-size:0.75em; font-weight:normal; color:var(--text-muted);">#{{ a.hid }}</span></h3>
-                        <div style="margin-top:4px; font-size:0.82em; color:var(--text-muted);">📞 {{ a.contact or "No number" }}</div>
-                        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
-                            {% for alert in a.alerts %}
-                                <span class="alert-tag">{{ alert }}</span>
-                            {% endfor %}
-                        </div>
+            {% else %}
+                <div class="selection-control-bar" style="background:#fff; border-radius:var(--radius); padding:16px 20px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; box-shadow:var(--shadow-md); border: 1px solid rgba(0,0,0,0.03); flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <input type="checkbox" id="selectAllAlerts" onchange="toggleSelectAll(this)" style="width:18px; height:18px; cursor:pointer;">
+                        <label for="selectAllAlerts" style="font-weight:600; cursor:pointer; user-select:none; font-size:0.92rem; color:var(--text-header);">Select All (<span id="selectedCount">0</span>/{{ alert_links|length }} selected)</label>
                     </div>
-                    {% if a.contact %}
-                    <a href="{{ a.link }}" target="_blank" class="btn-send">
-                        <i class="material-icons">send</i> Send Alert
-                    </a>
-                    {% else %}
-                    <span style="color:#94a3b8; font-size:0.85em; font-weight:500;">No Contact No.</span>
-                    {% endif %}
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-send" id="btnSelectedWhatsApp" onclick="sendBulkWhatsApp()" style="padding:8px 16px; font-size:0.85em; opacity: 0.6; cursor: not-allowed; background:var(--whatsapp);" disabled>
+                            <i class="material-icons" style="font-size:18px;">sms</i> WhatsApp (<span class="selected-num">0</span>)
+                        </button>
+                        <button class="btn-send email" id="btnSelectedEmail" onclick="sendEmailReport()" style="padding:8px 16px; font-size:0.85em; opacity: 0.6; cursor: not-allowed;" disabled>
+                            <i class="material-icons" style="font-size:18px;">send</i> Email Ward (<span class="selected-num">0</span>)
+                        </button>
+                    </div>
                 </div>
-            {% endfor %}
+                {% for a in alert_links %}
+                    <div class="patient-card" style="display:flex; align-items:center;">
+                        <!-- Checkbox container -->
+                        <div style="display:flex; align-items:center; margin-right:16px;">
+                            <input type="checkbox" class="patient-select-checkbox" data-patient-id="{{ a.id }}" onchange="handleCheckboxChange(this)" style="width:18px; height:18px; cursor:pointer;">
+                        </div>
+                        <div class="patient-info" style="flex:1;">
+                            <h3>{{ a.name }} <span style="font-size:0.75em; font-weight:normal; color:var(--text-muted);">#{{ a.hid }}</span></h3>
+                            <div style="margin-top:4px; font-size:0.82em; color:var(--text-muted);">📞 {{ a.contact or "No number" }}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
+                                {% for alert in a.alerts %}
+                                    <span class="alert-tag">{{ alert }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% if a.contact %}
+                        <a href="{{ a.link }}" target="_blank" class="btn-send">
+                            <i class="material-icons">send</i> Send Alert
+                        </a>
+                        {% else %}
+                        <span style="color:#94a3b8; font-size:0.85em; font-weight:500;">No Contact No.</span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% endif %}
         </div>
 
         <div id="remindersTab" class="tab-content">
@@ -199,11 +287,16 @@
                 <p style="font-size:0.9em; color:var(--text-muted); margin:0; font-style:italic;">
                     Specific clinical tasks, lab investigations, or AVF maturation milestones tracked by the unit.
                 </p>
-                {% if clinical_reminders %}
-                <button class="btn-send email" onclick="sendRemindersDigest()" style="white-space:nowrap;">
-                    <i class="material-icons">mail</i> Email Reminders Digest
-                </button>
-                {% endif %}
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button class="btn-send" onclick="openReminderModal()" style="background:#f59e0b; white-space:nowrap;">
+                        <i class="material-icons">add_task</i> New Reminder
+                    </button>
+                    {% if clinical_reminders %}
+                    <button class="btn-send email" onclick="sendRemindersDigest()" style="white-space:nowrap;">
+                        <i class="material-icons">mail</i> Email Reminders Digest
+                    </button>
+                    {% endif %}
+                </div>
             </div>
             {% if not clinical_reminders %}
                 <div style="text-align:center; padding:60px; color:var(--text-muted); background:#fff; border-radius:var(--radius); box-shadow:var(--shadow-md);">
@@ -279,27 +372,359 @@
         </div>
     </div>
 
+    <!-- ── New Reminder Modal ── -->
+    <div id="newReminderModal" class="rem-modal-overlay" onclick="if(event.target===this)closeReminderModal()">
+        <div class="rem-modal-box">
+            <div class="rem-modal-header">
+                <h3>
+                    <i class="material-icons" style="color:#f59e0b; font-size:1.1rem;">add_task</i>
+                    New Clinical Reminder
+                </h3>
+                <button onclick="closeReminderModal()" style="background:none; border:none; cursor:pointer; color:#64748b; padding:4px; border-radius:6px; line-height:1;">
+                    <i class="material-icons">close</i>
+                </button>
+            </div>
+            <form id="newReminderForm" onsubmit="submitNewReminder(event)">
+                <div class="rem-ff">
+                    <label>Patient *</label>
+                    <select name="patient_id" required>
+                        <option value="">— Select Patient —</option>
+                        {% for p in patients %}
+                        <option value="{{ p.id }}">{{ p.name }} ({{ p.hid_no }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="rem-ff">
+                    <label>Due Date *</label>
+                    <input type="date" name="reminder_date" id="reminderDateInput" required>
+                </div>
+                <div class="rem-ff">
+                    <label>Reminder Note *</label>
+                    <textarea name="message" rows="3" placeholder="e.g. Check AVF maturation, repeat Ferritin, review ESA dose…" required></textarea>
+                </div>
+                <div id="reminderFormError" style="display:none; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:10px 14px; margin-bottom:12px; color:#dc2626; font-size:0.85rem;"></div>
+                <div style="display:flex; gap:10px; margin-top:4px;">
+                    <button type="submit" id="reminderSaveBtn" class="btn-send email" style="flex:1; justify-content:center; padding:11px 18px; background:#f59e0b;">
+                        <i class="material-icons">save</i> Save Reminder
+                    </button>
+                    <button type="button" onclick="closeReminderModal()" style="padding:11px 18px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:10px; cursor:pointer; font-weight:600; color:#475569; font-size:0.9em;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Custom Confirmation Modal ── -->
+    <div id="confirmModal" class="rem-modal-overlay" onclick="if(event.target===this)closeConfirmModal()">
+        <div class="rem-modal-box" style="border-top: 4px solid var(--primary);">
+            <div class="rem-modal-header">
+                <h3 id="confirmModalTitle" style="margin:0; font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px;">
+                    <i class="material-icons" id="confirmModalIcon" style="color:var(--primary); font-size:1.3rem;">info</i>
+                    Confirm Action
+                </h3>
+                <button onclick="closeConfirmModal()" style="background:none; border:none; cursor:pointer; color:#64748b; padding:4px; border-radius:6px; line-height:1;">
+                    <i class="material-icons">close</i>
+                </button>
+            </div>
+            <div id="confirmModalBody" style="margin-bottom:24px; font-size:0.95rem; line-height:1.5; color:#334155;">
+                Are you sure you want to proceed?
+            </div>
+            <div style="display:flex; gap:10px; margin-top:4px;">
+                <button type="button" id="confirmModalActionBtn" onclick="handleConfirmModalAction()" class="btn-send" style="flex:1; justify-content:center; padding:11px 18px;">
+                    Confirm
+                </button>
+                <button type="button" onclick="closeConfirmModal()" style="padding:11px 18px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:10px; cursor:pointer; font-weight:600; color:#475569; font-size:0.9em;">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const MONTH_STR = "{{ month_str }}";
+        let selectedPatientIds = new Set();
+        let confirmActionResolve = null;
 
-        function sendEmailReport() {
+        // ── Toast Utility ──
+        function showToast(type, title, message, duration = 6000) {
+            let container = document.getElementById('toastContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toastContainer';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+            
+            const card = document.createElement('div');
+            card.className = `toast-card ${type}`;
+            
+            let icon = 'info';
+            let iconColor = '#0ea5e9';
+            if (type === 'success') {
+                icon = 'check_circle';
+                iconColor = '#22c55e';
+            } else if (type === 'error') {
+                icon = 'error';
+                iconColor = '#ef4444';
+            } else if (type === 'warning') {
+                icon = 'warning';
+                iconColor = '#f59e0b';
+            }
+            
+            card.innerHTML = `
+                <i class="material-icons" style="color: ${iconColor}; font-size: 20px;">${icon}</i>
+                <div style="flex:1;">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-desc">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.classList.add('fade-out'); setTimeout(() => this.parentElement.remove(), 300);">
+                    <i class="material-icons" style="font-size:18px;">close</i>
+                </button>
+            `;
+            
+            container.appendChild(card);
+            
+            setTimeout(() => {
+                if (card.parentElement) {
+                    card.classList.add('fade-out');
+                    setTimeout(() => card.remove(), 300);
+                }
+            }, duration);
+        }
+
+        // ── Selection Handlers ──
+        function toggleSelectAll(selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll('.patient-select-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+                const id = parseInt(cb.getAttribute('data-patient-id'));
+                if (selectAllCheckbox.checked) {
+                    selectedPatientIds.add(id);
+                } else {
+                    selectedPatientIds.delete(id);
+                }
+            });
+            updateSelectedUI();
+        }
+        
+        function handleCheckboxChange(cb) {
+            const id = parseInt(cb.getAttribute('data-patient-id'));
+            if (cb.checked) {
+                selectedPatientIds.add(id);
+            } else {
+                selectedPatientIds.delete(id);
+            }
+            
+            const selectAllCheckbox = document.getElementById('selectAllAlerts');
+            if (selectAllCheckbox) {
+                const total = document.querySelectorAll('.patient-select-checkbox').length;
+                selectAllCheckbox.checked = (selectedPatientIds.size === total && total > 0);
+            }
+            
+            updateSelectedUI();
+        }
+        
+        function updateSelectedUI() {
+            const count = selectedPatientIds.size;
+            
+            const countEl = document.getElementById('selectedCount');
+            if (countEl) countEl.textContent = count;
+            
+            const numLabels = document.querySelectorAll('.selected-num');
+            numLabels.forEach(lbl => lbl.textContent = count);
+            
+            const btnWa = document.getElementById('btnSelectedWhatsApp');
+            const btnEmail = document.getElementById('btnSelectedEmail');
+            
+            if (btnWa) {
+                if (count > 0) {
+                    btnWa.disabled = false;
+                    btnWa.style.opacity = '1';
+                    btnWa.style.cursor = 'pointer';
+                } else {
+                    btnWa.disabled = true;
+                    btnWa.style.opacity = '0.6';
+                    btnWa.style.cursor = 'not-allowed';
+                }
+            }
+            if (btnEmail) {
+                if (count > 0) {
+                    btnEmail.disabled = false;
+                    btnEmail.style.opacity = '1';
+                    btnEmail.style.cursor = 'pointer';
+                } else {
+                    btnEmail.disabled = true;
+                    btnEmail.style.opacity = '0.6';
+                    btnEmail.style.cursor = 'not-allowed';
+                }
+            }
+        }
+
+        // ── Confirmation Modal Handlers ──
+        function openConfirmModal(title, iconName, bodyText, actionButtonText, actionColorClass) {
+            document.getElementById('confirmModalTitle').innerHTML = `
+                <i class="material-icons" style="color:var(--primary); font-size:1.3rem;">${iconName}</i>
+                ${title}
+            `;
+            document.getElementById('confirmModalBody').textContent = bodyText;
+            
+            const actBtn = document.getElementById('confirmModalActionBtn');
+            actBtn.textContent = actionButtonText;
+            actBtn.style.color = '#fff';
+            
+            if (actionColorClass === 'whatsapp') {
+                actBtn.style.background = 'var(--whatsapp)';
+            } else {
+                actBtn.style.background = 'var(--primary)';
+            }
+            
+            document.getElementById('confirmModal').classList.add('open');
+            
+            return new Promise((resolve) => {
+                confirmActionResolve = resolve;
+            });
+        }
+        
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('open');
+            if (confirmActionResolve) {
+                confirmActionResolve(false);
+                confirmActionResolve = null;
+            }
+        }
+        
+        function handleConfirmModalAction() {
+            document.getElementById('confirmModal').classList.remove('open');
+            if (confirmActionResolve) {
+                confirmActionResolve(true);
+                confirmActionResolve = null;
+            }
+        }
+
+        // ── API Dispatches ──
+        async function triggerWhatsAppDispatch(patientIds) {
+            const count = patientIds.length;
+            const confirmed = await openConfirmModal(
+                "Confirm WhatsApp Dispatch",
+                "chat",
+                `Send to ${count} patients?`,
+                "Send Alerts",
+                "whatsapp"
+            );
+            if (!confirmed) return;
+            
+            const s = document.getElementById("alertStatus");
+            s.style.color = "#d97706";
+            s.textContent = `⏳ Dispatching WhatsApp messages to ${count} patients...`;
+            
+            try {
+                const response = await fetch(`/alerts/send-whatsapp?month=${MONTH_STR}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ patient_ids: patientIds })
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Server error");
+                }
+                
+                const data = await response.json();
+                s.style.color = "#16a34a";
+                s.textContent = data.message || "✅ WhatsApp dispatch complete.";
+                
+                if (data.results && Array.isArray(data.results)) {
+                    data.results.forEach(res => {
+                        const statusType = res.status === "success" ? "success" : "error";
+                        const statusTitle = res.status === "success" ? "WhatsApp Sent" : "WhatsApp Failed";
+                        showToast(statusType, `${statusTitle}: ${res.name}`, res.detail || "");
+                    });
+                } else {
+                    showToast("success", "Bulk WhatsApp Completed", `Messages processed successfully for ${count} patients.`);
+                }
+            } catch (err) {
+                s.style.color = "#dc2626";
+                s.textContent = "❌ " + (err.message || "Error — check server logs.");
+                showToast("error", "Dispatch Failed", err.message || "An error occurred during WhatsApp dispatch.");
+            }
+        }
+
+        async function triggerEmailDispatch(patientIds) {
+            const count = patientIds.length;
+            const confirmed = await openConfirmModal(
+                "Confirm Email Dispatch",
+                "email",
+                `Confirm Email Ward dispatch for ${count} patients?`,
+                "Send Email Report",
+                "email"
+            );
+            if (!confirmed) return;
+            
             const s = document.getElementById("alertStatus");
             s.style.color = "#0ea5e9";
-            s.textContent = "⏳ Authenticating and sending email report…";
-            fetch(`/alerts/send-email?month=${MONTH_STR}`, { method:"POST" })
-                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
-                .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ Email report sent successfully."; })
-                .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Email error. Check Render logs."); });
+            s.textContent = `⏳ Sending ward email report for ${count} patients...`;
+            
+            try {
+                const response = await fetch(`/alerts/send-email?month=${MONTH_STR}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ patient_ids: patientIds })
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Server error");
+                }
+                
+                const data = await response.json();
+                s.style.color = "#16a34a";
+                s.textContent = data.message || "✅ Email report sent successfully.";
+                
+                showToast("success", "Email Dispatched", data.message || "Ward email report sent successfully.");
+            } catch (err) {
+                s.style.color = "#dc2626";
+                s.textContent = "❌ " + (err.message || "Email error. Check Render logs.");
+                showToast("error", "Email Failed", err.message || "An error occurred while sending the email report.");
+            }
         }
 
         function sendBulkWhatsApp() {
-            const s = document.getElementById("alertStatus");
-            s.style.color = "#d97706";
-            s.textContent = "⏳ Dispatching bulk WhatsApp messages…";
-            fetch(`/alerts/send-whatsapp?month=${MONTH_STR}`, { method:"POST" })
-                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || "Server error")))
-                .then(d => { s.style.color = "#16a34a"; s.textContent = d.message || "✅ WhatsApp dispatch complete."; })
-                .catch(err => { s.style.color = "#dc2626"; s.textContent = "❌ " + (err || "Error — check server logs."); });
+            let targets = [];
+            if (selectedPatientIds.size > 0) {
+                targets = Array.from(selectedPatientIds);
+            } else {
+                const checkboxes = document.querySelectorAll('.patient-select-checkbox');
+                checkboxes.forEach(cb => {
+                    targets.push(parseInt(cb.getAttribute('data-patient-id')));
+                });
+            }
+            
+            if (targets.length === 0) {
+                showToast("warning", "No Patients", "There are no clinical alerts to send.");
+                return;
+            }
+            
+            triggerWhatsAppDispatch(targets);
+        }
+
+        function sendEmailReport() {
+            let targets = [];
+            if (selectedPatientIds.size > 0) {
+                targets = Array.from(selectedPatientIds);
+            } else {
+                const checkboxes = document.querySelectorAll('.patient-select-checkbox');
+                checkboxes.forEach(cb => {
+                    targets.push(parseInt(cb.getAttribute('data-patient-id')));
+                });
+            }
+            
+            if (targets.length === 0) {
+                showToast("warning", "No Patients", "There are no clinical alerts to report.");
+                return;
+            }
+            
+            triggerEmailDispatch(targets);
         }
 
         function sendRemindersDigest() {
@@ -313,25 +738,95 @@
         }
 
         function completeReminder(id, btn) {
-            if (!confirm("Mark this reminder as completed?")) return;
             btn.disabled = true;
-            btn.textContent = "Updating...";
+            btn.innerHTML = '<i class="material-icons" style="font-size:1em;">hourglass_empty</i>';
             fetch(`/alerts/reminders/${id}/complete`, { method: "POST" })
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') {
-                        btn.closest('.patient-card').style.opacity = '0.5';
-                        btn.closest('.patient-card').style.pointerEvents = 'none';
-                        btn.textContent = "Completed";
+                        const card = btn.closest('.patient-card');
+                        card.style.transition = 'opacity 0.35s, transform 0.35s';
+                        card.style.opacity = '0';
+                        card.style.transform = 'translateX(16px)';
+                        setTimeout(() => {
+                            card.style.display = 'none';
+                            showUndoToast('Reminder marked as done.', function() {
+                                // Restore the card and re-enable it
+                                card.style.display = '';
+                                card.style.opacity = '1';
+                                card.style.transform = '';
+                                btn.disabled = false;
+                                btn.innerHTML = '<i class="material-icons">task_alt</i> Mark Done';
+                                // Re-open the reminder server-side (best-effort)
+                                fetch(`/alerts/reminders/${id}/reopen`, { method: "POST" }).catch(() => {});
+                            });
+                        }, 350);
                     }
                 })
-                .catch(err => alert("Error updating reminder"));
+                .catch(() => { btn.disabled = false; btn.innerHTML = '<i class="material-icons">task_alt</i> Mark Done'; alert("Error updating reminder"); });
+        }
+
+        function showUndoToast(message, undoFn) {
+            const existing = document.getElementById('undoToast');
+            if (existing) existing.remove();
+            const toast = document.createElement('div');
+            toast.id = 'undoToast';
+            toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f8fafc;padding:12px 20px;border-radius:10px;display:flex;align-items:center;gap:12px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.3);font-size:0.875rem;';
+            toast.innerHTML = `<span>${message}</span><button onclick="undoMarkDone()" style="background:var(--primary);border:none;color:white;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">Undo</button>`;
+            document.body.appendChild(toast);
+            window._undoToastFn = undoFn;
+            window._undoToastTimer = setTimeout(() => toast.remove(), 5000);
+        }
+
+        function undoMarkDone() {
+            clearTimeout(window._undoToastTimer);
+            document.getElementById('undoToast')?.remove();
+            if (window._undoToastFn) window._undoToastFn();
+        }
+
+        /* ── New Reminder Modal ── */
+        function openReminderModal() {
+            const dateInput = document.getElementById('reminderDateInput');
+            if (dateInput && !dateInput.value)
+                dateInput.value = new Date().toISOString().split('T')[0];
+            document.getElementById('newReminderModal').classList.add('open');
+            document.getElementById('reminderFormError').style.display = 'none';
+        }
+        function closeReminderModal() {
+            document.getElementById('newReminderModal').classList.remove('open');
+        }
+        function submitNewReminder(event) {
+            event.preventDefault();
+            const form = event.target;
+            const btn  = document.getElementById('reminderSaveBtn');
+            const err  = document.getElementById('reminderFormError');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="material-icons">hourglass_empty</i> Saving…';
+            err.style.display = 'none';
+            fetch('/alerts/reminders/create', { method: 'POST', body: new FormData(form) })
+                .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e.detail || 'Server error')))
+                .then(d => {
+                    if (d.status === 'success') {
+                        closeReminderModal();
+                        form.reset();
+                        // Reload and auto-open reminders tab
+                        location.href = '/alerts?tab=reminders';
+                    }
+                })
+                .catch(e => {
+                    err.textContent = '❌ ' + (e || 'Failed to save. Please try again.');
+                    err.style.display = 'block';
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="material-icons">save</i> Save Reminder';
+                });
         }
 
         function showTab(tabId) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
+
             if (tabId === 'alerts') {
                 document.querySelector('.tab:nth-child(1)').classList.add('active');
                 document.getElementById('alertsTab').classList.add('active');
@@ -342,7 +837,21 @@
                 document.querySelector('.tab:nth-child(3)').classList.add('active');
                 document.getElementById('schedulesTab').classList.add('active');
             }
+            history.replaceState(null, '', '#' + tabId);
         }
+
+        /* ── Auto-open tab from URL param or hash ── */
+        (function() {
+            const p = new URLSearchParams(window.location.search);
+            const hash = window.location.hash.replace('#', '');
+            const tab = p.get('tab') || hash;
+            if (tab === 'reminders' || tab === 'schedules') {
+                showTab(tab);
+            } else if (tab) {
+                showTab('alerts');
+            }
+            // Don't replaceState here — preserve the hash
+        })();
     </script>
 </body>
 </html>

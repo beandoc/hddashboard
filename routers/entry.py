@@ -12,6 +12,7 @@ from itsdangerous import BadData
 from dependencies import get_user
 from dashboard_logic import get_current_month_str, get_month_label
 from alerts import send_entry_alert_email
+from validators import validate_lab_values
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ async def entry_index(request: Request, month: Optional[str] = None, db: Session
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
     records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()
     existing_records = {r.patient_id: r for r in records}
+    patients = sorted(patients, key=lambda p: (1 if p.id in existing_records else 0, p.name))
     patient_slot_info = {p.id: _build_patient_slot_info(p) for p in patients}
     
     # Calculate stats
@@ -82,6 +84,7 @@ async def entry_index(request: Request, month: Optional[str] = None, db: Session
         _, last_day = monthrange(year, mon)
         target_date = date(year, mon, last_day)
         today = date.today()
+        is_past_month = date(year, mon, 1) < date(today.year, today.month, 1)
         if today.year == year and today.month == mon:
             days_remaining = (target_date - today).days
         elif today > target_date:
@@ -90,6 +93,7 @@ async def entry_index(request: Request, month: Optional[str] = None, db: Session
             days_remaining = last_day
     except:
         days_remaining = 0
+        is_past_month = False
 
     from urllib.parse import quote
     return templates.TemplateResponse("entry_list.html", {
@@ -102,6 +106,7 @@ async def entry_index(request: Request, month: Optional[str] = None, db: Session
         "total_count": total_count,
         "completed_count": completed_count,
         "days_remaining": days_remaining,
+        "is_past_month": is_past_month,
         "return_to_entry": quote(f"/entry?month={month_str}", safe=""),
         "user": get_user(request),
     })
@@ -175,14 +180,9 @@ async def save_entry(
     csrf_token: str = Form(...),
     month_str: str = Form(...),
     entered_by: str = Form(""),
-    access_type: str = Form(""),
-    target_dry_weight: Optional[float] = Form(None),
-    idwg: Optional[float] = Form(None),
     last_prehd_weight: Optional[float] = Form(None),
     hb: Optional[float] = Form(None),
     hct: Optional[float] = Form(None),
-    bp_sys: Optional[float] = Form(None),
-    bp_dia: Optional[float] = Form(None),
     serum_ferritin: Optional[float] = Form(None),
     tsat: Optional[float] = Form(None),
     serum_iron: Optional[float] = Form(None),
@@ -194,16 +194,10 @@ async def save_entry(
     alkaline_phosphate: Optional[float] = Form(None),
     phosphorus: Optional[float] = Form(None),
     albumin: Optional[float] = Form(None),
-    prealbumin: Optional[float] = Form(None),
-    npcr: Optional[float] = Form(None),
-    sga_score: str = Form(""),
-    mis_score: Optional[int] = Form(None),
     ast: Optional[float] = Form(None),
     alt: Optional[float] = Form(None),
     vit_d: Optional[float] = Form(None),
     ipth: Optional[float] = Form(None),
-    av_daily_calories: Optional[float] = Form(None),
-    av_daily_protein: Optional[float] = Form(None),
     urr: Optional[float] = Form(None),
     crp: Optional[float] = Form(None),
     single_pool_ktv: Optional[float] = Form(None),
@@ -211,6 +205,7 @@ async def save_entry(
     pre_dialysis_urea: Optional[float] = Form(None),
     post_dialysis_urea: Optional[float] = Form(None),
     serum_creatinine: Optional[float] = Form(None),
+    post_dialysis_creatinine: Optional[float] = Form(None),
     residual_urine_output: Optional[float] = Form(None),
     tibc: Optional[float] = Form(None),
     iv_iron_product: str = Form(""),
@@ -235,21 +230,11 @@ async def save_entry(
     antihypertensive_name: list[str] = Form([]),
     antihypertensive_dose: list[str] = Form([]),
     antihypertensive_freq: list[str] = Form([]),
-    hrqol_score: Optional[float] = Form(None),
-    hospitalization_this_month: bool = Form(False),
-    hospitalization_date: list[str] = Form([]),
-    hospitalization_diagnosis: list[str] = Form([]),
-    hospitalization_icd_code: list[str] = Form([]),
-    hospitalization_icd_diagnosis: list[str] = Form([]),
     blood_transfusion_units: Optional[int] = Form(None),
     transfusion_date: Optional[str] = Form(None),
-    nt_probnp: Optional[float] = Form(None),
-    ejection_fraction: Optional[float] = Form(None),
-    diastolic_dysfunction: str = Form(""),
-    echo_date: Optional[str] = Form(None),
     clinical_background: str = Form(""),
     issues: str = Form(""),
-    action: str = Form("save_back"),
+    action: str = Form("save_back")
 ):
     try:
         _csrf_signer.unsign(csrf_token, max_age=3600)
@@ -320,6 +305,13 @@ async def save_entry(
             ResearchRecord.patient_id == patient_id
         ).first() is not None
 
+        # Collect soft warnings from submitted values so the UI can surface them
+        _soft_warnings: list[str] = []
+        try:
+            _soft_warnings = validate_lab_values(locals())
+        except Exception:
+            pass
+
         _csrf = _csrf_signer.sign(f"entry-{patient_id}").decode()
         return templates.TemplateResponse("entry_form.html", {
             "request": request,
@@ -340,6 +332,7 @@ async def save_entry(
             "is_research_mapped": _is_research,
             "carried_ruo": _ruo,
             "form_error": str(exc),
+            "soft_warnings": _soft_warnings,
         }, status_code=400 if is_validation else 500)
 
     if action == "save_next":

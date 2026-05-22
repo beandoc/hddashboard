@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # 1. Test DB setup and monkeypatching SessionLocal BEFORE importing app
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_api.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -12,6 +12,7 @@ database.SessionLocal = TestingSessionLocal
 
 from main import app
 import main
+main.SessionLocal = TestingSessionLocal
 main._check_schema_version = lambda: None
 
 from database import Base, get_db, User

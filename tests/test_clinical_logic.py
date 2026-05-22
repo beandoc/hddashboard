@@ -135,7 +135,7 @@ def test_tlc_and_neutrophil_boundary_normalization(db):
     
     # Assert values saved in database are normalized/scaled
     assert record.wbc_count == 6.5
-    assert record.neutrophil_count == 0.69
+    assert record.neutrophil_count == 4.485
 
 def test_backend_ktv_calculation(db):
     from services.entry_service import save_monthly_record
@@ -344,6 +344,84 @@ def test_role_based_clinical_field_restrictions(db):
     rec3 = save_monthly_record(db, p.id, data_staff_new, actor="teststaff")
     assert rec3.issues == ""
     assert p.clinical_background == "Updated POMR by Doctor"  # Retained!
+
+
+def test_pds_analysis_matching(db):
+    from datetime import date, datetime
+    from database import PatientSymptomReport, SessionRecord
+    from ml_cascade import analyze_pds
+    
+    # 1. Setup patient
+    p = Patient(name="Binda Bai", hid_no="P001", is_active=True)
+    db.add(p)
+    db.commit()
+    
+    # 2. Setup Session on Saturday
+    saturday = date(2026, 5, 16)
+    sess = SessionRecord(
+        patient_id=p.id,
+        session_date=saturday,
+        record_month="2026-05",
+        duration_hours=4,
+        duration_minutes=0,
+        weight_pre=72.0,
+        weight_post=70.0,
+        idh_episode=False
+    )
+    db.add(sess)
+    db.commit()
+    
+    # 3. Setup Symptom Report logged on Sunday morning (without explicit session_date, with reported_at)
+    sunday_morning = datetime(2026, 5, 17, 9, 0, 0)
+    rep1 = PatientSymptomReport(
+        patient_id=p.id,
+        reported_at=sunday_morning,
+        dialysis_recovery_time_mins=120,
+        tiredness_score=5,
+        energy_level_score=6
+    )
+    db.add(rep1)
+    db.commit()
+    
+    # 4. Run analyze_pds
+    res = analyze_pds(db, p.id)
+    assert res["available"] is True
+    assert len(res["events"]) == 1
+    assert res["events"][0]["session_matched"] is True
+    
+    # 5. Setup Symptom Report logged on Monday morning with explicit session_date = Saturday
+    monday_morning = datetime(2026, 5, 18, 10, 0, 0)
+    rep2 = PatientSymptomReport(
+        patient_id=p.id,
+        reported_at=monday_morning,
+        session_date=saturday,
+        dialysis_recovery_time_mins=180,
+        tiredness_score=6,
+        energy_level_score=5
+    )
+    db.add(rep2)
+    db.commit()
+    
+    res2 = analyze_pds(db, p.id)
+    assert len(res2["events"]) == 2
+    
+    # 6. Setup Symptom Report without recovery time or matched session (e.g. Wednesday)
+    wednesday_morning = datetime(2026, 5, 20, 9, 0, 0)
+    rep3 = PatientSymptomReport(
+        patient_id=p.id,
+        reported_at=wednesday_morning,
+        dialysis_recovery_time_mins=None,
+        tiredness_score=3,
+        energy_level_score=7
+    )
+    db.add(rep3)
+    db.commit()
+    
+    res3 = analyze_pds(db, p.id)
+    assert len(res3["events"]) == 2  # Only the two matched ones in events (drt chart)
+    assert len(res3["all_reports"]) == 3  # All three should be in all_reports
+    assert res3["unmatched_count"] == 1
+
 
 
 

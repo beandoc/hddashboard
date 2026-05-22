@@ -10,7 +10,7 @@ from datetime import datetime
 from database import get_db, Patient, MonthlyRecord, ClinicalEvent, SessionRecord, InterimLabRecord, PatientMealRecord, HospitalisationEvent
 from config import templates, _csrf_signer
 from itsdangerous import BadData
-from dependencies import get_user
+from dependencies import get_user, _require_admin_role
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month, _resolve_epo_dose
 from services import patient_service
 
@@ -64,6 +64,7 @@ async def patient_list(
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_patient_form(request: Request):
+    _require_admin_role(request)
     csrf_token = _csrf_signer.sign("patient-new").decode()
     return templates.TemplateResponse("patient_form.html", {
         "request": request,
@@ -88,8 +89,6 @@ async def create_patient(
     relation_type: str = Form(""),
     contact_no: str = Form(""),
     email: str = Form(""),
-    guardian_name: str = Form(""),
-    guardian_contact: str = Form(""),
     address: str = Form(""),
     height: Optional[float] = Form(None),
     handgrip_strength: Optional[float] = Form(None),
@@ -175,18 +174,21 @@ async def create_patient(
     whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
+    _require_admin_role(request)
     try:
         _csrf_signer.unsign(csrf_token, max_age=3600)
     except BadData:
         raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
     try:
-        patient_service.create_patient_record(db, locals())
+        new_patient = patient_service.create_patient_record(db, locals())
     except ValueError as e:
+        fresh_csrf = _csrf_signer.sign("patient-new").decode()
         return templates.TemplateResponse("patient_form.html", {
             "request": request, "patient": None, "mode": "new",
             "error": str(e), "user": get_user(request),
+            "csrf_token": fresh_csrf,
         })
-    return RedirectResponse(url="/patients", status_code=303)
+    return RedirectResponse(url=f"/patients/{new_patient.id}/profile", status_code=303)
 
 @router.get("/{patient_id}/profile", response_class=HTMLResponse)
 async def patient_profile(patient_id: int, request: Request, db: Session = Depends(get_db), msg: Optional[str] = None):
@@ -465,16 +467,19 @@ async def patient_med_recon(patient_id: int, request: Request, db: Session = Dep
 async def edit_patient_form(patient_id: int, request: Request, db: Session = Depends(get_db), return_to: Optional[str] = None):
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p: raise HTTPException(status_code=404)
+    csrf_token = _csrf_signer.sign(f"patient-edit-{patient_id}").decode()
     return templates.TemplateResponse("patient_form.html", {
         "request": request, "patient": p, "mode": "edit", "error": None,
         "user": get_user(request),
-        "return_to": return_to
+        "return_to": return_to,
+        "csrf_token": csrf_token,
     })
 
 @router.post("/{patient_id}/edit")
 async def update_patient(
     request: Request,
     patient_id: int, db: Session = Depends(get_db),
+    csrf_token: str = Form(...),
     # ── Identity ──────────────────────────────────────────────────────────────
     hid_no: str = Form(...),
     name: str = Form(...),
@@ -571,17 +576,29 @@ async def update_patient(
     whatsapp_notify: bool = Form(False),
     mail_trigger: bool = Form(False),
 ):
-    # Save logic...
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
+
+    return_to = request.query_params.get("return_to")
+
     try:
         patient_service.update_patient_record(db, patient_id, locals())
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    
-    # Handle return_to redirect
-    return_to = request.query_params.get("return_to")
+        p = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not p:
+            raise HTTPException(status_code=404)
+        fresh_csrf = _csrf_signer.sign(f"patient-edit-{patient_id}").decode()
+        return templates.TemplateResponse("patient_form.html", {
+            "request": request, "patient": p, "mode": "edit",
+            "error": str(e), "user": get_user(request),
+            "csrf_token": fresh_csrf,
+            "return_to": return_to,
+        })
+
     if return_to:
         return RedirectResponse(url=return_to, status_code=303)
-        
     return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
 
 @router.post("/{patient_id}/deactivate")

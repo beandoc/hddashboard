@@ -1,3 +1,4 @@
+{% from "_macros.html" import breadcrumb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,11 +13,7 @@
 <body>
 
 {% include "_nav.html" %}
-<nav class="nav-breadcrumb" aria-label="Breadcrumb">
-  <a href="/">Dashboard</a>
-  <span class="bc-sep">/</span>
-  <span class="bc-current">Patients</span>
-</nav>
+{{ breadcrumb([("Dashboard", "/"), ("Patients", None)]) }}
 
 
 <!-- ── PAGE HEADER ── -->
@@ -262,7 +259,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                                 <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
                                     {{ row.hb if row.hb is not none else '—' }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
                                 </span>
-                                <svg class="sparkline" viewBox="0 0 70 20" aria-label="Hemoglobin 6-month trend line">
+                                <svg class="sparkline" viewBox="0 0 70 20" role="img" aria-label="Hemoglobin 6-month trend line">
                                     <polyline class="{{ row.hb_sparkline.trend }}-trend" points="{{ row.hb_sparkline.points }}"></polyline>
                                 </svg>
                             </div>
@@ -278,7 +275,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                                 <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
                                     {{ row.albumin if row.albumin is not none else '—' }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
                                 </span>
-                                <svg class="sparkline" viewBox="0 0 70 20" aria-label="Albumin 6-month trend line">
+                                <svg class="sparkline" viewBox="0 0 70 20" role="img" aria-label="Albumin 6-month trend line">
                                     <polyline class="{{ row.alb_sparkline.trend }}-trend" points="{{ row.alb_sparkline.points }}"></polyline>
                                 </svg>
                             </div>
@@ -315,7 +312,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                                     </span>
                                 {% else %}
                                     <span class="alert-tag" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">
-                                        {{ a }}
+                                        <i class="material-icons" style="font-size:0.7rem; vertical-align:middle;">warning_amber</i> {{ a }}
                                     </span>
                                 {% endif %}
                             {% endfor %}
@@ -404,10 +401,10 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 <!-- ══════════════════════════════════════════════════════
      INTERIM LAB MODAL (fixed: unit field, textarea, no jargon)
      ══════════════════════════════════════════════════════ -->
-<div id="interimModal" class="modal-overlay" onclick="if(event.target===this)closeInterimModal()">
+<div id="interimModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title-interim" aria-hidden="true" onclick="if(event.target===this)closeInterimModal()">
     <div class="modal-box">
         <div class="modal-header">
-            <h3><i class="material-icons" style="color:var(--primary);font-size:1.1rem;">emergency</i> <span id="interimModalTitle">Add Interim Lab</span></h3>
+            <h3 id="modal-title-interim"><i class="material-icons" style="color:var(--primary);font-size:1.1rem;">emergency</i> <span id="interimModalTitle">Add Interim Lab</span></h3>
             <button class="modal-close" onclick="closeInterimModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form id="interimForm" method="POST">
@@ -472,10 +469,10 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 <!-- ══════════════════════════════════════════════════════
      DEACTIVATE CONFIRMATION MODAL (HID required)
      ══════════════════════════════════════════════════════ -->
-<div id="deactivateModal" class="modal-overlay" onclick="if(event.target===this)closeDeactivateModal()">
+<div id="deactivateModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title-deactivate" aria-hidden="true" onclick="if(event.target===this)closeDeactivateModal()">
     <div class="modal-box" style="max-width:400px;">
         <div class="modal-header">
-            <h3 style="color:#dc2626;"><i class="material-icons" style="font-size:1.1rem;">person_off</i> Deactivate Patient</h3>
+            <h3 id="modal-title-deactivate" style="color:#dc2626;"><i class="material-icons" style="font-size:1.1rem;">person_off</i> Deactivate Patient</h3>
             <button class="modal-close" onclick="closeDeactivateModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <p style="margin:0 0 8px; font-size:0.875rem; color:#475569;">
@@ -494,7 +491,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                 <input type="checkbox" id="deact_is_death" onchange="toggleDeathFields()" style="width:16px;height:16px;accent-color:#dc2626;">
                 Patient deceased (death as reason for deactivation)
             </label>
-            <div id="deathFields" style="display:none; margin-top:12px; display:none; flex-direction:column; gap:10px;">
+            <div id="deathFields" style="display:none; margin-top:12px; flex-direction:column; gap:10px;">
                 <div>
                     <label style="font-size:0.78rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.04em;">Date of Death</label>
                     <input type="date" id="deact_date_of_death" style="width:100%;margin-top:4px;padding:8px 10px;border:1.5px solid #fca5a5;border-radius:6px;font-size:0.875rem;">
@@ -528,10 +525,10 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 <!-- ══════════════════════════════════════════════════════
      CLINICAL REMINDER MODAL
      ══════════════════════════════════════════════════════ -->
-<div id="reminderModal" class="modal-overlay" onclick="if(event.target===this)closeReminderModal()">
+<div id="reminderModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title-reminder" aria-hidden="true" onclick="if(event.target===this)closeReminderModal()">
     <div class="modal-box">
         <div class="modal-header">
-            <h3><i class="material-icons" style="color:var(--accent-orange);font-size:1.1rem;">event_note</i> Set Clinical Reminder</h3>
+            <h3 id="modal-title-reminder"><i class="material-icons" style="color:var(--accent-orange);font-size:1.1rem;">event_note</i> Set Clinical Reminder</h3>
             <button class="modal-close" onclick="closeReminderModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <p style="margin:0 0 16px; font-size:0.875rem; color:#475569;">
@@ -556,10 +553,10 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 <!-- ══════════════════════════════════════════════════════
      HOSPITAL ADMIT MODAL
      ══════════════════════════════════════════════════════ -->
-<div id="admitModal" class="modal-overlay" onclick="if(event.target===this)closeAdmitModal()">
+<div id="admitModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title-admit" aria-hidden="true" onclick="if(event.target===this)closeAdmitModal()">
     <div class="modal-box">
         <div class="modal-header">
-            <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
+            <h3 id="modal-title-admit"><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
             <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
@@ -611,10 +608,10 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 <!-- ══════════════════════════════════════════════════════
      DISCHARGE MODAL
      ══════════════════════════════════════════════════════ -->
-<div id="dischargeModal" class="modal-overlay" onclick="if(event.target===this)closeDischargeModal()">
+<div id="dischargeModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title-discharge" aria-hidden="true" onclick="if(event.target===this)closeDischargeModal()">
     <div class="modal-box">
         <div class="modal-header">
-            <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
+            <h3 id="modal-title-discharge"><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
             <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
@@ -679,7 +676,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
             const matchChip   = !_activeChip ||
                 (_activeChip === 'high_risk' && row.dataset.urgency === '1') ||
                 (_activeChip === 'missing'   && rowStatus === 'missing') ||
-                (_activeChip === 'non_avf'   && row.dataset.access && row.dataset.access !== 'AVF');
+                (_activeChip === 'non_avf'   && row.dataset.access && !row.dataset.access.includes('AVF'));
             const visible = matchSearch && matchStatus && matchChip;
             row.style.display = visible ? '' : 'none';
             if (visible) visCount++;
@@ -847,10 +844,16 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
         document.getElementById('interimModalTitle').textContent = 'Lab Entry: ' + name;
         document.getElementById('interimForm').action = '/events/patients/' + pid + '/interim-labs/new';
         document.getElementById('modal_date').value = new Date().toISOString().slice(0, 10);
-        document.getElementById('interimModal').classList.add('open');
+        const modalEl = document.getElementById('interimModal');
+        modalEl.classList.add('open');
+        modalEl.setAttribute('aria-hidden', 'false');
+        window._focusTrapHandler_interim = trapFocus(modalEl);
     }
     function closeInterimModal() {
-        document.getElementById('interimModal').classList.remove('open');
+        const modalEl = document.getElementById('interimModal');
+        modalEl.classList.remove('open');
+        modalEl.setAttribute('aria-hidden', 'true');
+        releaseFocus(modalEl, window._focusTrapHandler_interim);
     }
 
     // ── DEACTIVATE MODAL ──────────────────────────────────────────────────
@@ -869,11 +872,16 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
         document.getElementById('deact_dod_hidden').value = '';
         document.getElementById('deact_cause_hidden').value = '';
         document.getElementById('deactivateForm').action = '/patients/' + pid + '/deactivate';
-        document.getElementById('deactivateModal').classList.add('open');
-        setTimeout(() => document.getElementById('deact_confirm_input').focus(), 100);
+        const modalEl = document.getElementById('deactivateModal');
+        modalEl.classList.add('open');
+        modalEl.setAttribute('aria-hidden', 'false');
+        window._focusTrapHandler_deactivate = trapFocus(modalEl);
     }
     function closeDeactivateModal() {
-        document.getElementById('deactivateModal').classList.remove('open');
+        const modalEl = document.getElementById('deactivateModal');
+        modalEl.classList.remove('open');
+        modalEl.setAttribute('aria-hidden', 'true');
+        releaseFocus(modalEl, window._focusTrapHandler_deactivate);
     }
     function checkDeactivateInput() {
         const val = document.getElementById('deact_confirm_input').value.trim();
@@ -904,20 +912,32 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
         document.getElementById('reminder_patient_name').textContent = name;
         document.getElementById('reminder_date').value = new Date().toISOString().slice(0, 10);
         document.getElementById('reminder_message').value = '';
-        document.getElementById('reminderModal').classList.add('open');
+        const modalEl = document.getElementById('reminderModal');
+        modalEl.classList.add('open');
+        modalEl.setAttribute('aria-hidden', 'false');
+        window._focusTrapHandler_reminder = trapFocus(modalEl);
     }
     function closeReminderModal() {
-        document.getElementById('reminderModal').classList.remove('open');
+        const modalEl = document.getElementById('reminderModal');
+        modalEl.classList.remove('open');
+        modalEl.setAttribute('aria-hidden', 'true');
+        releaseFocus(modalEl, window._focusTrapHandler_reminder);
     }
 
     // ── ADMIT / DISCHARGE MODALS ──────────────────────────────────────────
     function openAdmitModal(pid, name) {
         document.getElementById('admit_patient_id').value = pid;
         document.getElementById('admit_date').value = new Date().toISOString().slice(0, 10);
-        document.getElementById('admitModal').classList.add('open');
+        const modalEl = document.getElementById('admitModal');
+        modalEl.classList.add('open');
+        modalEl.setAttribute('aria-hidden', 'false');
+        window._focusTrapHandler_admit = trapFocus(modalEl);
     }
     function closeAdmitModal() {
-        document.getElementById('admitModal').classList.remove('open');
+        const modalEl = document.getElementById('admitModal');
+        modalEl.classList.remove('open');
+        modalEl.setAttribute('aria-hidden', 'true');
+        releaseFocus(modalEl, window._focusTrapHandler_admit);
     }
     function addAdmitDiagnosisRow() {
         const wrap = document.getElementById('admitDiagnosesWrapper');
@@ -962,10 +982,16 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
     function openDischargeModal(pid, name) {
         document.getElementById('discharge_patient_id').value = pid;
         document.getElementById('discharge_date').value = new Date().toISOString().slice(0, 10);
-        document.getElementById('dischargeModal').classList.add('open');
+        const modalEl = document.getElementById('dischargeModal');
+        modalEl.classList.add('open');
+        modalEl.setAttribute('aria-hidden', 'false');
+        window._focusTrapHandler_discharge = trapFocus(modalEl);
     }
     function closeDischargeModal() {
-        document.getElementById('dischargeModal').classList.remove('open');
+        const modalEl = document.getElementById('dischargeModal');
+        modalEl.classList.remove('open');
+        modalEl.setAttribute('aria-hidden', 'true');
+        releaseFocus(modalEl, window._focusTrapHandler_discharge);
     }
     function prepareDischargeDescription(form) {
         const hospital = document.getElementById('discharge_hospital').value;

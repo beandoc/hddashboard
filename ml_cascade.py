@@ -791,87 +791,140 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
 
 def analyze_pds(db: Session, patient_id: int) -> Dict:
     """
-    Correlates PatientSymptomReports (specifically DRT) with recent SessionRecords
-    to identify clinical drivers of PDS.
+    Correlates PatientSymptomReports with recent SessionRecords to identify
+    clinical drivers of Post-Dialysis Syndrome (PDS).
+
+    Matching strategy (in priority order):
+      1. Explicit session_id FK on the report.
+      2. report.session_date (the date the patient says the session was on)
+         matched against session records within a ±2-day window.
+      3. report.reported_at.date() as fallback, also ±2-day window.
+
+    Reports without a matched session are still surfaced — they appear in the
+    "all_reports" list on the returned dict so the template can show them even
+    when no clinical correlation is possible.
     """
     from database import PatientSymptomReport, SessionRecord, MonthlyRecord
     from datetime import timedelta
 
-    reports = db.query(PatientSymptomReport).filter(
-        PatientSymptomReport.patient_id == patient_id,
-        PatientSymptomReport.dialysis_recovery_time_mins != None
-    ).order_by(PatientSymptomReport.reported_at.desc()).limit(10).all()
+    # Fetch all recent reports — no DRT filter so symptoms-only logs are visible
+    reports = (
+        db.query(PatientSymptomReport)
+        .filter(PatientSymptomReport.patient_id == patient_id)
+        .order_by(PatientSymptomReport.reported_at.desc())
+        .limit(20)
+        .all()
+    )
 
     if not reports:
-        return {"available": False, "message": "No PDS symptom logs available."}
+        return {"available": False, "message": "No post-dialysis symptom logs recorded yet."}
 
-    recent_sessions = db.query(SessionRecord).filter(
-        SessionRecord.patient_id == patient_id
-    ).order_by(SessionRecord.session_date.desc()).limit(20).all()
+    recent_sessions = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id == patient_id)
+        .order_by(SessionRecord.session_date.desc())
+        .limit(30)
+        .all()
+    )
 
-    correlated_events = []
-    for rep in reports:
-        sess = None
+    def _find_session(rep):
+        """Return the closest SessionRecord for a given report, or None."""
         if rep.session_id:
-            sess = next((s for s in recent_sessions if s.id == rep.session_id), None)
-        else:
-            rep_date = rep.reported_at.date()
-            sess = next((s for s in recent_sessions if s.session_date == rep_date or s.session_date == rep_date - timedelta(days=1)), None)
+            return next((s for s in recent_sessions if s.id == rep.session_id), None)
 
+        # Prefer the explicitly stored session_date; fall back to reported_at date
+        anchor = rep.session_date or rep.reported_at.date()
+
+        # Search within a 2-day window before the anchor (patient logs after HD)
+        for delta in range(3):  # 0, 1, 2 days prior
+            target = anchor - timedelta(days=delta)
+            match = next((s for s in recent_sessions if s.session_date == target), None)
+            if match:
+                return match
+        return None
+
+    # Build per-report dicts; include unmatched reports with sess=None
+    all_reports = []
+    correlated_events = []
+
+    for rep in reports:
+        sess = _find_session(rep)
+
+        ufr = None
         if sess:
-            ufr = None
             duration = (sess.duration_hours or 0) + (sess.duration_minutes or 0) / 60
             if sess.weight_pre and sess.weight_post and duration > 0:
                 ufr = round(((sess.weight_pre - sess.weight_post) * 1000) / duration, 1)
 
-            correlated_events.append({
-                "date": str(rep.reported_at.date()),
-                "drt_mins": rep.dialysis_recovery_time_mins,
-                "tiredness": rep.tiredness_score,
-                "mood": rep.post_hd_mood,
-                "ufr": ufr,
-                "idh": sess.idh_episode,
-                "temp": sess.dialysate_temperature,
-                "exercise": sess.intradialytic_exercise_mins
-            })
+        report_dict = {
+            "date": str(rep.session_date or rep.reported_at.date()),
+            "reported_at": str(rep.reported_at.date()),
+            "drt_mins": rep.dialysis_recovery_time_mins,
+            "tiredness": rep.tiredness_score,
+            "energy": rep.energy_level_score,
+            "activity_impact": rep.daily_activity_impact,
+            "mood": rep.post_hd_mood,
+            "alertness": rep.cognitive_alertness,
+            "sleepiness": rep.sleepiness_severity,
+            "missed_event": rep.missed_social_or_work_event,
+            "symptoms": rep.symptoms,
+            "notes": rep.notes,
+            "session_matched": sess is not None,
+            "ufr": ufr,
+            "idh": sess.idh_episode if sess else None,
+            "temp": sess.dialysate_temperature if sess else None,
+            "exercise": sess.intradialytic_exercise_mins if sess else None,
+        }
+        all_reports.append(report_dict)
 
-    if not correlated_events:
-        return {"available": False, "message": "Symptom logs found but no matching sessions could be correlated."}
+        # Only include in correlated_events when DRT is available (needed for avg calc)
+        if rep.dialysis_recovery_time_mins is not None and sess:
+            correlated_events.append(report_dict)
 
-    avg_drt = sum(e["drt_mins"] for e in correlated_events) / len(correlated_events)
-
+    # DRT-based analytics (only when we have correlated events with DRT)
+    avg_drt = None
     flags = []
     interventions = []
     risk_level = "low"
 
-    if avg_drt > 360:  # > 6 hours
-        risk_level = "high"
-        flags.append(f"Prolonged average recovery time: {round(avg_drt/60, 1)} hours.")
+    if correlated_events:
+        avg_drt = sum(e["drt_mins"] for e in correlated_events) / len(correlated_events)
 
-        high_ufr_events = [e for e in correlated_events if e["ufr"] and e["ufr"] > 10.0 and e["drt_mins"] > 360]
-        if high_ufr_events:
-            flags.append("Prolonged DRT correlates with high Ultrafiltration Rate.")
-            interventions.append("Review fluid allowance and target dry weight.")
+        if avg_drt > 360:  # > 6 hours
+            risk_level = "high"
+            flags.append(f"Prolonged average recovery time: {round(avg_drt/60, 1)} hours.")
 
-        idh_events = [e for e in correlated_events if e["idh"] and e["drt_mins"] > 360]
-        if idh_events:
-            flags.append("Prolonged DRT correlates with Intradialytic Hypotension.")
-            interventions.append("Consider cool dialysate or adjusting dialysate sodium.")
+            if any(e["ufr"] and e["ufr"] > 10.0 and e["drt_mins"] > 360 for e in correlated_events):
+                flags.append("Prolonged DRT correlates with high Ultrafiltration Rate.")
+                interventions.append("Review fluid allowance and target dry weight.")
 
-        latest_monthly = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
-        if latest_monthly and latest_monthly.albumin and latest_monthly.albumin < 3.5:
-            flags.append("Prolonged DRT in setting of hypoalbuminemia.")
-            interventions.append("Evaluate for protein-energy wasting; encourage intradialytic meals if appropriate.")
+            if any(e["idh"] and e["drt_mins"] > 360 for e in correlated_events):
+                flags.append("Prolonged DRT correlates with Intradialytic Hypotension.")
+                interventions.append("Consider cool dialysate or adjusting dialysate sodium.")
+
+            latest_monthly = (
+                db.query(MonthlyRecord)
+                .filter(MonthlyRecord.patient_id == patient_id)
+                .order_by(MonthlyRecord.record_month.desc())
+                .first()
+            )
+            if latest_monthly and latest_monthly.albumin and latest_monthly.albumin < 3.5:
+                flags.append("Prolonged DRT in setting of hypoalbuminemia.")
+                interventions.append("Evaluate for protein-energy wasting; encourage intradialytic meals if appropriate.")
+
+    unmatched_count = sum(1 for r in all_reports if not r["session_matched"])
 
     return {
         "available": True,
-        "avg_drt_mins": round(avg_drt),
-        "avg_drt_hours": round(avg_drt / 60, 1),
+        "avg_drt_mins": round(avg_drt) if avg_drt is not None else None,
+        "avg_drt_hours": round(avg_drt / 60, 1) if avg_drt is not None else None,
         "risk_level": risk_level,
         "css_class": "danger" if risk_level == "high" else "success",
         "flags": flags,
         "interventions": interventions,
-        "events": correlated_events
+        "events": correlated_events,       # DRT-correlated events for the chart
+        "all_reports": all_reports,        # all reports including unmatched
+        "unmatched_count": unmatched_count,
     }
 
 

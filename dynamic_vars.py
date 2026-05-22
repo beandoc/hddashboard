@@ -33,7 +33,9 @@ class VariableDefinition(Base):
     target_low     = Column(Float)
     target_high    = Column(Float)
 
-    description       = Column(Text)
+    description           = Column(Text)
+    normal_range          = Column(Text)
+    clinical_significance = Column(Text)
     is_active         = Column(Boolean, default=True)
     show_in_dashboard = Column(Boolean, default=True)
     show_in_timeline  = Column(Boolean, default=True)

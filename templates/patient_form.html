@@ -1,3 +1,4 @@
+{% from "_macros.html" import breadcrumb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,14 +7,18 @@
     <title>{{ "Edit" if mode=="edit" else "New" }} Patient - HD Dashboard</title>    <style>
         :root {
             --primary: #0ea5e9;
+            --primary-light: #e0f2fe;
             --primary-dark: #0284c7;
-            --bg-main: #f8fafc;
-            --bg-card: #ffffff;
+            --bg-main: #f1f5f9;
+            --bg-card: rgba(255, 255, 255, 0.95);
             --text-main: #1e293b;
             --text-muted: #64748b;
             --text-header: #0f172a;
-            --radius: 12px;
-            --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+            --radius: 16px;
+            --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 10px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04);
+            --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            --ring-color: rgba(14, 165, 233, 0.25);
         }
 
         body { 
@@ -22,87 +27,150 @@
             background-color: var(--bg-main); 
             color: var(--text-main); 
             -webkit-font-smoothing: antialiased;
+            background-image: radial-gradient(circle at top right, #e0f2fe 0%, transparent 25%),
+                              radial-gradient(circle at bottom left, #f0f9ff 0%, transparent 20%);
+            background-attachment: fixed;
         }
-        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
-
         h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
 
         header { 
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
-            color: white; padding: 40px 24px; text-align: center; 
+            color: white; padding: 48px 24px; text-align: center; 
+            box-shadow: var(--shadow-sm);
         }
-        header h1 { margin: 0; font-size: 1.8em; letter-spacing: -0.02em; }
+        header h1 { margin: 0; font-size: 2.2em; font-weight: 700; letter-spacing: -0.02em; }
 
-        .container { max-width: 800px; margin: 30px auto; padding: 0 24px; padding-bottom: 80px; }
+        .container { max-width: 850px; margin: 30px auto; padding: 0 24px; padding-bottom: 80px; position: relative; z-index: 10; }
         
         .form-card {
-            background: #fff; padding: 24px; border-radius: var(--radius);
-            margin-bottom: 24px; box-shadow: var(--shadow-md);
-            border: 1px solid rgba(0,0,0,0.03);
+            background: var(--bg-card); padding: 32px; border-radius: var(--radius);
+            margin-bottom: 28px; box-shadow: var(--shadow-md);
+            border: 1px solid rgba(255,255,255,0.8);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        .form-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
         .form-card h3 { 
-            margin-top: 0; margin-bottom: 20px; font-size: 1.1em; 
-            color: var(--text-header); display: flex; align-items: center; gap: 8px;
+            margin-top: 0; margin-bottom: 24px; font-size: 1.25em; font-weight: 600;
+            color: var(--text-header); display: flex; align-items: center; gap: 10px;
+            padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;
+        }
+        .form-card h3 i {
+            color: var(--primary); background: var(--primary-light);
+            padding: 8px; border-radius: 10px; font-size: 1.1em;
         }
         
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.02em; }
+        .form-group { margin-bottom: 22px; position: relative; }
+        label { 
+            display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-muted); 
+            font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.05em; 
+        }
         
-        input, select, textarea {
-            width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; 
-            border-radius: 10px; box-sizing: border-box; font-family: 'Inter', sans-serif;
-            font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;
+        input[type="text"], input[type="number"], input[type="date"], input[type="email"], input[type="tel"], select, textarea {
+            width: 100%; padding: 14px 16px; border: 1px solid #cbd5e1; 
+            border-radius: 12px; box-sizing: border-box; font-family: 'Inter', sans-serif;
+            font-size: 0.95rem; color: #0f172a; background: #f8fafc; transition: all 0.2s ease;
+        }
+        input:hover, select:hover, textarea:hover {
+            border-color: #94a3b8;
         }
         input:focus, select:focus, textarea:focus { 
-            border-color: var(--primary); background: #fff; outline: none; box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1); 
+            border-color: var(--primary); background: #fff; outline: none; 
+            box-shadow: 0 0 0 4px var(--ring-color); transform: translateY(-1px);
+        }
+
+        /* Checkbox customization */
+        input[type="checkbox"] {
+            accent-color: var(--primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .checkbox-label {
+            display:flex; align-items:flex-start; gap:12px; text-transform:none; cursor:pointer;
+            padding: 12px 16px; border-radius: 12px; border: 1px solid #e2e8f0;
+            background: #fff; transition: all 0.2s ease; margin-bottom: 0;
+        }
+        .checkbox-label:hover {
+            border-color: #cbd5e1; background: #f8fafc;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 20px; height: 20px; margin-top: 2px;
+        }
+        .checkbox-label span {
+            font-size: 0.95rem; color: var(--text-main); font-weight: 500; line-height: 1.4;
         }
 
         .btn-submit { 
-            background: var(--primary); color: white; padding: 16px 32px; 
-            border: none; border-radius: var(--radius); cursor: pointer; 
-            font-size: 1em; font-weight: 700; width: 100%; transition: all 0.2s;
-            box-shadow: 0 4px 14px 0 rgba(14, 165, 233, 0.39);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); 
+            color: white; padding: 18px 32px; 
+            border: none; border-radius: 14px; cursor: pointer; 
+            font-size: 1.05em; font-weight: 700; width: 100%; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 14px 0 rgba(14, 165, 233, 0.4);
+            letter-spacing: 0.02em; display: flex; justify-content: center; align-items: center; gap: 8px;
         }
-        .btn-submit:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-submit:hover { 
+            transform: translateY(-2px) scale(1.01); 
+            box-shadow: 0 8px 20px 0 rgba(14, 165, 233, 0.5); 
+        }
+        .btn-submit:active { transform: translateY(0) scale(0.99); }
 
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .comorbidity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .comorbidity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+
+        /* Server-side error banner */
+        .error {
+            color: #991b1b; background: #fef2f2;
+            padding: 16px 20px; border-radius: 12px; margin-bottom: 24px;
+            font-size: 0.95rem; border: 1px solid #fecaca;
+            display: flex; align-items: center; gap: 12px; font-weight: 500;
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Inline field validation */
+        input.invalid, select.invalid, textarea.invalid {
+            border-color: #ef4444 !important;
+            background: #fef2f2 !important;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
+        }
+        .field-error {
+            display: block; color: #ef4444;
+            font-size: 0.8rem; margin-top: 6px; font-weight: 500; display:flex; align-items:center; gap:4px;
+        }
+
+        /* Section highlighting for specific critical areas */
+        .highlight-zone {
+            background: linear-gradient(to right, #f8fafc, #f1f5f9);
+            padding: 16px 20px; border-radius: 12px; margin-bottom: 20px;
+            border-left: 4px solid var(--primary);
+        }
 
         @media(max-width: 640px) {
             .app-nav .nav-links { display: none; }
             .mobile-menu-btn { display: block; color: #fff; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
             header { padding: 32px 16px; }
-            header h1 { font-size: 1.5rem; }
+            header h1 { font-size: 1.75rem; }
             .container { padding: 0 16px; padding-bottom: 120px; margin-top: 10px; }
-            .form-card { padding: 20px; border-radius: 16px; margin-bottom: 16px; }
-            .form-card h3 { font-size: 1rem; margin-bottom: 16px; }
+            .form-card { padding: 24px 20px; border-radius: 16px; margin-bottom: 20px; }
+            .form-card h3 { font-size: 1.1rem; margin-bottom: 20px; }
 
-            input, select, textarea { min-height: 48px; }
-            .form-row { grid-template-columns: 1fr; gap: 12px; }
-            .comorbidity-grid { grid-template-columns: 1fr; gap: 8px; }
+            input[type="text"], input[type="number"], input[type="date"], input[type="email"], input[type="tel"], select, textarea { min-height: 52px; }
+            .form-row { grid-template-columns: 1fr; gap: 16px; }
+            .comorbidity-grid { grid-template-columns: 1fr; gap: 10px; }
 
-            .btn-submit { min-height: 56px; margin-top: 10px; }
-        }
-        @media (max-width: 640px) {
-          .container { padding: 16px; }
-          header { padding: 16px; }
-          .form-grid, .form-row, .form-section-grid { grid-template-columns: 1fr !important; }
-          .action-row { flex-direction: column; gap: 10px; }
-          .btn-submit, .btn-cancel { min-height: 48px; width: 100%; justify-content: center; }
+            .btn-submit { min-height: 60px; margin-top: 16px; }
         }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <link rel="stylesheet" href="/static/css/clinical.css"/>
 </head>
 <body>
     {% include "_nav.html" %}
-<nav class="nav-breadcrumb" aria-label="Breadcrumb">
-  <a href="/">Dashboard</a>
-  <span class="bc-sep">/</span>
-  <a href="/patients">Patients</a>
-  <span class="bc-sep">/</span>
-  <span class="bc-current">{{ patient.name if patient else 'New Patient' }}</span>
-</nav>
+{{ breadcrumb([("Dashboard", "/"), ("Patients", "/patients"), ("New Patient", None)]) }}
 
 
     <header>
@@ -117,7 +185,11 @@
 
     <div class="container">
         {% if error %}
-            <div class="error">{{ error }}</div>
+            <div class="error" id="formError">
+                <i class="material-icons" style="font-size:1.1rem;color:#dc2626;flex-shrink:0;">error_outline</i>
+                <span>{{ error }}</span>
+            </div>
+            <script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('formError');if(e)e.scrollIntoView({behavior:'smooth',block:'center'});});</script>
         {% endif %}
         <form method="POST" action="{% if mode == 'edit' %}/patients/{{ patient.id }}/edit{% else %}/patients/new{% endif %}{% if return_to %}?return_to={{ return_to }}{% endif %}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -228,7 +300,7 @@
                     </div>
                     <div class="form-group">
                         <label>Native Kidney Biopsy</label>
-                        <select name="native_kidney_biopsy" id="native_kidney_biopsy" onchange="toggleBiopsyFields()">
+                        <select name="native_kidney_biopsy" id="native_kidney_biopsy" onchange="toggleBiopsyFields(true)">
                             <option value="">-- Select --</option>
                             <option value="Done" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Done' }}>Done</option>
                             <option value="Not Done" {{ 'selected' if patient and patient.native_kidney_biopsy == 'Not Done' }}>Not Done</option>
@@ -270,8 +342,8 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                        <input type="checkbox" name="history_of_renal_transplant" value="true" {{ 'checked' if patient and patient.history_of_renal_transplant }} style="width:18px;height:18px;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="history_of_renal_transplant" value="true" {{ 'checked' if patient and patient.history_of_renal_transplant }}>
                         <span>History of Renal Transplant (failed graft)</span>
                     </label>
                 </div>
@@ -315,12 +387,12 @@
             <div class="form-card">
                 <h3><i class="material-icons">device_hub</i> Vascular Access Details</h3>
                 
-                <div class="form-group" style="background:#f1f5f9; padding:12px; border-radius:8px; margin-bottom:20px;">
-                    <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer; color:var(--primary); font-weight:700;">
-                        <input type="checkbox" id="dual_access_toggle" onchange="toggleAccessFields()" style="width:18px; height:18px;">
-                        <span>Dual Access / Bridge Phase? (Catheter + AVF/AVG)</span>
+                <div class="form-group highlight-zone">
+                    <label class="checkbox-label" style="border: none; background: transparent; padding: 0;">
+                        <input type="checkbox" id="dual_access_toggle" onchange="toggleAccessFields()">
+                        <span style="color:var(--primary); font-weight:700;">Dual Access / Bridge Phase? (Catheter + AVF/AVG)</span>
                     </label>
-                    <p style="font-size:0.75rem; color:#64748b; margin:4px 0 0 28px;">Enable this if the patient has a catheter while a new fistula/graft is maturing.</p>
+                    <p style="font-size:0.8rem; color:#64748b; margin:8px 0 0 32px; font-weight: 500;">Enable this if the patient has a catheter while a new fistula/graft is maturing.</p>
                 </div>
 
                 <div id="avf_fields" class="form-row">
@@ -356,8 +428,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                        <input type="checkbox" name="history_of_access_thrombosis" value="true" {{ 'checked' if patient and patient.history_of_access_thrombosis }} style="width:18px;height:18px;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="history_of_access_thrombosis" value="true" {{ 'checked' if patient and patient.history_of_access_thrombosis }}>
                         <span>History of Access Thrombosis / Failure</span>
                     </label>
                 </div>
@@ -414,9 +486,9 @@
                         ('lymphoma','Lymphoma'),
                         ('dm_end_organ_damage','Diabetes with End-Organ Damage')
                     ] %}
-                    <div class="form-group">
-                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer;">
-                            <input type="checkbox" name="{{ field }}" id="cci_{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} style="width:18px;height:18px;" onchange="calculateCCI()">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="{{ field }}" id="cci_{{ field }}" value="true" {{ 'checked' if patient and patient[field] }} onchange="calculateCCI()">
                             <span>{{ label }}</span>
                         </label>
                     </div>
@@ -461,14 +533,14 @@
                 <h3><i class="material-icons">monitor_heart</i> Cardiac Assessment</h3>
                 <div class="form-row">
                     <div class="form-group">
-                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer; margin-top: 10px;">
-                            <input type="checkbox" name="cad_status" id="cci_cad_status" value="true" {{ 'checked' if patient and patient.cad_status }} style="width:18px;height:18px;" onchange="calculateCCI()">
+                        <label class="checkbox-label" style="margin-top: 10px;">
+                            <input type="checkbox" name="cad_status" id="cci_cad_status" value="true" {{ 'checked' if patient and patient.cad_status }} onchange="calculateCCI()">
                             <span>Myocardial Infarction / CAD</span>
                         </label>
                     </div>
                     <div class="form-group">
-                        <label style="display:flex;align-items:center;gap:8px;text-transform:none;cursor:pointer; margin-top: 10px;">
-                            <input type="checkbox" name="chf_status" id="cci_chf_status" value="true" {{ 'checked' if patient and patient.chf_status }} style="width:18px;height:18px;" onchange="calculateCCI()">
+                        <label class="checkbox-label" style="margin-top: 10px;">
+                            <input type="checkbox" name="chf_status" id="cci_chf_status" value="true" {{ 'checked' if patient and patient.chf_status }} onchange="calculateCCI()">
                             <span>Congestive Heart Failure</span>
                         </label>
                     </div>
@@ -625,14 +697,14 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer;">
-                        <input type="checkbox" name="whatsapp_notify" value="true" {{ 'checked' if patient and patient.whatsapp_notify else '' }} style="width:20px; height:20px;">
+                    <label class="checkbox-label highlight-zone" style="padding: 16px 20px;">
+                        <input type="checkbox" name="whatsapp_notify" value="true" {{ 'checked' if patient and patient.whatsapp_notify else '' }}>
                         <span>Enable WhatsApp Automated Notifications</span>
                     </label>
                 </div>
                 <div class="form-group">
-                    <label style="display:flex; align-items:center; gap:10px; text-transform:none; cursor:pointer;">
-                        <input type="checkbox" name="mail_trigger" value="true" {{ 'checked' if patient and patient.mail_trigger else '' }} style="width:20px; height:20px;">
+                    <label class="checkbox-label highlight-zone" style="padding: 16px 20px;">
+                        <input type="checkbox" name="mail_trigger" value="true" {{ 'checked' if patient and patient.mail_trigger else '' }}>
                         <span>Enable Email Critical Lab Alerts</span>
                     </label>
                 </div>
@@ -644,7 +716,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Current Survival Status</label>
-                        <select name="current_survival_status" id="current_survival_status" onchange="toggleOutcomeFields(); toggleWithdrawalFields();">
+                        <select name="current_survival_status" id="current_survival_status" onchange="toggleOutcomeFields(true); toggleWithdrawalFields();">
                             {% for s in ["Active","Deceased","Transferred","Transplanted","Withdrawn"] %}
                             <option value="{{ s }}" {{ 'selected' if (patient and patient.current_survival_status == s) or (not patient and s == 'Active') }}>{{ s }}</option>
                             {% endfor %}
@@ -729,7 +801,7 @@
         });
 
 
-        function toggleOutcomeFields() {
+        function toggleOutcomeFields(clearValues) {
             const status = document.getElementById('current_survival_status').value;
 
             const deathGroup     = document.getElementById('outcome_death_date_group');
@@ -746,16 +818,17 @@
             transplantGroup.style.display = showTransplant ? '' : 'none';
             transferGroup.style.display   = showTransfer   ? '' : 'none';
 
-            // Clear fields that are now hidden to avoid stale data being submitted
-            if (!showDeath) {
-                document.getElementById('date_of_death').value = '';
-                document.getElementById('primary_cause_of_death').value = '';
-            }
-            if (!showTransplant) {
-                document.getElementById('date_of_transplant').value = '';
-            }
-            if (!showTransfer) {
-                document.getElementById('date_facility_transfer').value = '';
+            if (clearValues) {
+                if (!showDeath) {
+                    document.getElementById('date_of_death').value = '';
+                    document.getElementById('primary_cause_of_death').value = '';
+                }
+                if (!showTransplant) {
+                    document.getElementById('date_of_transplant').value = '';
+                }
+                if (!showTransfer) {
+                    document.getElementById('date_facility_transfer').value = '';
+                }
             }
         }
 
@@ -805,27 +878,19 @@
             }
         }
 
-        function toggleBiopsyFields() {
+        function toggleBiopsyFields(clearValues) {
             const status = document.getElementById('native_kidney_biopsy').value;
             const bDate = document.getElementById('native_kidney_biopsy_date');
             const bReport = document.getElementById('native_kidney_biopsy_report');
-            
+
             const isNotDone = (status === 'Not Done' || status === '');
-            bDate.disabled = isNotDone;
-            bReport.disabled = isNotDone;
-            
-            if (isNotDone) {
+            const displayVal = isNotDone ? 'none' : '';
+            bDate.closest('.form-group').style.display = displayVal;
+            bReport.closest('.form-group').style.display = displayVal;
+
+            if (isNotDone && clearValues) {
                 bDate.value = "";
                 bReport.value = "";
-                bDate.style.opacity = "0.5";
-                bReport.style.opacity = "0.5";
-                bDate.style.background = "#e2e8f0";
-                bReport.style.background = "#e2e8f0";
-            } else {
-                bDate.style.opacity = "1";
-                bReport.style.opacity = "1";
-                bDate.style.background = "#f8fafc";
-                bReport.style.background = "#f8fafc";
             }
         }
         
@@ -885,10 +950,10 @@
         }
         
         document.addEventListener("DOMContentLoaded", () => {
-            toggleOutcomeFields();
+            toggleOutcomeFields(false);
             toggleWithdrawalFields();
-            toggleBiopsyFields();
-            
+            toggleBiopsyFields(false);
+
             // Auto-detect Dual Access state
             const hasAvf = document.querySelector('input[name="access_date"]') && document.querySelector('input[name="access_date"]').value !== "";
             const hasCath = document.querySelector('select[name="catheter_type"]') && document.querySelector('select[name="catheter_type"]').value !== "";
@@ -896,9 +961,59 @@
                 const dualToggle = document.getElementById('dual_access_toggle');
                 if (dualToggle) dualToggle.checked = true;
             }
-            
+
             toggleAccessFields();
             calculateCCI(); // Calculate initially on load
+
+            // ── Inline validation ─────────────────────────────────────────────
+            const form = document.querySelector('form');
+            if (!form) return;
+
+            function clearFieldError(field) {
+                field.classList.remove('invalid');
+                const existing = field.closest('.form-group') && field.closest('.form-group').querySelector('.field-error');
+                if (existing) existing.remove();
+            }
+
+            function markFieldError(field, msg) {
+                field.classList.add('invalid');
+                const span = document.createElement('span');
+                span.className = 'field-error';
+                span.textContent = msg || 'This field is required';
+                const group = field.closest('.form-group');
+                if (group && !group.querySelector('.field-error')) group.appendChild(span);
+            }
+
+            // Live clear on input / change
+            form.addEventListener('input', function(e) {
+                if (e.target.classList.contains('invalid') && e.target.value.trim()) clearFieldError(e.target);
+            });
+            form.addEventListener('change', function(e) {
+                if (e.target.classList.contains('invalid') && e.target.value.trim()) clearFieldError(e.target);
+            });
+
+            form.addEventListener('submit', function(e) {
+                // Clear prior errors
+                form.querySelectorAll('.field-error').forEach(el => el.remove());
+                form.querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+
+                let firstError = null;
+                form.querySelectorAll('[required]').forEach(function(field) {
+                    // Skip hidden / disabled fields
+                    if (field.type === 'hidden' || field.disabled) return;
+                    const val = (field.value || '').trim();
+                    if (!val) {
+                        markFieldError(field, 'This field is required');
+                        if (!firstError) firstError = field;
+                    }
+                });
+
+                if (firstError) {
+                    e.preventDefault();
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstError.focus();
+                }
+            });
         });
     </script>
 </body>

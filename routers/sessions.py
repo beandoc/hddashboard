@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 import logging
 
@@ -85,9 +85,23 @@ async def create_session(
     urea_venous_v: Optional[float] = Form(None),
     access_recirculation_percent: Optional[float] = Form(None),
     access_flow_qa: Optional[float] = Form(None),
+    dialysis_recovery_time_mins: Optional[int] = Form(None),
+    tiredness_score: Optional[int] = Form(None),
+    energy_level_score: Optional[int] = Form(None),
+    sleepiness_severity: Optional[int] = Form(None),
+    daily_activity_impact: Optional[int] = Form(None),
+    cognitive_alertness: Optional[str] = Form(None),
+    post_hd_mood: Optional[str] = Form(None),
+    severity: Optional[int] = Form(None),
+    missed_social_or_work_event: bool = Form(False),
+    symptom_notes: Optional[str] = Form(None),
+    symptoms: List[str] = Form([])
 ):
     try:
-        rec = session_service.create_session_record(db, patient_id, locals())
+        # FastAPI passes a list for 'symptoms', convert it to comma-separated string for DB
+        kwargs = locals().copy()
+        kwargs['symptoms'] = ",".join(symptoms) if symptoms else ""
+        rec = session_service.create_session_record(db, patient_id, kwargs)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return RedirectResponse(url=f"/sessions/{rec.id}/edit", status_code=303)
@@ -148,9 +162,22 @@ async def update_session(
     urea_venous_v: Optional[float] = Form(None),
     access_recirculation_percent: Optional[float] = Form(None),
     access_flow_qa: Optional[float] = Form(None),
+    dialysis_recovery_time_mins: Optional[int] = Form(None),
+    tiredness_score: Optional[int] = Form(None),
+    energy_level_score: Optional[int] = Form(None),
+    sleepiness_severity: Optional[int] = Form(None),
+    daily_activity_impact: Optional[int] = Form(None),
+    cognitive_alertness: Optional[str] = Form(None),
+    post_hd_mood: Optional[str] = Form(None),
+    severity: Optional[int] = Form(None),
+    missed_social_or_work_event: bool = Form(False),
+    symptom_notes: Optional[str] = Form(None),
+    symptoms: List[str] = Form([])
 ):
     try:
-        session_service.update_session_record(db, session_id, locals())
+        kwargs = locals().copy()
+        kwargs['symptoms'] = ",".join(symptoms) if symptoms else ""
+        session_service.update_session_record(db, session_id, kwargs)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     

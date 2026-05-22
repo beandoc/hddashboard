@@ -9,7 +9,7 @@
             --border: #e2e8f0; --text-dark: #0f172a; --text-muted: #64748b;
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-dark); margin: 0; }
-        header { background: white; padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+        header { background: var(--bg-card); padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 20px; }
         .back-link { color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; font-size: 0.9rem; }
         .back-link:hover { color: var(--primary); }
         
@@ -19,14 +19,14 @@
         .btn-primary { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
         
         .table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .table th { text-align: left; padding: 12px; background: #f1f5f9; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
+        .table th { text-align: left; padding: 12px; background: var(--bg-body); color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
         .table td { padding: 15px 12px; border-bottom: 1px solid var(--border); font-size: 0.95rem; }
         
-        .data-chip { display: inline-block; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; margin: 2px; font-family: monospace; border: 1px solid #cbd5e1; }
+        .data-chip { display: inline-block; background: var(--bg-body); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; margin: 2px; font-family: monospace; border: 1px solid var(--border); }
         
         /* Modal */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
-        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .modal-content { background: var(--bg-card); padding: 30px; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; }
         .form-group select, .form-group input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: 'Inter'; box-sizing: border-box; }
@@ -42,7 +42,7 @@
             /* Responsive Table -> Cards */
             .table, thead, tbody, th, td, tr { display: block; }
             thead tr { position: absolute; top: -9999px; left: -9999px; }
-            tbody tr { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; padding: 12px; background: #fcfdfe; }
+            tbody tr { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; padding: 12px; background: var(--bg-card); }
             tbody td { border-bottom: 1px solid #f1f5f9; padding: 10px 0; display: flex; flex-direction: column; gap: 4px; }
             tbody td:last-child { border-bottom: none; flex-direction: row; justify-content: space-between; align-items: center; }
             tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -69,23 +69,27 @@
                 <i class="material-icons">add_box</i> Record New Test
             </button>
             <form method="POST" action="/research/projects/{{ project.id }}/deactivate"
-                  data-confirm-name="{{ project.name }}"
+                  data-confirm-name="{{ project.title }}"
                   data-confirm-type="deactivate"
                   data-confirm-message="All collected research records will be preserved. The project can be reactivated later."
                   data-confirm-danger
                   style="margin:0;">
                 <button type="submit"
-                        style="background:#fff7ed; border:1.5px solid #f59e0b; color:#b45309; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                        style="background:var(--bg-card); border:1.5px solid #f59e0b; color:#b45309; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
                     <i class="material-icons" style="font-size:1.1rem;">pause_circle</i> Deactivate
                 </button>
             </form>
             {% else %}
-            <span style="background:#f1f5f9; color:#64748b; padding:8px 16px; border-radius:8px; font-weight:600; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
+            <span style="background:var(--bg-body); color:#64748b; padding:8px 16px; border-radius:8px; font-weight:600; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
                 <i class="material-icons" style="font-size:1.1rem;">archive</i> Inactive Project
             </span>
-            <form method="POST" action="/research/projects/{{ project.id }}/reactivate" style="margin:0;">
+            <form method="POST" action="/research/projects/{{ project.id }}/reactivate"
+                  data-confirm-name="{{ project.title }}"
+                  data-confirm-type="reactivate"
+                  data-confirm-message="This project will become active again and accept new records."
+                  style="margin:0;">
                 <button type="submit"
-                        style="background:#f0fdf4; border:1.5px solid #22c55e; color:#16a34a; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                        style="background:var(--bg-card); border:1.5px solid #22c55e; color:#16a34a; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
                     <i class="material-icons" style="font-size:1.1rem;">play_circle</i> Reactivate
                 </button>
             </form>
@@ -105,7 +109,7 @@
                             <th>Date</th>
                             <th>Patient</th>
                             <th>Test Type</th>
-                            <th>Metrics (JSON)</th>
+                            <th>Recorded Values</th>
                             <th>Notes</th>
                             <th>Logged By</th>
                             <th>Actions</th>
@@ -141,6 +145,34 @@
                     </tbody>
                 </table>
             </div>
+            {% if total_pages > 1 %}
+            <nav class="pagination-nav" aria-label="Records pagination" style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px 0;">
+              {% if page > 1 %}
+                <a href="?page={{ page - 1 }}&per_page={{ per_page }}" class="btn btn-sm" aria-label="Previous page" style="display:inline-flex;align-items:center;gap:4px;padding:8px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text-dark);font-weight:500;font-size:0.875rem;">
+                  <i class="material-icons" style="font-size:1rem;">chevron_left</i> Previous
+                </a>
+              {% else %}
+                <span class="btn btn-sm" style="display:inline-flex;align-items:center;gap:4px;padding:8px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-dark);font-weight:500;font-size:0.875rem;opacity:0.4;pointer-events:none;">
+                  <i class="material-icons" style="font-size:1rem;">chevron_left</i> Previous
+                </span>
+              {% endif %}
+
+              <span style="font-size:0.875rem;color:var(--text-muted);">
+                Page {{ page }} of {{ total_pages }}
+                <span style="font-size:0.8rem;opacity:0.7;">({{ total_records }} records)</span>
+              </span>
+
+              {% if page < total_pages %}
+                <a href="?page={{ page + 1 }}&per_page={{ per_page }}" class="btn btn-sm" aria-label="Next page" style="display:inline-flex;align-items:center;gap:4px;padding:8px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text-dark);font-weight:500;font-size:0.875rem;">
+                  Next <i class="material-icons" style="font-size:1rem;">chevron_right</i>
+                </a>
+              {% else %}
+                <span class="btn btn-sm" style="display:inline-flex;align-items:center;gap:4px;padding:8px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-dark);font-weight:500;font-size:0.875rem;opacity:0.4;pointer-events:none;">
+                  Next <i class="material-icons" style="font-size:1rem;">chevron_right</i>
+                </span>
+              {% endif %}
+            </nav>
+            {% endif %}
             {% else %}
             <div style="text-align: center; padding: 40px; color: var(--text-muted);">
                 <i class="material-icons" style="font-size: 3rem; opacity: 0.3;">assignment</i>
@@ -166,48 +198,48 @@
                 </div>
                 <div class="form-group">
                     <label>Test / Evaluation Type</label>
+                    {% set _enabled = project.test_types.split(',') if project.test_types else [] %}
                     <select name="test_type" required>
                         <option value="">-- Select Test --</option>
-                        <option value="NT_PRO_BNP">NT Pro BNP</option>
-                        <option value="HANDGRIP_STRENGTH">Handgrip Strength</option>
-                        <option value="KDQOL_36">KDQOL-36 Metrics</option>
-                        <option value="SF_36">SF-36 Quality of Life Questionnaire</option>
-                        <option value="CGMS_METRICS">CGMS Analysis Metrics</option>
-                        <option value="HB_VARIABILITY">Hb Variability Analysis (6-Month)</option>
-                        <option value="M_3MS">Modified Mini-Mental Status Examination (3MS)</option>
-                        <option value="VASCULAR_STIFFNESS">Vascular Stiffness (PWV / AIx)</option>
-                        <option value="FALL_RISK">Fall Risk Assessment (TUG)</option>
-                        <option value="SGA">Subjective Global Assessment (SGA)</option>
-                        <option value="BIA">Bioimpedance Analysis (BIA)</option>
-                        <option value="LUNG_USG">Lung Ultrasound (B-lines)</option>
-                        <option value="VEXUS">VExUS Ultrasound Findings</option>
-                        <option value="DIASTOLIC_ECHO">Diastolic Dysfunction 2D Echo</option>
-                        <option value="MIA_SCORING">MIA Syndrome Scoring</option>
-                        <option value="FGF23">FGF-23 Analysis</option>
-                        <option value="STEPS_ACTIVITY">Physical Activity (Steps)</option>
-                        <option value="SKIN_FOLD">Skin Fold Thickness</option>
-                        <option value="MOCA">MOCA Scoring</option>
-                        <option value="EDMONTON_FRAIL_SCALE" id="efsOption">Edmonton Frail Scale (Age 65+)</option>
-                        <option value="PSQI">Pittsburgh Sleep Quality Index (PSQI)</option>
-                        <option value="CIMT">Carotid Intima Medial Thickness (CIMT)</option>
-                        <option value="AVF_PAIN">AVF Cannulation Pain (VAS/NRS)</option>
-                        <option value="VASCULAR_STIFFNESS">Vascular Stiffness (PWV/AIx/CAVI)</option>
-                        <option value="HDF_CONVECTION">HDF Convection Volume</option>
-                        <option value="IDH_FREQUENCY">Frequency of IDH Episodes</option>
-                        <option value="MORSE_FALL_SCALE">Morse Fall Scale (MFS)</option>
-                        <option value="BECK_DEPRESSION_INVENTORY">Beck Depression Inventory (BDI-II)</option>
-                        <option value="PSYCHIATRIC_SCALES">Psychiatric Symptom Scales (PHQ-9/GAD-7)</option>
-                        <option value="FRIED_FRAILTY">Fried Frailty Phenotype</option>
-                        <option value="GNRI">GNRI Scoring</option>
-                        <option value="SARC_F">SARC-F Screen for Sarcopenia</option>
-                        <option value="GERIATRIC_EXTENDED">Comprehensive Geriatric Profile</option>
-                        <option value="CUSTOM_VARIABLE">Custom Variable Entry</option>
-                        <option value="AUTONOMIC_TEST">Autonomic Testing</option>
-                        <option value="OTHER">Other Custom Test</option>
+                        {% if not _enabled or 'NT_PRO_BNP' in _enabled %}<option value="NT_PRO_BNP">NT Pro BNP</option>{% endif %}
+                        {% if not _enabled or 'HANDGRIP_STRENGTH' in _enabled %}<option value="HANDGRIP_STRENGTH">Handgrip Strength</option>{% endif %}
+                        {% if not _enabled or 'KDQOL_36' in _enabled %}<option value="KDQOL_36">KDQOL-36 Metrics</option>{% endif %}
+                        {% if not _enabled or 'SF_36' in _enabled %}<option value="SF_36">SF-36 Quality of Life Questionnaire</option>{% endif %}
+                        {% if not _enabled or 'CGMS_METRICS' in _enabled %}<option value="CGMS_METRICS">CGMS Analysis Metrics</option>{% endif %}
+                        {% if not _enabled or 'HB_VARIABILITY' in _enabled %}<option value="HB_VARIABILITY">Hb Variability Analysis (6-Month)</option>{% endif %}
+                        {% if not _enabled or 'M_3MS' in _enabled %}<option value="M_3MS">Modified Mini-Mental Status Examination (3MS)</option>{% endif %}
+                        {% if not _enabled or 'VASCULAR_STIFFNESS' in _enabled %}<option value="VASCULAR_STIFFNESS">Vascular Stiffness (PWV / AIx)</option>{% endif %}
+                        {% if not _enabled or 'FALL_RISK' in _enabled %}<option value="FALL_RISK">Fall Risk Assessment (TUG)</option>{% endif %}
+                        {% if not _enabled or 'SGA' in _enabled %}<option value="SGA">Subjective Global Assessment (SGA)</option>{% endif %}
+                        {% if not _enabled or 'BIA' in _enabled %}<option value="BIA">Bioimpedance Analysis (BIA)</option>{% endif %}
+                        {% if not _enabled or 'LUNG_USG' in _enabled %}<option value="LUNG_USG">Lung Ultrasound (B-lines)</option>{% endif %}
+                        {% if not _enabled or 'VEXUS' in _enabled %}<option value="VEXUS">VExUS Ultrasound Findings</option>{% endif %}
+                        {% if not _enabled or 'DIASTOLIC_ECHO' in _enabled %}<option value="DIASTOLIC_ECHO">Diastolic Dysfunction 2D Echo</option>{% endif %}
+                        {% if not _enabled or 'MIA_SCORING' in _enabled %}<option value="MIA_SCORING">MIA Syndrome Scoring</option>{% endif %}
+                        {% if not _enabled or 'FGF23' in _enabled %}<option value="FGF23">FGF-23 Analysis</option>{% endif %}
+                        {% if not _enabled or 'STEPS_ACTIVITY' in _enabled %}<option value="STEPS_ACTIVITY">Physical Activity (Steps)</option>{% endif %}
+                        {% if not _enabled or 'SKIN_FOLD' in _enabled %}<option value="SKIN_FOLD">Skin Fold Thickness</option>{% endif %}
+                        {% if not _enabled or 'MOCA' in _enabled %}<option value="MOCA">MOCA Scoring</option>{% endif %}
+                        {% if not _enabled or 'EDMONTON_FRAIL_SCALE' in _enabled %}<option value="EDMONTON_FRAIL_SCALE" id="efsOption">Edmonton Frail Scale (Age 65+)</option>{% endif %}
+                        {% if not _enabled or 'PSQI' in _enabled %}<option value="PSQI">Pittsburgh Sleep Quality Index (PSQI)</option>{% endif %}
+                        {% if not _enabled or 'CIMT' in _enabled %}<option value="CIMT">Carotid Intima Medial Thickness (CIMT)</option>{% endif %}
+                        {% if not _enabled or 'AVF_PAIN' in _enabled %}<option value="AVF_PAIN">AVF Cannulation Pain (VAS/NRS)</option>{% endif %}
+                        {% if not _enabled or 'HDF_CONVECTION' in _enabled %}<option value="HDF_CONVECTION">HDF Convection Volume</option>{% endif %}
+                        {% if not _enabled or 'IDH_FREQUENCY' in _enabled %}<option value="IDH_FREQUENCY">Frequency of IDH Episodes</option>{% endif %}
+                        {% if not _enabled or 'MORSE_FALL_SCALE' in _enabled %}<option value="MORSE_FALL_SCALE">Morse Fall Scale (MFS)</option>{% endif %}
+                        {% if not _enabled or 'BECK_DEPRESSION_INVENTORY' in _enabled %}<option value="BECK_DEPRESSION_INVENTORY">Beck Depression Inventory (BDI-II)</option>{% endif %}
+                        {% if not _enabled or 'PSYCHIATRIC_SCALES' in _enabled %}<option value="PSYCHIATRIC_SCALES">Psychiatric Symptom Scales (PHQ-9/GAD-7)</option>{% endif %}
+                        {% if not _enabled or 'FRIED_FRAILTY' in _enabled %}<option value="FRIED_FRAILTY">Fried Frailty Phenotype</option>{% endif %}
+                        {% if not _enabled or 'GNRI' in _enabled %}<option value="GNRI">GNRI Scoring</option>{% endif %}
+                        {% if not _enabled or 'SARC_F' in _enabled %}<option value="SARC_F">SARC-F Screen for Sarcopenia</option>{% endif %}
+                        {% if not _enabled or 'GERIATRIC_EXTENDED' in _enabled %}<option value="GERIATRIC_EXTENDED">Comprehensive Geriatric Profile</option>{% endif %}
+                        {% if not _enabled or 'CUSTOM_VARIABLE' in _enabled %}<option value="CUSTOM_VARIABLE">Custom Variable Entry</option>{% endif %}
+                        {% if not _enabled or 'AUTONOMIC_TEST' in _enabled %}<option value="AUTONOMIC_TEST">Autonomic Testing</option>{% endif %}
+                        {% if not _enabled or 'OTHER' in _enabled %}<option value="OTHER">Other Custom Test</option>{% endif %}
                     </select>
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
-                    <button type="button" onclick="document.getElementById('newRecordModal').style.display='none'" style="padding:10px 20px; background:#f1f5f9; border:none; border-radius:6px; cursor:pointer;">Cancel</button>
+                    <button type="button" onclick="document.getElementById('newRecordModal').style.display='none'" style="padding:10px 20px; background:var(--bg-body); border:1px solid var(--border); border-radius:6px; cursor:pointer; color:var(--text-dark);">Cancel</button>
                     <button type="submit" class="btn-primary">Proceed to Data Entry</button>
                 </div>
             </form>

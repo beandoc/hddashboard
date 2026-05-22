@@ -260,6 +260,8 @@ async def log_symptoms(
     symptoms: str = Form(""),
     severity: str = Form("3"),
     notes: str = Form(""),
+    # Session date being reported on
+    session_date: str = Form(None),
     # PDS Specific fields
     dialysis_recovery_time_mins: str = Form(None),
     tiredness_score: str = Form(None),
@@ -300,6 +302,16 @@ async def log_symptoms(
         val_str = str(val).strip().lower()
         return val_str in ("true", "1", "yes", "on", "checked")
 
+    # Parse session_date — default to today if missing or invalid
+    conv_session_date = None
+    if session_date:
+        try:
+            conv_session_date = date.fromisoformat(session_date)
+        except ValueError:
+            conv_session_date = date.today()
+    else:
+        conv_session_date = date.today()
+
     # Apply safe conversions
     conv_severity = parse_int(severity, 3)
     conv_recovery = parse_int(dialysis_recovery_time_mins)
@@ -307,29 +319,73 @@ async def log_symptoms(
     conv_energy = parse_int(energy_level_score)
     conv_activity = parse_int(daily_activity_impact)
     conv_sleepiness = parse_int(sleepiness_severity)
-    
+
     conv_alertness = parse_str(cognitive_alertness)
     conv_mood = parse_str(post_hd_mood)
     conv_notes = parse_str(notes)
-    
+
     conv_missed = parse_bool(missed_social_or_work_event)
-        
-    report = PatientSymptomReport(
-        patient_id=u["id"],
-        symptoms=symptoms,
-        severity=conv_severity,
-        notes=conv_notes,
-        dialysis_recovery_time_mins=conv_recovery,
-        tiredness_score=conv_tiredness,
-        energy_level_score=conv_energy,
-        daily_activity_impact=conv_activity,
-        cognitive_alertness=conv_alertness,
-        post_hd_mood=conv_mood,
-        sleepiness_severity=conv_sleepiness,
-        missed_social_or_work_event=conv_missed
-    )
-    db.add(report)
-    db.commit()
+
+    try:
+        report = PatientSymptomReport(
+            patient_id=u["id"],
+            session_date=conv_session_date,
+            symptoms=symptoms,
+            severity=conv_severity,
+            notes=conv_notes,
+            dialysis_recovery_time_mins=conv_recovery,
+            tiredness_score=conv_tiredness,
+            energy_level_score=conv_energy,
+            daily_activity_impact=conv_activity,
+            cognitive_alertness=conv_alertness,
+            post_hd_mood=conv_mood,
+            sleepiness_severity=conv_sleepiness,
+            missed_social_or_work_event=conv_missed,
+        )
+        db.add(report)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to save symptom report for patient %s: %s", u.get("id"), exc)
+        # Re-render the dashboard symptoms tab with an inline error message
+        p = db.query(Patient).filter(Patient.id == u["id"]).first()
+        recent_symptoms = (
+            db.query(PatientSymptomReport)
+            .filter(PatientSymptomReport.patient_id == u["id"])
+            .order_by(PatientSymptomReport.reported_at.desc())
+            .limit(5)
+            .all()
+        )
+        return templates.TemplateResponse(
+            "patient_view.html",
+            {
+                "request": request,
+                "patient": p,
+                "recent_symptoms": recent_symptoms,
+                "symptom_error": "Sorry, we could not save your report. Please try again.",
+                # Supply the remaining context keys with safe defaults so the template renders
+                "latest_monthly": None,
+                "anti_meds": [],
+                "meals_by_day": {},
+                "today_stats": {"total_cal": 0, "total_prot": 0, "total_phos": 0, "total_pot": 0, "total_calc": 0},
+                "nutrition_targets": {"calories": 1800, "protein": 72, "phosphorus": 900, "potassium": 2000, "calcium": 1000},
+                "nutrition_avg": {"d1": None, "d3": None, "d7": None},
+                "trends": {"labels": [], "hb": [], "alb": [], "phos": []},
+                "vax_reminders": [],
+                "last_session": None,
+                "idwg": None,
+                "fluid_allowance_ml": 500,
+                "effective_dry_weight": p.dry_weight if p else None,
+                "epo_label": None,
+                "user": u,
+                "next_session": None,
+                "today": date.today(),
+                "today_iso": date.today().isoformat(),
+                "min_log_date": (date.today() - timedelta(days=13)).isoformat(),
+            },
+            status_code=422,
+        )
+
     return RedirectResponse(url="/patient/dashboard?tab=symptoms&saved=1", status_code=303)
 
 

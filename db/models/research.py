@@ -12,6 +12,8 @@ class ResearchProject(Base):
     title = Column(String, nullable=False)
     description = Column(Text)
     status = Column(String, default="Active")
+    start_date = Column(Date, nullable=True)
+    test_types = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # NO cascade delete — research records (patient data) must survive project deletion.

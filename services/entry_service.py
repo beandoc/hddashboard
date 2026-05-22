@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Optional
 
-from database import Patient, MonthlyRecord, PatientMealRecord, ResearchRecord
+from database import Patient, MonthlyRecord, PatientMealRecord, ResearchRecord, SessionRecord, HospitalisationEvent
 from alerts import send_entry_alert_email, check_critical_labs, send_critical_lab_alert_email
 from dashboard_logic import get_month_label
 from validators import validate_hard_limits, validate_lab_values
@@ -14,6 +14,66 @@ logger = logging.getLogger(__name__)
 
 def _d(s: Optional[str]) -> Optional[datetime.date]:
     return datetime.strptime(s, "%Y-%m-%d").date() if s else None
+
+def calculate_monthly_session_aggregates(db: Session, patient_id: int, month_str: str) -> dict:
+    all_sessions = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == patient_id
+    ).order_by(SessionRecord.session_date.asc()).all()
+
+    month_sessions = [s for s in all_sessions if s.record_month == month_str]
+    if not month_sessions:
+        return {
+            "bp_sys": None,
+            "bp_dia": None,
+            "idwg": None,
+            "ufr": None
+        }
+
+    # 1. BP Sys and BP Dia (Average of bp_pre_sys and bp_pre_dia)
+    bp_sys_list = [s.bp_pre_sys for s in month_sessions if s.bp_pre_sys is not None]
+    bp_dia_list = [s.bp_pre_dia for s in month_sessions if s.bp_pre_dia is not None]
+    
+    avg_bp_sys = round(sum(bp_sys_list) / len(bp_sys_list), 1) if bp_sys_list else None
+    avg_bp_dia = round(sum(bp_dia_list) / len(bp_dia_list), 1) if bp_dia_list else None
+
+    # 2. IDWG (Average of pre-HD weight minus the previous session's post-HD weight)
+    idwg_list = []
+    for idx, s in enumerate(all_sessions):
+        if s.record_month == month_str:
+            if idx > 0:
+                prev_s = all_sessions[idx - 1]
+                if s.weight_pre is not None and prev_s.weight_post is not None:
+                    idwg_list.append(s.weight_pre - prev_s.weight_post)
+            
+    avg_idwg = round(sum(idwg_list) / len(idwg_list), 2) if idwg_list else None
+
+    # 3. UFR (Average ultrafiltration rate: uf_volume / treatment hours / dry_weight * 1000)
+    ufr_list = []
+    for s in month_sessions:
+        if s.uf_rate is not None:
+            ufr_list.append(s.uf_rate)
+        else:
+            duration = (s.duration_hours or 0) + (s.duration_minutes or 0) / 60
+            if s.uf_volume is not None and duration > 0:
+                p = s.patient
+                dry_w = p.dry_weight if p else None
+                if dry_w and dry_w > 0:
+                    ufr_val = (s.uf_volume * 1000) / duration / dry_w
+                    ufr_list.append(ufr_val)
+                else:
+                    w = s.weight_pre or 70.0
+                    ufr_val = (s.uf_volume * 1000) / duration / w
+                    ufr_list.append(ufr_val)
+
+    avg_ufr = round(sum(ufr_list) / len(ufr_list), 2) if ufr_list else None
+
+    return {
+        "bp_sys": avg_bp_sys,
+        "bp_dia": avg_bp_dia,
+        "idwg": avg_idwg,
+        "ufr": avg_ufr
+    }
+
 
 def save_monthly_record(
     db: Session,
@@ -32,13 +92,17 @@ def save_monthly_record(
             except (ValueError, TypeError):
                 pass
 
-        # Convert Neutrophils from % to fraction at the boundary
+        # Convert Neutrophils from % to absolute count (x10^3/uL) at the boundary
         neut = data.get("neutrophil_count")
         if neut is not None and neut != "":
             try:
                 neut_val = float(neut)
-                if neut_val > 1.0:  # Entered as %, e.g. 69
-                    data["neutrophil_count"] = neut_val / 100.0
+                if neut_val > 1.0:  # Entered as %, e.g. 65
+                    wbc_abs = data.get("wbc_count")
+                    if wbc_abs is not None:
+                        data["neutrophil_count"] = round(float(wbc_abs) * (neut_val / 100.0), 3)
+                    else:
+                        data["neutrophil_count"] = None # Cannot calc absolute without WBC
             except (ValueError, TypeError):
                 pass
 
@@ -54,6 +118,57 @@ def save_monthly_record(
             ).order_by(MonthlyRecord.record_month.desc()).first()
             if prior_ruo_rec:
                 data["residual_urine_output"] = prior_ruo_rec.residual_urine_output
+
+        # 1.5 Calculate monthly BP, IDWG, and UFR from sessions dynamically
+        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
+        if month_str:
+            sessions_this_month = db.query(SessionRecord).filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.record_month == month_str
+            ).order_by(SessionRecord.session_date.asc()).all()
+
+            if sessions_this_month:
+                sys_vals = [s.bp_pre_sys for s in sessions_this_month if s.bp_pre_sys is not None]
+                dia_vals = [s.bp_pre_dia for s in sessions_this_month if s.bp_pre_dia is not None]
+                
+                if sys_vals:
+                    data["bp_sys"] = round(sum(sys_vals) / len(sys_vals), 1)
+                if dia_vals:
+                    data["bp_dia"] = round(sum(dia_vals) / len(dia_vals), 1)
+                
+                idwg_vals = []
+                ufr_vals = []
+                
+                for i, s in enumerate(sessions_this_month):
+                    # IDWG: Try weight_pre - previous weight_post, fallback to weight_pre - dry_weight
+                    s_idwg = None
+                    if s.weight_pre is not None:
+                        if i > 0 and sessions_this_month[i-1].weight_post is not None:
+                            s_idwg = s.weight_pre - sessions_this_month[i-1].weight_post
+                        elif p_obj and p_obj.dry_weight:
+                            s_idwg = s.weight_pre - p_obj.dry_weight
+                    
+                    if s_idwg is not None and s_idwg >= 0:
+                        idwg_vals.append(s_idwg)
+                    
+                    # UFR: UF volume / duration / weight
+                    uf_vol = None
+                    if s.weight_pre is not None and s.weight_post is not None:
+                        uf_vol = s.weight_pre - s.weight_post
+                    elif s_idwg is not None:
+                        uf_vol = s_idwg
+                    
+                    hrs = (s.duration_hours or 0) + (s.duration_minutes or 0) / 60.0
+                    if uf_vol and uf_vol > 0 and hrs > 0:
+                        ref_w = s.weight_post or (p_obj.dry_weight if p_obj else None) or s.weight_pre
+                        if ref_w and ref_w > 0:
+                            s_ufr = (uf_vol * 1000) / hrs / ref_w
+                            ufr_vals.append(s_ufr)
+                
+                if idwg_vals:
+                    data["idwg"] = round(sum(idwg_vals) / len(idwg_vals), 2)
+                if ufr_vals:
+                    data["ufr"] = round(sum(ufr_vals) / len(ufr_vals), 2)
 
         # 2. Backend spKt/V and eKt/V Calculation
         pre_urea = data.get("pre_dialysis_urea")
@@ -125,7 +240,6 @@ def save_monthly_record(
                 logger.error(f"Error calculating phosphate binder dose on backend: {pb_err}")
 
         # 4. Backend Nutrition Averages and Carry-Forward
-        p_obj = db.query(Patient).filter(Patient.id == patient_id).first()
         p_dry_weight = None
         if dry_weight is not None:
             try: p_dry_weight = float(dry_weight)
@@ -275,14 +389,15 @@ def save_monthly_record(
             nt_probnp_val = rec.nt_probnp if rec else None
 
         fields = dict(
-            access_type=data.get("access_type", ""),
-            target_dry_weight=data.get("target_dry_weight"),
-            idwg=idwg,
+            idwg=data.get("idwg"),
+            bp_sys=data.get("bp_sys"),
+            bp_dia=data.get("bp_dia"),
+            ufr=data.get("ufr"),
+            av_daily_calories=data.get("av_daily_calories"),
+            av_daily_protein=data.get("av_daily_protein"),
             last_prehd_weight=data.get("last_prehd_weight"),
             hb=data.get("hb"),
             hct=data.get("hct"),
-            bp_sys=data.get("bp_sys"),
-            bp_dia=data.get("bp_dia"),
             serum_ferritin=data.get("serum_ferritin"),
             tsat=data.get("tsat"),
             serum_iron=data.get("serum_iron"),
@@ -294,16 +409,10 @@ def save_monthly_record(
             alkaline_phosphate=data.get("alkaline_phosphate"),
             phosphorus=data.get("phosphorus"),
             albumin=data.get("albumin"),
-            prealbumin=data.get("prealbumin"),
-            npcr=data.get("npcr"),
-            sga_score=data.get("sga_score", ""),
-            mis_score=data.get("mis_score"),
             ast=data.get("ast"),
             alt=data.get("alt"),
             vit_d=data.get("vit_d"),
             ipth=data.get("ipth"),
-            av_daily_calories=data.get("av_daily_calories"),
-            av_daily_protein=data.get("av_daily_protein"),
             urr=data.get("urr"),
             crp=data.get("crp"),
             issues=issues_val,
@@ -313,6 +422,7 @@ def save_monthly_record(
             pre_dialysis_urea=data.get("pre_dialysis_urea"),
             post_dialysis_urea=data.get("post_dialysis_urea"),
             serum_creatinine=data.get("serum_creatinine"),
+            post_dialysis_creatinine=data.get("post_dialysis_creatinine"),
             residual_urine_output=data.get("residual_urine_output"),
             tibc=data.get("tibc"),
             iv_iron_product=data.get("iv_iron_product", ""),
@@ -333,19 +443,8 @@ def save_monthly_record(
             pb_strength=data.get("pb_strength"),
             phosphate_binder_dose_mg=data.get("phosphate_binder_dose_mg"),
             phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
-            nt_probnp=nt_probnp_val,
-            ejection_fraction=data.get("ejection_fraction"),
-            diastolic_dysfunction=data.get("diastolic_dysfunction", ""),
-            echo_date=_d(data.get("echo_date")),
             antihypertensive_count=len(meds_list) if meds_list else data.get("antihypertensive_count"),
             antihypertensive_details=antihypertensive_details_json,
-            hrqol_score=data.get("hrqol_score"),
-            hospitalization_this_month=data.get("hospitalization_this_month", False),
-            hospitalization_date=_d(hosp_list[0]["date"]) if hosp_list else None,
-            hospitalization_diagnosis=hosp_list[0]["diagnosis"] if hosp_list else "",
-            hospitalization_icd_code=hosp_list[0]["icd_code"] if hosp_list else "",
-            hospitalization_icd_diagnosis=hosp_list[0]["icd_diagnosis"] if hosp_list else "",
-            hospitalization_details=hosp_details_json,
             blood_transfusion_units=data.get("blood_transfusion_units"),
             transfusion_date=data.get("transfusion_date") or None,
         )
@@ -362,10 +461,6 @@ def save_monthly_record(
         # Sync certain fields back to Patient model
         p = db.query(Patient).filter(Patient.id == patient_id).first()
         if p:
-            if data.get("access_type"):
-                p.access_type = data["access_type"]
-            if data.get("target_dry_weight") is not None:
-                p.dry_weight = data["target_dry_weight"]
             if user_role in ["admin", "doctor"]:
                 if "clinical_background" in data:
                     p.clinical_background = data["clinical_background"]

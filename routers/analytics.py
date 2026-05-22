@@ -6,7 +6,7 @@ import asyncio
 import logging
 
 from datetime import date, datetime, timedelta
-from database import get_db, SessionLocal, Patient, ClinicalEvent, SessionRecord, MonthlyRecord
+from database import get_db, SessionLocal, Patient, ClinicalEvent, SessionRecord, MonthlyRecord, MLModelMetrics
 from config import templates
 from dependencies import get_user, _require_analytics_access
 from dashboard_logic import compute_dashboard, get_current_month_str, get_effective_month
@@ -14,7 +14,7 @@ from ml_analytics import (
     run_patient_analytics, analyze_bfr_trend,
     analyze_pds, analyze_mia_cascade,
     analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
-    train_deterioration_model, get_deterioration_model_status,
+    get_deterioration_model_status,
     get_all_patients_mortality_risk,
 )
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
@@ -508,7 +508,7 @@ async def analytics_patient_list(request: Request, db: Session = Depends(get_db)
     })
 
 @router.get("/patients/{patient_id}", response_class=HTMLResponse)
-async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db)):
+async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db), success: Optional[str] = None):
     _require_analytics_access(request)
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
@@ -553,7 +553,8 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
             MonthlyRecord.patient_id == patient_id,
             MonthlyRecord.record_month == get_current_month_str()
         ).first(),
-        "current_month": get_current_month_str()
+        "current_month": get_current_month_str(),
+        "note_saved": success == "note_saved",
     })
 
 @router.post("/patients/{patient_id}/note")
@@ -581,9 +582,31 @@ async def save_doctor_note(
         db.add(record)
     
     record.doctor_notes = note
-    record.reviewed_by = getattr(user, "full_name", getattr(user, "username", "Doctor"))
+    reviewer = getattr(user, "full_name", getattr(user, "username", "Doctor"))
+    record.reviewed_by = reviewer
     record.reviewed_at = datetime.now()
-    
+
+    # Upsert a ClinicalEvent so the Review Queue picks up the updated last_review date.
+    # One "Clinical Review" event per patient per day — update notes if one already exists today.
+    today = date.today()
+    review_event = db.query(ClinicalEvent).filter(
+        ClinicalEvent.patient_id == patient_id,
+        ClinicalEvent.event_type == "Clinical Review",
+        ClinicalEvent.event_date == today,
+    ).first()
+    if review_event:
+        review_event.notes = note
+        review_event.created_by = reviewer
+    else:
+        db.add(ClinicalEvent(
+            patient_id=patient_id,
+            event_date=today,
+            event_type="Clinical Review",
+            severity="Low",
+            notes=note,
+            created_by=reviewer,
+        ))
+
     db.commit()
     return RedirectResponse(url=f"/analytics/patients/{patient_id}?success=note_saved", status_code=303)
 
@@ -659,39 +682,97 @@ async def _legacy_patients(q: str = "", db: Session = Depends(get_db)):
 
 
 @router.post("/admin/train-deterioration-model")
-async def admin_train_deterioration_model(db: Session = Depends(get_db)):
+async def admin_train_deterioration_model():
     """
-    Train (or retrain) the logistic regression deterioration risk model against
-    all current MonthlyRecord data.
+    Queue an async Celery task to train (or retrain) the logistic regression
+    deterioration risk model against all current MonthlyRecord data.
 
-    Requires scikit-learn.  Returns training metadata including cross-validated
-    AUC, sample count, and event rate.  The model is persisted to
-    deterioration_model.pkl and loaded automatically on the next patient page load.
-
-    Typical runtime: < 2 seconds for cohorts up to 500 patients.
+    Returns immediately with a queued confirmation.  Poll
+    GET /admin/deterioration-model-status after ~30 seconds to see results.
     """
     try:
-        result = train_deterioration_model(db)
+        from tasks import task_train_deterioration_model
+        task_train_deterioration_model.delay()
     except Exception as e:
-        logger.exception("Deterioration model training failed")
+        logger.exception("Failed to queue deterioration model training task")
         raise HTTPException(status_code=500, detail=str(e))
-    if not result.get("success"):
-        raise HTTPException(status_code=422, detail=result.get("error", "Training failed"))
-    return JSONResponse(content=result)
+    return JSONResponse(content={"queued": True, "message": "Training job queued. Refresh in ~30 seconds."})
 
 
 @router.get("/admin/deterioration-model-status")
-async def admin_deterioration_model_status():
+async def admin_deterioration_model_status(db: Session = Depends(get_db)):
     """
     Return metadata about the currently deployed deterioration model:
-    training date, sample count, cross-validated AUC, feature list.
+    training date, sample count, cross-validated AUC, feature list,
+    latest MLOps metrics (PR-AUC, Brier score, calibration slope, drift),
+    and count of MonthlyRecord rows entered since the model was last trained.
     Returns a 'not trained' sentinel if no model has been trained yet.
     """
     try:
         status = get_deterioration_model_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    # Merge latest MLModelMetrics row (Fix 2)
+    try:
+        latest_metrics = (
+            db.query(MLModelMetrics)
+            .filter(MLModelMetrics.model_name == "deterioration_v1")
+            .order_by(MLModelMetrics.computed_at.desc())
+            .first()
+        )
+        if latest_metrics:
+            status["pr_auc"] = latest_metrics.pr_auc
+            status["brier_score"] = latest_metrics.brier_score
+            status["calibration_slope"] = latest_metrics.calibration_slope
+            status["drift_flagged"] = latest_metrics.drift_flagged
+            status["drift_detail"] = latest_metrics.drift_detail
+        else:
+            status["pr_auc"] = None
+            status["brier_score"] = None
+            status["calibration_slope"] = None
+            status["drift_flagged"] = None
+            status["drift_detail"] = None
+    except Exception:
+        pass
+
+    # Count MonthlyRecord rows entered after the last training run (Fix 4)
+    try:
+        trained_at_str = status.get("trained_at")
+        if trained_at_str:
+            from datetime import datetime as _dt
+            trained_at_dt = _dt.fromisoformat(trained_at_str)
+            new_records = (
+                db.query(MonthlyRecord)
+                .filter(MonthlyRecord.timestamp > trained_at_dt)
+                .count()
+            )
+        else:
+            new_records = db.query(MonthlyRecord).count()
+        status["new_records_since_training"] = new_records
+    except Exception:
+        status["new_records_since_training"] = None
+
     return JSONResponse(content=status)
+
+
+@router.get("/admin/model-card")
+async def admin_model_card(request: Request):
+    """Return the model card JSON for the deterioration risk model (Fix 5)."""
+    from dependencies import get_user
+    user = get_user(request)
+    if not user or user.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    import json as _json, os as _os
+    card_path = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "models", "model_card_deterioration.json")
+    if not _os.path.exists(card_path):
+        raise HTTPException(status_code=404, detail="Model card not found. Train the model first.")
+    try:
+        with open(card_path) as f:
+            card = _json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read model card: {e}")
+    return JSONResponse(content=card)
 
 @router.get("/krcrw", response_class=HTMLResponse)
 async def krcrw_calculator(request: Request, db: Session = Depends(get_db)):

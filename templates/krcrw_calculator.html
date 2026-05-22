@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
+<nav class="px-4 py-2 text-sm text-slate-500 flex items-center gap-1" aria-label="Breadcrumb">
+  <a href="/" class="hover:text-slate-800 transition-colors">Dashboard</a>
+  <span class="text-slate-300">/</span>
+  <a href="/analytics" class="hover:text-slate-800 transition-colors">Analytics Hub</a>
+  <span class="text-slate-300">/</span>
+  <span class="text-slate-800 font-medium">KRCRW Modeler</span>
+</nav>
 <div class="container mx-auto px-4 py-8 max-w-5xl">
     <!-- Header Section -->
     <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">

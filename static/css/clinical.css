@@ -577,7 +577,7 @@ input, select, textarea { min-height: 40px; }
   --card:           #131b2e;
   --border:         #1e293b;
   --text:           #f8fafc;
-  --text-muted:     #94a3b8;
+  --text-muted:     #b0bec5;
   --shadow:         0 8px 24px rgba(0, 0, 0, 0.3);
 
   --red-bg:         #3b0712;   --red-text:    #fca5a5;
@@ -585,6 +585,15 @@ input, select, textarea { min-height: 40px; }
   --blue-bg:        #082f49;   --blue-text:   #bae6fd;
   --purple-bg:      #2e1065;   --purple-text: #ddd6fe;
   --green-bg:       #064e3b;   --green-text:  #a7f3d0;
+}
+
+[data-theme="dark"] .js-plotly-plot .plotly .bg { fill: var(--card) !important; }
+[data-theme="dark"] .js-plotly-plot { background: var(--card) !important; }
+
+[data-theme="dark"] #themeToggleBtn,
+[data-theme="dark"] #mobileThemeToggleBtn {
+  background: rgba(14, 165, 233, 0.15) !important;
+  border-color: rgba(14, 165, 233, 0.4) !important;
 }
 
 [data-theme="dark"] body {
@@ -880,4 +889,100 @@ svg.sparkline .stable-trend {
   border-radius: 50%;
   animation: skeleton-spin 0.7s linear infinite;
 }
+
+/* Breadcrumb list layout */
+.bc-list { display: flex; align-items: center; gap: 0; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
+.bc-item { display: flex; align-items: center; }
+.bc-sep  { font-size: 1rem !important; color: var(--text-muted); opacity: 0.6; }
 @keyframes skeleton-spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════ BUTTON SCALE ══════════════════════════════════ */
+
+.btn-sm  { height: 32px; min-height: 32px; padding: 0 12px; font-size: 0.8rem; border-radius: var(--radius-sm, 8px); }
+.btn-md  { height: 40px; min-height: 40px; padding: 0 16px; font-size: 0.875rem; border-radius: var(--radius-sm, 8px); }
+.btn-lg  { height: 44px; min-height: 44px; padding: 0 20px; font-size: 0.9rem; border-radius: var(--radius-sm, 8px); }
+
+/* ═══════════════════════════ MODAL SYSTEM ══════════════════════════════════ */
+
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
+  padding: 16px;
+}
+.modal-box {
+  background: var(--card);
+  border-radius: var(--radius);
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+  position: relative;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { margin: 0; font-size: 1.1rem; color: var(--text); }
+.modal-close {
+  width: 32px; height: 32px; min-width: 32px; min-height: 32px;
+  border: none; background: transparent; cursor: pointer;
+  border-radius: 6px; color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.modal-close:hover { background: var(--border); color: var(--text); }
+
+/* ═══════════════════════════ BADGE SYSTEM ══════════════════════════════════ */
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 5px;
+  font-size: 0.75rem; font-weight: 600; line-height: 1;
+}
+.badge-danger  { background: var(--red-bg);    color: var(--red-text); }
+.badge-warning { background: var(--orange-bg); color: var(--orange-text); }
+.badge-success { background: var(--green-bg);  color: var(--green-text); }
+.badge-info    { background: var(--blue-bg);   color: var(--blue-text); }
+.badge-neutral { background: var(--border);    color: var(--text-muted); }
+.badge i.material-icons { font-size: 0.9rem; }
+
+/* ═══════════════════════════ TYPOGRAPHY SCALE ══════════════════════════════ */
+
+:root {
+  --text-h1:      1.8rem;
+  --text-h2:      1.3rem;
+  --text-h3:      1.1rem;
+  --text-body:    0.95rem;
+  --text-detail:  0.85rem;
+  --text-caption: 0.75rem;
+
+  --radius-sm:    8px;
+}
+
+/* ═══════════════════════════ FOCUS VISIBLE RING ═══════════════════════════ */
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-light), 0 0 0 1px var(--primary);
+}
+
+/* ═══════════════════════════ FORM ACCESSIBILITY ════════════════════════════ */
+
+/* Required field marker */
+.form-label.required::after,
+label.required::after {
+  content: ' *';
+  color: var(--accent-red);
+  font-weight: 700;
+}
+
+/* aria-describedby helper text */
+.form-hint {
+  font-size: var(--text-caption, 0.75rem);
+  color: var(--text-muted);
+  margin-top: 3px;
+}

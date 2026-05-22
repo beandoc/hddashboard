@@ -1,3 +1,4 @@
+{% from "_macros.html" import breadcrumb %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -80,11 +81,7 @@
 <body>
     {% include "_nav.html" %}
 
-    <nav class="nav-breadcrumb">
-        <a href="/">Dashboard</a>
-        <span class="bc-sep">/</span>
-        <span class="bc-current">Monthly Data Registry</span>
-    </nav>
+    {{ breadcrumb([("Dashboard", "/"), ("Data Entry", None)]) }}
 
     <div class="page-hero">
         <div class="page-hero-left">
@@ -156,6 +153,12 @@
                                     Updated {{ existing_records[p.id].timestamp.strftime('%d %b, %H:%M') if existing_records[p.id].timestamp else 'N/A' }}
                                 </div>
                             {% else %}
+                                {% if is_past_month %}
+                                <div class="status-badge" style="background:rgba(239,68,68,0.12); color:#dc2626; border:1px solid rgba(239,68,68,0.3);">
+                                    <i class="material-icons" style="font-size:1.1rem;">error_outline</i>
+                                    <span>Overdue</span>
+                                </div>
+                                {% else %}
                                 <div class="status-badge status-pending">
                                     <i class="material-icons" style="font-size:1.1rem;">pending</i>
                                     <span>Pending</span>
@@ -163,6 +166,7 @@
                                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:3px; margin-left:22px;">
                                     Deadline in {{ days_remaining }} days
                                 </div>
+                                {% endif %}
                             {% endif %}
                         </td>
                         <td style="text-align: right;">

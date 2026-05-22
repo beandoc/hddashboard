@@ -222,8 +222,9 @@ async def change_password(
         else:
             error = "Unknown user type. Please log in again."
 
+    csrf_token = _csrf_signer.sign("change-password").decode()
     return templates.TemplateResponse("change_password.html", {
-        "request": request, "user": user, "error": error,
+        "request": request, "user": user, "error": error, "csrf_token": csrf_token,
     })
 
 

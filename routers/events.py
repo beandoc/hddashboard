@@ -72,6 +72,7 @@ async def events_timeline(
         if _last_hosp_by_pid.get(p.id) and _last_hosp_by_pid[p.id].event_type == "Hospitalization"
     ]
 
+    csrf_token = _csrf_signer.sign("events-new").decode()
     return templates.TemplateResponse("events.html", {
         "request":     request,
         "events":      events,
@@ -89,6 +90,7 @@ async def events_timeline(
         "total":       len(events),
         "today":       today.isoformat(),
         "prefill":     prefill or "",
+        "csrf_token":  csrf_token,
         "user":        get_user(request),
     })
 
@@ -100,11 +102,19 @@ async def create_event(
     event_type: str = Form(...),
     severity: str = Form("Medium"),
     notes: str = Form(""),
+    hospital_name: str = Form(""),
+    discharge_diagnosis: str = Form(""),
     hosp_diagnosis: list[str] = Form([]),
     hosp_icd_code: list[str] = Form([]),
     hosp_icd_diag: list[str] = Form([]),
+    csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
+
     # 1. Save Clinical Event
     user = get_user(request)
     created_by = "Unknown"
@@ -114,12 +124,18 @@ async def create_event(
         else:
             created_by = getattr(user, "username", "Unknown")
 
+    final_notes = notes
+    if hospital_name and f"Hospital: {hospital_name}" not in final_notes:
+        final_notes = f"Hospital: {hospital_name}\n{final_notes}".strip()
+    if discharge_diagnosis and "Discharge Diagnosis:" not in final_notes:
+        final_notes = f"{final_notes}\nDischarge Diagnosis: {discharge_diagnosis}".strip()
+
     ev = ClinicalEvent(
         patient_id=patient_id,
         event_date=date.fromisoformat(event_date),
         event_type=event_type,
         severity=severity,
-        notes=notes,
+        notes=final_notes,
         created_by=created_by
     )
     db.add(ev)
@@ -163,11 +179,29 @@ async def create_event(
             rec.hospitalization_icd_code = hosp_icd_code[0] if hosp_icd_code else ""
             rec.hospitalization_icd_diagnosis = hosp_icd_diag[0] if hosp_icd_diag else ""
 
-    db.commit()
-    return RedirectResponse(url=request.headers.get("referer", "/events"), status_code=303)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("create_event failed: %s", exc, exc_info=True)
+        back = request.headers.get("referer", "/events")
+        sep = "&" if "?" in back else "?"
+        return RedirectResponse(
+            url=f"{back}{sep}event_error=Failed+to+save+event.+Please+try+again.",
+            status_code=303,
+        )
+    return RedirectResponse(url="/events?event_saved=1", status_code=303)
 
 @router.post("/{event_id}/delete")
-async def delete_event(event_id: int, db: Session = Depends(get_db)):
+async def delete_event(
+    event_id: int,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    try:
+        _csrf_signer.unsign(csrf_token, max_age=3600)
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token.")
     ev = db.query(ClinicalEvent).filter(ClinicalEvent.id == event_id).first()
     if ev:
         db.delete(ev)

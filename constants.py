@@ -28,6 +28,7 @@ EVENT_TYPE_GROUPS = [
     ]),
     ("Systemic / Hospitalizations", [
         "Hospitalization",
+        "Discharge",
         "Fluid Overload",
         "Blood Transfusion",
         "Sepsis / Bacteremia",
