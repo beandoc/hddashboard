@@ -1069,14 +1069,14 @@
         const firstInput = overlay.querySelector('input, select, button');
         if (firstInput) firstInput.focus();
         // Trap focus within modal
-        overlay.addEventListener('keydown', trapFocus);
+        overlay.addEventListener('keydown', interimTrapFocus);
         document.addEventListener('keydown', closeOnEsc);
     }
 
     function closeInterimModal() {
         const overlay = document.getElementById('interimModal');
         overlay.classList.remove('open');
-        overlay.removeEventListener('keydown', trapFocus);
+        overlay.removeEventListener('keydown', interimTrapFocus);
         document.removeEventListener('keydown', closeOnEsc);
         // Return focus to the trigger button safely
         const trigger = document.querySelector('[onclick="openInterimModal()"]');
@@ -1092,7 +1092,7 @@
         if (e.key === 'Escape') closeInterimModal();
     }
 
-    function trapFocus(e) {
+    function interimTrapFocus(e) {
         if (e.key !== 'Tab') return;
         const box = document.getElementById('interimModalBox');
         const focusable = box.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
