@@ -523,7 +523,7 @@ def save_monthly_record(
 
         # Save total_protein, triglycerides, hdl_cholesterol into dynamic_data
         _dd = dict(rec.dynamic_data) if rec.dynamic_data else {}
-        for _key in ("total_protein", "triglycerides", "hdl_cholesterol"):
+        for _key in ("total_protein", "triglycerides", "hdl_cholesterol", "bs_fasting", "bs_pp"):
             _val = data.get(_key)
             if _val is not None and _val != "":
                 try:

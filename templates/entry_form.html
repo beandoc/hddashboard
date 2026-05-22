@@ -326,10 +326,6 @@
                             <label>CRP (mg/L)</label>
                             <input type="number" step="0.1" name="crp" inputmode="decimal" value="{{ record.crp if record else '' }}">
                         </div>
-                        <div class="form-group">
-                            <label>HbA1c (%)</label>
-                            <input type="number" step="0.1" name="hba1c" inputmode="decimal" value="{{ record.hba1c if record else '' }}">
-                        </div>
                     </div>
                 </div>
 
@@ -338,12 +334,31 @@
                     <div class="section-title"><i class="material-icons">science</i> Bone & Mineral Metabolism (MBD)</div>
                     <div class="grid">
                         <div class="form-group">
+                            <label>Vitamin D (ng/mL)</label>
+                            <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
+                        </div>
+                        <div class="form-group">
                             <label>iPTH (pg/mL)</label>
                             <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth if record else '' }}">
                         </div>
+                    </div>
+                </div>
+
+                <!-- Glycemic Profile -->
+                <div class="form-section" id="sec-glycemic">
+                    <div class="section-title"><i class="material-icons">glucose</i> Glycemic Profile</div>
+                    <div class="grid">
                         <div class="form-group">
-                            <label>Vitamin D (ng/mL)</label>
-                            <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
+                            <label>Blood Sugar Fasting (mg/dL)</label>
+                            <input type="number" step="1" name="bs_fasting" inputmode="numeric" value="{{ record.dynamic_data.bs_fasting if record and record.dynamic_data else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Blood Sugar PP (mg/dL)</label>
+                            <input type="number" step="1" name="bs_pp" inputmode="numeric" value="{{ record.dynamic_data.bs_pp if record and record.dynamic_data else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>HbA1c (%)</label>
+                            <input type="number" step="0.1" name="hba1c" inputmode="decimal" value="{{ record.hba1c if record else '' }}">
                         </div>
                     </div>
                 </div>

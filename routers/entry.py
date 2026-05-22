@@ -237,6 +237,8 @@ async def save_entry(
     total_protein: Optional[float] = Form(None),
     triglycerides: Optional[float] = Form(None),
     hdl_cholesterol: Optional[float] = Form(None),
+    bs_fasting: Optional[float] = Form(None),
+    bs_pp: Optional[float] = Form(None),
     action: str = Form("save_back")
 ):
     try:
