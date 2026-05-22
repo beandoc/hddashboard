@@ -97,7 +97,7 @@
         {# Hard limits injected from Python validators — single source of truth, no duplication #}
         {% set hard_limits_json %}{"hb":{"min":2.0,"max":22.0,"label":"Hemoglobin"},"albumin":{"min":0.8,"max":6.5,"label":"Albumin"},"calcium":{"min":3.0,"max":18.0,"label":"Calcium"},"phosphorus":{"min":0.5,"max":20.0,"label":"Phosphorus"},"serum_ferritin":{"min":1,"max":50000,"label":"Serum Ferritin"},"wbc_count":{"min":100,"max":100000,"label":"WBC Count (/cmm)"},"serum_creatinine":{"min":0.2,"max":40.0,"label":"Serum Creatinine"},"serum_potassium":{"min":1.5,"max":10.0,"label":"Serum Potassium"},"serum_sodium":{"min":100,"max":180,"label":"Serum Sodium"}}{% endset %}
 
-        <form method="POST"
+        <form method="POST" action="/entry/{{ patient.id }}?month={{ month_str }}"
               {% if record %}data-has-record="1"{% endif %}
               {% if form_error %}data-form-error="1"{% endif %}
               data-wiz-key="hd_wiz_{{ patient.id }}_{{ month_str }}"
@@ -794,10 +794,10 @@
                     </button>
                     <span id="wiz-req-hint" class="wiz-req-hint">Fill required fields</span>
                     <div id="wiz-submit-wrap" class="wiz-submit-wrap">
-                        <button type="submit" name="action" value="save_back" class="btn-wiz-submit sec" onclick="showSaveSpinner(this)">
+                        <button type="submit" name="action" value="save_back" class="btn-wiz-submit sec" data-no-spinner>
                             <i class="material-icons">list</i> Save &amp; Exit
                         </button>
-                        <button type="submit" name="action" value="save_next" class="btn-wiz-submit" onclick="showSaveSpinner(this)">
+                        <button type="submit" name="action" value="save_next" class="btn-wiz-submit" data-no-spinner>
                             <i class="material-icons">bolt</i> Save &amp; Next
                         </button>
                     </div>
@@ -880,6 +880,16 @@
 
     <!-- Inline bootstrap for template-based dynamic rows -->
     <script>
+    // Show spinner on form submit — bound to the form event, never blocks submission
+    document.querySelector('form').addEventListener('submit', function() {
+        const spinner = document.getElementById('save-spinner');
+        if (spinner) spinner.style.display = 'block';
+        document.querySelectorAll('.btn-wiz-submit').forEach(b => {
+            b.disabled = true;
+            b.style.opacity = '0.6';
+        });
+    });
+
     function addAntiMedRow() {
         const tmpl = document.getElementById('anti-med-template');
         const wrap = document.getElementById('antiMedsWrapper');
@@ -897,10 +907,10 @@
     </script>
 
     <!-- External JS modules — order matters: validation → calc → wizard → ocr -->
-    <script src="/static/js/entry_validation.js"></script>
-    <script src="/static/js/entry_calc.js"></script>
-    <script src="/static/js/entry_wizard.js"></script>
-    <script src="/static/js/entry_ocr.js"></script>
+    <script src="/static/js/entry_validation.js?v=3"></script>
+    <script src="/static/js/entry_calc.js?v=3"></script>
+    <script src="/static/js/entry_wizard.js?v=3"></script>
+    <script src="/static/js/entry_ocr.js?v=3"></script>
 
 </body>
 </html>

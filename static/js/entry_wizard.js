@@ -282,15 +282,6 @@ let isRestoring = false;
 
 document.querySelector('form')?.addEventListener('submit', () => { formDirty = false; });
 
-function showSaveSpinner(btn) {
-    // Disable both save buttons to prevent double-submit
-    document.querySelectorAll('.btn-wiz-submit').forEach(b => {
-        b.disabled = true;
-        b.style.opacity = '0.5';
-    });
-    const spinner = document.getElementById('save-spinner');
-    if (spinner) spinner.style.display = 'block';
-}
 
 window.addEventListener('beforeunload', e => {
     wizSaveStep(wizStep);
