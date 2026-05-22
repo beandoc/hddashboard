@@ -405,7 +405,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
     <div class="modal-box">
         <div class="modal-header">
             <h3 id="modal-title-interim"><i class="material-icons" style="color:var(--primary);font-size:1.1rem;">emergency</i> <span id="interimModalTitle">Add Interim Lab</span></h3>
-            <button class="modal-close" onclick="closeInterimModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+            <button type="button" class="modal-close" onclick="closeInterimModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form id="interimForm" method="POST">
             <div class="form-row">
@@ -473,7 +473,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
     <div class="modal-box" style="max-width:400px;">
         <div class="modal-header">
             <h3 id="modal-title-deactivate" style="color:#dc2626;"><i class="material-icons" style="font-size:1.1rem;">person_off</i> Deactivate Patient</h3>
-            <button class="modal-close" onclick="closeDeactivateModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+            <button type="button" class="modal-close" onclick="closeDeactivateModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <p style="margin:0 0 8px; font-size:0.875rem; color:#475569;">
             You are about to deactivate <strong id="deact_name"></strong>. This removes the patient from all active lists.
@@ -529,7 +529,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
     <div class="modal-box">
         <div class="modal-header">
             <h3 id="modal-title-reminder"><i class="material-icons" style="color:var(--accent-orange);font-size:1.1rem;">event_note</i> Set Clinical Reminder</h3>
-            <button class="modal-close" onclick="closeReminderModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+            <button type="button" class="modal-close" onclick="closeReminderModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <p style="margin:0 0 16px; font-size:0.875rem; color:#475569;">
             Set a reminder for <strong id="reminder_patient_name"></strong>. This will appear on the Alerts page on the specified date.
@@ -557,7 +557,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
     <div class="modal-box">
         <div class="modal-header">
             <h3 id="modal-title-admit"><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
-            <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+            <button type="button" class="modal-close" onclick="closeAdmitModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
             <input type="hidden" name="patient_id" id="admit_patient_id">
@@ -612,7 +612,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
     <div class="modal-box">
         <div class="modal-header">
             <h3 id="modal-title-discharge"><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
-            <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
+            <button type="button" class="modal-close" onclick="closeDischargeModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
             <input type="hidden" name="patient_id" id="discharge_patient_id">

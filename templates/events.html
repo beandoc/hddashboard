@@ -485,7 +485,7 @@
     <div class="modal-box" style="border-top: 4px solid #7c3aed;">
         <div class="modal-header">
             <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
-            <button class="modal-close" onclick="closeAdmitModal()"><i class="material-icons">close</i></button>
+            <button type="button" class="modal-close" onclick="closeAdmitModal()"><i class="material-icons">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -545,7 +545,7 @@
     <div class="modal-box" style="border-top: 4px solid #0369a1;">
         <div class="modal-header">
             <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
-            <button class="modal-close" onclick="closeDischargeModal()"><i class="material-icons">close</i></button>
+            <button type="button" class="modal-close" onclick="closeDischargeModal()"><i class="material-icons">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
