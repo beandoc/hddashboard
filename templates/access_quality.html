@@ -296,7 +296,7 @@
                         <td><span class="badge-urgent">{{ item.patient.access_type }}</span></td>
                         <td>
                             <ul style="margin:0; padding-left:15px; color:#b91c1c; font-size:0.85rem;">
-                                {% for alert in item.status.alerts %}
+                                {% for alert in item.status.data.alerts %}
                                     {% if 'Maturation' in alert %}<li>{{ alert }}</li>{% endif %}
                                 {% endfor %}
                             </ul>
@@ -341,7 +341,7 @@
                         <td><strong>{{ item.patient.name }}</strong></td>
                         <td>{{ item.patient.access_type }}</td>
                         <td>
-                            {% for alert in item.status.alerts %}
+                            {% for alert in item.status.data.alerts %}
                                 {% if 'Suboptimal' in alert or 'Recirculation' in alert %}
                                     <div style="color:#92400e; font-size:0.85rem; margin-bottom:2px; display:flex; align-items:center; gap:4px;">
                                         <i class="material-icons" style="font-size:1rem;">warning</i> {{ alert }}
@@ -350,7 +350,7 @@
                             {% endfor %}
                         </td>
                         <td>
-                            {% if item.status.high_recirculation %}
+                            {% if item.status.data.high_recirculation %}
                                 <span style="color:var(--danger); font-weight:700;">Significant (>10%)</span>
                             {% else %}
                                 <span style="color:var(--success); font-weight:600;">Normal</span>

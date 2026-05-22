@@ -1,4 +1,22 @@
 <link rel="stylesheet" href="/static/css/clinical.css"/>
+
+{% if user %}
+{# Prefetch the most-visited pages so mobile nav feels instant on repeat taps #}
+{% if user.role in ['doctor', 'admin', 'staff'] %}
+<link rel="prefetch" href="/" as="document">
+<link rel="prefetch" href="/patients" as="document">
+<link rel="prefetch" href="/entry" as="document">
+<link rel="prefetch" href="/schedule" as="document">
+<link rel="prefetch" href="/alerts" as="document">
+{% if user.role in ['doctor', 'admin'] %}
+<link rel="prefetch" href="/review" as="document">
+<link rel="prefetch" href="/analytics" as="document">
+{% endif %}
+{% elif user.role == 'patient' %}
+<link rel="prefetch" href="/patient/dashboard" as="document">
+{% endif %}
+{% endif %}
+
 <script>
   // Apply theme immediately to prevent flashing
   (function() {

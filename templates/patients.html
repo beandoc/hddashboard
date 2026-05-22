@@ -337,20 +337,20 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                                 </a>
                             {% endif %}
 
-                            <!-- Admit -->
+                            <!-- Admit (hidden on mobile — available in overflow menu) -->
                             <button onclick="openAdmitModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')"
-                                    class="act-btn act-admit-icon"
+                                    class="act-btn act-admit-icon act-desktop-only"
                                     title="Record hospital admission">
                                 <i class="material-icons" style="font-size:0.9rem;">local_hospital</i>
                                 <span class="act-lbl">Admit</span>
                             </button>
 
-                            <!-- Discharge (only active if currently admitted) -->
+                            <!-- Discharge (hidden on mobile — available in overflow menu) -->
                             <button onclick="openDischargeModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')"
-                                    class="act-btn act-discharge-icon"
+                                    class="act-btn act-discharge-icon act-desktop-only"
                                     title="{% if row.is_admitted %}Record discharge{% else %}Patient not currently admitted{% endif %}"
                                     {% if not row.is_admitted %}disabled{% endif %}>
-                                <i class="material-icons" style="font-size:0.9rem;">logout</i>
+                                <i class="material-icons" style="font-size:0.9rem;">exit_to_app</i>
                                 <span class="act-lbl">Discharge</span>
                             </button>
 
@@ -369,6 +369,13 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                                     <a href="/events?patient_id={{ row.id }}" class="more-item">
                                         <i class="material-icons">timeline</i> Timeline
                                     </a>
+                                    <!-- Admit / Discharge visible in overflow on mobile -->
+                                    <button onclick="openAdmitModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item act-mobile-only">
+                                        <i class="material-icons" style="color:#7c3aed;">local_hospital</i> Admit
+                                    </button>
+                                    <button onclick="openDischargeModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item act-mobile-only" {% if not row.is_admitted %}disabled style="opacity:0.4;cursor:not-allowed;"{% endif %}>
+                                        <i class="material-icons" style="color:#0369a1;">exit_to_app</i> Discharge
+                                    </button>
                                     <button onclick="openReminderModal({{ row.id }}, '{{ row.name|replace("'", "\\'") }}')" class="more-item">
                                         <i class="material-icons" style="color:var(--accent-orange);">event_note</i> Set Reminder
                                     </button>
@@ -408,6 +415,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
             <button type="button" class="modal-close" onclick="closeInterimModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form id="interimForm" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-row">
                 <div class="form-field">
                     <label>Date</label>
@@ -512,6 +520,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
         </div>
 
         <form id="deactivateForm" method="POST" style="display:flex; gap:10px; margin-top:8px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="is_death" id="deact_is_death_hidden" value="0">
             <input type="hidden" name="date_of_death" id="deact_dod_hidden" value="">
             <input type="hidden" name="cause_of_death" id="deact_cause_hidden" value="">
@@ -535,6 +544,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
             Set a reminder for <strong id="reminder_patient_name"></strong>. This will appear on the Alerts page on the specified date.
         </p>
         <form id="reminderForm" method="POST" action="/alerts/reminders/create">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="patient_id" id="reminder_patient_id">
             <div class="form-field">
                 <label>Reminder Date</label>
@@ -560,6 +570,7 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
             <button type="button" class="modal-close" onclick="closeAdmitModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="patient_id" id="admit_patient_id">
             <input type="hidden" name="event_type" value="Hospitalization">
             <input type="hidden" name="severity" value="High">
@@ -611,10 +622,11 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 <div id="dischargeModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title-discharge" aria-hidden="true" onclick="if(event.target===this)closeDischargeModal()">
     <div class="modal-box">
         <div class="modal-header">
-            <h3 id="modal-title-discharge"><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
+            <h3 id="modal-title-discharge"><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">exit_to_app</i> Patient Discharge</h3>
             <button type="button" class="modal-close" onclick="closeDischargeModal()"><i class="material-icons" style="font-size:1.1rem;color:#64748b;">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="patient_id" id="discharge_patient_id">
             <input type="hidden" name="event_type" value="Discharge">
             <input type="hidden" name="severity" value="Medium">
@@ -985,12 +997,14 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
         const modalEl = document.getElementById('dischargeModal');
         modalEl.classList.add('open');
         modalEl.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
         window._focusTrapHandler_discharge = trapFocus(modalEl);
     }
     function closeDischargeModal() {
         const modalEl = document.getElementById('dischargeModal');
         modalEl.classList.remove('open');
         modalEl.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
         releaseFocus(modalEl, window._focusTrapHandler_discharge);
     }
     function prepareDischargeDescription(form) {

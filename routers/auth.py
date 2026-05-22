@@ -63,15 +63,25 @@ async def login_page(request: Request, error: str = None):
 @limiter.limit("10/minute")
 async def login(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    csrf_token: str = Form(...),
+    username: str = Form(default=""),
+    password: str = Form(default=""),
+    csrf_token: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
+    if not csrf_token:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Session expired — please refresh the page and try again.", "csrf_token": _csrf_signer.sign("login").decode()},
+            status_code=400,
+        )
     try:
         _csrf_signer.unsign(csrf_token, max_age=3600)
     except BadData:
-        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Session expired — please refresh and try again.", "csrf_token": _csrf_signer.sign("login").decode()},
+            status_code=400,
+        )
 
     now_ts = int(time.time())
     username = username.strip()
@@ -107,18 +117,30 @@ async def login(
         .first()
     )
 
-    # Auto-provision on first login with first name + "chsc"
+    # Auto-provision on first login: match any name-word, skip titles, allow
+    # patients that have a credentials row with login_username still NULL.
+    _TITLES = {"mr", "mrs", "ms", "dr", "prof", "mr.", "mrs.", "ms.", "dr.", "prof.", "sh", "sh."}
     if not p and password == _HARDCODED_PASSWORD:
-        for candidate in db.query(Patient).filter(Patient.is_active == True).all():
-            first_name = candidate.name.split()[0].lower()
-            if first_name == username.lower() and not candidate.login_username:
-                candidate.login_username = first_name
+        uname = username.lower().strip()
+        candidates = (
+            db.query(Patient)
+            .filter(Patient.is_active == True)
+            .all()
+        )
+        for candidate in candidates:
+            # Skip patients who already have a login_username set
+            if candidate.login_username:
+                continue
+            # Try matching any non-title word in the patient's full name
+            words = [w.lower().strip(".,") for w in candidate.name.split() if w.lower().strip(".,") not in _TITLES]
+            if uname in words:
+                candidate.login_username = uname
                 candidate.hashed_password = pwd_context.hash(_HARDCODED_PASSWORD)
                 db.commit()
                 p = candidate
                 break
 
-    if p and (password == _HARDCODED_PASSWORD or pwd_context.verify(password, p.hashed_password)):
+    if p and (password == _HARDCODED_PASSWORD or pwd_context.verify(password, p.hashed_password or "")):
         token = serializer.dumps(f"patient:{p.login_username}:{now_ts}")
         response = RedirectResponse(url="/patient/dashboard", status_code=303)
         response.set_cookie(

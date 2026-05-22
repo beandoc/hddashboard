@@ -1420,15 +1420,18 @@ tbody td { padding: 14px 14px; vertical-align: middle; white-space: nowrap; }
   .table-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
   .search-input { width: 100%; min-height: 44px; }
   .table-wrap { background: transparent; box-shadow: none; border: none; overflow: visible; }
-  table, thead, tbody, th, td, tr { display: block; }
-  thead tr { position: absolute; top: -9999px; left: -9999px; }
-  tbody tr { background: #fff; border-radius: 12px; margin-bottom: 14px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); border: 1px solid rgba(0,0,0,0.05); }
-  tbody td { border: none; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f8fafc; }
-  tbody td:last-child { border-bottom: none; }
-  tbody td::before { content: attr(data-label); font-weight: 700; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
-  tbody td:first-child { padding: 0 0 10px; text-align: left; display: block; border-bottom: 2px solid #f1f5f9; margin-bottom: 10px; }
-  tbody td:first-child::before { display: none; }
-  tbody td:first-child .cell-name { font-size: 1.1rem; color: #0f172a; font-weight: 700; }
+
+  /* Stacked-card table layout — scoped to .table-section only, not at-risk widget */
+  .table-section table, .table-section thead, .table-section tbody,
+  .table-section th, .table-section td, .table-section tr { display: block; }
+  .table-section thead tr { position: absolute; top: -9999px; left: -9999px; }
+  .table-section tbody tr { background: #fff; border-radius: 12px; margin-bottom: 14px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); border: 1px solid rgba(0,0,0,0.05); }
+  .table-section tbody td { border: none; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f8fafc; }
+  .table-section tbody td:last-child { border-bottom: none; }
+  .table-section tbody td::before { content: attr(data-label); font-weight: 700; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .table-section tbody td:first-child { padding: 0 0 10px; text-align: left; display: block; border-bottom: 2px solid #f1f5f9; margin-bottom: 10px; }
+  .table-section tbody td:first-child::before { display: none; }
+  .table-section tbody td:first-child .cell-name { font-size: 1.1rem; color: #0f172a; font-weight: 700; }
   .action-bar { flex-direction: column; align-items: stretch; padding: 0 16px; gap: 8px; }
   .btn-wa, .btn-email { justify-content: center; min-height: 48px; }
 
@@ -1441,10 +1444,60 @@ tbody td { padding: 14px 14px; vertical-align: middle; white-space: nowrap; }
   .chart-content { height: 220px; }
   .trend-chart-content { height: 200px; }
 
-  .at-risk-header { flex-direction: column; align-items: flex-start; }
-  .at-risk-param-selector { width: 100%; }
-  .at-risk-param-selector select { flex: 1; }
-  .at-risk-body { padding: 16px; }
+  /* ── At-Risk Panel — polished mobile layout ── */
+  .at-risk-panel { padding-left: 0; padding-right: 0; margin-bottom: 24px; }
+  .at-risk-card { border-radius: 0; border-left: none; border-right: none; box-shadow: 0 1px 0 #e2e8f0, 0 -1px 0 #e2e8f0; }
+  .at-risk-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .at-risk-header-left { gap: 10px; }
+  .at-risk-icon { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; }
+  .at-risk-title { font-size: 0.88rem; }
+  .at-risk-subtitle { font-size: 0.68rem; }
+  .at-risk-param-selector {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0;
+    border: none;
+    background: transparent;
+    gap: 0;
+  }
+  .at-risk-param-selector label { display: none; }
+  .at-risk-param-selector .ar-select-wrap { width: 100%; }
+  .at-risk-param-selector .ar-select {
+    width: 100%;
+    min-width: unset;
+    font-size: 0.85rem;
+    padding: 10px 36px 10px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+  .at-risk-param-selector .ar-select-chevron { right: 12px; }
+  .at-risk-body { padding: 0; }
+
+  /* At-risk table: keep real table layout, hide rank+trend cols, compact cells */
+  #atRiskTableWrap { overflow-x: hidden !important; }
+  #atRiskTable { font-size: 0.82rem; }
+  #atRiskTable thead th:first-child,
+  #atRiskTable tbody td:first-child { display: none; }           /* hide # rank */
+  #atRiskTable thead th:nth-child(4),
+  #atRiskTable tbody td:nth-child(4) { display: none; }          /* hide Trend */
+  #atRiskTable thead th,
+  #atRiskTable tbody td { padding: 10px 10px !important; }
+  #atRiskTable thead th:last-child,
+  #atRiskTable tbody td:last-child { padding-right: 14px !important; }
+  #atRiskTable thead th:nth-child(2),
+  #atRiskTable tbody td:nth-child(2) { max-width: 120px; }       /* patient name */
+
+  /* Pagination: stack on very small screens */
+  .ar-pagination { padding: 10px 14px 12px; flex-wrap: wrap; gap: 6px; }
+  .ar-page-info { font-size: 0.75rem; width: 100%; text-align: center; }
+  .ar-page-btns { width: 100%; justify-content: center; }
+  .ar-page-btn { flex: 1; justify-content: center; padding: 9px 12px; font-size: 0.8rem; min-height: 40px; }
 
   /* Card value slightly smaller on tiny screens */
   .card .value { font-size: 1.6rem; }

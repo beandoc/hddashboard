@@ -47,6 +47,7 @@ async def patient_list(
     patients_by_id = {p.id: p for p in patients}
 
     _current_month = get_current_month_str()
+    csrf_token = _csrf_signer.sign("events-new").decode()
     return templates.TemplateResponse("patients.html", {
         "request": request,
         "patients": patients,
@@ -60,6 +61,7 @@ async def patient_list(
         "active_sort": sort or "name",
         "active_dir": dir or "asc",
         "active_chip": chip or "",
+        "csrf_token": csrf_token,
     })
 
 @router.get("/new", response_class=HTMLResponse)

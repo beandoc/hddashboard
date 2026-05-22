@@ -907,9 +907,12 @@ svg.sparkline .stable-trend {
 .modal-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.55);
-  display: flex; align-items: center; justify-content: center;
+  display: none; align-items: center; justify-content: center;
   z-index: 2000;
   padding: 16px;
+}
+.modal-overlay.open {
+  display: flex;
 }
 .modal-box {
   background: var(--card);

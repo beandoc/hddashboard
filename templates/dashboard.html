@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
   <link rel="stylesheet" href="/static/css/clinical.css"/>
   <link rel="stylesheet" href="/static/css/pages/dashboard.css"/>
-  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
+  <!-- Preload hint so browser fetches Plotly in parallel with page render -->
+  <link rel="preload" href="/static/vendor/js/plotly-2.35.2.min.js" as="script">
 </head>
 <body>
 
@@ -518,6 +519,8 @@
 
 </main>
 
+<!-- Plotly moved here (after visible HTML, before chart scripts) so page paints first -->
+<script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
 <script>
 const PREV_MONTH = "{{ data.prev_month_label or 'Prev' }}";
 const CURR_MONTH = "{{ data.month_label }}";

@@ -151,12 +151,13 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
         # b) Intelligence Engine (Maturation & Functional)
         status = analyze_avf_maturation(db, p.id)
         if status.get("available"):
-            if status.get("maturation_failure"):
+            data = status.get("data", {})
+            if data.get("maturation_failure"):
                 maturation_watchlist.append({
                     "patient": p,
                     "status": status
                 })
-            if status.get("suboptimal_flow") or status.get("high_recirculation"):
+            if data.get("suboptimal_flow") or data.get("high_recirculation"):
                 functional_watchlist.append({
                     "patient": p,
                     "status": status
@@ -554,7 +555,8 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
         pds_analytics = analyze_pds(db, patient_id)
         mia_cascade = analyze_mia_cascade(db, patient_id)
         cardiorenal_cascade = analyze_cardiorenal_cascade(db, patient_id)
-        avf_cascade = analyze_avf_maturation(db, patient_id)
+        avf_cascade_raw = analyze_avf_maturation(db, patient_id)
+        avf_cascade = {**avf_cascade_raw, **avf_cascade_raw.get("data", {})}
     except Exception as exc:
         logging.exception("patient_analytics_page error for patient_id=%s", patient_id)
         raise HTTPException(status_code=500, detail=str(exc))

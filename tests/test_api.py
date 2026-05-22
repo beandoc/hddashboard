@@ -76,3 +76,12 @@ def test_api_dashboard_month(client):
     response = client.get("/api/v1/dashboard?month=2026-04")
     assert response.status_code == 200
     assert "data" in response.json()
+
+def test_patients_page_renders_with_csrf_token(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+    response = client.get("/patients")
+    assert response.status_code == 200
+    assert 'name="csrf_token"' in response.text

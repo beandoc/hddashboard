@@ -176,6 +176,14 @@ body.compact-mode .act-btn .act-lbl {
 .act-discharge-icon:hover:not(:disabled) { background: #dbeafe; }
 .act-discharge-icon:disabled { opacity: 0.38; cursor: not-allowed; }
 
+/* Desktop-only / mobile-only action button visibility */
+.act-desktop-only { display: inline-flex; }
+.act-mobile-only  { display: none; }
+@media (max-width: 639px) {
+  .act-desktop-only { display: none !important; }
+  .act-mobile-only  { display: flex; }
+}
+
 @media (max-width: 1200px) {
   .act-lbl { display: none; }
   .act-btn-primary { padding: 0 12px; }

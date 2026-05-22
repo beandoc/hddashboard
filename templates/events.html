@@ -322,7 +322,7 @@
       <button class="btn btn-primary" onclick="openDischargeModalOnTimeline()" 
               style="background:#0369a1; {{ 'opacity:0.5; cursor:not-allowed;' if not admitted_patients else '' }}"
               {{ 'disabled' if not admitted_patients else '' }}>
-        <i class="material-icons" style="vertical-align:middle;font-size:1rem;">logout</i> Log Discharge
+        <i class="material-icons" style="vertical-align:middle;font-size:1rem;">exit_to_app</i> Log Discharge
       </button>
     </div>
   </div>
@@ -544,7 +544,7 @@
 <div id="dischargeModal" class="modal-overlay" onclick="if(event.target===this)closeDischargeModal()">
     <div class="modal-box" style="border-top: 4px solid #0369a1;">
         <div class="modal-header">
-            <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">logout</i> Patient Discharge</h3>
+            <h3><i class="material-icons" style="color:#0369a1;font-size:1.1rem;">exit_to_app</i> Patient Discharge</h3>
             <button type="button" class="modal-close" onclick="closeDischargeModal()"><i class="material-icons">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="dischargeForm" onsubmit="prepareDischargeDescription(this)">

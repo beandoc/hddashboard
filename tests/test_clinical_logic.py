@@ -4,10 +4,13 @@ from sqlalchemy.orm import sessionmaker
 from database import Base, Patient, MonthlyRecord
 from dashboard_logic import compute_dashboard
 
-# Setup in-memory SQLite for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+# Setup SQLite file for testing
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test_clinical_logic.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+import database
+database.SessionLocal = TestingSessionLocal
 
 @pytest.fixture
 def db():
