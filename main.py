@@ -22,7 +22,7 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "0008"
+REQUIRED_DB_VERSION = "28e0c191bf7a"
 
 
 def _check_schema_version() -> None:
@@ -74,11 +74,32 @@ def _seed_default_users() -> None:
         db.close()
 
 
+def _warm_caches() -> None:
+    """Pre-populate dashboard and ML caches at startup so the first user request is fast."""
+    import threading
+
+    def _warm():
+        db = SessionLocal()
+        try:
+            from dashboard_logic import compute_dashboard
+            compute_dashboard(db)
+            from ml_analytics import get_all_patients_mortality_risk
+            get_all_patients_mortality_risk(db)
+            logging.info("Cache warm-up complete.")
+        except Exception as exc:
+            logging.warning(f"Cache warm-up failed (non-fatal): {exc}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_warm, daemon=True, name="cache-warmup").start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
     _check_schema_version()
     _seed_default_users()
+    _warm_caches()
     logging.info("Startup complete.")
     yield
 
@@ -128,6 +149,55 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # must not overwrite those Set-Cookie headers.
 _AUTH_PATHS = {"/login", "/logout", "/change-password", "/api/login"}
 
+# Process-level user identity cache: username -> (user_obj_or_dict, expiry_ts)
+# Avoids a DB round-trip on every request for already-authenticated users.
+# TTL is kept short (120s) so role/active-status changes propagate quickly.
+_USER_IDENTITY_CACHE: dict = {}
+_USER_IDENTITY_CACHE_TTL = 120  # seconds
+
+
+def _invalidate_user_cache(username: str) -> None:
+    """Call on logout or role change to force a fresh DB lookup."""
+    _USER_IDENTITY_CACHE.pop(username, None)
+
+
+def _resolve_user_identity(user_type: str, username: str) -> object | dict | None:
+    """Return cached user identity, or fetch from DB and cache it."""
+    now = time.time()
+    cached = _USER_IDENTITY_CACHE.get(username)
+    if cached and now < cached[1]:
+        return cached[0]
+
+    db = SessionLocal()
+    try:
+        if user_type == "staff":
+            user = db.query(User).filter(
+                User.username == username, User.is_active == True
+            ).first()
+            if user:
+                # Detach from session so the object is safe to use after db.close()
+                db.expunge(user)
+                _USER_IDENTITY_CACHE[username] = (user, now + _USER_IDENTITY_CACHE_TTL)
+                return user
+        elif user_type == "patient":
+            p = db.query(Patient).filter(
+                Patient.login_username == username, Patient.is_active == True
+            ).first()
+            if p:
+                identity = {
+                    "username": p.login_username,
+                    "full_name": p.name,
+                    "role": "patient",
+                    "id": p.id,
+                }
+                _USER_IDENTITY_CACHE[username] = (identity, now + _USER_IDENTITY_CACHE_TTL)
+                return identity
+    except Exception as db_err:
+        logging.error(f"Auth middleware DB error: {db_err}")
+    finally:
+        db.close()
+    return None
+
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -153,34 +223,13 @@ async def auth_middleware(request: Request, call_next):
                 lat = 0  # legacy token — treat as idle immediately
 
             if time.time() - lat <= SESSION_IDLE_TTL:
-                db = SessionLocal()
-                try:
-                    if user_type == "staff":
-                        user = db.query(User).filter(
-                            User.username == username, User.is_active == True
-                        ).first()
-                        if user:
-                            request.state.user = user
-                    elif user_type == "patient":
-                        p = db.query(Patient).filter(
-                            Patient.login_username == username, Patient.is_active == True
-                        ).first()
-                        if p:
-                            request.state.user = {
-                                "username": p.login_username,
-                                "full_name": p.name,
-                                "role": "patient",
-                                "id": p.id,
-                            }
-                except Exception as db_err:
-                    logging.error(f"Auth middleware DB error: {db_err}")
-                finally:
-                    db.close()
-
-                if request.state.user and request.url.path not in _AUTH_PATHS:
-                    new_token = serializer.dumps(
-                        f"{user_type}:{username}:{int(time.time())}"
-                    )
+                user = _resolve_user_identity(user_type, username)
+                if user:
+                    request.state.user = user
+                    if request.url.path not in _AUTH_PATHS:
+                        new_token = serializer.dumps(
+                            f"{user_type}:{username}:{int(time.time())}"
+                        )
         except (SignatureExpired, BadData):
             pass
 
@@ -259,6 +308,13 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
                 "hb_high": {"count": 0, "names": []},
                 "hb_variability_high": {"count": 0, "names": []},
                 "adherence_risk": {"count": 0, "names": []},
+                "ipth_very_high": {"count": 0, "names": []},
+                "infectious_hd": {"count": 0, "names": []},
+                "avf_low_flow": {"count": 0, "names": []},
+                "transplant_prospects": {"count": 0, "names": []},
+                "cadaveric_listed": {"count": 0, "names": []},
+                "avf_count": 0,
+                "avg_count": 0,
                 "epo_hypo":    {"count": 0, "names": []},
                 "epo_hypo_r2": {"count": 0, "names": []},
                 "epo_hypo_r3": {"count": 0, "names": [], "cutoff": None},
