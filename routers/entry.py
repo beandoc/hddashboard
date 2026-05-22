@@ -235,6 +235,8 @@ async def save_entry(
     clinical_background: str = Form(""),
     issues: str = Form(""),
     total_protein: Optional[float] = Form(None),
+    triglycerides: Optional[float] = Form(None),
+    hdl_cholesterol: Optional[float] = Form(None),
     action: str = Form("save_back")
 ):
     try:

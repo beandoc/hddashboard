@@ -235,33 +235,6 @@
                     </div>
                 </div>
 
-                <!-- MBD -->
-                <div class="form-section" id="sec-mbd">
-                    <div class="section-title"><i class="material-icons">science</i> Bone & Mineral Metabolism (MBD)</div>
-                    <div class="grid">
-                        <div class="form-group">
-                            <label>Calcium (mg/dL)</label>
-                            <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Phosphorus (mg/dL)</label>
-                            <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Alkaline Phosphate (U/L)</label>
-                            <input type="number" step="1" name="alkaline_phosphate" inputmode="numeric" value="{{ record.alkaline_phosphate if record else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>iPTH (pg/mL)</label>
-                            <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth if record else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Vitamin D (ng/mL)</label>
-                            <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Biochemistry (KFT) -->
                 <div class="form-section" id="sec-kft">
                     <div class="section-title"><i class="material-icons">science</i> Biochemistry (KFT)</div>
@@ -283,6 +256,10 @@
                             <input type="number" step="0.1" name="post_dialysis_creatinine" inputmode="decimal" value="{{ record.post_dialysis_creatinine if record else '' }}">
                         </div>
                         <div class="form-group">
+                            <label>Serum Uric Acid (mg/dL)</label>
+                            <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" value="{{ record.serum_uric_acid if record else '' }}">
+                        </div>
+                        <div class="form-group">
                             <label>Serum Sodium (mmol/L)</label>
                             <input type="number" step="0.1" name="serum_sodium" inputmode="decimal" value="{{ record.serum_sodium if record else '' }}">
                         </div>
@@ -291,27 +268,23 @@
                             <input type="number" step="0.1" name="serum_potassium" inputmode="decimal" value="{{ record.serum_potassium if record else '' }}">
                         </div>
                         <div class="form-group">
+                            <label>Calcium (mg/dL)</label>
+                            <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Phosphorus (mg/dL)</label>
+                            <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus if record else '' }}">
+                        </div>
+                        <div class="form-group">
                             <label>Serum Bicarbonate (mmol/L)</label>
                             <input type="number" step="1" name="serum_bicarbonate" inputmode="numeric" value="{{ record.serum_bicarbonate if record else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Serum Uric Acid (mg/dL)</label>
-                            <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" value="{{ record.serum_uric_acid if record else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Total Protein (g/dL)</label>
-                            <input type="number" step="0.1" name="total_protein" inputmode="decimal" value="{{ record.dynamic_data.total_protein if record and record.dynamic_data else '' }}">
-                        </div>
-                        <div class="form-group">
-                            <label>Albumin (g/dL)</label>
-                            <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
                         </div>
                     </div>
                 </div>
 
-                <!-- Liver & Virology -->
+                <!-- Liver & Lipids -->
                 <div class="form-section" id="sec-liver">
-                    <div class="section-title"><i class="material-icons">science</i> Liver & Virology</div>
+                    <div class="section-title"><i class="material-icons">science</i> Liver & Lipids</div>
                     <div class="grid">
                         <div class="form-group">
                             <label>AST (U/L)</label>
@@ -322,6 +295,34 @@
                             <input type="number" step="1" name="alt" inputmode="numeric" value="{{ record.alt if record else '' }}">
                         </div>
                         <div class="form-group">
+                            <label>Alkaline Phosphatase (U/L)</label>
+                            <input type="number" step="1" name="alkaline_phosphate" inputmode="numeric" value="{{ record.alkaline_phosphate if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Total Protein (g/dL)</label>
+                            <input type="number" step="0.1" name="total_protein" inputmode="decimal" value="{{ record.dynamic_data.total_protein if record and record.dynamic_data else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Albumin (g/dL)</label>
+                            <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Total Cholesterol (mg/dL)</label>
+                            <input type="number" step="1" name="total_cholesterol" inputmode="numeric" value="{{ record.total_cholesterol if record else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Triglycerides (mg/dL)</label>
+                            <input type="number" step="1" name="triglycerides" inputmode="numeric" value="{{ record.dynamic_data.triglycerides if record and record.dynamic_data else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>HDL (mg/dL)</label>
+                            <input type="number" step="1" name="hdl_cholesterol" inputmode="numeric" value="{{ record.dynamic_data.hdl_cholesterol if record and record.dynamic_data else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>LDL (mg/dL)</label>
+                            <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
+                        </div>
+                        <div class="form-group">
                             <label>CRP (mg/L)</label>
                             <input type="number" step="0.1" name="crp" inputmode="decimal" value="{{ record.crp if record else '' }}">
                         </div>
@@ -329,14 +330,20 @@
                             <label>HbA1c (%)</label>
                             <input type="number" step="0.1" name="hba1c" inputmode="decimal" value="{{ record.hba1c if record else '' }}">
                         </div>
+                    </div>
+                </div>
+
+                <!-- MBD -->
+                <div class="form-section" id="sec-mbd">
+                    <div class="section-title"><i class="material-icons">science</i> Bone & Mineral Metabolism (MBD)</div>
+                    <div class="grid">
                         <div class="form-group">
-                            <label>Total Cholesterol (mg/dL)</label>
-                            <input type="number" step="1" name="total_cholesterol" inputmode="numeric" value="{{ record.total_cholesterol if record else '' }}">
+                            <label>iPTH (pg/mL)</label>
+                            <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth if record else '' }}">
                         </div>
                         <div class="form-group">
-                            <label>LDL Cholesterol (mg/dL)</label>
-                            <input type="number" step="1" name="ldl_cholesterol" inputmode="numeric" placeholder="e.g. 100"
-                                   value="{{ record.ldl_cholesterol if record and record.ldl_cholesterol else '' }}">
+                            <label>Vitamin D (ng/mL)</label>
+                            <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d if record else '' }}">
                         </div>
                     </div>
                 </div>

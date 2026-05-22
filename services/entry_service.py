@@ -521,15 +521,16 @@ def save_monthly_record(
             changes={"patient_id": patient_id, "record_month": month_str},
         )
 
-        # Save total_protein into dynamic_data
-        total_protein = data.get("total_protein")
-        if total_protein is not None and total_protein != "":
-            try:
-                current_dd = dict(rec.dynamic_data) if rec.dynamic_data else {}
-                current_dd["total_protein"] = float(total_protein)
-                rec.dynamic_data = current_dd
-            except (ValueError, TypeError):
-                pass
+        # Save total_protein, triglycerides, hdl_cholesterol into dynamic_data
+        _dd = dict(rec.dynamic_data) if rec.dynamic_data else {}
+        for _key in ("total_protein", "triglycerides", "hdl_cholesterol"):
+            _val = data.get(_key)
+            if _val is not None and _val != "":
+                try:
+                    _dd[_key] = float(_val)
+                except (ValueError, TypeError):
+                    pass
+        rec.dynamic_data = _dd
 
         try:
             db.commit()
