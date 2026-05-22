@@ -15,57 +15,36 @@
 
 {% include "_nav.html" %}
 {% if user and user.role == 'staff' %}
-<div class="notice-banner" style="
-  background: linear-gradient(90deg, #0ea5e9 0%, #0284c7 100%);
-  color: #fff; padding: 12px 32px;
-  display: flex; align-items: center; justify-content: space-between;
-  font-family: 'Inter', sans-serif; font-size: 0.85rem; gap: 12px; flex-wrap: wrap;
-">
-  <span>
+<div class="role-banner banner-staff">
+  <span class="banner-text">
     <strong>Good {{ greeting }}, {{ user.full_name or user.username }}.</strong>
     {% if pending_entry_count %}
       {{ pending_entry_count }} patient{{ 's' if pending_entry_count != 1 else '' }}
-      {{ 'are' if pending_entry_count != 1 else 'is' }} missing records for
-      {{ current_month_label }}.
+      {{ 'are' if pending_entry_count != 1 else 'is' }} missing records for {{ current_month_label }}.
     {% else %}
       All monthly records are up to date for {{ current_month_label }}.
     {% endif %}
   </span>
-  <a href="/entry" style="
-    background: rgba(255,255,255,0.2); color: #fff; text-decoration: none;
-    padding: 7px 16px; border-radius: 8px; font-weight: 600; font-size: 0.82rem;
-    border: 1px solid rgba(255,255,255,0.3); white-space: nowrap;
-  ">Go to Data Entry →</a>
+  <a href="/entry" class="banner-btn">Go to Data Entry →</a>
 </div>
 {% endif %}
 
 {% if user and user.role == 'doctor' %}
-<div class="notice-banner" style="
-  background: linear-gradient(90deg, #7c3aed 0%, #6d28d9 100%);
-  color: #fff; padding: 12px 32px;
-  display: flex; align-items: center; justify-content: space-between;
-  font-family: 'Inter', sans-serif; font-size: 0.85rem; gap: 12px; flex-wrap: wrap;
-">
-  <span>
+<div class="role-banner banner-doctor">
+  <span class="banner-text">
     <strong>Good {{ greeting }}, Dr. {{ user.full_name or user.username }}.</strong>
     {% if high_risk_count %}
-      <span style="background:rgba(255,255,255,0.2); padding:2px 10px; border-radius:20px; margin-left:8px; font-weight:700;">
-        {{ high_risk_count }} high-risk patient{{ 's' if high_risk_count != 1 else '' }} need review.
-      </span>
+      <span class="banner-risk-pill">{{ high_risk_count }} high-risk patient{{ 's' if high_risk_count != 1 else '' }} need review.</span>
     {% else %}
       No critical alerts at this time.
     {% endif %}
   </span>
-  <div style="display:flex; gap:8px; flex-wrap:wrap;">
-    <a href="/review" style="background:#fff; color:#7c3aed; text-decoration:none; padding:7px 16px; border-radius:8px; font-weight:700; font-size:0.82rem; white-space:nowrap; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-      <i class="material-icons" style="font-size:1rem; vertical-align:middle; margin-right:4px;">list_alt</i> Review Queue
+  <div class="banner-actions">
+    <a href="/review" class="banner-btn banner-btn-solid">
+      <i class="material-icons">list_alt</i> Review Queue
     </a>
-    <a href="/analytics/mortality-risk" style="background:rgba(255,255,255,0.2); color:#fff; text-decoration:none; padding:7px 16px; border-radius:8px; font-weight:600; font-size:0.82rem; border:1px solid rgba(255,255,255,0.3); white-space:nowrap;">
-      Mortality Risk →
-    </a>
-    <a href="/analytics" style="background:rgba(255,255,255,0.15); color:#fff; text-decoration:none; padding:7px 16px; border-radius:8px; font-weight:600; font-size:0.82rem; border:1px solid rgba(255,255,255,0.2); white-space:nowrap;">
-      Analytics Hub →
-    </a>
+    <a href="/analytics/mortality-risk" class="banner-btn">Mortality Risk →</a>
+    <a href="/analytics" class="banner-btn">Analytics Hub →</a>
   </div>
 </div>
 {% endif %}
@@ -110,46 +89,38 @@
   <div class="dashboard-grid">
 
     <!-- ── Overview ─────────────────────────────────────── -->
-    <div class="grid-section-label"><span>Overview</span></div>
+    <div class="grid-section-label" data-section="overview"><span>Overview</span></div>
 
     {% if user.role in ['admin', 'doctor'] and data.metrics.total_patients.count > 0 %}
-    <a href="/patients?month={{ month_str }}" class="card" style="text-decoration:none;color:inherit;">
-    {% else %}<div class="card">{% endif %}
+    <a href="/patients?month={{ month_str }}" class="card card-stat" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card card-stat">{% endif %}
       <div class="card-icon-wrap icon-blue"><i class="material-icons">people</i></div>
       <div class="card-body">
         <div class="value">{{ data.metrics.total_patients.count }}</div>
-        <div class="title">Active</div>
+        <div class="title">Active Patients</div>
       </div>
     {% if user.role in ['admin', 'doctor'] and data.metrics.total_patients.count > 0 %}</a>{% else %}</div>{% endif %}
 
-    <div class="card">
-      <div class="card-icon-wrap icon-indigo"><i class="material-icons">person</i></div>
+    <div class="card card-stat">
+      <div class="card-icon-wrap icon-indigo"><i class="material-icons">man</i></div>
       <div class="card-body">
         <div class="value">{{ data.metrics.male_patients.count }}</div>
         <div class="title">Male</div>
       </div>
-      {% if data.metrics.male_patients.names %}<div class="tooltip">{{ data.metrics.male_patients.names | join('\n') }}</div>{% endif %}
+      {% if data.metrics.male_patients.names %}<div class="tooltip">{{ data.metrics.male_patients.names | join(' · ') }}</div>{% endif %}
     </div>
 
-    <div class="card">
-      <div class="card-icon-wrap icon-pink"><i class="material-icons">person</i></div>
+    <div class="card card-stat">
+      <div class="card-icon-wrap icon-pink"><i class="material-icons">woman</i></div>
       <div class="card-body">
         <div class="value">{{ data.metrics.female_patients.count }}</div>
         <div class="title">Female</div>
       </div>
-      {% if data.metrics.female_patients.names %}<div class="tooltip">{{ data.metrics.female_patients.names | join('\n') }}</div>{% endif %}
-    </div>
-
-    <div class="card">
-      <div class="card-icon-wrap icon-red"><i class="material-icons">bloodtype</i></div>
-      <div class="card-body">
-        <div class="value">{{ data.metrics.avg_hb if data.metrics.avg_hb is not none else '—' }}</div>
-        <div class="title">Avg Hb (g/dL)</div>
-      </div>
+      {% if data.metrics.female_patients.names %}<div class="tooltip">{{ data.metrics.female_patients.names | join(' · ') }}</div>{% endif %}
     </div>
 
     <!-- ── Anemia Management ─────────────────────────── -->
-    <div class="grid-section-label"><span>Anemia Management</span></div>
+    <div class="grid-section-label" data-section="anemia"><span>Anemia Management</span></div>
 
     {% set r1 = data.metrics.epo_hypo.count %}
     {% set r2 = data.metrics.epo_hypo_r2.count %}
@@ -220,8 +191,8 @@
 
     </div>
 
-    <!-- ── Clinical Markers ───────────────────────────── -->
-    <div class="grid-section-label"><span>Clinical Markers</span></div>
+    <!-- ── Fluid & Nutrition ─────────────────────────── -->
+    <div class="grid-section-label" data-section="fluid"><span>Fluid &amp; Nutrition</span></div>
 
     {% set m = data.metrics.idwg_high %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
@@ -229,7 +200,7 @@
     {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
       <div class="card-icon-wrap icon-orange"><i class="material-icons">monitor_weight</i></div>
       <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">IDWG ≥ 2.5 kg</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
     {% set m = data.metrics.albumin_low %}
@@ -238,17 +209,11 @@
     {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
       <div class="card-icon-wrap icon-amber"><i class="material-icons">science</i></div>
       <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Albumin &lt; 2.5 g/dL</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
-    {% set m = data.metrics.hb_high %}
-    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
-    <a href="/analytics/patients?month={{ month_str }}&filter=hb_high" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
-    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
-      <div class="card-icon-wrap icon-red"><i class="material-icons">bloodtype</i></div>
-      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">High Hb &gt; 13.0 g/dL</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
-    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+    <!-- ── Mineral Bone Disease ───────────────────────── -->
+    <div class="grid-section-label" data-section="mbd"><span>Mineral Bone Disease</span></div>
 
     {% set m = data.metrics.calcium_low %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
@@ -256,7 +221,7 @@
     {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
       <div class="card-icon-wrap icon-orange"><i class="material-icons">healing</i></div>
       <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Calcium &lt; 8.0 mg/dL</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
     {% set m = data.metrics.phos_high %}
@@ -265,39 +230,119 @@
     {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
       <div class="card-icon-wrap icon-orange"><i class="material-icons">biotech</i></div>
       <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Phosphorus &gt; 5.5 mg/dL</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
-    {% set m = data.metrics.hb_variability_high %}
-    <div class="card{% if m.count > 0 %} highlight{% endif %}">
-      <div class="card-icon-wrap icon-amber"><i class="material-icons">show_chart</i></div>
-      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">High Hb Variability (&gt;2.5 g/dL)</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+    {% set m = data.metrics.ipth_very_high %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
+    <a href="/analytics/patients?month={{ month_str }}&filter=ipth" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
+      <div class="card-icon-wrap icon-purple"><i class="material-icons">monitor_heart</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">iPTH &gt; 1000 pg/mL</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
+    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+
+    <!-- ── Vascular Access ───────────────────────────── -->
+    <div class="grid-section-label" data-section="access"><span>Vascular Access</span></div>
+
+    {% set avf_cnt  = data.metrics.avf_count %}
+    {% set avg_cnt  = data.metrics.avg_count %}
+    {% set non_avf  = data.metrics.non_avf %}
+    {% set low_flow = data.metrics.avf_low_flow %}
+    {% set _total   = data.metrics.total_patients.count %}
+    <div class="card access-panel">
+
+      <!-- Main content row — no inner header, section label above is sufficient -->
+      <div class="access-panel-body">
+
+        <!-- AVF stat -->
+        <div class="access-stat-block access-stat-avf">
+          <div class="card-icon-wrap icon-green"><i class="material-icons">linear_scale</i></div>
+          <div class="access-stat-num">{{ avf_cnt }}</div>
+          <div class="access-stat-label">AV Fistula</div>
+          <div class="access-stat-badge badge-green">AVF</div>
+          {% if _total > 0 %}<div class="access-stat-of">{{ (avf_cnt / _total * 100) | round(0) | int }}% of patients</div>{% endif %}
+        </div>
+
+        <div class="access-divider"></div>
+
+        <!-- AVG stat -->
+        <div class="access-stat-block access-stat-avg">
+          <div class="card-icon-wrap icon-blue"><i class="material-icons">device_hub</i></div>
+          <div class="access-stat-num">{{ avg_cnt }}</div>
+          <div class="access-stat-label">AV Graft</div>
+          <div class="access-stat-badge badge-blue">AVG</div>
+          {% if _total > 0 %}<div class="access-stat-of">{{ (avg_cnt / _total * 100) | round(0) | int }}% of patients</div>{% endif %}
+        </div>
+
+        <div class="access-divider"></div>
+
+        <!-- Non-AVF breakdown -->
+        <div class="access-breakdown-block">
+          <div class="access-eyebrow">Non-AVF / Catheter</div>
+          {% if non_avf.types %}
+            {% for atype, ainfo in non_avf.types.items() %}
+            <div class="access-type-row">
+              <span class="access-type-dot"></span>
+              <span class="access-type-name">{{ atype }}</span>
+              <span class="access-type-count">{{ ainfo.count }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="access-type-row">
+              <span class="access-type-name" style="color:#94a3b8;font-style:italic;font-size:0.75rem;">All patients on AVF/AVG</span>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="access-divider"></div>
+
+        <!-- Low-flow alert -->
+        <div class="access-alert-block{% if low_flow.count > 0 %} access-alert-active{% endif %}">
+          <div class="card-icon-wrap {% if low_flow.count > 0 %}icon-red{% else %}icon-green{% endif %}">
+            <i class="material-icons">{% if low_flow.count > 0 %}warning{% else %}check_circle{% endif %}</i>
+          </div>
+          <div class="access-alert-num">{{ low_flow.count }}</div>
+          <div class="access-alert-label">Low AVF Flow<br><span style="font-weight:400;color:#94a3b8;">&lt; 250 ml/min</span></div>
+          {% if low_flow.names %}
+          <div class="access-alert-names">{{ low_flow.names | join(' · ') }}</div>
+          {% endif %}
+        </div>
+
+      </div><!-- /.access-panel-body -->
     </div>
 
-    <!-- ── Operations ────────────────────────────────── -->
-    <div class="grid-section-label"><span>Operations</span></div>
+    <!-- ── Clinical Risk (Infection + Transplant combined) ── -->
+    <div class="grid-section-label" data-section="clinical-risk"><span>Clinical Risk &amp; Transplant</span></div>
 
-    {% set m = data.metrics.missing_records %}
+    {% set m = data.metrics.infectious_hd %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
-    <a href="/entry?month={{ month_str }}" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
+    <a href="/analytics/patients?month={{ month_str }}&filter=infectious" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
     {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
-      <div class="card-icon-wrap icon-red"><i class="material-icons">assignment_late</i></div>
-      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Missing Records</div></div>
-      {% if m.names %}<div class="tooltip">{{ m.names | join('\n') }}</div>{% endif %}
+      <div class="card-icon-wrap icon-red"><i class="material-icons">coronavirus</i></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">HBsAg / HCV / HIV Positive</div></div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
-    {% set m = data.metrics.adherence_risk %}
-    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}
-    <a href="/analytics/adherence?month={{ month_str }}" class="card wide-card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;overflow:hidden;">
-    {% else %}<div class="card wide-card{% if m.count > 0 %} highlight{% endif %}" style="overflow:hidden;">{% endif %}
-      <div class="wide-card-header">
-        <div class="card-icon-wrap icon-red"><i class="material-icons">person_off</i></div>
-        <span class="title">Adherence Monitor (USRDS)</span>
-        <span class="value">{{ m.count }}</span>
+    {% set m = data.metrics.transplant_prospects %}
+    <div class="card card-transplant">
+      <div class="card-icon-wrap icon-green"><i class="material-icons">volunteer_activism</i></div>
+      <div class="card-body">
+        <div class="value transplant-value">{{ m.count }}</div>
+        <div class="title">Transplant Prospects</div>
       </div>
-      {% if m.names %}<ul class="visible-list">{% for n in m.names %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
-    {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
+    </div>
+
+    {% set m = data.metrics.cadaveric_listed %}
+    <div class="card card-transplant">
+      <div class="card-icon-wrap icon-indigo"><i class="material-icons">assignment_ind</i></div>
+      <div class="card-body">
+        <div class="value transplant-value">{{ m.count }}</div>
+        <div class="title">Cadaveric Waitlist</div>
+      </div>
+      {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
+    </div>
 
   </div>
 
@@ -396,20 +441,23 @@
           </div>
         </div>
         <div class="at-risk-param-selector">
-          <label>Parameter:</label>
-          <select id="atRiskParamSelector" onchange="loadAtRiskTable()">
-            <option value="hb">Hemoglobin (&lt; 10)</option>
-            <option value="albumin">Albumin (&lt; 3.5)</option>
-            <option value="phosphorus">Phosphorus (&gt; 5.5)</option>
-            <option value="calcium">Calcium (&lt; 8.4 or &gt; 10.2)</option>
-            <option value="serum_ferritin">Ferritin (&lt; 200)</option>
-            <option value="tsat">TSAT (&lt; 20%)</option>
-            <option value="single_pool_ktv">Kt/V (&lt; 1.2)</option>
-            <option value="urr">URR (&lt; 65%)</option>
-            <option value="ipth">iPTH (&lt; 150 or &gt; 600)</option>
-            <option value="serum_potassium">Potassium (&lt; 3.5 or &gt; 5.5)</option>
-            <option value="idwg">IDWG (&gt; 2.5kg)</option>
-          </select>
+          <label class="ar-param-label">Parameter</label>
+          <div class="ar-select-wrap">
+            <select id="atRiskParamSelector" class="ar-select" onchange="loadAtRiskTable()">
+              <option value="hb">Hemoglobin (&lt; 10)</option>
+              <option value="albumin">Albumin (&lt; 3.5)</option>
+              <option value="phosphorus">Phosphorus (&gt; 5.5)</option>
+              <option value="calcium">Calcium (&lt; 8.4 or &gt; 10.2)</option>
+              <option value="serum_ferritin">Ferritin (&lt; 200)</option>
+              <option value="tsat">TSAT (&lt; 20%)</option>
+              <option value="single_pool_ktv">Kt/V (&lt; 1.2)</option>
+              <option value="urr">URR (&lt; 65%)</option>
+              <option value="ipth">iPTH (&lt; 150 or &gt; 600)</option>
+              <option value="serum_potassium">Potassium (&lt; 3.5 or &gt; 5.5)</option>
+              <option value="idwg">IDWG (&gt; 2.5kg)</option>
+            </select>
+            <i class="material-icons ar-select-chevron">expand_more</i>
+          </div>
         </div>
       </div>
       <div class="at-risk-body">
@@ -444,6 +492,18 @@
         <!-- Expanded inline chart -->
         <div id="atRiskExpandedChart" style="display:none; padding:16px 12px; border-top:1px solid #e2e8f0;">
           <div id="atRiskExpandedChartInner" style="height:240px;"></div>
+        </div>
+        <!-- Pagination -->
+        <div id="atRiskPagination" class="ar-pagination">
+          <span id="atRiskPageInfo" class="ar-page-info"></span>
+          <div class="ar-page-btns">
+            <button id="atRiskPrevPage" class="ar-page-btn" onclick="changeAtRiskPage(-1)">
+              <i class="material-icons">chevron_left</i> Prev
+            </button>
+            <button id="atRiskNextPage" class="ar-page-btn" onclick="changeAtRiskPage(1)">
+              Next <i class="material-icons">chevron_right</i>
+            </button>
+          </div>
         </div>
         <!-- Empty state -->
         <div id="atRiskEmptyMsg" style="display:none; text-align:center; padding:36px 24px;">
@@ -529,35 +589,47 @@ Plotly.newPlot("genderChart", [{
   font: FONT,
 },{ displayModeBar:false, responsive:true });
 
-// Access Bar
-const accessTypes = {{ data.metrics.non_avf.types | tojson }};
-const aNames  = Object.keys(accessTypes);
-const aCounts = aNames.map(k => accessTypes[k].count);
-const aHover  = aNames.map(k => accessTypes[k].names.join("<br>"));
-if (aNames.length > 0) {
-  const accessColors = aCounts.map((_,i) => {
-    const palette = ["#dc2626","#ea580c","#d97706","#0284c7","#7c3aed"];
-    return palette[i % palette.length];
+// Access Bar — includes AVF, AVG and all non-AVF types
+(function() {
+  const nonAvfTypes = {{ data.metrics.non_avf.types | tojson }};
+  const avfCount  = {{ data.metrics.avf_count }};
+  const avgCount  = {{ data.metrics.avg_count }};
+
+  // Build combined list: AVF first (gold standard), AVG second, then non-AVF types
+  const allNames   = [];
+  const allCounts  = [];
+  const allHovers  = [];
+  if (avfCount > 0) { allNames.push("AV Fistula (AVF)"); allCounts.push(avfCount); allHovers.push(""); }
+  if (avgCount > 0) { allNames.push("AV Graft (AVG)");   allCounts.push(avgCount); allHovers.push(""); }
+  Object.keys(nonAvfTypes).forEach(k => {
+    allNames.push(k);
+    allCounts.push(nonAvfTypes[k].count);
+    allHovers.push(nonAvfTypes[k].names.join("<br>"));
   });
-  clearSkeleton("accessChart");
-  Plotly.newPlot("accessChart",[{
-    type:"bar", x:aCounts, y:aNames, orientation:"h",
-    marker:{ color:accessColors, opacity:0.85 },
-    text:aCounts, textposition:"outside",
-    textfont:{ size:12, color:"#0f172a" },
-    hovertemplate:"<b>%{y}</b><br>%{x} patients<br>%{customdata}<extra></extra>",
-    customdata:aHover,
-  }],{
-    margin:{t:10,b:40,l:100,r:40},
-    paper_bgcolor:"transparent", plot_bgcolor:"transparent",
-    xaxis:{ title:"", gridcolor:"rgba(0,0,0,0.05)", zeroline:false },
-    yaxis:{ automargin:true, tickfont:{ size:12 } },
-    font: FONT,
-  },{ displayModeBar:false, responsive:true });
-} else {
-  document.getElementById("accessChart").innerHTML =
-    '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:8px;color:#94a3b8"><span class="material-icons" style="font-size:2rem;color:#cbd5e1;">check_circle</span><p style="margin:0;font-size:0.85rem;">All patients on AVF</p></div>';
-}
+
+  if (allNames.length > 0) {
+    const palette = ["#16a34a","#0284c7","#dc2626","#ea580c","#d97706","#7c3aed"];
+    const colors  = allNames.map((_,i) => palette[i % palette.length]);
+    clearSkeleton("accessChart");
+    Plotly.newPlot("accessChart",[{
+      type:"bar", x:allCounts, y:allNames, orientation:"h",
+      marker:{ color:colors, opacity:0.85 },
+      text:allCounts, textposition:"outside",
+      textfont:{ size:12, color:"#0f172a" },
+      hovertemplate:"<b>%{y}</b><br>%{x} patients<br>%{customdata}<extra></extra>",
+      customdata:allHovers,
+    }],{
+      margin:{t:10,b:40,l:130,r:40},
+      paper_bgcolor:"transparent", plot_bgcolor:"transparent",
+      xaxis:{ title:"", gridcolor:"rgba(0,0,0,0.05)", zeroline:false },
+      yaxis:{ automargin:true, tickfont:{ size:12 } },
+      font: FONT,
+    },{ displayModeBar:false, responsive:true });
+  } else {
+    document.getElementById("accessChart").innerHTML =
+      '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:8px;color:#94a3b8"><span class="material-icons" style="font-size:2rem;color:#cbd5e1;">check_circle</span><p style="margin:0;font-size:0.85rem;">No vascular access data</p></div>';
+  }
+})();
 
 // ── ANEMIA DONUT CHART ──
 (function() {
@@ -745,6 +817,8 @@ let _arData = { months: [], patients: [], parameter: '' };
 let _arSortKey = 'value';
 let _arSortDir = 'asc'; // ascending = worst first (lowest hb / highest phos)
 let _arExpandedIdx = -1;
+const AR_PAGE_SIZE = 5;
+let _arCurrentPage = 0;
 
 async function loadAtRiskTable() {
   const param = document.getElementById('atRiskParamSelector').value;
@@ -764,7 +838,7 @@ async function loadAtRiskTable() {
   try {
     const res = await fetch(`/analytics/api/at-risk-trends?parameter=${param}&month=${MONTH_STR}`);
     _arData = await res.json();
-    _arSortKey = 'value'; _arSortDir = 'asc'; _arExpandedIdx = -1;
+    _arSortKey = 'value'; _arSortDir = 'asc'; _arExpandedIdx = -1; _arCurrentPage = 0;
     renderAtRiskTable();
   } catch(e) {
     document.getElementById('atRiskLoading').style.display = 'none';
@@ -776,10 +850,11 @@ function renderAtRiskTable() {
   document.getElementById('atRiskLoading').style.display = 'none';
   document.getElementById('atRiskExpandedChart').style.display = 'none';
 
-  const patients = (_arData.patients || []).slice();
-  if (!patients.length) {
+  const allPatients = (_arData.patients || []).slice();
+  if (!allPatients.length) {
     document.getElementById('atRiskEmptyMsg').style.display = 'block';
     document.getElementById('atRiskTableWrap').style.display = 'none';
+    document.getElementById('atRiskPagination').style.display = 'none';
     return;
   }
 
@@ -787,7 +862,7 @@ function renderAtRiskTable() {
   document.getElementById('atRiskTableWrap').style.display = 'block';
 
   // Compute delta (last vs first non-null in trend)
-  patients.forEach(function(p) {
+  allPatients.forEach(function(p) {
     const vals = (p.trend || []).filter(v => v != null);
     p._latest = vals.length ? vals[vals.length - 1] : null;
     p._first  = vals.length ? vals[0] : null;
@@ -795,7 +870,7 @@ function renderAtRiskTable() {
   });
 
   // Sort
-  patients.sort(function(a, b) {
+  allPatients.sort(function(a, b) {
     let av, bv;
     if (_arSortKey === 'name') { av = (a.name||'').toLowerCase(); bv = (b.name||'').toLowerCase(); }
     else if (_arSortKey === 'delta') { av = a._delta ?? 9999; bv = b._delta ?? 9999; }
@@ -804,6 +879,23 @@ function renderAtRiskTable() {
     if (typeof av === 'number') return _arSortDir === 'asc' ? av - bv : bv - av;
     return _arSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
   });
+
+  // Pagination
+  const totalPages = Math.ceil(allPatients.length / AR_PAGE_SIZE);
+  _arCurrentPage = Math.min(_arCurrentPage, totalPages - 1);
+  const pageStart = _arCurrentPage * AR_PAGE_SIZE;
+  const patients  = allPatients.slice(pageStart, pageStart + AR_PAGE_SIZE);
+
+  const pagEl = document.getElementById('atRiskPagination');
+  if (totalPages > 1) {
+    pagEl.style.display = 'flex';
+    document.getElementById('atRiskPageInfo').textContent =
+      `Showing ${pageStart + 1}–${Math.min(pageStart + AR_PAGE_SIZE, allPatients.length)} of ${allPatients.length} patients`;
+    document.getElementById('atRiskPrevPage').disabled = _arCurrentPage === 0;
+    document.getElementById('atRiskNextPage').disabled = _arCurrentPage >= totalPages - 1;
+  } else {
+    pagEl.style.display = 'none';
+  }
 
   // Update sort icons
   ['name','value','delta'].forEach(function(k) {
@@ -851,7 +943,7 @@ function renderAtRiskTable() {
     tr.addEventListener('mouseenter', function() { this.style.background='#f8fafc'; });
     tr.addEventListener('mouseleave', function() { this.style.background=''; });
     tr.innerHTML = `
-      <td style="padding:10px 12px; color:#94a3b8; font-size:0.8rem; font-weight:700;">${rank+1}</td>
+      <td style="padding:10px 12px; color:#94a3b8; font-size:0.8rem; font-weight:700;">${pageStart + rank + 1}</td>
       <td style="padding:10px 12px;">
         <span style="font-weight:600; color:#0f172a;">${escHtmlAR(p.name)}</span>
       </td>
@@ -945,6 +1037,14 @@ function renderArExpandChart(rank, p, months, clr, param) {
 function sortAtRiskTable(key) {
   if (_arSortKey === key) { _arSortDir = _arSortDir === 'asc' ? 'desc' : 'asc'; }
   else { _arSortKey = key; _arSortDir = 'asc'; }
+  _arExpandedIdx = -1; _arCurrentPage = 0;
+  renderAtRiskTable();
+}
+
+function changeAtRiskPage(dir) {
+  const total = (_arData.patients || []).length;
+  const totalPages = Math.ceil(total / AR_PAGE_SIZE);
+  _arCurrentPage = Math.max(0, Math.min(_arCurrentPage + dir, totalPages - 1));
   _arExpandedIdx = -1;
   renderAtRiskTable();
 }
@@ -983,16 +1083,19 @@ function refreshCards(data) {
 
   // Map of card title substrings → {count, names}
   const updates = {
-    "Total Patients":    m.total_patients,
+    "Active":            m.total_patients,
     "Male":              m.male_patients,
     "Female":            m.female_patients,
-    "Non-AVF":           m.non_avf,
-    "Weight Gain":       m.idwg_high,
+    "IDWG":              m.idwg_high,
     "Albumin":           m.albumin_low,
-    "Corrected Calcium": m.calcium_low,
-    "High Phosphorus":   m.phos_high,
+    "Calcium":           m.calcium_low,
+    "Phosphorus":        m.phos_high,
     "IV Iron":           m.iv_iron_rec,
-    "ESA Resistant":     m.epo_hypo,
+    "iPTH":              m.ipth_very_high,
+    "Infectious":        m.infectious_hd,
+    "AVF Flow":          m.avf_low_flow,
+    "Transplant":        m.transplant_prospects,
+    "Cadaveric":         m.cadaveric_listed,
   };
 
   document.querySelectorAll(".card").forEach(card => {

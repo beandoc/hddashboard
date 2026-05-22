@@ -1299,7 +1299,7 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
 
 
 _ML_PER_PATIENT_CACHE: dict = {}  # patient_id -> (result_dict_without_patient, expiry_ts)
-_ML_CACHE_TTL = 300  # 5 minutes — monthly data changes infrequently
+_ML_CACHE_TTL = 600  # 10 minutes — monthly data changes infrequently; reduces cold-start frequency
 
 # Whole-function result cache (patient_id -> risk_dict, no ORM objects).
 # On cache hit, only the Patient objects are re-fetched (1 fast query).

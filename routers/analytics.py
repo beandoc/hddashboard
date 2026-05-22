@@ -226,10 +226,29 @@ async def clinical_review_queue(request: Request, db: Session = Depends(get_db))
     _require_analytics_access(request)
     user = get_user(request)
 
-    # 1. Fetch data from dashboard compute (handles Hb drop, Albumin < 2.5, Phos, IDWG)
-    dash_data = compute_dashboard(db)
-    # 2. Fetch mortality risks + Bayesian profiles (both computed in get_all_patients_mortality_risk)
-    mort_data = get_all_patients_mortality_risk(db)
+    # Run the two expensive synchronous computations concurrently in the thread
+    # pool so neither blocks the event loop or serialises behind the other.
+    # Each gets its own DB session to avoid SQLAlchemy cross-thread conflicts.
+    loop = asyncio.get_event_loop()
+
+    def _run_dashboard():
+        _db = SessionLocal()
+        try:
+            return compute_dashboard(_db)
+        finally:
+            _db.close()
+
+    def _run_mortality():
+        _db = SessionLocal()
+        try:
+            return get_all_patients_mortality_risk(_db)
+        finally:
+            _db.close()
+
+    dash_data, mort_data = await asyncio.gather(
+        loop.run_in_executor(None, _run_dashboard),
+        loop.run_in_executor(None, _run_mortality),
+    )
     mort_map = {r['patient'].id: r for r in mort_data}
 
     active_patients = [r['patient'] for r in mort_data]

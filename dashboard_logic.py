@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory cache for dashboard results
 _DASHBOARD_CACHE = {}
-_CACHE_EXPIRY_SECONDS = 60
+_CACHE_EXPIRY_SECONDS = 300  # 5 minutes — monthly data changes infrequently during a shift
 
 
 def _resolve_epo_dose(r):
@@ -196,6 +196,13 @@ def compute_dashboard(db: Session, month: str = None):
         'dialysis_intensification': {'count': 0, 'names': []},
         'missing_records': {'count': 0, 'names': []},
         'adherence_risk':  {'count': 0, 'names': [], 'flags': {}}, # USRDS criteria
+        'ipth_very_high': {'count': 0, 'names': []},               # iPTH > 1000 pg/mL
+        'infectious_hd': {'count': 0, 'names': []},                # HBsAg / HCV / HIV positive on HD
+        'avf_low_flow': {'count': 0, 'names': []},                 # AVF with actual BFR < 250 ml/min
+        'transplant_prospects': {'count': 0, 'names': []},         # Active or Listed transplant candidates
+        'cadaveric_listed': {'count': 0, 'names': []},             # Registered on cadaveric waitlist
+        'avf_count': 0,                                             # For vascular access bar chart
+        'avg_count': 0,
         'trend_hb': [],
         'trend_albumin': [],
         'trend_phosphorus': [],
@@ -216,8 +223,19 @@ def compute_dashboard(db: Session, month: str = None):
     except:
         six_months = [month]
 
-    # Fetch all active patients in alphabetical order
-    active_patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    # Fetch all active patients in alphabetical order (eager-load sub-tables used for new metrics)
+    from sqlalchemy.orm import joinedload
+    active_patients = (
+        db.query(Patient)
+        .filter(Patient.is_active == True)
+        .options(
+            joinedload(Patient.viral_markers_),
+            joinedload(Patient.renal_profile),
+            joinedload(Patient.vascular_access),
+        )
+        .order_by(Patient.name)
+        .all()
+    )
     patient_map = {p.id: p for p in active_patients}
     
     # Process Demographics
@@ -316,6 +334,34 @@ def compute_dashboard(db: Session, month: str = None):
     )
     for pid, sdate in session_rows:
         session_map[pid] = sdate
+
+    # ── Transplant prospects & infectious serology (patient-level, no record needed) ──
+    for p in active_patients:
+        tp = (p.transplant_prospect or "").strip()
+        if tp in ("Active", "Listed", "Inactive"):
+            metrics['transplant_prospects']['count'] += 1
+            metrics['transplant_prospects']['names'].append(p.name)
+        if tp == "Listed":
+            metrics['cadaveric_listed']['count'] += 1
+            metrics['cadaveric_listed']['names'].append(p.name)
+        _hbsag = (p.viral_hbsag or "").strip().lower()
+        _hcv   = (p.viral_anti_hcv or "").strip().lower()
+        _hiv   = (p.viral_hiv or "").strip().lower()
+        if "positive" in _hbsag or "positive" in _hcv or "positive" in _hiv:
+            metrics['infectious_hd']['count'] += 1
+            metrics['infectious_hd']['names'].append(p.name)
+
+    # ── Latest actual blood flow rate per patient (for AVF low-flow check) ──
+    _avf_bfr_rows = (
+        db.query(SessionRecord.patient_id, func.max(SessionRecord.actual_blood_flow_rate))
+        .filter(
+            SessionRecord.patient_id.in_([p.id for p in active_patients]),
+            SessionRecord.actual_blood_flow_rate.isnot(None),
+        )
+        .group_by(SessionRecord.patient_id)
+        .all()
+    )
+    _avf_bfr_map = {pid: bfr for pid, bfr in _avf_bfr_rows}
 
     # ── Batch-load latest hospitalization/discharge event per patient ────────
     # Replaces 1-query-per-patient lookup inside the loop (N+1 → 1 query).
@@ -505,7 +551,7 @@ def compute_dashboard(db: Session, month: str = None):
                 row["is_interim"] = True
                 row["interim_details"]["vit_d"] = p_interim["vit_d"]
         
-        # 1. Non-AVF Access — always evaluated from patient baseline, not gated on monthly record
+        # 1. Vascular Access classification
         name = p.name
         raw_access = ((r.access_type if r else None) or p.access_type or "").strip()
         _a_upper = raw_access.upper()
@@ -513,7 +559,15 @@ def compute_dashboard(db: Session, month: str = None):
             access = "Permacath"
         else:
             access = raw_access
-        if access and "AVF" not in access.upper():
+        _access_up = access.upper()
+
+        # Track AVF / AVG counts for the bar chart
+        if "AVF" in _access_up or "FISTULA" in _access_up:
+            metrics['avf_count'] += 1
+        elif "AVG" in _access_up or "GRAFT" in _access_up:
+            metrics['avg_count'] += 1
+
+        if access and "AVF" not in _access_up and "FISTULA" not in _access_up:
             metrics['non_avf']['count'] += 1
             metrics['non_avf']['names'].append(name)
             if access not in metrics['non_avf']['types']:
@@ -521,6 +575,14 @@ def compute_dashboard(db: Session, month: str = None):
             metrics['non_avf']['types'][access]["count"] += 1
             metrics['non_avf']['types'][access]["names"].append(name)
             row["alerts"].append("Non-AVF")
+
+        # AVF with low blood flow (< 250 ml/min)
+        if "AVF" in _access_up or "FISTULA" in _access_up:
+            _bfr = _avf_bfr_map.get(p.id)
+            if _bfr is not None and _bfr < 250:
+                metrics['avf_low_flow']['count'] += 1
+                metrics['avf_low_flow']['names'].append(name)
+                row["alerts"].append("AVF Low Flow")
 
         if r:
                 
@@ -669,6 +731,13 @@ def compute_dashboard(db: Session, month: str = None):
                 row["dose_kg"]         = round(_dose_kg, 1)
                 row["epo_hypo_causes"] = _causes
                 row["esa_de_escalation"] = _de_escalation
+
+            # iPTH > 1000 pg/mL — severe hyperparathyroidism
+            _ipth_eff = row.get("ipth")
+            if _ipth_eff and _ipth_eff > 1000:
+                metrics['ipth_very_high']['count'] += 1
+                metrics['ipth_very_high']['names'].append(name)
+                row["alerts"].append("iPTH > 1000")
 
             # 7. IV Iron Recommended:
             #    Hb < 10 AND iron-deficient by TSAT or serum iron, AND no iron overload.
