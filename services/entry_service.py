@@ -496,8 +496,9 @@ def save_monthly_record(
             rec = MonthlyRecord(patient_id=patient_id, record_month=month_str, **fields)
             db.add(rec)
 
-        # Sync certain fields back to Patient model (reuse p_obj fetched above)
-        p = p_obj
+        # Sync certain fields back to Patient model — re-fetch in the main db session
+        # so SQLAlchemy can lazy-load relations (p_obj came from a closed thread session).
+        p = db.query(Patient).filter(Patient.id == patient_id).first()
         if p:
             if user_role in ["admin", "doctor"]:
                 if "clinical_background" in data:

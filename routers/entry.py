@@ -239,6 +239,11 @@ async def save_entry(
     hdl_cholesterol: Optional[float] = Form(None),
     bs_fasting: Optional[float] = Form(None),
     bs_pp: Optional[float] = Form(None),
+    hospitalization_this_month: Optional[str] = Form(None),
+    hospitalization_date: list[str] = Form([]),
+    hospitalization_diagnosis: list[str] = Form([]),
+    hospitalization_icd_code: list[str] = Form([]),
+    hospitalization_icd_diagnosis: list[str] = Form([]),
     action: str = Form("save_back")
 ):
     try:
