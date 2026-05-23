@@ -13,10 +13,16 @@ const OCR_RANGES = {
     pre_dialysis_urea:{min:10,max:500}, post_dialysis_urea:{min:5,max:200},
     albumin:{min:1,max:6}, prealbumin:{min:1,max:60},
     total_cholesterol:{min:50,max:500}, ldl_cholesterol:{min:20,max:400},
-    wbc_count:{min:1,max:100}, platelet_count:{min:0.1,max:10},
+    hdl_cholesterol:{min:10,max:120}, triglycerides:{min:30,max:1000},
+    total_protein:{min:3,max:10},
+    bs_fasting:{min:40,max:500}, bs_pp:{min:50,max:600},
+    wbc_count:{min:1,max:100},
+    // platelet in lakh/cmm (1.5–4.5 normal; allow 0.1–15 for CKD range)
+    platelet_count:{min:0.1,max:15},
+    // neutrophil as differential %
+    neutrophil_count:{min:20,max:95},
     hba1c:{min:3,max:18}, ast:{min:5,max:3000}, alt:{min:5,max:3000},
-    crp:{min:0,max:500}, single_pool_ktv:{min:0.5,max:3},
-    bp_sys:{min:60,max:260}, bp_dia:{min:30,max:160},
+    crp:{min:0,max:500},
 };
 
 const OCR_FIELD_LABELS = {
@@ -27,24 +33,24 @@ const OCR_FIELD_LABELS = {
     serum_creatinine:'Creatinine', serum_uric_acid:'Uric Acid',
     pre_dialysis_urea:'Pre-HD Urea', post_dialysis_urea:'Post-HD Urea',
     albumin:'Albumin', prealbumin:'Prealbumin', total_cholesterol:'Total Cholesterol',
-    ldl_cholesterol:'LDL', wbc_count:'WBC / TLC', neutrophil_count:'Neutrophils',
-    platelet_count:'Platelets', hba1c:'HbA1c', ast:'AST (SGOT)', alt:'ALT (SGPT)',
-    crp:'CRP', nt_probnp:'NT-proBNP', single_pool_ktv:'Kt/V (spKt/V)',
-    equilibrated_ktv:'Kt/V (eKt/V)', bp_sys:'Systolic BP', bp_dia:'Diastolic BP',
-    idwg:'IDWG', residual_urine_output:'Urine Output', npcr:'nPCR',
+    ldl_cholesterol:'LDL', hdl_cholesterol:'HDL', triglycerides:'Triglycerides',
+    total_protein:'Total Protein',
+    bs_fasting:'Blood Sugar Fasting', bs_pp:'Blood Sugar PP',
+    wbc_count:'WBC / TLC', neutrophil_count:'Neutrophils %', platelet_count:'Platelets',
+    hba1c:'HbA1c', ast:'AST (SGOT)', alt:'ALT (SGPT)', crp:'CRP',
 };
 
 const OCR_FIELD_UNITS = {
     hb:'g/dL', hct:'%', serum_ferritin:'ng/mL', tsat:'%', serum_iron:'µg/dL',
     tibc:'µg/dL', calcium:'mg/dL', phosphorus:'mg/dL', alkaline_phosphate:'U/L',
-    ipth:'pg/mL', vit_d:'ng/mL', serum_sodium:'mmol/L', serum_potassium:'mmol/L',
-    serum_bicarbonate:'mmol/L', serum_creatinine:'mg/dL', serum_uric_acid:'mg/dL',
+    ipth:'pg/mL', vit_d:'ng/mL', serum_sodium:'mEq/L', serum_potassium:'mEq/L',
+    serum_bicarbonate:'mEq/L', serum_creatinine:'mg/dL', serum_uric_acid:'mg/dL',
     pre_dialysis_urea:'mg/dL', post_dialysis_urea:'mg/dL', albumin:'g/dL',
     prealbumin:'mg/dL', total_cholesterol:'mg/dL', ldl_cholesterol:'mg/dL',
-    wbc_count:'/cmm', neutrophil_count:'%', platelet_count:'lakh/cmm',
-    hba1c:'%', ast:'U/L', alt:'U/L', crp:'mg/L', nt_probnp:'pg/mL',
-    single_pool_ktv:'', equilibrated_ktv:'', bp_sys:'mmHg', bp_dia:'mmHg',
-    idwg:'kg', residual_urine_output:'mL/day', npcr:'g/kg/d',
+    hdl_cholesterol:'mg/dL', triglycerides:'mg/dL', total_protein:'g/dL',
+    bs_fasting:'mg/dL', bs_pp:'mg/dL',
+    wbc_count:'×10³/µL', neutrophil_count:'%', platelet_count:'lakh/cmm',
+    hba1c:'%', ast:'U/L', alt:'U/L', crp:'mg/L',
 };
 
 function _isOutOfRange(field, val) {

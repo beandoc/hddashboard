@@ -6,6 +6,7 @@ MonthlyRecord database fields, exactly as if entered manually.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -163,6 +164,38 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
         "unit": "mg/dL",
         "type": "float",
     },
+    "hdl_cholesterol": {
+        "label": "HDL Cholesterol",
+        "aliases": ["HDL", "HDL-C", "HDL Cholesterol", "High Density Lipoprotein"],
+        "unit": "mg/dL",
+        "type": "float",
+    },
+    "triglycerides": {
+        "label": "Triglycerides",
+        "aliases": ["TG", "Triglycerides", "Triglyceride", "VLDL-TG"],
+        "unit": "mg/dL",
+        "type": "float",
+    },
+    # Protein / Nutrition
+    "total_protein": {
+        "label": "Total Protein",
+        "aliases": ["Total Protein", "T. Protein", "TP"],
+        "unit": "g/dL",
+        "type": "float",
+    },
+    # Glycemic
+    "bs_fasting": {
+        "label": "Blood Sugar Fasting",
+        "aliases": ["FBS", "Fasting Blood Sugar", "FBG", "Fasting Glucose", "BS Fasting"],
+        "unit": "mg/dL",
+        "type": "float",
+    },
+    "bs_pp": {
+        "label": "Blood Sugar Post-Prandial",
+        "aliases": ["PPBS", "Post Prandial Blood Sugar", "PP Blood Sugar", "2hr PP", "BS PP"],
+        "unit": "mg/dL",
+        "type": "float",
+    },
     # Haematology
     "hct": {
         "label": "Hematocrit / PCV",
@@ -177,15 +210,15 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
         "type": "float",
     },
     "neutrophil_count": {
-        "label": "Neutrophil Count",
-        "aliases": ["Neutrophils", "ANC", "Absolute Neutrophil Count", "Neutrophil Count", "Polymorphs"],
-        "unit": "×10³/µL",
+        "label": "Neutrophil % (differential)",
+        "aliases": ["Neutrophils %", "Neutrophil %", "Polymorphs %", "Poly %", "Seg %", "N%", "Neut%"],
+        "unit": "%",
         "type": "float",
     },
     "platelet_count": {
         "label": "Platelet Count",
         "aliases": ["Platelets", "PLT", "Platelet Count", "Thrombocytes"],
-        "unit": "×10³/µL",
+        "unit": "lakh/cmm",
         "type": "float",
     },
     "hba1c": {
@@ -215,31 +248,6 @@ FIELD_MAP: dict[str, dict[str, Any]] = {
         "type": "float",
     },
 
-    # Medications
-    "epo_mircera_dose": {
-        "label": "ESA / Mircera Dose",
-        "aliases": ["ESA", "Erythropoietin", "Mircera", "Epoetin", "Darbepoetin", "PEG EPO", "Pegylated Erythropoietin"],
-        "unit": "",
-        "type": "string",
-    },
-    "desidustat_dose": {
-        "label": "Desidustat Dose",
-        "aliases": ["Desidustat", "Oxemia"],
-        "unit": "",
-        "type": "string",
-    },
-    "iv_iron_product": {
-        "label": "IV Iron Product",
-        "aliases": ["IV Iron", "Iron Sucrose", "Ferric Carboxymaltose", "FCM"],
-        "unit": "",
-        "type": "string",
-    },
-    "iv_iron_dose": {
-        "label": "IV Iron Dose",
-        "aliases": ["IV Iron Dose", "FCM Dose", "Iron Dose"],
-        "unit": "mg",
-        "type": "float",
-    },
 }
 
 
@@ -256,7 +264,7 @@ def _build_extraction_prompt() -> str:
     return f"""You are a clinical lab report OCR assistant. Your ONLY job is to extract specific numeric lab values for a hemodialysis patient from the provided report image.
 
 TASK:
-Read all text in the image. Extract values for the fields listed below. Ignore everything else — patient name, doctor notes, reference ranges, diagnoses, addresses, logos, etc. For medication fields, extract the full string (e.g. 'Mircera 75mcg').
+Read all text in the image. Extract values for the fields listed below. Ignore everything else — patient name, doctor notes, reference ranges, diagnoses, addresses, logos, etc.
 
 ALLOWED OUTPUT KEYS — these are the ONLY valid keys you may include in "extracted_fields":
 {valid_keys}
@@ -265,27 +273,53 @@ FIELD DEFINITIONS (label and common aliases to help you match the report):
 {fields_block}
 
 EXTRACTION RULES:
-1. Extract numeric values (integers or decimals) for lab tests and strip units. For medications, extract the string value including the dose/frequency.
+1. Extract numeric values only (integers or decimals). Strip units from numeric fields.
 2. If a field is not present in the report, do NOT include it in the output — omit it entirely.
 3. If a value is unreadable or clearly erroneous, omit it.
-4. For blood pressure written as "120/80": extract 120 → bp_sys, 80 → bp_dia.
-5. For WBC/TLC in thousands (e.g. 7.2 ×10³/µL): keep as 7.2. If given as millions, divide by 1000.
-6. Units conversion: if creatinine is in µmol/L → divide by 88.4 to get mg/dL. If urea is in mmol/L → multiply by 2.8 to get mg/dL.
-7. For urea: if labelled "pre-dialysis" → pre_dialysis_urea; "post-dialysis" → post_dialysis_urea. If ambiguous, use pre_dialysis_urea.
-8. Rate your confidence for each field: "high" (clearly readable), "medium" (partially readable), "low" (uncertain/inferred).
+4. For WBC/TLC in thousands (e.g. 7.2 ×10³/µL): keep as 7.2. If given as /cmm (e.g. 7200), divide by 1000.
+5. For platelet_count: extract in lakh/cmm. If the report shows e.g. "2,50,000 /cmm" → output 2.5. If shown as "250 ×10³/µL" → divide by 100 → output 2.5.
+6. For neutrophil_count: extract the DIFFERENTIAL PERCENTAGE (e.g. if report says "Neutrophils 68%" → output 68). Do NOT extract absolute neutrophil count.
+7. Units conversion: if creatinine is in µmol/L → divide by 88.4. If urea is in mmol/L → multiply by 2.8.
+8. For urea: if labelled "pre-dialysis" → pre_dialysis_urea; "post-dialysis" → post_dialysis_urea. If ambiguous, use pre_dialysis_urea.
+9. Rate your confidence for each field: "high" (clearly readable), "medium" (partially readable), "low" (uncertain/inferred).
 
 CRITICAL — STRICT ALLOWLIST:
 - The "extracted_fields" object MUST contain ONLY keys from the allowed list above.
-- DO NOT invent new keys (e.g. do not add "glucose", "troponin", "sodium_potassium_ratio", "egfr", or any other name not in the allowed list).
+- DO NOT invent new keys (e.g. do not add "glucose", "troponin", "egfr", or any other name not in the allowed list).
 - Any value you cannot map to an allowed key must be silently discarded.
 
-OUTPUT FORMAT: Provide the data matching the requested JSON schema."""
+OUTPUT FORMAT — respond with ONLY this JSON structure, no extra text:
+{{
+  "extracted_fields": {{
+    "hb": 9.2,
+    "serum_potassium": 4.8,
+    "platelet_count": 2.5,
+    "neutrophil_count": 68.0
+  }},
+  "confidence": {{
+    "hb": "high",
+    "serum_potassium": "high",
+    "platelet_count": "medium",
+    "neutrophil_count": "high"
+  }},
+  "report_date": "15/05/2025",
+  "patient_name_on_report": "Ramesh Kumar",
+  "report_type": "haematology"
+}}
+
+Only include fields that are actually present in the image. The example above shows the structure — replace with real values from the report."""
 
 
 # ─── Module-level cached constants (built once at import time) ────────────────
 _EXTRACTION_PROMPT: str = _build_extraction_prompt()
 _FIELD_LABELS: dict[str, str] = {k: v["label"] for k, v in FIELD_MAP.items()}
 _FIELD_UNITS: dict[str, str] = {k: v["unit"] for k, v in FIELD_MAP.items()}
+
+# ─── In-process result cache keyed by SHA-256 of image bytes ─────────────────
+# Prevents burning Gemini tokens when the same image is submitted twice in the
+# same server session (e.g. user accidentally re-uploads or refreshes).
+_RESULT_CACHE: dict[str, dict[str, Any]] = {}
+_CACHE_MAX_SIZE = 50  # evict oldest when full
 
 
 class OCRResponse(BaseModel):
@@ -318,6 +352,12 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "error": "GEMINI_API_KEY not configured. Please add it to your .env file.",
             "model": "none",
         }
+
+    # Check cache — avoid re-calling Gemini for the same image bytes
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+    if image_hash in _RESULT_CACHE:
+        logger.info("OCR cache hit — returning cached result for hash %s", image_hash[:12])
+        return {**_RESULT_CACHE[image_hash], "cached": True}
 
     try:
         response = _gemini_client.models.generate_content(
@@ -368,7 +408,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
                     clean_fields[field] = value.strip()
                     clean_confidence[field] = confidence_map.get(field, "medium")
 
-        return {
+        output = {
             "extracted_fields": clean_fields,
             "confidence": clean_confidence,
             "report_date": result.get("report_date", ""),
@@ -377,6 +417,14 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "fields_found": len(clean_fields),
             "model": "gemini-2.0-flash",
         }
+
+        # Store in cache (evict oldest entry if at capacity)
+        if len(_RESULT_CACHE) >= _CACHE_MAX_SIZE:
+            oldest_key = next(iter(_RESULT_CACHE))
+            del _RESULT_CACHE[oldest_key]
+        _RESULT_CACHE[image_hash] = output
+
+        return output
 
     except Exception as exc:
         logger.error("OCR extraction failed: %s", exc, exc_info=True)
