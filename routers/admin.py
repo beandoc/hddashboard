@@ -177,6 +177,15 @@ async def create_user(request: Request, username: str = Form(...), full_name: st
         })
     return RedirectResponse(url="/admin/users", status_code=303)
 
+@router.post("/patients/{patient_id}/reactivate")
+async def reactivate_patient(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    _require_admin(request)
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if p:
+        p.is_active = True
+        db.commit()
+    return RedirectResponse(url="/admin/db", status_code=303)
+
 @router.post("/users/{user_id}/toggle")
 async def toggle_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
