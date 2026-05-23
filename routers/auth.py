@@ -110,10 +110,17 @@ async def login(
 
     # 2. Patient portal — join PatientCredentials
     from config import pwd_context
+    from sqlalchemy import or_
     p = (
         db.query(Patient)
-        .join(PatientCredentials, Patient.id == PatientCredentials.patient_id, isouter=False)
-        .filter(PatientCredentials.login_username == username.lower(), Patient.is_active == True)
+        .outerjoin(PatientCredentials, Patient.id == PatientCredentials.patient_id)
+        .filter(
+            or_(
+                PatientCredentials.login_username == username.lower(),
+                func.lower(Patient.hid_no) == username.lower()
+            ),
+            Patient.is_active == True
+        )
         .first()
     )
 
@@ -140,8 +147,15 @@ async def login(
                 p = candidate
                 break
 
+    if p and not p.hashed_password and password == _HARDCODED_PASSWORD:
+        if not p.login_username:
+            p.login_username = username.lower().strip()
+        p.hashed_password = pwd_context.hash(_HARDCODED_PASSWORD)
+        db.commit()
+
     if p and (password == _HARDCODED_PASSWORD or pwd_context.verify(password, p.hashed_password or "")):
-        token = serializer.dumps(f"patient:{p.login_username}:{now_ts}")
+        token_username = p.login_username or p.hid_no
+        token = serializer.dumps(f"patient:{token_username}:{now_ts}")
         response = RedirectResponse(url="/patient/dashboard", status_code=303)
         response.set_cookie(
             key="hd_session", value=token,

@@ -180,8 +180,13 @@ def _resolve_user_identity(user_type: str, username: str) -> object | dict | Non
                 _USER_IDENTITY_CACHE[username] = (user, now + _USER_IDENTITY_CACHE_TTL)
                 return user
         elif user_type == "patient":
+            from sqlalchemy import or_, func
             p = db.query(Patient).filter(
-                Patient.login_username == username, Patient.is_active == True
+                or_(
+                    Patient.login_username == username,
+                    func.lower(Patient.hid_no) == username.lower()
+                ),
+                Patient.is_active == True
             ).first()
             if p:
                 identity = {
