@@ -321,7 +321,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
 
     try:
         response = _gemini_client.models.generate_content(
-            model="gemini-flash-lite-latest",
+            model="gemini-2.0-flash",
             contents=[
                 types.Part.from_bytes(
                     data=image_bytes,
@@ -331,7 +331,6 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=OCRResponse,
             )
         )
 
@@ -376,7 +375,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "patient_name_on_report": result.get("patient_name_on_report", ""),
             "report_type": result.get("report_type", "unknown"),
             "fields_found": len(clean_fields),
-            "model": "gemini-flash-lite-latest",
+            "model": "gemini-2.0-flash",
         }
 
     except Exception as exc:
@@ -385,7 +384,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "extracted_fields": {},
             "confidence": {},
             "error": f"OCR processing failed: {str(exc)}",
-            "model": "gemini-1.5-flash",
+            "model": "gemini-2.0-flash",
         }
 
 
