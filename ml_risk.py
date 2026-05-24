@@ -48,7 +48,7 @@ try:
 except ImportError:
     _SKLEARN_AVAILABLE = False
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ml_trends import _month_to_ordinal
 
@@ -1467,6 +1467,10 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
     if _time.time() - _ML_FULL_CACHE["ts"] < _ML_CACHE_TTL and _ML_FULL_CACHE["rows"] is not None:
         patients = (
             db.query(Patient)
+            .options(
+                joinedload(Patient.comorbidity_profile),
+                joinedload(Patient.cardiac),
+            )
             .filter(
                 Patient.is_active == True,
             )
@@ -1481,6 +1485,10 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
 
     patients = (
         db.query(Patient)
+        .options(
+            joinedload(Patient.comorbidity_profile),
+            joinedload(Patient.cardiac),
+        )
         .filter(
             Patient.is_active == True,
         )

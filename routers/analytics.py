@@ -120,8 +120,14 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     )
     month_str, _ = get_effective_month(db, month)
 
+    from sqlalchemy.orm import joinedload
     patients = (
         db.query(Patient)
+        .options(
+            joinedload(Patient.vascular_access),
+            joinedload(Patient.comorbidity_profile),
+            joinedload(Patient.cardiac),
+        )
         .filter(
             Patient.is_active == True,
         )
@@ -366,8 +372,10 @@ async def vascular_access_action_board(request: Request, patient_id: Optional[in
         items = compute_access_action_items(db, patient_id)
         return JSONResponse(content=items)
 
+    from sqlalchemy.orm import joinedload
     patients = (
         db.query(Patient)
+        .options(joinedload(Patient.vascular_access))
         .filter(
             Patient.is_active == True,
         )
@@ -960,8 +968,10 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     patient_rows = data.get("patient_rows", [])
 
     # ── Vascular access summary (fast — counts from already-loaded patients) ──
+    from sqlalchemy.orm import joinedload
     active_patients = (
         db.query(Patient)
+        .options(joinedload(Patient.vascular_access))
         .filter(
             Patient.is_active == True,
         )
@@ -1319,16 +1329,73 @@ async def analytics_patient_list(request: Request, db: Session = Depends(get_db)
 @router.get("/patients/{patient_id}", response_class=HTMLResponse)
 async def patient_analytics_page(patient_id: int, request: Request, db: Session = Depends(get_db), success: Optional[str] = None):
     _require_analytics_access(request)
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    from sqlalchemy.orm import joinedload
+    patient = (
+        db.query(Patient)
+        .options(
+            joinedload(Patient.vascular_access),
+            joinedload(Patient.comorbidity_profile),
+            joinedload(Patient.cardiac),
+        )
+        .filter(Patient.id == patient_id)
+        .first()
+    )
     if not patient: raise HTTPException(status_code=404)
     try:
-        analytics = run_patient_analytics(db, patient_id)
-        occult_overload = detect_occult_overload(db, patient_id)
+        from database import MonthlyRecord, PatientSymptomReport, InterimLabRecord, DryWeightAssessment
+        prefetched_records = (
+            db.query(MonthlyRecord)
+            .filter(MonthlyRecord.patient_id == patient_id)
+            .order_by(MonthlyRecord.record_month.asc())
+            .all()
+        )
+        recent_sessions = (
+            db.query(SessionRecord)
+            .options(joinedload(SessionRecord.symptom_report))
+            .filter(SessionRecord.patient_id == patient_id)
+            .order_by(SessionRecord.session_date.desc())
+            .limit(30)
+            .all()
+        )
+        prefetched_reports = (
+            db.query(PatientSymptomReport)
+            .filter(PatientSymptomReport.patient_id == patient_id)
+            .order_by(PatientSymptomReport.reported_at.desc())
+            .limit(20)
+            .all()
+        )
+        prefetched_interims = (
+            db.query(InterimLabRecord)
+            .filter(InterimLabRecord.patient_id == patient_id)
+            .order_by(InterimLabRecord.lab_date.desc())
+            .all()
+        )
+        prefetched_bia = (
+            db.query(DryWeightAssessment)
+            .filter(DryWeightAssessment.patient_id == patient_id,
+                    DryWeightAssessment.bia_fluid_overload_litres != None)
+            .order_by(DryWeightAssessment.assessment_date.desc())
+            .first()
+        )
+
+        analytics = run_patient_analytics(
+            db,
+            patient_id,
+            prefetched_records=prefetched_records,
+            recent_sessions=recent_sessions,
+            prefetched_interims=prefetched_interims,
+        )
+        occult_overload = detect_occult_overload(
+            db,
+            patient_id,
+            prefetched_records=prefetched_records,
+            recent_sessions=recent_sessions,
+        )
         if occult_overload:
             analytics["occult_alert"] = occult_overload
         pt_events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).all()
-        recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(20).all()
-
+        
+        recent_sessions_20 = recent_sessions[:20]
         session_dicts = [
             {
                 "session_date": str(s.session_date),
@@ -1354,32 +1421,37 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
                 "duration_hours": s.duration_hours,
                 "duration_minutes": s.duration_minutes,
             }
-            for s in recent_sessions
+            for s in recent_sessions_20
         ]
         bfr_analytics = analyze_bfr_trend(session_dicts)
-        pds_analytics = analyze_pds(db, patient_id)
-        mia_cascade = analyze_mia_cascade(db, patient_id)
-        cardiorenal_cascade = analyze_cardiorenal_cascade(db, patient_id)
-        avf_cascade_raw = analyze_avf_maturation(db, patient_id)
+        pds_analytics = analyze_pds(db, patient_id, prefetched_reports=prefetched_reports, recent_sessions=recent_sessions)
+        mia_cascade = analyze_mia_cascade(db, patient_id, prefetched_records=prefetched_records, recent_sessions=recent_sessions)
+        cardiorenal_cascade = analyze_cardiorenal_cascade(
+            db,
+            patient_id,
+            prefetched_records=prefetched_records,
+            prefetched_bia=prefetched_bia,
+        )
+        avf_cascade_raw = analyze_avf_maturation(db, patient_id, patient_obj=patient, recent_sessions=recent_sessions[:5])
         avf_cascade = {**avf_cascade_raw, **avf_cascade_raw.get("data", {})}
     except Exception as exc:
         logging.exception("patient_analytics_page error for patient_id=%s", patient_id)
         raise HTTPException(status_code=500, detail=str(exc))
 
+    current_month_str = get_current_month_str()
+    doctor_note = next((r for r in prefetched_records if r.record_month == current_month_str), None)
+
     return templates.TemplateResponse("patient_analytics.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
-        "bfr_analytics": bfr_analytics, "recent_sessions": recent_sessions,
+        "bfr_analytics": bfr_analytics, "recent_sessions": recent_sessions_20,
         "pds_analytics": pds_analytics,
         "mia_cascade": mia_cascade,
         "cardiorenal_cascade": cardiorenal_cascade,
         "avf_cascade": avf_cascade,
         "user": get_user(request),
-        "doctor_note": db.query(MonthlyRecord).filter(
-            MonthlyRecord.patient_id == patient_id,
-            MonthlyRecord.record_month == get_current_month_str()
-        ).first(),
-        "current_month": get_current_month_str(),
+        "doctor_note": doctor_note,
+        "current_month": current_month_str,
         "note_saved": success == "note_saved",
     })
 

@@ -65,11 +65,13 @@ def _load_config(db: Session) -> dict:
 # Action Items
 # ─────────────────────────────────────────────────────────────────────────────
 
+_UNSPECIFIED = object()
+
 def compute_access_action_items(
     db: Session,
     patient_id: int,
     config: dict | None = None,
-    current_episode: AccessEpisode | None = None,
+    current_episode: AccessEpisode | None = _UNSPECIFIED,
     recent_sessions: list[SessionRecord] | None = None,
     all_events: list[AccessEvent] | None = None,
     all_episodes: list[AccessEpisode] | None = None,
@@ -88,7 +90,7 @@ def compute_access_action_items(
     today = date.today()
     items: list[dict] = []
 
-    if current_episode is None:
+    if current_episode is _UNSPECIFIED:
         episode = (
             db.query(AccessEpisode)
             .filter(
@@ -546,7 +548,16 @@ def compute_unit_benchmarks(
     import calendar
     month_end = date(year, mo, calendar.monthrange(year, mo)[1])
 
-    active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+    from sqlalchemy.orm import joinedload, selectinload
+    active_patients = (
+        db.query(Patient)
+        .options(
+            joinedload(Patient.vascular_access),
+            selectinload(Patient.access_episodes),
+        )
+        .filter(Patient.is_active == True)
+        .all()
+    )
     total = len(active_patients)
     results: list[dict] = []
 
@@ -1372,10 +1383,16 @@ def compute_unit_qa_distribution(db: Session) -> list[dict]:
     pid_list = [r[0] for r in latest_qa]
     if not pid_list:
         return []
-    patients = db.query(Patient).filter(
-        Patient.id.in_(pid_list),
-        Patient.is_active == True,
-    ).all()
+    from sqlalchemy.orm import joinedload
+    patients = (
+        db.query(Patient)
+        .options(joinedload(Patient.vascular_access))
+        .filter(
+            Patient.id.in_(pid_list),
+            Patient.is_active == True,
+        )
+        .all()
+    )
     p_map = {p.id: p for p in patients}
 
     rows = []

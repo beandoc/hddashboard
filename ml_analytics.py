@@ -23,7 +23,7 @@ from typing import List, Dict, Optional, Any
 import numpy as np
 from sqlalchemy.orm import Session
 
-from database import MonthlyRecord, Patient, ResearchRecord
+from database import MonthlyRecord, Patient, ResearchRecord, SessionRecord, InterimLabRecord
 
 # ── Re-exports from sub-modules ──────────────────────────────────────────────
 
@@ -208,7 +208,9 @@ def compute_target_score(df: List[Dict]) -> Dict:
 def run_patient_analytics(
     db: Session,
     patient_id: int,
-    prefetched_records: Optional[List[MonthlyRecord]] = None
+    prefetched_records: Optional[List[MonthlyRecord]] = None,
+    recent_sessions: Optional[List[SessionRecord]] = None,
+    prefetched_interims: Optional[List[InterimLabRecord]] = None,
 ) -> Dict:
     if prefetched_records is not None:
         records = prefetched_records
@@ -277,18 +279,24 @@ def run_patient_analytics(
 
     # Apply interim lab overrides to the most recent month's row
     if df:
-        from database import InterimLabRecord
         _interim_overridable = ("hb", "albumin", "phosphorus", "calcium")
-        _interim_rows = (
-            db.query(InterimLabRecord)
-            .filter(
-                InterimLabRecord.patient_id == patient_id,
-                InterimLabRecord.record_month == df[0]["month"],
-                InterimLabRecord.parameter.in_(_interim_overridable),
+        if prefetched_interims is not None:
+            _interim_rows = [
+                il for il in prefetched_interims
+                if il.record_month == df[0]["month"] and il.parameter in _interim_overridable
+            ]
+            _interim_rows.sort(key=lambda x: x.lab_date)
+        else:
+            _interim_rows = (
+                db.query(InterimLabRecord)
+                .filter(
+                    InterimLabRecord.patient_id == patient_id,
+                    InterimLabRecord.record_month == df[0]["month"],
+                    InterimLabRecord.parameter.in_(_interim_overridable),
+                )
+                .order_by(InterimLabRecord.lab_date.asc())
+                .all()
             )
-            .order_by(InterimLabRecord.lab_date.asc())
-            .all()
-        )
         for il in _interim_rows:
             df[0][il.parameter] = il.value
 
@@ -352,7 +360,13 @@ def run_patient_analytics(
         target_sc  = compute_target_score(df)
         det_risk   = compute_deterioration_risk(hb_traj, alb_risk, target_sc, epo_resp, patient_info)
         mort_risk  = predict_mortality_risk(df, patient_info)
-        mia_status = compute_mia_score(db, patient_id)
+        mia_status = compute_mia_score(
+            db,
+            patient_id,
+            prefetched_records=records,
+            recent_sessions=recent_sessions,
+            prefetched_interims=prefetched_interims,
+        )
         bay_profile = compute_bayesian_alert_profile(df, patient_info)
         mort_risk   = attach_bayesian_signal(mort_risk, bay_profile)
         davies      = compute_davies_score(patient_info, df[0])

@@ -40,14 +40,14 @@ def _compute_gnri(alb_val: float, weight_val: float, height: float, sex: str) ->
     return (14.89 * alb_val) + (41.7 * w_ratio)
 
 
-def compute_mia_score(db: Session, patient_id: int) -> Dict:
+def compute_mia_score(db: Session, patient_id: int, prefetched_records = None, recent_sessions = None, prefetched_interims = None) -> Dict:
     """
     Calculate Malnutrition, Inflammation, Atherosclerosis (MIA) Syndrome components.
     Based on Geriatric Nutritional Risk Index (GNRI) and clinical history.
     """
     from database import MonthlyRecord, Patient, SessionRecord
 
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.get(Patient, patient_id)
     if not patient:
         return {}
 
@@ -57,19 +57,25 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict:
         athero = True
 
     # 2. Inflammation Component (CRP > 0.3 mg/dL)
-    recent_rec = db.query(MonthlyRecord).filter(
-        MonthlyRecord.patient_id == patient_id,
-        MonthlyRecord.crp.isnot(None)
-    ).order_by(MonthlyRecord.record_month.desc()).first()
+    if prefetched_records is not None:
+        recent_rec = next((r for r in reversed(prefetched_records) if r.crp is not None), None)
+    else:
+        recent_rec = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.crp.isnot(None)
+        ).order_by(MonthlyRecord.record_month.desc()).first()
 
     crp_val = recent_rec.crp if recent_rec else None
 
     if crp_val is None:
-        from database import InterimLabRecord
-        recent_crp_interim = db.query(InterimLabRecord).filter(
-            InterimLabRecord.patient_id == patient_id,
-            InterimLabRecord.parameter == 'crp'
-        ).order_by(InterimLabRecord.lab_date.desc()).first()
+        if prefetched_interims is not None:
+            recent_crp_interim = next((il for il in prefetched_interims if il.parameter == 'crp'), None)
+        else:
+            from database import InterimLabRecord
+            recent_crp_interim = db.query(InterimLabRecord).filter(
+                InterimLabRecord.patient_id == patient_id,
+                InterimLabRecord.parameter == 'crp'
+            ).order_by(InterimLabRecord.lab_date.desc()).first()
         crp_val = recent_crp_interim.value if recent_crp_interim else None
 
     inflam = False
@@ -77,16 +83,22 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict:
         inflam = True
 
     # 3. Malnutrition Component (GNRI < 92)
-    recent_rec_alb = db.query(MonthlyRecord).filter(
-        MonthlyRecord.patient_id == patient_id,
-        MonthlyRecord.albumin.isnot(None)
-    ).order_by(MonthlyRecord.record_month.desc()).first()
+    if prefetched_records is not None:
+        recent_rec_alb = next((r for r in reversed(prefetched_records) if r.albumin is not None), None)
+    else:
+        recent_rec_alb = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.albumin.isnot(None)
+        ).order_by(MonthlyRecord.record_month.desc()).first()
 
     alb_val = recent_rec_alb.albumin if recent_rec_alb else None
 
-    recent_session = db.query(SessionRecord).filter(
-        SessionRecord.patient_id == patient_id
-    ).order_by(SessionRecord.session_date.desc()).first()
+    if recent_sessions is not None:
+        recent_session = recent_sessions[0] if recent_sessions else None
+    else:
+        recent_session = db.query(SessionRecord).filter(
+            SessionRecord.patient_id == patient_id
+        ).order_by(SessionRecord.session_date.desc()).first()
 
     weight_val = recent_session.weight_pre if recent_session else None
     height = patient.height
@@ -145,19 +157,25 @@ def compute_mia_score(db: Session, patient_id: int) -> Dict:
     }
 
 
-def analyze_mia_cascade(db, patient_id: int) -> dict:
+_UNSPECIFIED = object()
+
+
+def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_sessions = _UNSPECIFIED) -> dict:
     """
     Malnutrition–Inflammation–Atherosclerosis (MIA) Early Warning Dashboard.
     Updated to align with GNRI-based definitions and CRP > 0.3 thresholds.
     """
     from database import MonthlyRecord, Patient, SessionRecord
 
-    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    p = db.get(Patient, patient_id)
     if not p: return {"available": False}
 
-    records = db.query(MonthlyRecord).filter(
-        MonthlyRecord.patient_id == patient_id
-    ).order_by(MonthlyRecord.record_month.asc()).all()
+    if prefetched_records is not None:
+        records = prefetched_records
+    else:
+        records = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id
+        ).order_by(MonthlyRecord.record_month.asc()).all()
 
     if not records:
         return {"available": False}
@@ -188,10 +206,15 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
         # Get weight from Monthly if available, else fallback
         weight = rec.target_dry_weight
         if weight is None:
-            sess = db.query(SessionRecord).filter(
-                SessionRecord.patient_id == patient_id,
-                SessionRecord.record_month == m
-            ).first()
+            if recent_sessions is not _UNSPECIFIED and recent_sessions is not None:
+                sess = next((s for s in recent_sessions if s.record_month == m), None)
+            elif recent_sessions is not _UNSPECIFIED:
+                sess = None
+            else:
+                sess = db.query(SessionRecord).filter(
+                    SessionRecord.patient_id == patient_id,
+                    SessionRecord.record_month == m
+                ).first()
             if sess: weight = sess.weight_pre
 
         if alb is not None and weight is not None and height:
@@ -374,19 +397,22 @@ def analyze_mia_cascade(db, patient_id: int) -> dict:
     }
 
 
-def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
+def analyze_cardiorenal_cascade(db, patient_id: int, prefetched_records = None, prefetched_bia = _UNSPECIFIED) -> dict:
     """
     Cardiorenal / Fluid Overload Cascade.
     """
     from database import Patient, MonthlyRecord, DryWeightAssessment
 
-    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    p = db.get(Patient, patient_id)
     if not p:
         return {"available": False}
 
-    records = db.query(MonthlyRecord).filter(
-        MonthlyRecord.patient_id == patient_id
-    ).order_by(MonthlyRecord.record_month.asc()).all()
+    if prefetched_records is not None:
+        records = prefetched_records
+    else:
+        records = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id
+        ).order_by(MonthlyRecord.record_month.asc()).all()
 
     if not records:
         return {"available": False}
@@ -459,13 +485,16 @@ def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
         inputs_missing.append("NT-proBNP (monthly record)")
 
     # ── 3. BIA FLUID STATUS ───────────────────────────────────────────────────
-    latest_bia = (
-        db.query(DryWeightAssessment)
-        .filter(DryWeightAssessment.patient_id == patient_id,
-                DryWeightAssessment.bia_fluid_overload_litres != None)
-        .order_by(DryWeightAssessment.assessment_date.desc())
-        .first()
-    )
+    if prefetched_bia is not _UNSPECIFIED:
+        latest_bia = prefetched_bia
+    else:
+        latest_bia = (
+            db.query(DryWeightAssessment)
+            .filter(DryWeightAssessment.patient_id == patient_id,
+                    DryWeightAssessment.bia_fluid_overload_litres != None)
+            .order_by(DryWeightAssessment.assessment_date.desc())
+            .first()
+        )
     if latest_bia:
         fo = latest_bia.bia_fluid_overload_litres
         oh = latest_bia.bia_overhydration_percent
@@ -581,7 +610,7 @@ def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessi
     from datetime import date, datetime
 
     if patient_obj is None:
-        p = db.query(Patient).filter(Patient.id == patient_id).first()
+        p = db.get(Patient, patient_id)
     else:
         p = patient_obj
 
@@ -794,7 +823,7 @@ def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessi
     }
 
 
-def analyze_pds(db: Session, patient_id: int) -> Dict:
+def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_sessions = None) -> Dict:
     """
     Correlates PatientSymptomReports with recent SessionRecords to identify
     clinical drivers of Post-Dialysis Syndrome (PDS).
@@ -812,25 +841,30 @@ def analyze_pds(db: Session, patient_id: int) -> Dict:
     from database import PatientSymptomReport, SessionRecord, MonthlyRecord
     from datetime import timedelta
 
-    # Fetch all recent reports — no DRT filter so symptoms-only logs are visible
-    reports = (
-        db.query(PatientSymptomReport)
-        .filter(PatientSymptomReport.patient_id == patient_id)
-        .order_by(PatientSymptomReport.reported_at.desc())
-        .limit(20)
-        .all()
-    )
+    if prefetched_reports is not None:
+        reports = prefetched_reports
+    else:
+        reports = (
+            db.query(PatientSymptomReport)
+            .filter(PatientSymptomReport.patient_id == patient_id)
+            .order_by(PatientSymptomReport.reported_at.desc())
+            .limit(20)
+            .all()
+        )
 
     if not reports:
         return {"available": False, "message": "No post-dialysis symptom logs recorded yet."}
 
-    recent_sessions = (
-        db.query(SessionRecord)
-        .filter(SessionRecord.patient_id == patient_id)
-        .order_by(SessionRecord.session_date.desc())
-        .limit(30)
-        .all()
-    )
+    if recent_sessions is not None:
+        recent_sessions = recent_sessions[:30]
+    else:
+        recent_sessions = (
+            db.query(SessionRecord)
+            .filter(SessionRecord.patient_id == patient_id)
+            .order_by(SessionRecord.session_date.desc())
+            .limit(30)
+            .all()
+        )
 
     def _find_session(rep):
         """Return the closest SessionRecord for a given report, or None."""
@@ -1057,34 +1091,49 @@ def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
     }
 
 
-def detect_occult_overload(db: Session, patient_id: int):
+def detect_occult_overload(
+    db: Session,
+    patient_id: int,
+    prefetched_records: list = None,
+    recent_sessions: list = None,
+):
     """
     Identifies 'Sarcopenia-Masked Occult Volume Overload'.
     Logic: Stable/Rising weight + Falling Albumin + High IDWG + Respiratory symptoms.
     """
     from database import Patient, MonthlyRecord, SessionRecord
 
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.get(Patient, patient_id)
     if not patient: return None
 
-    first_record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.asc()).first()
+    if prefetched_records is not None:
+        first_record = prefetched_records[0] if prefetched_records else None
+        recent_records = [r for r in prefetched_records if r.albumin is not None][-3:]
+        recent_records = list(reversed(recent_records))
+    else:
+        first_record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.asc()).first()
+        recent_records = db.query(MonthlyRecord).filter(
+            MonthlyRecord.patient_id == patient_id,
+            MonthlyRecord.albumin.isnot(None)
+        ).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
+
+    if recent_sessions is not None:
+        sessions = recent_sessions[:10]
+    else:
+        sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(10).all()
+
     dw_drop = 0
     if first_record and first_record.target_dry_weight and patient.dry_weight:
         dw_drop = first_record.target_dry_weight - patient.dry_weight
 
-    recent_records = db.query(MonthlyRecord).filter(
-        MonthlyRecord.patient_id == patient_id,
-        MonthlyRecord.albumin.isnot(None)
-    ).order_by(MonthlyRecord.record_month.desc()).limit(3).all()
     alb_decline = False
     if len(recent_records) >= 2:
         alb_decline = recent_records[0].albumin < recent_records[-1].albumin
 
-    recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(10).all()
     breathless = any([(s.pre_hd_dyspnea_likert and s.pre_hd_dyspnea_likert >= 3) or
-                      (s.post_hd_dyspnea_likert and s.post_hd_dyspnea_likert >= 3) for s in recent_sessions])
+                      (s.post_hd_dyspnea_likert and s.post_hd_dyspnea_likert >= 3) for s in sessions])
 
-    emergency_sessions = [s for s in recent_sessions if s.is_emergency and s.reason_emergency in ["Fluid Overload", "Pulmonary Oedema", "Severe Dyspnea"]]
+    emergency_sessions = [s for s in sessions if s.is_emergency and s.reason_emergency in ["Fluid Overload", "Pulmonary Oedema", "Severe Dyspnea"]]
     freq_emergency = len(emergency_sessions) >= 1
 
     if (dw_drop > 3 and alb_decline) or (breathless and alb_decline) or (freq_emergency):
