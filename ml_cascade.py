@@ -573,14 +573,18 @@ def analyze_cardiorenal_cascade(db, patient_id: int) -> dict:
     }
 
 
-def analyze_avf_maturation(db, patient_id: int) -> dict:
+def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessions = None) -> dict:
     """
     Vascular Access Quality Intelligence: AVF Maturation Monitoring.
     """
     from database import Patient, SessionRecord
     from datetime import date, datetime
 
-    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if patient_obj is None:
+        p = db.query(Patient).filter(Patient.id == patient_id).first()
+    else:
+        p = patient_obj
+
     if not p:
         return {"available": False}
 
@@ -707,7 +711,8 @@ def analyze_avf_maturation(db, patient_id: int) -> dict:
         events.append({"text": f"Patient on catheter access ({p.access_type.strip()}). AVF maturation monitoring not applicable."})
 
     # ── 2. Functional Monitoring (Recent Sessions) ────────────────────────────
-    recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
+    if recent_sessions is None:
+        recent_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
 
     low_bfr_count = 0
     high_recirc_count = 0

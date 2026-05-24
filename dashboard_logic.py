@@ -152,9 +152,32 @@ def compute_dashboard(db: Session, month: str = None):
     # 1. Check Cache
     global _DASHBOARD_CACHE
     
-    # Get last modification timestamp for this month to invalidate cache if data changed
-    last_mod = db.query(func.max(MonthlyRecord.timestamp)).filter(MonthlyRecord.record_month == month).scalar()
-    last_mod_str = last_mod.isoformat() if last_mod else "none"
+    # Get last modification timestamp for this month across MonthlyRecord, SessionRecord, and ClinicalEvent
+    last_mod_monthly = db.query(func.max(MonthlyRecord.timestamp)).filter(MonthlyRecord.record_month == month).scalar()
+    last_mod_session = db.query(func.max(SessionRecord.timestamp)).filter(SessionRecord.record_month == month).scalar()
+    
+    try:
+        start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
+        y, m = int(month[:4]), int(month[5:7])
+        if m == 12:
+            next_month_start = datetime.strptime(f"{y+1}-01-01", "%Y-%m-%d").date()
+        else:
+            next_month_start = datetime.strptime(f"{y}-{m+1:02d}-01", "%Y-%m-%d").date()
+    except Exception as e:
+        logger.error(f"Month parsing error for '{month}': {e}")
+        raise
+
+    last_mod_event = db.query(func.max(ClinicalEvent.created_at)).filter(
+        ClinicalEvent.event_date >= start_date,
+        ClinicalEvent.event_date < next_month_start
+    ).scalar()
+
+    timestamps = [ts for ts in [last_mod_monthly, last_mod_session, last_mod_event] if ts is not None]
+    if timestamps:
+        last_mod = max(timestamps)
+        last_mod_str = last_mod.isoformat()
+    else:
+        last_mod_str = "none"
     
     cache_key = f"{month}_{last_mod_str}_v3"
     now = datetime.utcnow()

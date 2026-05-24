@@ -27,7 +27,7 @@ class ClinicalEvent(Base):
     __tablename__ = "clinical_events"
 
     id          = Column(Integer, primary_key=True, index=True)
-    patient_id  = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    patient_id  = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
     event_date  = Column(Date, nullable=False)
     event_type  = Column(String, nullable=False)
     severity    = Column(String, default="Medium")
@@ -42,8 +42,8 @@ class PatientSymptomReport(Base):
     __tablename__ = "patient_symptom_reports"
 
     id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    session_id = Column(Integer, ForeignKey("session_records.id"), nullable=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    session_id = Column(Integer, ForeignKey("session_records.id"), nullable=True, index=True)
     reported_at = Column(DateTime, default=datetime.utcnow)
 
     # Date of the dialysis session being reported on

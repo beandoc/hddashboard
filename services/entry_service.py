@@ -119,45 +119,30 @@ def save_monthly_record(
 
         month_str = data.get("month_str")
 
-        # Fire 4 independent read queries concurrently to minimise round-trip latency.
-        import threading
-        from database import SessionLocal as _SessionLocal
-
-        _results: dict = {}
-        _errors: list = []
-
-        def _fetch(key, fn):
-            _db = _SessionLocal()
-            try:
-                _results[key] = fn(_db)
-            except Exception as exc:
-                _errors.append((key, exc))
-                _results[key] = None
-            finally:
-                _db.close()
-
-        threads = [
-            threading.Thread(target=_fetch, args=("p_obj", lambda d: d.query(Patient).options(joinedload(Patient.vascular_access)).filter(Patient.id == patient_id).first())),
-            threading.Thread(target=_fetch, args=("sessions", lambda d: d.query(SessionRecord).filter(
+        # Sequential fetches on the main DB session (fast, thread-safe, and compatible with SQLite)
+        p_obj = db.query(Patient).options(joinedload(Patient.vascular_access)).filter(Patient.id == patient_id).first()
+        sessions_this_month = (
+            db.query(SessionRecord)
+            .filter(
                 SessionRecord.patient_id == patient_id,
                 SessionRecord.record_month == month_str,
-            ).order_by(SessionRecord.session_date.asc()).all() if month_str else [])),
-            threading.Thread(target=_fetch, args=("prior_rec", lambda d: d.query(MonthlyRecord).filter(
+            )
+            .order_by(SessionRecord.session_date.asc())
+            .all()
+            if month_str
+            else []
+        )
+        _prior_rec_cache = (
+            db.query(MonthlyRecord)
+            .filter(
                 MonthlyRecord.patient_id == patient_id,
                 MonthlyRecord.record_month < month_str,
-            ).order_by(MonthlyRecord.record_month.desc()).first() if month_str else None)),
-        ]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        for key, exc in _errors:
-            logger.warning("Parallel fetch failed for '%s': %s", key, exc)
-
-        p_obj = _results.get("p_obj")
-        _prior_rec_cache = _results.get("prior_rec")
-        sessions_this_month = _results.get("sessions") or []
+            )
+            .order_by(MonthlyRecord.record_month.desc())
+            .first()
+            if month_str
+            else None
+        )
 
         # 1. Residual Urine Output Carry-Forward
         ruo = data.get("residual_urine_output")

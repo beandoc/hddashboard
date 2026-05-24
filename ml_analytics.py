@@ -54,6 +54,7 @@ from ml_trends import (
 
 from ml_risk import (
     predict_mortality_risk,
+    predict_mortality_risk_batch,
     compute_deterioration_risk,
     train_deterioration_model,
     get_deterioration_model_status,

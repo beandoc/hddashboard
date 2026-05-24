@@ -69,6 +69,10 @@ def compute_access_action_items(
     db: Session,
     patient_id: int,
     config: dict | None = None,
+    current_episode: AccessEpisode | None = None,
+    recent_sessions: list[SessionRecord] | None = None,
+    all_events: list[AccessEvent] | None = None,
+    all_episodes: list[AccessEpisode] | None = None,
 ) -> list[dict]:
     """Return a list of prospective action items for a patient's current access.
 
@@ -84,15 +88,19 @@ def compute_access_action_items(
     today = date.today()
     items: list[dict] = []
 
-    episode: AccessEpisode | None = (
-        db.query(AccessEpisode)
-        .filter(
-            AccessEpisode.patient_id == patient_id,
-            AccessEpisode.is_current == True,
+    if current_episode is None:
+        episode = (
+            db.query(AccessEpisode)
+            .filter(
+                AccessEpisode.patient_id == patient_id,
+                AccessEpisode.is_current == True,
+            )
+            .order_by(AccessEpisode.creation_date.desc())
+            .first()
         )
-        .order_by(AccessEpisode.creation_date.desc())
-        .first()
-    )
+    else:
+        episode = current_episode
+
     if not episode:
         return items
 
@@ -145,7 +153,7 @@ def compute_access_action_items(
             )
 
         # CRBSI rate (rolling 3-month)
-        crbsi_rate = _compute_crbsi_rate_3m(db, patient_id, today)
+        crbsi_rate = _compute_crbsi_rate_3m(db, patient_id, today, all_episodes_list=all_episodes, all_events_list=all_events)
         target = _cfg(config, "crbsi_target_per_1000")
         if crbsi_rate is not None and crbsi_rate > target:
             add(
@@ -184,15 +192,15 @@ def compute_access_action_items(
             )
 
     # AV intervention rate — 1-2-3 rule (KDOQI Goals Box 3)
-    _check_intervention_rate(db, episode, config, today, add)
+    _check_intervention_rate(db, episode, config, today, add, all_events_list=all_events)
 
     # Bedside exam deterioration — 2 consecutive sessions with abnormal thrill/bruit
-    _check_bedside_exam_trend(db, patient_id, add)
+    _check_bedside_exam_trend(db, patient_id, add, sessions_list=recent_sessions)
 
     # Qa absolute threshold
     qa_threshold_key = "qa_absolute_threshold_avf" if ac == "AVF" else "qa_absolute_threshold_avg"
     qa_threshold = _cfg(config, qa_threshold_key)
-    recent_qa = _get_recent_qa(db, patient_id, n=2)
+    recent_qa = _get_recent_qa(db, patient_id, n=2, sessions_list=recent_sessions)
     if len(recent_qa) == 2 and all(q < qa_threshold for q in recent_qa):
         add(
             "this_week",
@@ -203,7 +211,7 @@ def compute_access_action_items(
     # Qa relative decline
     baseline_window = _cfg(config, "qa_baseline_window_sessions")
     qa_decline_pct = _cfg(config, "qa_relative_decline_pct")
-    relative_decline = _compute_qa_relative_decline(db, patient_id, int(baseline_window))
+    relative_decline = _compute_qa_relative_decline(db, patient_id, int(baseline_window), sessions_list=recent_sessions)
     if relative_decline is not None and relative_decline >= qa_decline_pct:
         add(
             "this_week",
@@ -213,7 +221,7 @@ def compute_access_action_items(
 
     # Recirculation
     recirc_threshold = _cfg(config, "recirculation_threshold_pct")
-    recent_recirc = _get_recent_recirculation(db, patient_id, n=2)
+    recent_recirc = _get_recent_recirculation(db, patient_id, n=2, sessions_list=recent_sessions)
     if len(recent_recirc) == 2 and all(r >= recirc_threshold for r in recent_recirc):
         add(
             "this_week",
@@ -223,7 +231,7 @@ def compute_access_action_items(
 
     # Cannulation failure rate (last 20 sessions)
     failure_rate_threshold = _cfg(config, "cannulation_failure_rate_alert")
-    cannulation_failure_rate = _compute_cannulation_failure_rate(db, patient_id, n=20)
+    cannulation_failure_rate = _compute_cannulation_failure_rate(db, patient_id, n=20, sessions_list=recent_sessions)
     if cannulation_failure_rate is not None and cannulation_failure_rate >= failure_rate_threshold:
         add(
             "this_week",
@@ -232,14 +240,14 @@ def compute_access_action_items(
         )
 
     # Steal Grade 3 — auto-urgent (check recent confirmed events)
-    _check_steal_grade3(db, patient_id, ep_id, add)
+    _check_steal_grade3(db, patient_id, ep_id, add, all_events_list=all_events)
 
     items.sort(key=lambda x: {"urgent": 0, "this_week": 1, "routine": 2}[x["priority"]])
     return items
 
 
 def _check_intervention_rate(
-    db: Session, episode: Any, config: dict, today: date, add
+    db: Session, episode: Any, config: dict, today: date, add, all_events_list: list = None
 ):
     """Check KDOQI 1-2-3 rule: ≤2 to establish, ≤3/year to maintain."""
     from db.models.clinical import AccessEvent
@@ -248,16 +256,27 @@ def _check_intervention_rate(
     establish_max = _cfg(config, "av_interventions_establish_max")
     maintain_max = _cfg(config, "av_interventions_maintain_per_year_max")
 
-    all_events = (
-        db.query(AccessEvent)
-        .filter(
-            AccessEvent.episode_id == episode.id,
-            AccessEvent.status == "confirmed",
-            AccessEvent.action_taken.in_(_INTERVENTION_ACTIONS),
+    if all_events_list is None:
+        all_events = (
+            db.query(AccessEvent)
+            .filter(
+                AccessEvent.episode_id == episode.id,
+                AccessEvent.status == "confirmed",
+                AccessEvent.action_taken.in_(_INTERVENTION_ACTIONS),
+            )
+            .order_by(AccessEvent.event_date)
+            .all()
         )
-        .order_by(AccessEvent.event_date)
-        .all()
-    )
+    else:
+        all_events = sorted(
+            [
+                e for e in all_events_list
+                if e.episode_id == episode.id
+                and e.status == "confirmed"
+                and e.action_taken in _INTERVENTION_ACTIONS
+            ],
+            key=lambda e: e.event_date
+        )
 
     # Establish count: interventions before first successful use
     if not episode.first_cannulation_date:
@@ -291,17 +310,21 @@ def _check_intervention_rate(
             )
 
 
-def _check_bedside_exam_trend(db: Session, patient_id: int, add):
+def _check_bedside_exam_trend(db: Session, patient_id: int, add, sessions_list: list = None):
     """Flag if thrill or bruit was abnormal in last 2 consecutive sessions."""
     from db.models.sessions import SessionRecord
 
-    recent = (
-        db.query(SessionRecord)
-        .filter(SessionRecord.patient_id == patient_id)
-        .order_by(SessionRecord.session_date.desc())
-        .limit(2)
-        .all()
-    )
+    if sessions_list is None:
+        recent = (
+            db.query(SessionRecord)
+            .filter(SessionRecord.patient_id == patient_id)
+            .order_by(SessionRecord.session_date.desc())
+            .limit(2)
+            .all()
+        )
+    else:
+        recent = sessions_list[:2]
+
     if len(recent) < 2:
         return
     thrill_bad = all(s.thrill_grade and s.thrill_grade != "normal" for s in recent)
@@ -312,21 +335,32 @@ def _check_bedside_exam_trend(db: Session, patient_id: int, add):
         add("this_week", "bedside_exam", "Bruit abnormal in last 2 consecutive sessions — consider imaging (KDOQI 13.4)")
 
 
-def _check_steal_grade3(db: Session, patient_id: int, episode_id: int, add):
+def _check_steal_grade3(db: Session, patient_id: int, episode_id: int, add, all_events_list: list = None):
     from db.models.clinical import AccessEvent
 
-    grade3 = (
-        db.query(AccessEvent)
-        .filter(
-            AccessEvent.patient_id == patient_id,
-            AccessEvent.episode_id == episode_id,
-            AccessEvent.event_type == "steal_syndrome",
-            AccessEvent.steal_grade == "grade_3",
-            AccessEvent.status == "confirmed",
+    if all_events_list is None:
+        grade3 = (
+            db.query(AccessEvent)
+            .filter(
+                AccessEvent.patient_id == patient_id,
+                AccessEvent.episode_id == episode_id,
+                AccessEvent.event_type == "steal_syndrome",
+                AccessEvent.steal_grade == "grade_3",
+                AccessEvent.status == "confirmed",
+            )
+            .order_by(AccessEvent.event_date.desc())
+            .first()
         )
-        .order_by(AccessEvent.event_date.desc())
-        .first()
-    )
+    else:
+        grade3_events = [
+            e for e in all_events_list
+            if e.patient_id == patient_id
+            and e.episode_id == episode_id
+            and e.event_type == "steal_syndrome"
+            and e.steal_grade == "grade_3"
+            and e.status == "confirmed"
+        ]
+        grade3 = sorted(grade3_events, key=lambda e: e.event_date, reverse=True)[0] if grade3_events else None
     if grade3:
         add(
             "urgent",
@@ -339,37 +373,44 @@ def _check_steal_grade3(db: Session, patient_id: int, episode_id: int, add):
 # Helper data extractors
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get_recent_qa(db: Session, patient_id: int, n: int) -> list[float]:
+def _get_recent_qa(db: Session, patient_id: int, n: int, sessions_list: list = None) -> list[float]:
     from db.models.sessions import SessionRecord
 
-    rows = (
-        db.query(SessionRecord.access_flow_qa)
-        .filter(
-            SessionRecord.patient_id == patient_id,
-            SessionRecord.access_flow_qa.isnot(None),
+    if sessions_list is None:
+        rows = (
+            db.query(SessionRecord.access_flow_qa)
+            .filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.access_flow_qa.isnot(None),
+            )
+            .order_by(SessionRecord.session_date.desc())
+            .limit(n)
+            .all()
         )
-        .order_by(SessionRecord.session_date.desc())
-        .limit(n)
-        .all()
-    )
-    return [r[0] for r in rows]
+        return [r[0] for r in rows]
+    else:
+        return [s.access_flow_qa for s in sessions_list if s.access_flow_qa is not None][:n]
 
 
-def _compute_qa_relative_decline(db: Session, patient_id: int, window: int) -> float | None:
+def _compute_qa_relative_decline(db: Session, patient_id: int, window: int, sessions_list: list = None) -> float | None:
     """Return % decline from rolling baseline to most recent Qa, or None."""
     from db.models.sessions import SessionRecord
 
-    rows = (
-        db.query(SessionRecord.access_flow_qa)
-        .filter(
-            SessionRecord.patient_id == patient_id,
-            SessionRecord.access_flow_qa.isnot(None),
+    if sessions_list is None:
+        rows = (
+            db.query(SessionRecord.access_flow_qa)
+            .filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.access_flow_qa.isnot(None),
+            )
+            .order_by(SessionRecord.session_date.desc())
+            .limit(window + 1)
+            .all()
         )
-        .order_by(SessionRecord.session_date.desc())
-        .limit(window + 1)
-        .all()
-    )
-    values = [r[0] for r in rows]
+        values = [r[0] for r in rows]
+    else:
+        values = [s.access_flow_qa for s in sessions_list if s.access_flow_qa is not None][:window + 1]
+
     if len(values) < window + 1:
         return None
     latest = values[0]
@@ -380,56 +421,71 @@ def _compute_qa_relative_decline(db: Session, patient_id: int, window: int) -> f
     return max(decline, 0.0)
 
 
-def _get_recent_recirculation(db: Session, patient_id: int, n: int) -> list[float]:
+def _get_recent_recirculation(db: Session, patient_id: int, n: int, sessions_list: list = None) -> list[float]:
     from db.models.sessions import SessionRecord
 
-    rows = (
-        db.query(SessionRecord.access_recirculation_percent)
-        .filter(
-            SessionRecord.patient_id == patient_id,
-            SessionRecord.access_recirculation_percent.isnot(None),
+    if sessions_list is None:
+        rows = (
+            db.query(SessionRecord.access_recirculation_percent)
+            .filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.access_recirculation_percent.isnot(None),
+            )
+            .order_by(SessionRecord.session_date.desc())
+            .limit(n)
+            .all()
         )
-        .order_by(SessionRecord.session_date.desc())
-        .limit(n)
-        .all()
-    )
-    return [r[0] for r in rows]
+        return [r[0] for r in rows]
+    else:
+        return [s.access_recirculation_percent for s in sessions_list if s.access_recirculation_percent is not None][:n]
 
 
-def _compute_cannulation_failure_rate(db: Session, patient_id: int, n: int) -> float | None:
+def _compute_cannulation_failure_rate(db: Session, patient_id: int, n: int, sessions_list: list = None) -> float | None:
     from db.models.sessions import SessionRecord
 
-    rows = (
-        db.query(SessionRecord.cannulation_difficulty)
-        .filter(
-            SessionRecord.patient_id == patient_id,
-            SessionRecord.cannulation_difficulty.isnot(None),
+    if sessions_list is None:
+        rows = (
+            db.query(SessionRecord.cannulation_difficulty)
+            .filter(
+                SessionRecord.patient_id == patient_id,
+                SessionRecord.cannulation_difficulty.isnot(None),
+            )
+            .order_by(SessionRecord.session_date.desc())
+            .limit(n)
+            .all()
         )
-        .order_by(SessionRecord.session_date.desc())
-        .limit(n)
-        .all()
-    )
-    if not rows:
+        vals = [r[0] for r in rows]
+    else:
+        vals = [s.cannulation_difficulty for s in sessions_list if s.cannulation_difficulty is not None][:n]
+
+    if not vals:
         return None
-    failed = sum(1 for r in rows if r[0] == "failed")
-    return failed / len(rows) * 100
+    failed = sum(1 for v in vals if v == "failed")
+    return failed / len(vals) * 100
 
 
-def _compute_crbsi_rate_3m(db: Session, patient_id: int, today: date) -> float | None:
+def _compute_crbsi_rate_3m(db: Session, patient_id: int, today: date, all_episodes_list: list = None, all_events_list: list = None) -> float | None:
     """CRBSI rate per 1000 catheter-days over rolling 3 months."""
     from db.models.clinical import AccessEpisode, AccessEvent
 
     cutoff = today - timedelta(days=90)
 
-    # Sum catheter-days across all TCC episodes in window
-    episodes = (
-        db.query(AccessEpisode)
-        .filter(
-            AccessEpisode.patient_id == patient_id,
-            AccessEpisode.access_class == "TCC",
+    if all_episodes_list is None:
+        episodes = (
+            db.query(AccessEpisode)
+            .filter(
+                AccessEpisode.patient_id == patient_id,
+                AccessEpisode.access_class == "TCC",
+            )
+            .all()
         )
-        .all()
-    )
+    else:
+        episodes = [
+            ep for ep in all_episodes_list
+            if ep.patient_id == patient_id
+            and ep.access_class == "TCC"
+        ]
+
     catheter_days = 0
     for ep in episodes:
         start = max(ep.creation_date, cutoff)
@@ -440,16 +496,26 @@ def _compute_crbsi_rate_3m(db: Session, patient_id: int, today: date) -> float |
     if catheter_days == 0:
         return None
 
-    confirmed_crbsi = (
-        db.query(AccessEvent)
-        .filter(
-            AccessEvent.patient_id == patient_id,
-            AccessEvent.event_type == "crbsi_confirmed",
-            AccessEvent.status == "confirmed",
-            AccessEvent.event_date >= cutoff,
+    if all_events_list is None:
+        confirmed_crbsi = (
+            db.query(AccessEvent)
+            .filter(
+                AccessEvent.patient_id == patient_id,
+                AccessEvent.event_type == "crbsi_confirmed",
+                AccessEvent.status == "confirmed",
+                AccessEvent.event_date >= cutoff,
+            )
+            .count()
         )
-        .count()
-    )
+    else:
+        confirmed_crbsi = sum(
+            1 for e in all_events_list
+            if e.patient_id == patient_id
+            and e.event_type == "crbsi_confirmed"
+            and e.status == "confirmed"
+            and e.event_date >= cutoff
+        )
+
     return confirmed_crbsi / catheter_days * 1000
 
 

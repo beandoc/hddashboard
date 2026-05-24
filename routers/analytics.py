@@ -143,6 +143,59 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     # ── Batch pre-fetch config once (shared across all per-patient calls) ────
     unit_config = _load_config(db)
 
+    # ── Bulk Prefetching for N+1 Query Elimination ───────────────────────────
+    active_patient_ids = [p.id for p in patients]
+
+    from db.models.clinical import AccessEpisode, AccessEvent
+    from db.models.sessions import SessionRecord
+
+    # 1. Fetch current access episodes
+    all_current_episodes = (
+        db.query(AccessEpisode)
+        .filter(
+            AccessEpisode.patient_id.in_(active_patient_ids),
+            AccessEpisode.is_current == True,
+        )
+        .all()
+    )
+    current_episodes_by_pid = {ep.patient_id: ep for ep in all_current_episodes}
+
+    # 2. Fetch all TCC episodes (for CRBSI rate calculation)
+    all_tcc_episodes = (
+        db.query(AccessEpisode)
+        .filter(
+            AccessEpisode.patient_id.in_(active_patient_ids),
+            AccessEpisode.access_class == "TCC",
+        )
+        .all()
+    )
+    tcc_episodes_by_pid = {}
+    for ep in all_tcc_episodes:
+        tcc_episodes_by_pid.setdefault(ep.patient_id, []).append(ep)
+
+    # 3. Fetch all access events
+    all_events = (
+        db.query(AccessEvent)
+        .filter(AccessEvent.patient_id.in_(active_patient_ids))
+        .all()
+    )
+    events_by_pid = {}
+    for ev in all_events:
+        events_by_pid.setdefault(ev.patient_id, []).append(ev)
+
+    # 4. Fetch last 20 session records per patient (limit 20 is sufficient for cannulation alert)
+    all_recent_sessions = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id.in_(active_patient_ids))
+        .order_by(SessionRecord.patient_id, SessionRecord.session_date.desc())
+        .all()
+    )
+    sessions_by_pid = {}
+    for s in all_recent_sessions:
+        sessions_by_pid.setdefault(s.patient_id, [])
+        if len(sessions_by_pid[s.patient_id]) < 20:
+            sessions_by_pid[s.patient_id].append(s)
+
     # 3. Watchlists & Intelligence — now all from pre-fetched data
     maturation_watchlist = []
     functional_watchlist = []
@@ -162,7 +215,10 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
 
         # b) Intelligence Engine — use pre-fetched episode data (no per-patient DB calls)
         try:
-            status = analyze_avf_maturation(db, p.id)
+            status = analyze_avf_maturation(
+                db, p.id, patient_obj=p,
+                recent_sessions=sessions_by_pid.get(p.id, [])[:5]
+            )
             if status.get("available"):
                 data = status.get("data", {})
                 if data.get("maturation_failure"):
@@ -179,7 +235,13 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
 
     for p in patients:
         try:
-            items = compute_access_action_items(db, p.id, config=unit_config)
+            items = compute_access_action_items(
+                db, p.id, config=unit_config,
+                current_episode=current_episodes_by_pid.get(p.id),
+                recent_sessions=sessions_by_pid.get(p.id, []),
+                all_events=events_by_pid.get(p.id, []),
+                all_episodes=tcc_episodes_by_pid.get(p.id, []),
+            )
             for item in items:
                 item["patient_name"] = p.name
                 item["patient_id"] = p.id
@@ -311,10 +373,70 @@ async def vascular_access_action_board(request: Request, patient_id: Optional[in
         )
         .all()
     )
+
+    # ── Bulk Prefetching for N+1 Query Elimination ───────────────────────────
+    active_patient_ids = [p.id for p in patients]
+
+    from db.models.clinical import AccessEpisode, AccessEvent
+    from db.models.sessions import SessionRecord
+
+    # 1. Fetch current access episodes
+    all_current_episodes = (
+        db.query(AccessEpisode)
+        .filter(
+            AccessEpisode.patient_id.in_(active_patient_ids),
+            AccessEpisode.is_current == True,
+        )
+        .all()
+    )
+    current_episodes_by_pid = {ep.patient_id: ep for ep in all_current_episodes}
+
+    # 2. Fetch all TCC episodes
+    all_tcc_episodes = (
+        db.query(AccessEpisode)
+        .filter(
+            AccessEpisode.patient_id.in_(active_patient_ids),
+            AccessEpisode.access_class == "TCC",
+        )
+        .all()
+    )
+    tcc_episodes_by_pid = {}
+    for ep in all_tcc_episodes:
+        tcc_episodes_by_pid.setdefault(ep.patient_id, []).append(ep)
+
+    # 3. Fetch all access events
+    all_events = (
+        db.query(AccessEvent)
+        .filter(AccessEvent.patient_id.in_(active_patient_ids))
+        .all()
+    )
+    events_by_pid = {}
+    for ev in all_events:
+        events_by_pid.setdefault(ev.patient_id, []).append(ev)
+
+    # 4. Fetch last 20 session records per patient
+    all_recent_sessions = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id.in_(active_patient_ids))
+        .order_by(SessionRecord.patient_id, SessionRecord.session_date.desc())
+        .all()
+    )
+    sessions_by_pid = {}
+    for s in all_recent_sessions:
+        sessions_by_pid.setdefault(s.patient_id, [])
+        if len(sessions_by_pid[s.patient_id]) < 20:
+            sessions_by_pid[s.patient_id].append(s)
+
     all_items = []
     for p in patients:
         try:
-            items = compute_access_action_items(db, p.id)
+            items = compute_access_action_items(
+                db, p.id,
+                current_episode=current_episodes_by_pid.get(p.id),
+                recent_sessions=sessions_by_pid.get(p.id, []),
+                all_events=events_by_pid.get(p.id, []),
+                all_episodes=tcc_episodes_by_pid.get(p.id, []),
+            )
             for item in items:
                 item["patient_name"] = p.name
                 item["hid_no"] = p.hid_no

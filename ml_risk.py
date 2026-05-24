@@ -951,7 +951,78 @@ def _rule_based_log_odds_fallback(latest: dict, patient_info: dict) -> tuple:
     return log_odds, used, missing, n_core_used, contributions
 
 
-def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
+def predict_mortality_risk_batch(batch_inputs: List[Dict]) -> Dict[any, Dict]:
+    """
+    Compute XGBoost predictions in batches to avoid loop-based inference overhead.
+    Each item in batch_inputs is a dict:
+        {
+            "id": patient_id,
+            "age": int,
+            "albumin_gl": float,
+            "neutrophil": float,
+            "ef": float,
+            "cad": bool,
+            "n_core_used": int
+        }
+    """
+    if not _PANDAS_AVAILABLE:
+        return {}
+
+    models = _load_xgb_models()
+    if not models or not batch_inputs:
+        return {}
+
+    rows_data = []
+    patient_ids = []
+    model_types = []
+
+    MEDIANS = {"age": 62, "albumin_gl": 37.0, "neutrophil": 5.5, "ef": 60, "idh": 0}
+
+    for item in batch_inputs:
+        pid = item["id"]
+        age = item["age"]
+        albumin_gl = item["albumin_gl"]
+        neutrophil = item["neutrophil"]
+        ef = item["ef"]
+        cad = item["cad"]
+        n_core_used = item["n_core_used"]
+
+        age_x = age if age is not None else MEDIANS["age"]
+        albumin_x = albumin_gl if albumin_gl is not None else MEDIANS["albumin_gl"]
+        neut_x = neutrophil if neutrophil is not None else MEDIANS["neutrophil"]
+        ef_x = ef if ef is not None else MEDIANS["ef"]
+        idh_x = (1 if cad else 0) if cad is not None else MEDIANS["idh"]
+
+        rows_data.append([idh_x, age_x, albumin_x, neut_x, ef_x])
+        patient_ids.append(pid)
+        model_types.append("xgboost_full" if n_core_used == 5 else "xgboost_imputed")
+
+    try:
+        x = pd.DataFrame(
+            rows_data,
+            columns=["IDH", "Age", "Albumin", "N109L", "EF"]
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            prob_1yr_all = models["1yr"].predict_proba(x)[:, 1]
+            prob_4yr_all = models["4yr"].predict_proba(x)[:, 1]
+            prob_7yr_all = models["7yr"].predict_proba(x)[:, 1]
+    except Exception as e:
+        logger.warning(f"Batch XGBoost prediction failed: {e}")
+        return {}
+
+    results = {}
+    for idx, pid in enumerate(patient_ids):
+        results[pid] = {
+            "prob_1yr": round(float(prob_1yr_all[idx]), 3),
+            "prob_4yr": round(float(prob_4yr_all[idx]), 3),
+            "prob_7yr": round(float(prob_7yr_all[idx]), 3),
+            "model_type": model_types[idx]
+        }
+    return results
+
+
+def predict_mortality_risk(df: List[Dict], patient_info: dict = None, _precomputed: dict = None) -> Dict:
     """
     Estimate 1-year, 4-year, and 7-year mortality probability for a HD patient.
 
@@ -1038,68 +1109,100 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     model_type = "unknown"
     prob_1yr = prob_4yr = prob_7yr = None
 
-    if models and all(f is not None for f in [age, albumin_gl, neutrophil, ef, cad]):
-        try:
-            x = pd.DataFrame(
-                [[idh, age, albumin_gl, neutrophil, ef]],
-                columns=["IDH", "Age", "Albumin", "N109L", "EF"]
-            )
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                prob_1yr = round(float(models["1yr"].predict_proba(x)[0, 1]), 3)
-                prob_4yr = round(float(models["4yr"].predict_proba(x)[0, 1]), 3)
-                prob_7yr = round(float(models["7yr"].predict_proba(x)[0, 1]), 3)
-            model_type = "xgboost_full"
+    if _precomputed is not None and "prob_1yr" in _precomputed:
+        prob_1yr = _precomputed["prob_1yr"]
+        prob_4yr = _precomputed["prob_4yr"]
+        prob_7yr = _precomputed["prob_7yr"]
+        model_type = _precomputed["model_type"]
+        if model_type == "xgboost_full":
             used = [
                 f"Age {age}yr",
-                f"Albumin {albumin_gdl:.1f} g/dL ({albumin_gl} g/L)",
-                f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})",
-                f"EF {ef}%",
+                f"Albumin {albumin_gdl:.1f} g/dL ({albumin_gl} g/L)" if albumin_gdl is not None else f"Albumin {albumin_gl} g/L",
+                f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})" if neutrophil is not None else "",
+                f"EF {ef}%" if ef is not None else "",
                 f"IHD/CAD {'yes' if cad else 'no'}",
             ]
-        except Exception as e:
-            logger.warning(f"XGBoost prediction failed: {e}. Falling back.")
-            models = {}
-
-    if prob_1yr is None and models and n_core_used >= 2:
-        # Partial features available → impute missing with population medians
-        # IDH median = 0.0 (most patients have no/rare hypotension episodes)
-        MEDIANS = {"age": 62, "albumin_gl": 37.0, "neutrophil": 5.5, "ef": 60, "idh": 0}
-        age_x      = age if age is not None else MEDIANS["age"]
-        albumin_x  = albumin_gl if albumin_gl is not None else MEDIANS["albumin_gl"]
-        neut_x     = neutrophil if neutrophil is not None else MEDIANS["neutrophil"]
-        ef_x       = ef if ef is not None else MEDIANS["ef"]
-        idh_x      = idh if cad is not None else MEDIANS["idh"]
-
-        imputed = []
-        if age is None:        imputed.append(f"Age (imputed median {MEDIANS['age']}yr)")
-        if albumin_gl is None: imputed.append(f"Albumin (imputed median {MEDIANS['albumin_gl']} g/L)")
-        if neutrophil is None: imputed.append(f"Neutrophil (imputed median {MEDIANS['neutrophil']})")
-        if ef is None:         imputed.append(f"EF (imputed median {MEDIANS['ef']}%)")
-        if cad is None:        imputed.append("IHD/CAD (imputed 0 — comorbidity not recorded)")
-
-        try:
-            x = pd.DataFrame(
-                [[idh_x, age_x, albumin_x, neut_x, ef_x]],
-                columns=["IDH", "Age", "Albumin", "N109L", "EF"]
-            )
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                prob_1yr = round(float(models["1yr"].predict_proba(x)[0, 1]), 3)
-                prob_4yr = round(float(models["4yr"].predict_proba(x)[0, 1]), 3)
-                prob_7yr = round(float(models["7yr"].predict_proba(x)[0, 1]), 3)
-            model_type = "xgboost_imputed"
+            used = [u for u in used if u]
+        elif model_type == "xgboost_imputed":
+            MEDIANS = {"age": 62, "albumin_gl": 37.0, "neutrophil": 5.5, "ef": 60, "idh": 0}
+            imputed = []
+            if age is None:        imputed.append(f"Age (imputed median {MEDIANS['age']}yr)")
+            if albumin_gl is None: imputed.append(f"Albumin (imputed median {MEDIANS['albumin_gl']} g/L)")
+            if neutrophil is None: imputed.append(f"Neutrophil (imputed median {MEDIANS['neutrophil']})")
+            if ef is None:         imputed.append(f"EF (imputed median {MEDIANS['ef']}%)")
+            if cad is None:        imputed.append("IHD/CAD (imputed 0 — comorbidity not recorded)")
+            
             for k, v in core_present.items():
                 if v:
                     if k == "Age": used.append(f"Age {age}yr")
-                    elif k == "Albumin": used.append(f"Albumin {albumin_gdl:.1f} g/dL")
+                    elif k == "Albumin": used.append(f"Albumin {albumin_gdl:.1f} g/dL" if albumin_gdl is not None else f"Albumin {albumin_gl} g/L")
                     elif k == "Neutrophil": used.append(f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})")
                     elif k == "EF": used.append(f"EF {ef}%")
                     elif k == "IDH/CAD": used.append(f"IHD/CAD {'yes' if cad else 'no'}")
             used += [f"⚠ {i}" for i in imputed]
-        except Exception as e:
-            logger.warning(f"XGBoost imputed prediction failed: {e}. Using rule-based fallback.")
-            models = {}
+    else:
+        if models and all(f is not None for f in [age, albumin_gl, neutrophil, ef, cad]):
+            try:
+                x = pd.DataFrame(
+                    [[idh, age, albumin_gl, neutrophil, ef]],
+                    columns=["IDH", "Age", "Albumin", "N109L", "EF"]
+                )
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    prob_1yr = round(float(models["1yr"].predict_proba(x)[0, 1]), 3)
+                    prob_4yr = round(float(models["4yr"].predict_proba(x)[0, 1]), 3)
+                    prob_7yr = round(float(models["7yr"].predict_proba(x)[0, 1]), 3)
+                model_type = "xgboost_full"
+                used = [
+                    f"Age {age}yr",
+                    f"Albumin {albumin_gdl:.1f} g/dL ({albumin_gl} g/L)",
+                    f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})",
+                    f"EF {ef}%",
+                    f"IHD/CAD {'yes' if cad else 'no'}",
+                ]
+            except Exception as e:
+                logger.warning(f"XGBoost prediction failed: {e}. Falling back.")
+                models = {}
+
+        if prob_1yr is None and models and n_core_used >= 2:
+            # Partial features available → impute missing with population medians
+            # IDH median = 0.0 (most patients have no/rare hypotension episodes)
+            MEDIANS = {"age": 62, "albumin_gl": 37.0, "neutrophil": 5.5, "ef": 60, "idh": 0}
+            age_x      = age if age is not None else MEDIANS["age"]
+            albumin_x  = albumin_gl if albumin_gl is not None else MEDIANS["albumin_gl"]
+            neut_x     = neutrophil if neutrophil is not None else MEDIANS["neutrophil"]
+            ef_x       = ef if ef is not None else MEDIANS["ef"]
+            idh_x      = idh if cad is not None else MEDIANS["idh"]
+
+            imputed = []
+            if age is None:        imputed.append(f"Age (imputed median {MEDIANS['age']}yr)")
+            if albumin_gl is None: imputed.append(f"Albumin (imputed median {MEDIANS['albumin_gl']} g/L)")
+            if neutrophil is None: imputed.append(f"Neutrophil (imputed median {MEDIANS['neutrophil']})")
+            if ef is None:         imputed.append(f"EF (imputed median {MEDIANS['ef']}%)")
+            if cad is None:        imputed.append("IHD/CAD (imputed 0 — comorbidity not recorded)")
+
+            try:
+                x = pd.DataFrame(
+                    [[idh_x, age_x, albumin_x, neut_x, ef_x]],
+                    columns=["IDH", "Age", "Albumin", "N109L", "EF"]
+                )
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    prob_1yr = round(float(models["1yr"].predict_proba(x)[0, 1]), 3)
+                    prob_4yr = round(float(models["4yr"].predict_proba(x)[0, 1]), 3)
+                    prob_7yr = round(float(models["7yr"].predict_proba(x)[0, 1]), 3)
+                model_type = "xgboost_imputed"
+                for k, v in core_present.items():
+                    if v:
+                        if k == "Age": used.append(f"Age {age}yr")
+                        elif k == "Albumin": used.append(f"Albumin {albumin_gdl:.1f} g/dL")
+                        elif k == "Neutrophil": used.append(f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})")
+                        elif k == "EF": used.append(f"EF {ef}%")
+                        elif k == "IDH/CAD": used.append(f"IHD/CAD {'yes' if cad else 'no'}")
+                used += [f"⚠ {i}" for i in imputed]
+            except Exception as e:
+                logger.warning(f"XGBoost imputed prediction failed: {e}. Using rule-based fallback.")
+                models = {}
 
     rule_based_contributions: list = []
     if prob_1yr is None:
@@ -1427,6 +1530,53 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
     det_model = _load_deterioration_model()
 
     now_ts = _time.time()
+
+    # Batch extraction and prediction for active XGBoost patients whose cache has expired or is missing
+    patients_to_predict = []
+    for p in patients:
+        _cached_entry = _ML_PER_PATIENT_CACHE.get(p.id)
+        if _cached_entry and now_ts < _cached_entry[1]:
+            continue
+        records = records_by_pid.get(p.id, [])
+        if not records:
+            continue
+        latest = records[0]
+        age = p.age
+        albumin_gdl = latest.albumin
+        wbc = latest.wbc_count
+        ef = p.ejection_fraction
+        cad = p.cad_status
+
+        albumin_gl = round(albumin_gdl * 10.0, 1) if albumin_gdl is not None else None
+
+        neutrophil = latest.neutrophil_count
+        if neutrophil is None and wbc is not None:
+            neutrophil = round(wbc * 0.65, 2)
+
+        core_present = {
+            "Age":        age is not None,
+            "Albumin":    albumin_gl is not None,
+            "Neutrophil": neutrophil is not None,
+            "EF":         ef is not None,
+            "IDH/CAD":    cad is not None,
+        }
+        n_core_used = sum(core_present.values())
+
+        if age is not None and (1 <= age <= 115) and n_core_used >= 2:
+            patients_to_predict.append({
+                "id": p.id,
+                "age": age,
+                "albumin_gl": albumin_gl,
+                "neutrophil": neutrophil,
+                "ef": ef,
+                "cad": cad,
+                "n_core_used": n_core_used,
+            })
+
+    precomputed_results = {}
+    if patients_to_predict:
+        precomputed_results = predict_mortality_risk_batch(patients_to_predict)
+
     rows = []
     for p in patients:
         records = records_by_pid.get(p.id, [])
@@ -1466,7 +1616,8 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
             "leukemia":           getattr(p, "leukemia",           None),
             "lymphoma":           getattr(p, "lymphoma",           None),
         }
-        mort = predict_mortality_risk(df, patient_info) if df else {"available": False}
+        _precomputed = precomputed_results.get(p.id) if precomputed_results else None
+        mort = predict_mortality_risk(df, patient_info, _precomputed=_precomputed) if df else {"available": False}
         bay_profile = compute_bayesian_alert_profile(df, patient_info) if df else {"available": False}
         mort = attach_bayesian_signal(mort, bay_profile)
         davies = compute_davies_score(patient_info, df[0] if df else None)
