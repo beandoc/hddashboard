@@ -859,70 +859,96 @@ def _mortality_uncertainty_band(prob: float, n_core_features: int, model_type: s
 def _rule_based_log_odds_fallback(latest: dict, patient_info: dict) -> tuple:
     """
     Minimal rule-based fallback when XGBoost models are unavailable.
-    Returns (log_odds, used_features, missing_features, n_core_used).
+    Returns (log_odds, used_features, missing_features, n_core_used, contributions).
+    contributions: list of {feature, value, delta, direction} for the explainer panel.
     """
     log_odds = -1.4
-    used, missing = [], []
+    used, missing, contributions = [], [], []
     n_core_used = 0
+
+    def _contrib(feature: str, value: str, delta: float) -> None:
+        contributions.append({
+            "feature": feature,
+            "value": value,
+            "delta": round(delta, 2),
+            "direction": "raises" if delta > 0 else ("lowers" if delta < 0 else "neutral"),
+        })
 
     age = patient_info.get("age")
     if age is not None:
-        if   age >= 80: log_odds += 1.5
-        elif age >= 70: log_odds += 1.1
-        elif age >= 60: log_odds += 0.7
-        elif age >= 50: log_odds += 0.3
+        if   age >= 80: d = 1.5
+        elif age >= 70: d = 1.1
+        elif age >= 60: d = 0.7
+        elif age >= 50: d = 0.3
+        else:           d = 0.0
+        log_odds += d
         used.append(f"Age {age}yr"); n_core_used += 1
+        _contrib("Age", f"{age} yr", d)
     else:
         missing.append("Age")
 
     albumin_gdl = latest.get("albumin")
     if albumin_gdl is not None:
         alb_gl = albumin_gdl * 10.0
-        if   alb_gl >= 40.0: log_odds -= 0.30
-        elif alb_gl >= 35.0: log_odds += 0.00
-        elif alb_gl >= 30.0: log_odds += 0.60
-        else:                log_odds += 1.20
+        if   alb_gl >= 40.0: d = -0.30
+        elif alb_gl >= 35.0: d =  0.00
+        elif alb_gl >= 30.0: d =  0.60
+        else:                d =  1.20
+        log_odds += d
         used.append(f"Albumin {albumin_gdl:.1f} g/dL"); n_core_used += 1
+        _contrib("Albumin", f"{albumin_gdl:.1f} g/dL", d)
     else:
         missing.append("Albumin")
 
     wbc = latest.get("wbc_count")
     if wbc is not None:
         n_est = wbc * 0.65
-        if   n_est > 10.0: log_odds += 1.10
-        elif n_est >  7.5: log_odds += 0.70
-        elif n_est >  4.5: log_odds += 0.20
+        if   n_est > 10.0: d = 1.10
+        elif n_est >  7.5: d = 0.70
+        elif n_est >  4.5: d = 0.20
+        else:              d = 0.0
+        log_odds += d
         used.append(f"Neutrophil (est.) {n_est:.1f}"); n_core_used += 1
+        _contrib("Neutrophil (est.)", f"{n_est:.1f} ×10⁹/L", d)
     else:
         crp = latest.get("crp")
         if crp and crp > 10:
             log_odds += 0.50
             used.append(f"CRP {crp:.1f} mg/L (proxy)")
+            _contrib("CRP (inflammation proxy)", f"{crp:.1f} mg/L", 0.50)
         else:
             missing.append("Neutrophil / WBC")
 
     ef = patient_info.get("ef")
     if ef is not None:
-        if   ef < 30: log_odds += 1.40
-        elif ef < 40: log_odds += 0.90
-        elif ef < 50: log_odds += 0.50
-        elif ef < 60: log_odds += 0.20
+        if   ef < 30: d = 1.40
+        elif ef < 40: d = 0.90
+        elif ef < 50: d = 0.50
+        elif ef < 60: d = 0.20
+        else:         d = 0.0
+        log_odds += d
         used.append(f"EF {ef}%"); n_core_used += 1
+        _contrib("Ejection Fraction", f"{ef}%", d)
     else:
         if patient_info.get("chf_status"):
-            log_odds += 0.75; used.append("CHF (EF proxy)")
+            log_odds += 0.75
+            used.append("CHF (EF proxy)")
+            _contrib("CHF (EF proxy — no echo)", "CHF present", 0.75)
         else:
             missing.append("EF (echo not recorded)")
 
     cad = patient_info.get("cad_status")
     if cad is not None:
-        if cad: log_odds += 0.65; used.append("IHD/CAD present")
+        d = 0.65 if cad else 0.0
+        log_odds += d
+        if cad: used.append("IHD/CAD present")
         else:   used.append("No IHD/CAD")
         n_core_used += 1
+        _contrib("IHD / CAD", "Present" if cad else "Absent", d)
     else:
         missing.append("IHD/CAD status")
 
-    return log_odds, used, missing, n_core_used
+    return log_odds, used, missing, n_core_used, contributions
 
 
 def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
@@ -1075,9 +1101,10 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
             logger.warning(f"XGBoost imputed prediction failed: {e}. Using rule-based fallback.")
             models = {}
 
+    rule_based_contributions: list = []
     if prob_1yr is None:
         # Full fallback: rule-based log-odds
-        log_odds, used, missing, n_core_used = _rule_based_log_odds_fallback(latest, patient_info)
+        log_odds, used, missing, n_core_used, rule_based_contributions = _rule_based_log_odds_fallback(latest, patient_info)
         prob_1yr = round(_sigmoid(log_odds), 3)
         prob_4yr = round(min(0.97, 1 - (1 - prob_1yr) ** 3.5), 3)
         prob_7yr = round(min(0.99, 1 - (1 - prob_1yr) ** 6.5), 3)
@@ -1205,6 +1232,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
             "threshold_validation": "Chinese cohort only",
             "acute_hb_warning":   acute_hb_warning,
             "acute_hb_severity":  acute_hb_severity,
+            "rule_based_contributions": rule_based_contributions,
             # ── Drift detection ───────────────────────────────────────────────
             "drift_warnings":     drift_warnings,
             "drift_detected":     bool(drift_warnings),

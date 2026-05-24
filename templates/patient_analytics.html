@@ -500,6 +500,47 @@
           <strong style="color: #475569;">Features extracted:</strong> {{ mort.features_used | join(', ') }}
         </div>
         {% endif %}
+
+        {% if mort.rule_based_contributions %}
+        <details style="margin-top:12px;" {% if mort.risk_level in ('Very High', 'High') %}open{% endif %}>
+          <summary style="cursor:pointer; font-size:0.78rem; font-weight:600; color:#475569; user-select:none; list-style:none; display:flex; align-items:center; gap:6px;">
+            <i class="material-icons" style="font-size:1rem; color:#64748b;">help_outline</i>
+            Why is this score {{ mort.risk_level }}?
+          </summary>
+          <div style="margin-top:10px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; font-size:0.78rem;">
+            <div style="background:#f8fafc; padding:6px 12px; font-size:0.7rem; color:#94a3b8; font-weight:600; letter-spacing:0.04em; text-transform:uppercase;">
+              Per-factor log-odds contribution (rule-based model)
+            </div>
+            {% set max_abs = mort.rule_based_contributions | map(attribute='delta') | map('abs') | max %}
+            {% for c in mort.rule_based_contributions | sort(attribute='delta', reverse=True) %}
+            {% set bar_pct = ((c.delta | abs) / ([max_abs, 0.01] | max) * 100) | int %}
+            <div style="display:flex; align-items:center; gap:10px; padding:7px 12px; border-bottom:1px solid #f1f5f9;">
+              <div style="width:110px; flex-shrink:0; color:#374151; font-weight:500;">{{ c.feature }}</div>
+              <div style="width:90px; flex-shrink:0; color:#64748b;">{{ c.value }}</div>
+              <div style="flex:1; display:flex; align-items:center; gap:6px;">
+                {% if c.delta > 0.01 %}
+                <div style="height:8px; width:{{ bar_pct }}%; background:#ef4444; border-radius:2px; min-width:3px;"></div>
+                <span style="color:#dc2626; font-weight:600; white-space:nowrap;">+{{ c.delta }}</span>
+                {% elif c.delta < -0.01 %}
+                <div style="height:8px; width:{{ bar_pct }}%; background:#10b981; border-radius:2px; min-width:3px;"></div>
+                <span style="color:#059669; font-weight:600; white-space:nowrap;">{{ c.delta }}</span>
+                {% else %}
+                <div style="height:8px; width:4px; background:#cbd5e1; border-radius:2px;"></div>
+                <span style="color:#94a3b8;">neutral</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+            <div style="padding:7px 12px; font-size:0.7rem; color:#94a3b8;">
+              Log-odds baseline: −1.4 (population prior). Positive values raise risk; negative lower it.
+              {% if mort.features_missing %}
+              Missing: {{ mort.features_missing | join(', ') }}.
+              {% endif %}
+            </div>
+          </div>
+        </details>
+        {% endif %}
+
         {% else %}
         <div class="insufficient-box">⚠ Insufficient data for mortality prediction model.</div>
         {{ missing_inputs(mort.inputs_missing) }}
