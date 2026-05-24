@@ -10,6 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
+import os
+import subprocess
 import time
 
 from database import get_db, Patient, SessionLocal, User, create_tables
@@ -22,7 +24,7 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "28e0c191bf7a"
+REQUIRED_DB_VERSION = "0011"
 
 
 def _check_schema_version() -> None:
@@ -280,6 +282,24 @@ app.include_router(api_next.router)
 @app.head("/", include_in_schema=False)
 async def dashboard_head():
     return HTMLResponse(content="")
+
+
+@app.get("/run-migrations", include_in_schema=False)
+async def run_migrations(secret: str = ""):
+    """One-shot migration trigger. Protected by MIGRATE_SECRET env var."""
+    expected = os.environ.get("MIGRATE_SECRET", "")
+    if not expected or secret != expected:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Forbidden")
+    result = subprocess.run(
+        ["alembic", "upgrade", "head"],
+        capture_output=True, text=True
+    )
+    return {
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
