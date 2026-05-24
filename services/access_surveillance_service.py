@@ -1130,7 +1130,6 @@ def compute_avf_rate_trend(db: Session, n_months: int = 6) -> list[dict]:
     ).filter(
         Patient.is_active == True,
         Patient.hd_wef_date.isnot(None),
-        ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
     ).all()
 
     results = []

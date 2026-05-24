@@ -1338,7 +1338,6 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
             db.query(Patient)
             .filter(
                 Patient.is_active == True,
-                ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
             )
             .order_by(Patient.name).all()
         )
@@ -1353,7 +1352,6 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
         db.query(Patient)
         .filter(
             Patient.is_active == True,
-            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
         )
         .order_by(Patient.name).all()
     )

@@ -124,7 +124,6 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
         db.query(Patient)
         .filter(
             Patient.is_active == True,
-            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
         )
         .all()
     )
@@ -301,7 +300,6 @@ async def vascular_access_action_board(request: Request, patient_id: Optional[in
         db.query(Patient)
         .filter(
             Patient.is_active == True,
-            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
         )
         .all()
     )
@@ -793,7 +791,6 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
         db.query(Patient)
         .filter(
             Patient.is_active == True,
-            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
         )
         .all()
     )

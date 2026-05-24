@@ -156,7 +156,7 @@ def compute_dashboard(db: Session, month: str = None):
     last_mod = db.query(func.max(MonthlyRecord.timestamp)).filter(MonthlyRecord.record_month == month).scalar()
     last_mod_str = last_mod.isoformat() if last_mod else "none"
     
-    cache_key = f"{month}_{last_mod_str}_v2"
+    cache_key = f"{month}_{last_mod_str}_v3"
     now = datetime.utcnow()
     
     if cache_key in _DASHBOARD_CACHE:
@@ -224,13 +224,12 @@ def compute_dashboard(db: Session, month: str = None):
         six_months = [month]
 
     # Fetch all active patients in alphabetical order (eager-load sub-tables used for new metrics)
-    # Exclude dependent rows (W/O, S/O, D/O, F/O, M/O) — these are family contacts, not HD patients.
+    # All active patients are treated as HD patients regardless of relation_type.
     from sqlalchemy.orm import joinedload
     active_patients = (
         db.query(Patient)
         .filter(
             Patient.is_active == True,
-            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
         )
         .options(
             joinedload(Patient.viral_markers_),
@@ -796,7 +795,6 @@ def get_patients_needing_alerts(db: Session, month: str = None):
         db.query(Patient)
         .filter(
             Patient.is_active == True,
-            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
         )
         .all()
     )
