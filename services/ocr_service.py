@@ -7,6 +7,7 @@ MonthlyRecord database fields, exactly as if entered manually.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import os
@@ -14,7 +15,18 @@ from typing import Any
 
 from google import genai
 from google.genai import types
+from PIL import Image
 from pydantic import BaseModel, Field
+
+try:
+    import pytesseract
+    _TESSERACT_AVAILABLE = True
+except ImportError:
+    _TESSERACT_AVAILABLE = False
+
+# Minimum characters tesseract must extract for the text path to be used.
+# Below this threshold the image is likely blurry/handwritten — fall back to vision.
+_TESSERACT_MIN_CHARS = 120
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +333,76 @@ _FIELD_UNITS: dict[str, str] = {k: v["unit"] for k, v in FIELD_MAP.items()}
 _RESULT_CACHE: dict[str, dict[str, Any]] = {}
 _CACHE_MAX_SIZE = 50  # evict oldest when full
 
+# ─── Separate prompt for text-only Gemini call (no image attached) ───────────
+# Used when pytesseract successfully extracts raw text from the image locally.
+# Sending text instead of image cuts token cost by ~80%.
+def _build_text_extraction_prompt(raw_text: str) -> str:
+    field_lines = []
+    for db_field, info in FIELD_MAP.items():
+        aliases = ", ".join(info["aliases"])
+        unit = f" ({info['unit']})" if info["unit"] else ""
+        field_lines.append(f'  - "{db_field}": {info["label"]}{unit} — aliases: {aliases}')
+    fields_block = "\n".join(field_lines)
+    valid_keys = ", ".join(f'"{k}"' for k in FIELD_MAP.keys())
+
+    return f"""You are a clinical lab report parser. Extract specific numeric lab values from the raw text below, which was OCR-extracted from a hemodialysis patient's blood report.
+
+RAW REPORT TEXT:
+\"\"\"
+{raw_text}
+\"\"\"
+
+ALLOWED OUTPUT KEYS:
+{valid_keys}
+
+FIELD DEFINITIONS:
+{fields_block}
+
+EXTRACTION RULES:
+1. Extract numeric values only. Strip units.
+2. Omit any field not present in the text.
+3. For platelet_count: output in lakh/cmm (e.g. 2,50,000/cmm → 2.5; 250 ×10³ → 2.5).
+4. For neutrophil_count: extract differential percentage only (e.g. "Neutrophils 68%" → 68). Not absolute count.
+5. For WBC/TLC in /cmm (e.g. 7200) → divide by 1000 → 7.2.
+6. If creatinine in µmol/L → divide by 88.4. If urea in mmol/L → multiply by 2.8.
+7. For urea: pre-dialysis → pre_dialysis_urea; post-dialysis → post_dialysis_urea; ambiguous → pre_dialysis_urea.
+8. Rate confidence: "high" (clearly present), "medium" (partially readable), "low" (inferred).
+9. Do NOT invent keys outside the allowed list.
+
+OUTPUT FORMAT — respond with ONLY this JSON, no extra text:
+{{
+  "extracted_fields": {{"hb": 9.2, "serum_potassium": 4.8}},
+  "confidence": {{"hb": "high", "serum_potassium": "high"}},
+  "report_date": "15/05/2025",
+  "patient_name_on_report": "Ramesh Kumar",
+  "report_type": "haematology"
+}}"""
+
+
+def _tesseract_extract_text(image_bytes: bytes, mime_type: str) -> str | None:
+    """
+    Run pytesseract locally on image_bytes. Returns extracted text if usable,
+    None if tesseract is unavailable, the image is a PDF, or extraction is too sparse.
+    """
+    if not _TESSERACT_AVAILABLE:
+        return None
+    if mime_type == "application/pdf":
+        # pytesseract can't handle PDFs directly — fall back to Gemini vision
+        return None
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        # Use HOCR-friendly config: assume uniform block text (lab report layout)
+        text = pytesseract.image_to_string(img, config="--psm 6")
+        text = text.strip()
+        if len(text) < _TESSERACT_MIN_CHARS:
+            logger.info("Tesseract extracted only %d chars — falling back to Gemini vision", len(text))
+            return None
+        logger.info("Tesseract pre-filter extracted %d chars — using text path", len(text))
+        return text
+    except Exception as exc:
+        logger.warning("Tesseract pre-filter failed (%s) — falling back to Gemini vision", exc)
+        return None
+
 
 class OCRResponse(BaseModel):
     extracted_fields: dict[str, Any] = Field(
@@ -338,11 +420,17 @@ class OCRResponse(BaseModel):
 
 def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:
     """
-    Send image to Gemini Vision and extract lab values.
+    Extract lab values from a report image.
+
+    Strategy:
+    1. Check in-process cache (SHA-256 of image bytes) — free.
+    2. Run pytesseract locally — free, no API tokens.
+       If it extracts enough text, send that text to Gemini (text-only call, ~80% cheaper).
+    3. If tesseract fails/sparse, send the full image to Gemini Vision (standard cost).
 
     Returns:
         dict with keys: extracted_fields, confidence, report_date,
-                        patient_name_on_report, report_type, model, error (if any)
+                        patient_name_on_report, report_type, model, ocr_mode, error (if any)
     """
     if not _gemini_client:
         logger.error("GEMINI_API_KEY not set in environment")
@@ -359,20 +447,34 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
         logger.info("OCR cache hit — returning cached result for hash %s", image_hash[:12])
         return {**_RESULT_CACHE[image_hash], "cached": True}
 
+    # Try tesseract pre-filter first
+    tesseract_text = _tesseract_extract_text(image_bytes, mime_type)
+
     try:
-        response = _gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type=mime_type,
-                ),
-                _EXTRACTION_PROMPT,
-            ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
+        if tesseract_text:
+            # Text-only Gemini call: no image bytes transmitted, much cheaper
+            prompt = _build_text_extraction_prompt(tesseract_text)
+            response = _gemini_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                )
             )
-        )
+            ocr_mode = "tesseract+gemini-text"
+        else:
+            # Full vision call: send image bytes to Gemini
+            response = _gemini_client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    _EXTRACTION_PROMPT,
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                )
+            )
+            ocr_mode = "gemini-vision"
 
         raw_text = response.text.strip()
         logger.info("Gemini OCR raw response length: %d chars", len(raw_text))
@@ -416,6 +518,7 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "report_type": result.get("report_type", "unknown"),
             "fields_found": len(clean_fields),
             "model": "gemini-2.0-flash",
+            "ocr_mode": ocr_mode,
         }
 
         # Store in cache (evict oldest entry if at capacity)
