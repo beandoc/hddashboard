@@ -955,18 +955,15 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     neut_source = "direct" if latest.get("neutrophil_count") else "estimated from WBC"
 
     ef = ef_raw
-    # IDH in Xu et al. 2023 = intradialytic hypotension fraction (NOT coronary artery disease).
-    # Use real session-derived fraction when available; fall back to 0.0 (no episodes recorded).
-    # cad_status remains as a separate risk factor in the rule-based log-odds path only.
-    idh_fraction = patient_info.get("idh_fraction")
-    idh = idh_fraction if idh_fraction is not None else 0.0
+    # IHD in Xu et al. 2023 = Ischemic Heart Disease = CAD binary flag
+    idh = 1 if cad else 0
 
     core_present = {
         "Age":        age is not None,
         "Albumin":    albumin_gl is not None,
         "Neutrophil": neutrophil is not None,
         "EF":         ef is not None,
-        "IDH":        idh_fraction is not None,
+        "IDH/CAD":    cad is not None,
     }
     n_core_used = sum(core_present.values())
     missing = [k for k, v in core_present.items() if not v]
@@ -1032,7 +1029,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
                 f"Albumin {albumin_gdl:.1f} g/dL ({albumin_gl} g/L)",
                 f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})",
                 f"EF {ef}%",
-                f"IDH fraction {idh:.2f}" if idh_fraction is not None else "IDH fraction (no session data, using 0)",
+                f"IHD/CAD {'yes' if cad else 'no'}",
             ]
         except Exception as e:
             logger.warning(f"XGBoost prediction failed: {e}. Falling back.")
@@ -1041,19 +1038,19 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
     if prob_1yr is None and models and n_core_used >= 2:
         # Partial features available → impute missing with population medians
         # IDH median = 0.0 (most patients have no/rare hypotension episodes)
-        MEDIANS = {"age": 62, "albumin_gl": 37.0, "neutrophil": 5.5, "ef": 60, "idh": 0.0}
+        MEDIANS = {"age": 62, "albumin_gl": 37.0, "neutrophil": 5.5, "ef": 60, "idh": 0}
         age_x      = age if age is not None else MEDIANS["age"]
         albumin_x  = albumin_gl if albumin_gl is not None else MEDIANS["albumin_gl"]
         neut_x     = neutrophil if neutrophil is not None else MEDIANS["neutrophil"]
         ef_x       = ef if ef is not None else MEDIANS["ef"]
-        idh_x      = idh if idh_fraction is not None else MEDIANS["idh"]
+        idh_x      = idh if cad is not None else MEDIANS["idh"]
 
         imputed = []
-        if age is None:          imputed.append(f"Age (imputed median {MEDIANS['age']}yr)")
-        if albumin_gl is None:   imputed.append(f"Albumin (imputed median {MEDIANS['albumin_gl']} g/L)")
-        if neutrophil is None:   imputed.append(f"Neutrophil (imputed median {MEDIANS['neutrophil']})")
-        if ef is None:           imputed.append(f"EF (imputed median {MEDIANS['ef']}%)")
-        if idh_fraction is None: imputed.append("IDH fraction (imputed 0 — no session data)")
+        if age is None:        imputed.append(f"Age (imputed median {MEDIANS['age']}yr)")
+        if albumin_gl is None: imputed.append(f"Albumin (imputed median {MEDIANS['albumin_gl']} g/L)")
+        if neutrophil is None: imputed.append(f"Neutrophil (imputed median {MEDIANS['neutrophil']})")
+        if ef is None:         imputed.append(f"EF (imputed median {MEDIANS['ef']}%)")
+        if cad is None:        imputed.append("IHD/CAD (imputed 0 — comorbidity not recorded)")
 
         try:
             x = pd.DataFrame(
@@ -1072,7 +1069,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
                     elif k == "Albumin": used.append(f"Albumin {albumin_gdl:.1f} g/dL")
                     elif k == "Neutrophil": used.append(f"Neutrophil {neutrophil:.2f} ×10⁹/L ({neut_source})")
                     elif k == "EF": used.append(f"EF {ef}%")
-                    elif k == "IDH": used.append(f"IDH fraction {idh:.2f}" if idh_fraction is not None else "IDH (imputed 0)")
+                    elif k == "IDH/CAD": used.append(f"IHD/CAD {'yes' if cad else 'no'}")
             used += [f"⚠ {i}" for i in imputed]
         except Exception as e:
             logger.warning(f"XGBoost imputed prediction failed: {e}. Using rule-based fallback.")
@@ -1380,29 +1377,6 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
         if len(records_by_pid[rec.patient_id]) < 6:
             records_by_pid[rec.patient_id].append(rec)
 
-    # ── Batch load last 20 sessions to compute real IDH fraction per patient ──
-    # IDH (intradialytic hypotension) is the correct Xu et al. "IDH" feature —
-    # it is NOT coronary artery disease. Query session-level idh_episode flags.
-    from database import SessionRecord
-    _recent_sessions = (
-        db.query(SessionRecord.patient_id, SessionRecord.idh_episode)
-        .filter(
-            SessionRecord.patient_id.in_(pid_list),
-            SessionRecord.idh_episode.isnot(None),
-        )
-        .order_by(SessionRecord.patient_id, SessionRecord.session_date.desc())
-        .all()
-    )
-    _sess_by_pid: dict = defaultdict(list)
-    for pid, flag in _recent_sessions:
-        if len(_sess_by_pid[pid]) < 20:
-            _sess_by_pid[pid].append(flag)
-    # idh_fraction: fraction of recent sessions with hypotension episode (0.0–1.0)
-    idh_fraction_by_pid: dict = {}
-    for pid, flags in _sess_by_pid.items():
-        if flags:
-            idh_fraction_by_pid[pid] = round(sum(1 for f in flags if f) / len(flags), 3)
-
     patient_map = {p.id: p for p in patients}
 
     # Batch-load current-month feature snapshots so we can (a) skip re-extraction
@@ -1464,7 +1438,6 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
             "dm_end_organ_damage": getattr(p, "dm_end_organ_damage", None),
             "solid_tumor":        getattr(p, "solid_tumor",        None),
             "leukemia":           getattr(p, "leukemia",           None),
-            "idh_fraction":       idh_fraction_by_pid.get(p.id),
             "lymphoma":           getattr(p, "lymphoma",           None),
         }
         mort = predict_mortality_risk(df, patient_info) if df else {"available": False}

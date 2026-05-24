@@ -340,23 +340,6 @@ def run_patient_analytics(
             dd_raw = getattr(patient_obj, "diastolic_dysfunction", None)
         patient_info["diastolic_dysfunction"] = dd_raw
 
-        # IDH fraction: fraction of last 20 sessions with intradialytic hypotension.
-        # This is the correct Xu et al. "IDH" feature — NOT coronary artery disease.
-        from database import SessionRecord
-        _sess_flags = (
-            db.query(SessionRecord.idh_episode)
-            .filter(
-                SessionRecord.patient_id == patient_id,
-                SessionRecord.idh_episode.isnot(None),
-            )
-            .order_by(SessionRecord.session_date.desc())
-            .limit(20)
-            .all()
-        )
-        if _sess_flags:
-            _flags = [r[0] for r in _sess_flags]
-            patient_info["idh_fraction"] = round(sum(1 for f in _flags if f) / len(_flags), 3)
-
     from bayesian_analytics import compute_bayesian_alert_profile, attach_bayesian_signal
 
     # BUG 6 FIX: log exceptions with full traceback and expose error key in result

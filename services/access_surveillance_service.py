@@ -1062,42 +1062,79 @@ def compute_unit_access_risk(
 
 
 def compute_unit_qa_distribution(db: Session) -> list[dict]:
-    """Return last Qa reading per active patient for unit-level distribution chart."""
+    """Return last Qa reading per active patient for unit-level distribution chart.
+
+    Single batch query using DISTINCT ON / subquery — no per-patient round-trips.
+    """
     from db.models.patient import Patient
     from db.models.sessions import SessionRecord
+    from sqlalchemy import func
 
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
-    rows = []
-    for p in patients:
-        latest = (
-            db.query(SessionRecord.access_flow_qa, SessionRecord.session_date)
-            .filter(
-                SessionRecord.patient_id == p.id,
-                SessionRecord.access_flow_qa.isnot(None),
-            )
-            .order_by(SessionRecord.session_date.desc())
-            .first()
+    # One query: for each patient get their most recent session with a Qa value
+    subq = (
+        db.query(
+            SessionRecord.patient_id,
+            SessionRecord.access_flow_qa,
+            SessionRecord.session_date,
+            func.row_number().over(
+                partition_by=SessionRecord.patient_id,
+                order_by=SessionRecord.session_date.desc(),
+            ).label("rn"),
         )
-        if latest:
+        .filter(SessionRecord.access_flow_qa.isnot(None))
+        .subquery()
+    )
+    latest_qa = (
+        db.query(subq.c.patient_id, subq.c.access_flow_qa, subq.c.session_date)
+        .filter(subq.c.rn == 1)
+        .all()
+    )
+
+    # Build patient map in a second query (one query, not N)
+    pid_list = [r[0] for r in latest_qa]
+    if not pid_list:
+        return []
+    patients = db.query(Patient).filter(
+        Patient.id.in_(pid_list),
+        Patient.is_active == True,
+    ).all()
+    p_map = {p.id: p for p in patients}
+
+    rows = []
+    for pid, qa, sess_date in latest_qa:
+        p = p_map.get(pid)
+        if p:
             rows.append({
                 "patient_name": p.name,
                 "hid_no": p.hid_no,
-                "qa": latest[0],
-                "date": str(latest[1]),
+                "qa": qa,
+                "date": str(sess_date),
                 "access_type": p.access_type or "Unknown",
             })
     return rows
 
 
 def compute_avf_rate_trend(db: Session, n_months: int = 6) -> list[dict]:
-    """Compute prevalent AVF rate for each of the last n_months months."""
+    """Compute prevalent AVF rate for each of the last n_months months.
+
+    Loads all active patients once, then computes per-month counts in Python.
+    """
     from db.models.patient import Patient
     import calendar
 
     today = date.today()
+
+    # Single query — load all active patients with an HD start date once
+    all_pts = db.query(
+        Patient.hd_wef_date, Patient.access_type,
+    ).filter(
+        Patient.is_active == True,
+        Patient.hd_wef_date.isnot(None),
+        ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+    ).all()
+
     results = []
     for i in range(n_months - 1, -1, -1):
-        # Step back i months from today
         year = today.year
         month = today.month - i
         while month <= 0:
@@ -1106,15 +1143,11 @@ def compute_avf_rate_trend(db: Session, n_months: int = 6) -> list[dict]:
         month_end = date(year, month, calendar.monthrange(year, month)[1])
         month_label = month_end.strftime("%b %Y")
 
-        # Patients active at month_end (started HD on or before month_end)
-        all_pts = db.query(Patient).filter(
-            Patient.is_active == True,
-            Patient.hd_wef_date.isnot(None),
-            Patient.hd_wef_date <= month_end,
-        ).all()
-        total = len(all_pts)
-        avf = sum(1 for p in all_pts if p.access_type and "AVF" in p.access_type.upper())
-        tcc = sum(1 for p in all_pts if p.access_type and any(k in p.access_type.upper() for k in ("TCC", "PERMACATH", "CVC")))
+        # Filter in Python — no extra DB round-trip
+        cohort = [p for p in all_pts if p.hd_wef_date <= month_end]
+        total = len(cohort)
+        avf = sum(1 for p in cohort if p.access_type and "AVF" in p.access_type.upper())
+        tcc = sum(1 for p in cohort if p.access_type and any(k in p.access_type.upper() for k in ("TCC", "PERMACATH", "CVC")))
         results.append({
             "month": month_label,
             "total": total,
