@@ -50,6 +50,13 @@ def upgrade() -> None:
         ["event_date"],
         if_not_exists=True,
     )
+    # Composite index for batch risk scoring: episode_id + status + event_type
+    op.create_index(
+        "ix_access_events_episode_status_type",
+        "access_events",
+        ["episode_id", "status", "event_type"],
+        if_not_exists=True,
+    )
 
     # AccessSurveillanceRecord — per-patient surveillance history
     op.create_index(
@@ -78,6 +85,7 @@ def downgrade() -> None:
     op.drop_index("ix_session_records_patient_date", table_name="session_records")
     op.drop_index("ix_access_surveillance_episode_id", table_name="access_surveillance_records")
     op.drop_index("ix_access_surveillance_patient_date", table_name="access_surveillance_records")
+    op.drop_index("ix_access_events_episode_status_type", table_name="access_events")
     op.drop_index("ix_access_events_event_date", table_name="access_events")
     op.drop_index("ix_access_events_episode_id", table_name="access_events")
     op.drop_index("ix_access_events_patient_status", table_name="access_events")

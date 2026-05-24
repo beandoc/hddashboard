@@ -1039,24 +1039,236 @@ def compute_unit_access_risk(
 ) -> list[dict]:
     """Run access-loss risk scoring for all active patients with a current episode.
 
+    Uses 5 batch queries instead of N×10 per-patient queries.
     Returns list sorted by score descending.
     """
     from db.models.patient import Patient
+    from db.models.clinical import AccessEpisode, AccessEvent
+    from db.models.sessions import SessionRecord
+    from sqlalchemy import func
 
     if config is None:
         config = _load_config(db)
 
+    today = date.today()
+
+    # ── 1. Active patients ────────────────────────────────────────────────────
     patients = db.query(Patient).filter(Patient.is_active == True).all()
+    if not patients:
+        return []
+    pid_list = [p.id for p in patients]
+    patient_map = {p.id: p for p in patients}
+
+    # ── 2. Current access episodes (one per patient) ──────────────────────────
+    ep_subq = (
+        db.query(
+            AccessEpisode.patient_id,
+            AccessEpisode.id.label("ep_id"),
+            AccessEpisode.access_class,
+            AccessEpisode.creation_date,
+            AccessEpisode.first_cannulation_date,
+            AccessEpisode.succession_plan,
+            AccessEpisode.loss_date,
+            func.row_number().over(
+                partition_by=AccessEpisode.patient_id,
+                order_by=AccessEpisode.creation_date.desc(),
+            ).label("rn"),
+        )
+        .filter(
+            AccessEpisode.patient_id.in_(pid_list),
+            AccessEpisode.is_current == True,
+        )
+        .subquery()
+    )
+    episode_rows = (
+        db.query(ep_subq).filter(ep_subq.c.rn == 1).all()
+    )
+    episodes: dict[int, Any] = {}  # patient_id → episode row
+    ep_id_to_pid: dict[int, int] = {}
+    for row in episode_rows:
+        episodes[row.patient_id] = row
+        ep_id_to_pid[row.ep_id] = row.patient_id
+
+    if not episodes:
+        return []
+
+    ep_ids = list(ep_id_to_pid.keys())
+
+    # ── 3. AccessEvents for all episodes (thrombosis, steal, interventions) ───
+    year_ago = today - timedelta(days=365)
+    all_events = (
+        db.query(
+            AccessEvent.episode_id,
+            AccessEvent.event_type,
+            AccessEvent.steal_grade,
+            AccessEvent.action_taken,
+            AccessEvent.event_date,
+            AccessEvent.status,
+        )
+        .filter(
+            AccessEvent.episode_id.in_(ep_ids),
+            AccessEvent.status == "confirmed",
+        )
+        .all()
+    )
+    # Index events by episode_id
+    events_by_ep: dict[int, list] = {eid: [] for eid in ep_ids}
+    for ev in all_events:
+        events_by_ep[ev.episode_id].append(ev)
+
+    # ── 4. Recent session data: Qa, recirculation, cannulation, thrill/bruit ──
+    # Fetch last 5 sessions per patient (enough for Qa baseline window + recent checks)
+    sess_subq = (
+        db.query(
+            SessionRecord.patient_id,
+            SessionRecord.access_flow_qa,
+            SessionRecord.access_recirculation_percent,
+            SessionRecord.cannulation_difficulty,
+            SessionRecord.thrill_grade,
+            SessionRecord.bruit_grade,
+            SessionRecord.session_date,
+            func.row_number().over(
+                partition_by=SessionRecord.patient_id,
+                order_by=SessionRecord.session_date.desc(),
+            ).label("rn"),
+        )
+        .filter(SessionRecord.patient_id.in_(pid_list))
+        .subquery()
+    )
+    recent_sessions = (
+        db.query(sess_subq).filter(sess_subq.c.rn <= 21).all()
+    )
+    sessions_by_pid: dict[int, list] = {pid: [] for pid in pid_list}
+    for s in recent_sessions:
+        sessions_by_pid[s.patient_id].append(s)
+    # Sessions are already ordered desc by session_date within each patient
+
+    # ── Score each patient in Python ──────────────────────────────────────────
+    maintain_max = _cfg(config, "av_interventions_maintain_per_year_max")
     results = []
-    for p in patients:
-        try:
-            r = compute_access_loss_risk(db, p.id, config=config)
-            if r.get("available"):
-                r["patient_name"] = p.name
-                r["hid_no"] = p.hid_no
-                results.append(r)
-        except Exception:
-            pass
+
+    for pid, ep in episodes.items():
+        p = patient_map.get(pid)
+        if not p:
+            continue
+
+        ac = (ep.access_class or "").upper()
+        score = 0.0
+        factors: list[str] = []
+        evs = events_by_ep.get(ep.ep_id, [])
+        sess = sessions_by_pid.get(pid, [])
+
+        # Thrombosis history
+        thrombus = sum(1 for e in evs if e.event_type == "thrombosis")
+        if thrombus:
+            score += _RISK_WEIGHTS["thrombosis_history"]
+            factors.append(f"Thrombosis history ({thrombus} confirmed)")
+
+        # Steal Grade 3
+        steal3 = sum(1 for e in evs if e.event_type == "steal_syndrome" and e.steal_grade == "grade_3")
+        if steal3:
+            score += _RISK_WEIGHTS["steal_grade3"]
+            factors.append("Steal syndrome Grade 3 confirmed")
+
+        # Qa below threshold
+        qa_key = "qa_absolute_threshold_avf" if ac == "AVF" else "qa_absolute_threshold_avg"
+        qa_threshold = _cfg(config, qa_key)
+        qa_vals = [s.access_flow_qa for s in sess if s.access_flow_qa is not None]
+        if qa_vals and qa_vals[0] < qa_threshold:
+            score += _RISK_WEIGHTS["qa_below_threshold"]
+            factors.append(f"Qa {qa_vals[0]:.0f} mL/min < threshold {qa_threshold:.0f}")
+
+        # Qa relative decline
+        baseline_window = int(_cfg(config, "qa_baseline_window_sessions"))
+        qa_decline_pct = _cfg(config, "qa_relative_decline_pct")
+        if len(qa_vals) >= baseline_window + 1:
+            latest_qa = qa_vals[0]
+            baseline = sum(qa_vals[1:baseline_window + 1]) / baseline_window
+            if baseline > 0:
+                decline = max((baseline - latest_qa) / baseline * 100, 0.0)
+                if decline >= qa_decline_pct:
+                    score += _RISK_WEIGHTS["qa_declining"]
+                    factors.append(f"Qa declining {decline:.0f}% from baseline")
+
+        # High recirculation (last 2 sessions with a reading)
+        recirc_threshold = _cfg(config, "recirculation_threshold_pct")
+        recirc_vals = [s.access_recirculation_percent for s in sess if s.access_recirculation_percent is not None]
+        if len(recirc_vals) >= 2 and all(r >= recirc_threshold for r in recirc_vals[:2]):
+            score += _RISK_WEIGHTS["high_recirculation"]
+            factors.append(f"Recirculation ≥{recirc_threshold:.0f}% last 2 sessions")
+
+        # Cannulation failure rate (last 20 sessions with a reading)
+        failure_threshold = _cfg(config, "cannulation_failure_rate_alert")
+        cann_vals = [s.cannulation_difficulty for s in sess if s.cannulation_difficulty is not None]
+        if cann_vals:
+            fail_rate = sum(1 for v in cann_vals[:20] if v == "failed") / min(len(cann_vals), 20) * 100
+            if fail_rate >= failure_threshold:
+                score += _RISK_WEIGHTS["cannulation_failure_high"]
+                factors.append(f"Cannulation failure rate {fail_rate:.1f}%")
+
+        # Bedside exam deterioration (last 2 sessions)
+        if len(sess) >= 2:
+            recent2 = sess[:2]
+            if all(s.thrill_grade and s.thrill_grade != "normal" for s in recent2):
+                score += _RISK_WEIGHTS["thrill_bruit_abnormal"]
+                factors.append("Thrill abnormal last 2 sessions")
+            if all(s.bruit_grade and s.bruit_grade != "normal" for s in recent2):
+                score += _RISK_WEIGHTS["thrill_bruit_abnormal"]
+                factors.append("Bruit abnormal last 2 sessions")
+
+        # Excess maintenance interventions (AV only, past 12 months after first use)
+        if ac in ("AVF", "AVG") and ep.first_cannulation_date:
+            start_date = max(ep.first_cannulation_date, year_ago)
+            maintain_count = sum(
+                1 for e in evs
+                if e.action_taken in _INTERVENTION_ACTIONS
+                and e.event_date >= start_date
+                and e.event_date >= ep.first_cannulation_date
+            )
+            if maintain_count > maintain_max:
+                score += _RISK_WEIGHTS["excess_interventions"]
+                factors.append(f"{maintain_count} maintenance interventions past 12 months (KDOQI ≤{maintain_max})")
+
+        # Maturation delay
+        if ac in ("AVF", "AVG") and not ep.first_cannulation_date:
+            delay_key = "avf_maturation_delay_days" if ac == "AVF" else "avg_maturation_delay_days"
+            delay_days = _cfg(config, delay_key)
+            days_since = (today - ep.creation_date).days
+            if days_since > delay_days:
+                score += _RISK_WEIGHTS["maturation_delay"]
+                factors.append(f"Maturation delay: {days_since} days, not yet cannulated")
+
+        # TCC long duration
+        if ac == "TCC":
+            tcc_alert = _cfg(config, "tcc_duration_alert_days")
+            days_in = (today - ep.creation_date).days
+            if days_in > tcc_alert:
+                score += _RISK_WEIGHTS["tcc_long_duration"]
+                factors.append(f"TCC in situ {days_in} days (alert >{tcc_alert})")
+
+        # Life-plan missing
+        if not ep.succession_plan:
+            score += _RISK_WEIGHTS["life_plan_missing"]
+            factors.append("Succession plan not documented")
+
+        max_score = sum(_RISK_WEIGHTS.values())
+        risk_level = next(label for threshold, label in _RISK_LEVELS if score >= threshold)
+        risk_pct = round(score / max_score * 100, 1)
+
+        results.append({
+            "available": True,
+            "patient_id": pid,
+            "patient_name": p.name,
+            "hid_no": p.hid_no,
+            "episode_id": ep.ep_id,
+            "access_class": ac,
+            "score": round(score, 1),
+            "max_score": round(max_score, 1),
+            "risk_pct": risk_pct,
+            "risk_level": risk_level,
+            "factors": factors,
+        })
+
     results.sort(key=lambda x: x["score"], reverse=True)
     return results
 

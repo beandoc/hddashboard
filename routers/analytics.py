@@ -161,13 +161,16 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
                     })
 
         # b) Intelligence Engine — use pre-fetched episode data (no per-patient DB calls)
-        status = analyze_avf_maturation(db, p.id)
-        if status.get("available"):
-            data = status.get("data", {})
-            if data.get("maturation_failure"):
-                maturation_watchlist.append({"patient": p, "status": status})
-            if data.get("suboptimal_flow") or data.get("high_recirculation"):
-                functional_watchlist.append({"patient": p, "status": status})
+        try:
+            status = analyze_avf_maturation(db, p.id)
+            if status.get("available"):
+                data = status.get("data", {})
+                if data.get("maturation_failure"):
+                    maturation_watchlist.append({"patient": p, "status": status})
+                if data.get("suboptimal_flow") or data.get("high_recirculation"):
+                    functional_watchlist.append({"patient": p, "status": status})
+        except Exception:
+            logging.exception("analyze_avf_maturation failed for patient %s", p.id)
 
     # ── KDOQI 2019 action board — pass pre-loaded config to avoid repeat DB hits
     action_board_urgent: list = []
@@ -188,11 +191,12 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
                 else:
                     action_board_routine.append(item)
         except Exception:
-            pass
+            logging.exception("compute_access_action_items failed for patient %s", p.id)
 
     try:
         unit_benchmarks = compute_unit_benchmarks(db, month_str, config=unit_config)
     except Exception:
+        logging.exception("compute_unit_benchmarks failed")
         unit_benchmarks = []
 
     # Split benchmarks by access class for template display
@@ -209,16 +213,19 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     try:
         access_risk_rows = compute_unit_access_risk(db, config=unit_config)
     except Exception:
+        logging.exception("compute_unit_access_risk failed")
         access_risk_rows = []
 
     try:
         qa_distribution = compute_unit_qa_distribution(db)
     except Exception:
+        logging.exception("compute_unit_qa_distribution failed")
         qa_distribution = []
 
     try:
         avf_trend = compute_avf_rate_trend(db, n_months=6)
     except Exception:
+        logging.exception("compute_avf_rate_trend failed")
         avf_trend = []
 
     # Access mix counts for donut chart
