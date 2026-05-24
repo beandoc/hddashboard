@@ -30,6 +30,19 @@ _TESSERACT_MIN_CHARS = 120
 
 logger = logging.getLogger(__name__)
 
+# ─── Model priority chain ─────────────────────────────────────────────────────
+# Interrogated live against this API key. Try best model first; on 429/503
+# automatically fall through to next. gemini-2.5-flash is confirmed working and
+# has higher RPM on this key than 2.0-flash. 2.5-pro is quota-exhausted on API
+# keys even with a Gemini Pro web plan — kept last as it may unlock in future.
+_MODEL_PRIORITY = [
+    "gemini-2.5-flash",       # Best available: 1M ctx, vision, confirmed working
+    "gemini-2.5-flash-lite",  # Lighter fallback, confirmed working
+    "gemini-2.0-flash",       # Older but reliable when not rate-limited
+    "gemini-2.0-flash-lite",  # Last resort flash-tier
+    "gemini-2.5-pro",         # Currently quota-exhausted on API key; future-proof
+]
+
 # ─── Module-level singletons ──────────────────────────────────────────────────
 # API key read once at import time; client created once and reused across requests.
 _GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
@@ -450,34 +463,61 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
     # Try tesseract pre-filter first
     tesseract_text = _tesseract_extract_text(image_bytes, mime_type)
 
-    try:
-        if tesseract_text:
-            # Text-only Gemini call: no image bytes transmitted, much cheaper
-            prompt = _build_text_extraction_prompt(tesseract_text)
-            response = _gemini_client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                )
-            )
-            ocr_mode = "tesseract+gemini-text"
-        else:
-            # Full vision call: send image bytes to Gemini
-            response = _gemini_client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[
-                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                    _EXTRACTION_PROMPT,
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                )
-            )
-            ocr_mode = "gemini-vision"
+    # Build contents once per path — reused across model retries
+    if tesseract_text:
+        prompt = _build_text_extraction_prompt(tesseract_text)
+        contents = [prompt]
+        ocr_mode_base = "tesseract+gemini-text"
+    else:
+        contents = [
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            _EXTRACTION_PROMPT,
+        ]
+        ocr_mode_base = "gemini-vision"
 
+    response = None
+    used_model = None
+    last_error: Exception | None = None
+
+    for model in _MODEL_PRIORITY:
+        try:
+            logger.info("OCR trying model %s (mode=%s)", model, ocr_mode_base)
+            response = _gemini_client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                ),
+            )
+            used_model = model
+            break  # success — stop trying
+        except Exception as exc:
+            err_str = str(exc)
+            last_error = exc
+            if "429" in err_str or "503" in err_str or "RESOURCE_EXHAUSTED" in err_str or "UNAVAILABLE" in err_str:
+                logger.warning("OCR model %s unavailable (%s) — trying next", model, err_str[:80])
+                continue
+            # Non-retryable error (auth, bad request, etc.) — bail immediately
+            logger.error("OCR model %s failed with non-retryable error: %s", model, err_str)
+            return {
+                "extracted_fields": {},
+                "confidence": {},
+                "error": f"OCR processing failed: {err_str}",
+                "model": model,
+            }
+
+    if response is None:
+        logger.error("All OCR models exhausted. Last error: %s", last_error)
+        return {
+            "extracted_fields": {},
+            "confidence": {},
+            "error": "All Gemini models are currently rate-limited. Please try again in a minute.",
+            "model": "none",
+        }
+
+    try:
         raw_text = response.text.strip()
-        logger.info("Gemini OCR raw response length: %d chars", len(raw_text))
+        logger.info("Gemini OCR raw response — model=%s length=%d chars", used_model, len(raw_text))
 
         result = json.loads(raw_text)
 
@@ -489,26 +529,17 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
 
         for field, value in raw_fields.items():
             if field not in FIELD_MAP:
-                # Log discarded fields for auditability — these are keys Gemini returned
-                # that are NOT mapped in this application and are silently rejected.
-                logger.info("OCR DISCARD — unmapped field '%s' (value=%s) not in application FIELD_MAP", field, value)
+                logger.info("OCR DISCARD — unmapped field '%s' (value=%s)", field, value)
                 continue
-            expected_type = FIELD_MAP[field].get("type", "float")
-            
-            if expected_type == "float":
-                try:
-                    numeric = float(value)
-                    if numeric < 0 or numeric > 100000:
-                        logger.warning("OCR DISCARD — suspicious value for '%s': %s (out of absolute bounds)", field, value)
-                        continue
-                    clean_fields[field] = round(numeric, 2)
-                    clean_confidence[field] = confidence_map.get(field, "medium")
-                except (TypeError, ValueError):
-                    logger.warning("OCR DISCARD — non-numeric value for '%s': %s", field, value)
-            else:
-                if value and isinstance(value, str):
-                    clean_fields[field] = value.strip()
-                    clean_confidence[field] = confidence_map.get(field, "medium")
+            try:
+                numeric = float(value)
+                if numeric < 0 or numeric > 100000:
+                    logger.warning("OCR DISCARD — suspicious value for '%s': %s", field, value)
+                    continue
+                clean_fields[field] = round(numeric, 2)
+                clean_confidence[field] = confidence_map.get(field, "medium")
+            except (TypeError, ValueError):
+                logger.warning("OCR DISCARD — non-numeric value for '%s': %s", field, value)
 
         output = {
             "extracted_fields": clean_fields,
@@ -517,8 +548,8 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
             "patient_name_on_report": result.get("patient_name_on_report", ""),
             "report_type": result.get("report_type", "unknown"),
             "fields_found": len(clean_fields),
-            "model": "gemini-2.0-flash",
-            "ocr_mode": ocr_mode,
+            "model": used_model,
+            "ocr_mode": ocr_mode_base,
         }
 
         # Store in cache (evict oldest entry if at capacity)
@@ -530,12 +561,12 @@ def extract_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dic
         return output
 
     except Exception as exc:
-        logger.error("OCR extraction failed: %s", exc, exc_info=True)
+        logger.error("OCR response parsing failed: %s", exc, exc_info=True)
         return {
             "extracted_fields": {},
             "confidence": {},
-            "error": f"OCR processing failed: {str(exc)}",
-            "model": "gemini-2.0-flash",
+            "error": f"OCR response parsing failed: {str(exc)}",
+            "model": used_model,
         }
 
 
