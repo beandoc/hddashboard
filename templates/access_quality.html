@@ -211,6 +211,55 @@
           .watchlist-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
           .card h3 { font-size: 1.1rem; }
         }
+
+        /* Action board tabs */
+        .tab-bar { display: flex; gap: 8px; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; }
+        .tab-btn {
+            background: none; border: none; padding: 10px 20px; font-size: 0.9rem;
+            font-weight: 600; color: var(--secondary); cursor: pointer; border-bottom: 3px solid transparent;
+            margin-bottom: -2px; transition: all 0.15s;
+        }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Action item rows */
+        .action-item {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 14px 16px; border-radius: 10px; margin-bottom: 10px;
+            border-left: 4px solid transparent;
+        }
+        .action-item.urgent { background: #fff1f2; border-left-color: var(--danger); }
+        .action-item.this_week { background: #fffbeb; border-left-color: var(--warning); }
+        .action-item.routine { background: #f0fdf4; border-left-color: var(--success); }
+        .action-item .ai-patient { font-weight: 700; font-size: 0.9rem; min-width: 140px; }
+        .action-item .ai-category {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 3px 8px; border-radius: 6px; background: #e2e8f0; color: #475569; white-space: nowrap;
+        }
+        .action-item .ai-message { font-size: 0.88rem; color: #334155; flex: 1; }
+        .action-item .ai-link { font-size: 0.82rem; font-weight: 600; color: var(--primary); text-decoration: none; white-space: nowrap; }
+
+        /* Benchmark table */
+        .bench-section { margin-bottom: 28px; }
+        .bench-section h4 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--secondary); font-weight: 700; margin-bottom: 12px; }
+        .bench-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .bench-table th {
+            text-align: left; padding: 10px 14px; background: #f8fafc;
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--secondary); font-weight: 700; border-bottom: 2px solid #f1f5f9;
+        }
+        .bench-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; vertical-align: middle; }
+        .bench-table tr:last-child td { border-bottom: none; }
+        .rag-dot {
+            display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;
+            vertical-align: middle;
+        }
+        .rag-green { background: var(--success); }
+        .rag-amber { background: var(--warning); }
+        .rag-red   { background: var(--danger); }
+        .bench-rate { font-weight: 700; font-size: 1rem; }
+        .bench-note { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -235,7 +284,7 @@
 <div class="container">
     <div class="stats-row">
         <!-- PREVALENT AVF RATE -->
-        <div class="stat-card">
+        <div class="stat-card" style="grid-column: span 1;">
             <div class="stat-lbl">Prevalent AVF Rate</div>
             <div class="stat-val {{ 'status-ok' if metrics.prevalent_rate >= metrics.target_prevalent else 'status-warning' }}">
                 {{ metrics.prevalent_rate }}%
@@ -302,7 +351,10 @@
                             </ul>
                         </td>
                         <td>
-                            <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.85rem; text-decoration:none; color:var(--primary); font-weight:600;">View Cascade</a>
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.85rem; text-decoration:none; color:var(--primary); font-weight:600;">View Cascade</a>
+                                <a href="/analytics/vascular-access/analytics/{{ item.patient.id }}" style="font-size:0.82rem; text-decoration:none; color:#6d28d9; font-weight:600; display:flex; align-items:center; gap:3px;"><i class="material-icons" style="font-size:0.9rem;">insights</i> Access Analytics</a>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -357,7 +409,10 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.85rem; text-decoration:none; color:var(--primary); font-weight:600;">Analyze Sessions</a>
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <a href="/analytics/patients/{{ item.patient.id }}" style="font-size:0.85rem; text-decoration:none; color:var(--primary); font-weight:600;">Analyze Sessions</a>
+                                <a href="/analytics/vascular-access/analytics/{{ item.patient.id }}" style="font-size:0.82rem; text-decoration:none; color:#6d28d9; font-weight:600; display:flex; align-items:center; gap:3px;"><i class="material-icons" style="font-size:0.9rem;">insights</i> Access Analytics</a>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -395,7 +450,12 @@
                         <td>{{ item.days }} Days</td>
                         <td><span style="color:var(--danger); font-weight:600;">{{ item.patient.access_type }}</span></td>
                         <td>{{ item.vintage }}</td>
-                        <td><span class="badge-urgent">Late Referral/Failure</span></td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <span class="badge-urgent">Late Referral/Failure</span>
+                                <a href="/analytics/vascular-access/analytics/{{ item.patient.id }}" style="font-size:0.82rem; text-decoration:none; color:#6d28d9; font-weight:600; display:flex; align-items:center; gap:3px;"><i class="material-icons" style="font-size:0.9rem;">insights</i> Access Analytics</a>
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -408,6 +468,218 @@
         {% endif %}
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         KDOQI 2019 — ACCESS ACTION BOARD
+         ════════════════════════════════════════════════════════════════════ -->
+    <div class="card">
+        <h3><i class="material-icons" style="color:var(--danger)">assignment_late</i> Access Action Board
+            <span style="font-size:0.75rem; font-weight:500; background:#fee2e2; color:#b91c1c; padding:4px 10px; border-radius:20px; margin-left:8px;">
+                {{ metrics.action_board_urgent_count }} Urgent
+            </span>
+            <span style="font-size:0.75rem; font-weight:500; background:#fef3c7; color:#92400e; padding:4px 10px; border-radius:20px;">
+                {{ metrics.action_board_this_week_count }} This Week
+            </span>
+            <span style="font-size:0.75rem; font-weight:500; background:#dcfce7; color:#166534; padding:4px 10px; border-radius:20px;">
+                {{ metrics.action_board_routine_count }} Routine
+            </span>
+        </h3>
+        <p style="color:var(--secondary); font-size:0.9rem; margin-top:4px; margin-bottom:20px;">
+            Prospective action items generated from session data, access events, and KDOQI 2019 guidelines.
+            Physical exam is the primary monitoring tool; Doppler is triggered by clinical indicators only.
+        </p>
+
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('tab-urgent', this)">
+                Urgent ({{ metrics.action_board_urgent_count }})
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-thisweek', this)">
+                This Week ({{ metrics.action_board_this_week_count }})
+            </button>
+            <button class="tab-btn" onclick="switchTab('tab-routine', this)">
+                Routine ({{ metrics.action_board_routine_count }})
+            </button>
+        </div>
+
+        <div id="tab-urgent" class="tab-panel active">
+            {% if action_board_urgent %}
+                {% for item in action_board_urgent %}
+                <div class="action-item urgent">
+                    <div>
+                        <div class="ai-patient">{{ item.patient_name }}</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">{{ item.hid_no }}</div>
+                    </div>
+                    <span class="ai-category">{{ item.category | replace('_', ' ') }}</span>
+                    <div class="ai-message">{{ item.message }}</div>
+                    <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+                        <a class="ai-link" href="/analytics/patients/{{ item.patient_id }}">View &rarr;</a>
+                        <a class="ai-link" href="/analytics/vascular-access/analytics/{{ item.patient_id }}" style="background:#ede9fe; color:#6d28d9; font-size:0.75rem;">Access Analytics</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    <i class="material-icons" style="font-size:2.5rem; opacity:0.25;">check_circle</i>
+                    <p>No urgent action items.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="tab-thisweek" class="tab-panel">
+            {% if action_board_this_week %}
+                {% for item in action_board_this_week %}
+                <div class="action-item this_week">
+                    <div>
+                        <div class="ai-patient">{{ item.patient_name }}</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">{{ item.hid_no }}</div>
+                    </div>
+                    <span class="ai-category">{{ item.category | replace('_', ' ') }}</span>
+                    <div class="ai-message">{{ item.message }}</div>
+                    <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+                        <a class="ai-link" href="/analytics/patients/{{ item.patient_id }}">View &rarr;</a>
+                        <a class="ai-link" href="/analytics/vascular-access/analytics/{{ item.patient_id }}" style="background:#ede9fe; color:#6d28d9; font-size:0.75rem;">Access Analytics</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    <i class="material-icons" style="font-size:2.5rem; opacity:0.25;">check_circle</i>
+                    <p>No this-week items.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="tab-routine" class="tab-panel">
+            {% if action_board_routine %}
+                {% for item in action_board_routine %}
+                <div class="action-item routine">
+                    <div>
+                        <div class="ai-patient">{{ item.patient_name }}</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">{{ item.hid_no }}</div>
+                    </div>
+                    <span class="ai-category">{{ item.category | replace('_', ' ') }}</span>
+                    <div class="ai-message">{{ item.message }}</div>
+                    <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+                        <a class="ai-link" href="/analytics/patients/{{ item.patient_id }}">View &rarr;</a>
+                        <a class="ai-link" href="/analytics/vascular-access/analytics/{{ item.patient_id }}" style="background:#ede9fe; color:#6d28d9; font-size:0.75rem;">Access Analytics</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align:center; padding:40px; color:#94a3b8;">
+                    <i class="material-icons" style="font-size:2.5rem; opacity:0.25;">event_available</i>
+                    <p>No routine items.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         KDOQI 2019 — UNIT BENCHMARKS
+         ════════════════════════════════════════════════════════════════════ -->
+    <div class="card">
+        <h3><i class="material-icons" style="color:var(--primary)">bar_chart</i> Unit Benchmarks — KDOQI 2019</h3>
+        <p style="color:var(--secondary); font-size:0.9rem; margin-top:4px; margin-bottom:20px;">
+            Benchmarks are separated by access class. Only <strong>confirmed</strong> events count in denominators.
+            CRBSI target: &lt;1.5/1000 catheter-days (KDOQI 2019 Goals Box, Table 23).
+        </p>
+
+        {% macro bench_table(rows, label) %}
+        {% if rows %}
+        <div class="bench-section">
+            <h4>{{ label }}</h4>
+            <table class="bench-table">
+                <thead>
+                    <tr>
+                        <th>Benchmark</th>
+                        <th>Rate</th>
+                        <th>n / N</th>
+                        <th>Target</th>
+                        <th>RAG</th>
+                        <th>Denominator</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ b.name }}</strong>
+                            {% if b.notes %}<div class="bench-note">{{ b.notes }}</div>{% endif %}
+                        </td>
+                        <td class="bench-rate">{{ b.rate }}%</td>
+                        <td style="color:#64748b;">{{ b.numerator }} / {{ b.denominator }}</td>
+                        <td style="color:#64748b;">{{ b.target }}%</td>
+                        <td>
+                            <span class="rag-dot rag-{{ b.rag }}"></span>
+                            <span style="font-size:0.8rem; font-weight:600; text-transform:capitalize; color:{% if b.rag=='green' %}var(--success){% elif b.rag=='amber' %}var(--warning){% else %}var(--danger){% endif %}">
+                                {{ b.rag | title }}
+                            </span>
+                        </td>
+                        <td style="font-size:0.8rem; color:#94a3b8;">{{ b.denominator_label }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% endmacro %}
+
+        {{ bench_table(benchmarks_avf, "AVF (Arteriovenous Fistula)") }}
+        {{ bench_table(benchmarks_avg, "AVG (Arteriovenous Graft)") }}
+
+        {% if benchmarks_tcc %}
+        <div class="bench-section">
+            <h4>TCC (Tunnelled Central Catheter)</h4>
+            <table class="bench-table">
+                <thead>
+                    <tr>
+                        <th>Benchmark</th>
+                        <th>Rate</th>
+                        <th>n / N</th>
+                        <th>Target</th>
+                        <th>RAG</th>
+                        <th>Denominator</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in benchmarks_tcc %}
+                    <tr>
+                        <td>
+                            <strong>{{ b.name }}</strong>
+                            {% if b.notes %}<div class="bench-note">{{ b.notes }}</div>{% endif %}
+                        </td>
+                        <td class="bench-rate">
+                            {% if b.name == "CRBSI Rate" %}
+                                {{ b.rate }}/1000 cd
+                            {% else %}
+                                {{ b.rate }}%
+                            {% endif %}
+                        </td>
+                        <td style="color:#64748b;">{{ b.numerator }} / {{ b.denominator }}</td>
+                        <td style="color:#64748b;">
+                            {% if b.name == "CRBSI Rate" %}&lt;{{ b.target }}/1000 cd{% else %}{{ b.target }}%{% endif %}
+                        </td>
+                        <td>
+                            <span class="rag-dot rag-{{ b.rag }}"></span>
+                            <span style="font-size:0.8rem; font-weight:600; text-transform:capitalize; color:{% if b.rag=='green' %}var(--success){% elif b.rag=='amber' %}var(--warning){% else %}var(--danger){% endif %}">
+                                {{ b.rag | title }}
+                            </span>
+                        </td>
+                        <td style="font-size:0.8rem; color:#94a3b8;">{{ b.denominator_label }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if not benchmarks_avf and not benchmarks_avg and not benchmarks_tcc %}
+        <div style="text-align:center; padding:40px; color:#94a3b8;">
+            <i class="material-icons" style="font-size:2.5rem; opacity:0.25;">analytics</i>
+            <p>No benchmark data available for {{ month_str }}. Add AccessEpisode records to generate benchmarks.</p>
+        </div>
+        {% endif %}
+    </div>
+
     <div class="info-footer">
         <strong>Access Recirculation (Two-Needle Urea Method):</strong>
         Calculated as R = [(S - A) / (S - V)] &times; 100. 
@@ -415,5 +687,13 @@
     </div>
 </div>
 
+<script>
+function switchTab(panelId, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(panelId).classList.add('active');
+    btn.classList.add('active');
+}
+</script>
 </body>
 </html>

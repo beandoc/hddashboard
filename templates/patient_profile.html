@@ -526,6 +526,16 @@
                             </span>
                         </div>
                         {% endif %}
+                        {% if s.uf_rate is not none %}
+                        <div style="margin-top: 5px; display:flex; align-items:center; gap:4px;">
+                            <span class="material-icons" style="font-size: 12px; color: {% if s.uf_rate > 13 %}#dc2626{% elif s.uf_rate > 10 %}#f59e0b{% else %}#10b981{% endif %};">
+                                water_drop
+                            </span>
+                            <span style="font-size: 0.63rem; font-weight:700; color: {% if s.uf_rate > 13 %}#dc2626{% elif s.uf_rate > 10 %}#f59e0b{% else %}#475569{% endif %};">
+                                UFR {{ s.uf_rate }} mL/kg/hr{% if s.uf_rate > 13 %} ⚠{% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
                     </a>
                     {% endfor %}
                     {% if not sessions %}
@@ -788,6 +798,296 @@
                 {% else %}
                 <p style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:16px 0; margin:0;">No hospitalisation events recorded for this patient.</p>
                 {% endif %}
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 VASCULAR ACCESS HISTORY — KDOQI 2019
+                 ═══════════════════════════════════════════════════════════════ -->
+            <div class="card" id="access-history-card">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                    <h2 class="section-title" style="font-size:1rem; margin:0;">
+                        <i class="material-icons" aria-hidden="true">settings_input_component</i> Vascular Access History
+                    </h2>
+                    <button onclick="openAccessEpisodeModal()"
+                            class="btn-action btn-primary"
+                            style="padding:6px 12px; font-size:0.78rem;"
+                            title="Add new access episode">
+                        <i class="material-icons" style="font-size:0.9rem;">add</i> New Episode
+                    </button>
+                </div>
+
+                <!-- Access episodes loaded via JS -->
+                <div id="access-episodes-container">
+                    <div style="text-align:center; padding:24px; color:#94a3b8; font-size:0.85rem;">
+                        <i class="material-icons" style="font-size:2rem; opacity:0.25; display:block; margin-bottom:8px;">settings_input_component</i>
+                        Loading access history…
+                    </div>
+                </div>
+
+                <!-- Log Access Event / Surveillance quick-access -->
+                <div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+                    <button onclick="openAccessEventModal()" class="btn-action" style="background:#fff1f2; color:#b91c1c; border:1px solid #fecaca; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                        <i class="material-icons" style="font-size:1rem;">report_problem</i> Log Access Event
+                    </button>
+                    <button onclick="openSurveillanceModal()" class="btn-action" style="background:#f0f9ff; color:#0369a1; border:1px solid #bae6fd; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                        <i class="material-icons" style="font-size:1rem;">search</i> Log Imaging/Doppler
+                    </button>
+                    <button onclick="openLifePlanModal()" class="btn-action" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                        <i class="material-icons" style="font-size:1rem;">assignment</i> Update Life-Plan
+                    </button>
+                    <a href="/analytics/vascular-access/analytics/{{ patient.id }}" class="btn-action" style="background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px; text-decoration:none;">
+                        <i class="material-icons" style="font-size:1rem;">insights</i> View Access Analytics
+                    </a>
+                </div>
+            </div>
+
+            <!-- ═══ Access Event Modal ═══════════════════════════════════════ -->
+            <div id="access-event-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; overflow-y:auto;">
+                <div style="background:white; max-width:560px; margin:48px auto; border-radius:16px; padding:32px; position:relative;">
+                    <button onclick="document.getElementById('access-event-modal').style.display='none'"
+                            style="position:absolute; top:16px; right:16px; background:none; border:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
+                    <h3 style="margin-top:0; font-family:'Outfit',sans-serif; color:#1e1b4b;">Log Access Event</h3>
+                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:20px;">Major events (thrombosis, CRBSI, steal Grade ≥2, stenosis) require confirmation before counting in benchmarks.</p>
+                    <form id="access-event-form">
+                        <div style="display:grid; gap:14px;">
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Event Date *</label>
+                                <input type="date" name="event_date" required style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Event Type *</label>
+                                <select name="event_type" required style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <optgroup label="Cannulation (AVF/AVG)">
+                                        <option value="cannulation_difficulty">Cannulation Difficulty (≥3 attempts)</option>
+                                        <option value="failed_cannulation">Failed Cannulation</option>
+                                        <option value="needle_infiltration">Needle Infiltration</option>
+                                        <option value="aneurysm_new">Aneurysm — New (&gt;18mm or ≥3× vessel)</option>
+                                        <option value="aneurysm_enlarging">Aneurysm — Enlarging</option>
+                                        <option value="aneurysm_concerning">Aneurysm — Concerning (skin changes)</option>
+                                    </optgroup>
+                                    <optgroup label="Flow / Functional (AVF/AVG)">
+                                        <option value="suboptimal_bfr">Suboptimal BFR</option>
+                                        <option value="qa_decline_absolute">Qa Decline — Absolute</option>
+                                        <option value="qa_decline_relative">Qa Decline — Relative</option>
+                                        <option value="high_recirculation">High Recirculation (≥10%)</option>
+                                        <option value="steal_syndrome">Steal Syndrome</option>
+                                    </optgroup>
+                                    <optgroup label="Maturation (AVF/AVG)">
+                                        <option value="maturation_delay">Maturation Delay</option>
+                                        <option value="maturation_failure">Maturation Failure (≥6 months)</option>
+                                        <option value="thrombosis">Thrombosis</option>
+                                    </optgroup>
+                                    <optgroup label="Infection (CVC / Buttonhole)">
+                                        <option value="exit_site_infection">Exit Site Infection</option>
+                                        <option value="tunnel_infection">Tunnel Infection</option>
+                                        <option value="crbsi_suspected">CRBSI — Suspected</option>
+                                        <option value="crbsi_confirmed">CRBSI — Confirmed</option>
+                                        <option value="buttonhole_infection">Buttonhole Infection</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div id="steal-grade-row" style="display:none;">
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Steal Grade (KDOQI Table 18.3)</label>
+                                <select name="steal_grade" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="">— Select grade —</option>
+                                    <option value="grade_0">Grade 0 — No symptoms</option>
+                                    <option value="grade_1">Grade 1 — Cool extremity, no pain</option>
+                                    <option value="grade_2">Grade 2 — Pain/paresthesia with exercise or dialysis</option>
+                                    <option value="grade_3">Grade 3 — Ischemic rest pain / tissue loss (URGENT)</option>
+                                </select>
+                            </div>
+                            <div id="cannulation-injury-row" style="display:none;">
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Cannulation Injury Grade (KDOQI Glossary)</label>
+                                <select name="cannulation_injury_grade" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="">— Select grade —</option>
+                                    <option value="minor">Minor — Resolves ≤7 days, no intervention</option>
+                                    <option value="major">Major — &gt;7 days or procedural intervention</option>
+                                    <option value="severe">Severe — Transfusion / ED visit / hospitalization / surgery</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Action Taken</label>
+                                <select name="action_taken" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="">— None / Not yet —</option>
+                                    <option value="observed">Observed / Watchful waiting</option>
+                                    <option value="dressing_change">Dressing change</option>
+                                    <option value="antibiotic_oral">Antibiotic — Oral</option>
+                                    <option value="antibiotic_iv">Antibiotic — IV</option>
+                                    <option value="angioplasty">Angioplasty</option>
+                                    <option value="thrombectomy">Thrombectomy</option>
+                                    <option value="surgical_referral">Surgical referral</option>
+                                    <option value="catheter_removed">Catheter removed</option>
+                                    <option value="catheter_replaced">Catheter replaced</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Notes</label>
+                                <textarea name="notes" rows="2" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; resize:vertical;"></textarea>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:20px;">
+                            <button type="submit" style="background:var(--primary); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; font-weight:600; cursor:pointer;">Save Event</button>
+                            <button type="button" onclick="document.getElementById('access-event-modal').style.display='none'" style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; cursor:pointer;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ═══ Surveillance Modal ═══════════════════════════════════════ -->
+            <div id="surveillance-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; overflow-y:auto;">
+                <div style="background:white; max-width:520px; margin:48px auto; border-radius:16px; padding:32px; position:relative;">
+                    <button onclick="document.getElementById('surveillance-modal').style.display='none'"
+                            style="position:absolute; top:16px; right:16px; background:none; border:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
+                    <h3 style="margin-top:0; font-family:'Outfit',sans-serif; color:#1e1b4b;">Log Imaging / Doppler</h3>
+                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:12px;">Per KDOQI 13.4–13.5, surveillance must be clinically triggered. <strong>Clinical trigger is required.</strong></p>
+
+                    <!-- Last Doppler summary (populated by JS) -->
+                    <div id="last-doppler-summary" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+                        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; color:#0369a1; letter-spacing:0.06em; margin-bottom:6px;">Last Doppler / Imaging on File</div>
+                        <div style="display:flex; gap:12px; align-items:flex-start;">
+                            <div id="last-doppler-thumb" style="flex-shrink:0;"></div>
+                            <div style="flex:1; min-width:0;">
+                                <div id="last-doppler-meta" style="font-size:0.82rem; color:#1e293b;"></div>
+                                <div id="last-doppler-metrics" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <form id="surveillance-form">
+                        <div style="display:grid; gap:14px;">
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#ef4444; display:block; margin-bottom:4px;">Clinical Trigger * (required — what prompted this study)</label>
+                                <input type="text" name="clinical_trigger" required placeholder="e.g. Bruit reduced x2 sessions, Qa &lt;500 on last 2 measurements" style="width:100%; padding:8px; border:2px solid #fca5a5; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Surveillance Date *</label>
+                                <input type="date" name="surveillance_date" required style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Modality</label>
+                                <select name="modality" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="duplex_doppler">Duplex Doppler</option>
+                                    <option value="fistulogram">Fistulogram</option>
+                                    <option value="angiogram">Angiogram</option>
+                                    <option value="physical_exam_only">Physical Exam Only</option>
+                                </select>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                                <div>
+                                    <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Qa by Imaging (mL/min)</label>
+                                    <input type="number" name="qa_by_imaging" step="1" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                </div>
+                                <div>
+                                    <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Stenosis %</label>
+                                    <input type="number" name="stenosis_pct" step="1" min="0" max="100" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Finding</label>
+                                <select name="finding" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="">— Select —</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="mild_stenosis">Mild stenosis</option>
+                                    <option value="moderate_stenosis">Moderate stenosis</option>
+                                    <option value="severe_stenosis">Severe stenosis</option>
+                                    <option value="thrombosis">Thrombosis</option>
+                                    <option value="aneurysm">Aneurysm</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Recommendation</label>
+                                <select name="recommendation" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="">— Select —</option>
+                                    <option value="routine_followup">Routine follow-up</option>
+                                    <option value="repeat_imaging">Repeat imaging</option>
+                                    <option value="angioplasty">Angioplasty</option>
+                                    <option value="surgical_referral">Surgical referral</option>
+                                    <option value="urgent_referral">Urgent referral</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Notes</label>
+                                <textarea name="notes" rows="2" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; resize:vertical;"></textarea>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:20px;">
+                            <button type="submit" style="background:var(--primary); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; font-weight:600; cursor:pointer;">Save Record</button>
+                            <button type="button" onclick="document.getElementById('surveillance-modal').style.display='none'" style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; cursor:pointer;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ═══ Life-Plan Modal ══════════════════════════════════════════ -->
+            <div id="life-plan-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; overflow-y:auto;">
+                <div style="background:white; max-width:480px; margin:48px auto; border-radius:16px; padding:32px; position:relative;">
+                    <button onclick="document.getElementById('life-plan-modal').style.display='none'"
+                            style="position:absolute; top:16px; right:16px; background:none; border:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
+                    <h3 style="margin-top:0; font-family:'Outfit',sans-serif; color:#166534;">ESKD Life-Plan Update</h3>
+                    <p style="font-size:0.82rem; color:#64748b; margin-bottom:20px;">KDOQI 2019 Guidelines 1.1–1.3: annual Life-Plan review and quarterly access review required.</p>
+                    <form id="life-plan-form">
+                        <div style="display:grid; gap:14px;">
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Succession Plan (next access if current fails)</label>
+                                <textarea name="succession_plan" rows="3" placeholder="e.g. AVF creation planned at left BC if right RC AVF fails. Surgeon referral made." style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; resize:vertical;"></textarea>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Life-Plan Reviewed Date (KDOQI 1.1 — annual)</label>
+                                <input type="date" name="life_plan_reviewed_at" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Access Reviewed Date (KDOQI 1.3 — quarterly)</label>
+                                <input type="date" name="access_reviewed_at" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:20px;">
+                            <button type="submit" style="background:#16a34a; color:white; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; font-weight:600; cursor:pointer;">Save Life-Plan</button>
+                            <button type="button" onclick="document.getElementById('life-plan-modal').style.display='none'" style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; cursor:pointer;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- ═══ New Episode Modal ════════════════════════════════════════ -->
+            <div id="access-episode-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; overflow-y:auto;">
+                <div style="background:white; max-width:520px; margin:48px auto; border-radius:16px; padding:32px; position:relative;">
+                    <button onclick="document.getElementById('access-episode-modal').style.display='none'"
+                            style="position:absolute; top:16px; right:16px; background:none; border:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
+                    <h3 style="margin-top:0; font-family:'Outfit',sans-serif; color:#1e1b4b;">New Access Episode</h3>
+                    <form id="access-episode-form">
+                        <div style="display:grid; gap:14px;">
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Access Class *</label>
+                                <select name="access_class" required style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                    <option value="AVF">AVF (Arteriovenous Fistula)</option>
+                                    <option value="AVG">AVG (Arteriovenous Graft)</option>
+                                    <option value="TCC">TCC (Tunnelled Central Catheter)</option>
+                                    <option value="non_tunnelled">Non-tunnelled / Temporary CVC</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Access Subtype</label>
+                                <input type="text" name="access_subtype" placeholder="e.g. RC AVF Rt, Lt IJV TCC" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Creation / Insertion Date *</label>
+                                <input type="date" name="creation_date" required style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">First Cannulation Date (AVF/AVG)</label>
+                                <input type="date" name="first_cannulation_date" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.78rem; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Notes</label>
+                                <textarea name="notes" rows="2" style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; resize:vertical;"></textarea>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:20px;">
+                            <button type="submit" style="background:var(--primary); color:white; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; font-weight:600; cursor:pointer;">Create Episode</button>
+                            <button type="button" onclick="document.getElementById('access-episode-modal').style.display='none'" style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:10px 20px; font-size:0.9rem; cursor:pointer;">Cancel</button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <!-- CLINICAL BACKGROUND (POMR) -->
@@ -1108,6 +1408,257 @@
     // Auto-dismiss toast after animation completes
     const toast = document.getElementById('successToast');
     if (toast) setTimeout(() => toast.remove(), 4000);
+
+    // ── VASCULAR ACCESS HISTORY ──────────────────────────────────────────────
+    const PATIENT_ID = {{ patient.id }};
+
+    function openAccessEventModal() { document.getElementById('access-event-modal').style.display = 'flex'; }
+    function openSurveillanceModal() {
+        // Populate last Doppler summary from already-loaded episode data
+        const container = document.getElementById('access-episodes-container');
+        const cards = container.querySelectorAll('[data-episode-id]');
+        let lastSurv = null;
+        cards.forEach(card => {
+            const epId = card.dataset.episodeId;
+            // Pull from in-memory cache if available
+            if (window._accessEpisodeCache) {
+                const ep = window._accessEpisodeCache.find(d => String(d.episode.id) === String(epId));
+                if (ep && ep.surveillance && ep.surveillance.length) {
+                    const s = ep.surveillance[0]; // already sorted desc
+                    if (!lastSurv || s.surveillance_date > lastSurv.surveillance_date) lastSurv = s;
+                }
+            }
+        });
+        const summaryEl = document.getElementById('last-doppler-summary');
+        if (lastSurv) {
+            const FINDING_COLOR = { normal:'#16a34a', mild_stenosis:'#d97706', moderate_stenosis:'#ea580c', severe_stenosis:'#b91c1c', thrombosis:'#b91c1c', aneurysm:'#7c3aed', other:'#64748b' };
+            const fc = FINDING_COLOR[lastSurv.finding] || '#64748b';
+            document.getElementById('last-doppler-meta').innerHTML =
+                `<strong>${lastSurv.surveillance_date}</strong> &bull; ${(lastSurv.modality||'').replace(/_/g,' ')}` +
+                (lastSurv.finding ? ` &bull; <span style="font-weight:700;color:${fc};">${(lastSurv.finding||'').replace(/_/g,' ')}</span>` : '') +
+                (lastSurv.recommendation ? `<br><span style="font-size:0.78rem;color:#475569;">${(lastSurv.recommendation||'').replace(/_/g,' ')}</span>` : '') +
+                `<br><span style="font-size:0.75rem;color:#64748b;">Trigger: ${lastSurv.clinical_trigger||'—'}</span>`;
+            const metrics = [];
+            if (lastSurv.qa_by_imaging) metrics.push(`<span style="font-size:0.75rem;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:6px;">Qa ${lastSurv.qa_by_imaging} mL/min</span>`);
+            if (lastSurv.stenosis_pct != null) metrics.push(`<span style="font-size:0.75rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:6px;">Stenosis ${lastSurv.stenosis_pct}%</span>`);
+            if (lastSurv.psv_at_stenosis) metrics.push(`<span style="font-size:0.75rem;background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:6px;">PSV ${lastSurv.psv_at_stenosis} cm/s</span>`);
+            document.getElementById('last-doppler-metrics').innerHTML = metrics.join('');
+            if (lastSurv.report_image_path) {
+                document.getElementById('last-doppler-thumb').innerHTML =
+                    `<img src="/static/${lastSurv.report_image_path}" alt="Report image"
+                          style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #bae6fd;cursor:pointer;"
+                          onclick="window.open('/static/${lastSurv.report_image_path}','_blank')">`;
+            } else {
+                document.getElementById('last-doppler-thumb').innerHTML = '';
+            }
+            summaryEl.style.display = 'block';
+        } else {
+            summaryEl.style.display = 'none';
+        }
+        document.getElementById('surveillance-modal').style.display = 'flex';
+    }
+    function openLifePlanModal() { document.getElementById('life-plan-modal').style.display = 'flex'; }
+    function openAccessEpisodeModal() { document.getElementById('access-episode-modal').style.display = 'flex'; }
+
+    const STATUS_COLORS = { confirmed: '#16a34a', pending_review: '#d97706', ruled_out: '#94a3b8' };
+    const PRIORITY_COLORS = { urgent: '#b91c1c', this_week: '#92400e', routine: '#166534' };
+
+    async function loadAccessHistory() {
+        const container = document.getElementById('access-episodes-container');
+        try {
+            const res = await fetch(`/analytics/vascular-access/episodes/${PATIENT_ID}`);
+            const data = await res.json();
+            window._accessEpisodeCache = data;
+            if (!data.length) {
+                container.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem;"><i class="material-icons" style="font-size:2rem;opacity:0.25;display:block;">settings_input_component</i>No access episodes recorded. Click "New Episode" to begin.</div>';
+                return;
+            }
+            container.innerHTML = data.map(d => renderEpisodeCard(d)).join('');
+        } catch(e) {
+            container.innerHTML = '<div style="color:#ef4444;font-size:0.82rem;padding:12px;">Failed to load access history.</div>';
+        }
+    }
+
+    function renderEpisodeCard(d) {
+        const ep = d.episode;
+        const p = d.patency;
+        const events = d.events || [];
+        const surv = d.surveillance || [];
+        const isCurrent = ep.is_current;
+        const border = isCurrent ? '2px solid #6366f1' : '1px solid #e2e8f0';
+        const confirmedEvents = events.filter(e => e.status === 'confirmed');
+        const pendingEvents = events.filter(e => e.status === 'pending_review');
+
+        const evRows = events.slice(0, 5).map(ev => `
+            <tr>
+                <td style="padding:6px 8px;font-size:0.78rem;">${ev.event_date}</td>
+                <td style="padding:6px 8px;font-size:0.78rem;">${(ev.event_type||'').replace(/_/g,' ')}</td>
+                <td style="padding:6px 8px;">
+                    <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:6px;background:${ev.status==='confirmed'?'#dcfce7':ev.status==='ruled_out'?'#f1f5f9':'#fef9c3'};color:${STATUS_COLORS[ev.status]||'#64748b'};">${ev.status||''}</span>
+                    ${ev.steal_grade ? `<span style="font-size:0.7rem;background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;margin-left:4px;">Steal ${ev.steal_grade}</span>` : ''}
+                    ${ev.cannulation_injury_grade ? `<span style="font-size:0.7rem;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;margin-left:4px;">${ev.cannulation_injury_grade}</span>` : ''}
+                </td>
+                <td style="padding:6px 8px;">
+                    ${ev.status==='pending_review' ? `<button onclick="confirmEvent(${ev.id},'confirmed')" style="font-size:0.7rem;background:#dcfce7;color:#166534;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-weight:600;">Confirm</button>
+                    <button onclick="confirmEvent(${ev.id},'ruled_out')" style="font-size:0.7rem;background:#f1f5f9;color:#64748b;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;margin-left:4px;">Rule out</button>` : ''}
+                </td>
+            </tr>`).join('');
+
+        const survRows = surv.slice(0, 3).map(s => `
+            <div style="font-size:0.78rem;padding:8px;background:#f8fafc;border-radius:8px;margin-bottom:6px;">
+                <span style="font-weight:700;">${s.surveillance_date}</span> &bull; ${(s.modality||'').replace(/_/g,' ')}
+                ${s.finding ? ` &bull; <em>${(s.finding||'').replace(/_/g,' ')}</em>` : ''}
+                ${s.qa_by_imaging ? ` &bull; Qa ${s.qa_by_imaging} mL/min` : ''}
+                <div style="font-size:0.72rem;color:#64748b;margin-top:3px;">Trigger: ${s.clinical_trigger||'—'}</div>
+            </div>`).join('');
+
+        return `
+        <div style="border:${border};border-radius:12px;padding:16px;margin-bottom:14px;position:relative;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+                ${isCurrent ? '<span style="font-size:0.7rem;background:#ede9fe;color:#6d28d9;padding:3px 10px;border-radius:20px;font-weight:700;">CURRENT</span>' : '<span style="font-size:0.7rem;background:#f1f5f9;color:#94a3b8;padding:3px 10px;border-radius:20px;font-weight:700;">HISTORICAL</span>'}
+                <strong style="font-size:0.95rem;">${ep.access_class} — ${ep.access_subtype||ep.access_class}</strong>
+                <span style="font-size:0.78rem;color:#64748b;">Created: ${ep.creation_date}</span>
+                ${ep.first_cannulation_date ? `<span style="font-size:0.78rem;color:#16a34a;">First use: ${ep.first_cannulation_date}</span>` : '<span style="font-size:0.78rem;color:#d97706;">Not yet cannulated</span>'}
+            </div>
+
+            <!-- Patency summary -->
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+                <div style="background:#f0f9ff;border-radius:8px;padding:8px 12px;font-size:0.78rem;">
+                    <div style="font-weight:700;color:#0369a1;">Primary Patency</div>
+                    <div>${p.primary_patency_days||0} days</div>
+                </div>
+                <div style="background:#f0fdf4;border-radius:8px;padding:8px 12px;font-size:0.78rem;">
+                    <div style="font-weight:700;color:#166534;">Cumulative Patency</div>
+                    <div>${p.cumulative_patency_days||0} days</div>
+                </div>
+                <div style="background:#fef9c3;border-radius:8px;padding:8px 12px;font-size:0.78rem;">
+                    <div style="font-weight:700;color:#92400e;">Interventions</div>
+                    <div>${p.intervention_count||0}</div>
+                </div>
+                ${pendingEvents.length ? `<div style="background:#fff1f2;border-radius:8px;padding:8px 12px;font-size:0.78rem;"><div style="font-weight:700;color:#b91c1c;">Pending Review</div><div>${pendingEvents.length} events</div></div>` : ''}
+            </div>
+
+            <!-- Life-Plan status -->
+            ${ep.succession_plan ? `<div style="font-size:0.78rem;background:#f0fdf4;border-radius:8px;padding:8px 12px;margin-bottom:10px;border-left:3px solid #16a34a;"><strong style="color:#166534;">Succession Plan:</strong> ${ep.succession_plan}</div>` :
+            '<div style="font-size:0.78rem;background:#fff7ed;border-radius:8px;padding:8px 12px;margin-bottom:10px;border-left:3px solid #f59e0b;color:#92400e;"><strong>Succession plan not documented</strong> — KDOQI 1.1 recommends annual Life-Plan review</div>'}
+
+            <!-- Events table -->
+            ${events.length ? `
+            <div style="margin-bottom:10px;">
+                <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:0.06em;margin-bottom:6px;">Access Events (${events.length})</div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:separate;border-spacing:0;font-size:0.8rem;">
+                        <thead><tr style="background:#f8fafc;">
+                            <th style="padding:5px 8px;text-align:left;font-size:0.7rem;color:#64748b;">Date</th>
+                            <th style="padding:5px 8px;text-align:left;font-size:0.7rem;color:#64748b;">Event</th>
+                            <th style="padding:5px 8px;text-align:left;font-size:0.7rem;color:#64748b;">Status</th>
+                            <th style="padding:5px 8px;"></th>
+                        </tr></thead>
+                        <tbody>${evRows}</tbody>
+                    </table>
+                </div>
+            </div>` : ''}
+
+            <!-- Surveillance records -->
+            ${surv.length ? `
+            <div>
+                <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:0.06em;margin-bottom:6px;">Imaging / Doppler (${surv.length})</div>
+                ${survRows}
+            </div>` : ''}
+        </div>`;
+    }
+
+    async function confirmEvent(eventId, newStatus) {
+        const res = await fetch(`/analytics/vascular-access/events/${eventId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+        });
+        if (res.ok) loadAccessHistory();
+    }
+
+    document.getElementById('access-event-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const body = Object.fromEntries(fd.entries());
+        const res = await fetch(`/analytics/vascular-access/events/${PATIENT_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) {
+            document.getElementById('access-event-modal').style.display = 'none';
+            this.reset();
+            loadAccessHistory();
+        }
+    });
+
+    document.getElementById('surveillance-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const body = Object.fromEntries(fd.entries());
+        const res = await fetch(`/analytics/vascular-access/surveillance/${PATIENT_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) {
+            document.getElementById('surveillance-modal').style.display = 'none';
+            this.reset();
+            loadAccessHistory();
+        } else {
+            const err = await res.json();
+            alert(err.detail || 'Failed to save');
+        }
+    });
+
+    document.getElementById('access-episode-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const body = Object.fromEntries(fd.entries());
+        const res = await fetch(`/analytics/vascular-access/episodes/${PATIENT_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) {
+            document.getElementById('access-episode-modal').style.display = 'none';
+            this.reset();
+            loadAccessHistory();
+        }
+    });
+
+    document.getElementById('life-plan-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const body = Object.fromEntries(fd.entries());
+        // Find current episode id from loaded data
+        const container = document.getElementById('access-episodes-container');
+        const firstCard = container.querySelector('[data-episode-id]');
+        if (!firstCard) { alert('No current episode found. Create an episode first.'); return; }
+        const epId = firstCard.dataset.episodeId;
+        const res = await fetch(`/analytics/vascular-access/episodes/${epId}/life-plan`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) {
+            document.getElementById('life-plan-modal').style.display = 'none';
+            this.reset();
+            loadAccessHistory();
+        }
+    });
+
+    // Show steal grade / cannulation grade fields conditionally
+    document.querySelector('[name="event_type"]').addEventListener('change', function() {
+        const val = this.value;
+        document.getElementById('steal-grade-row').style.display = val === 'steal_syndrome' ? 'block' : 'none';
+        const cannulationEvents = ['cannulation_difficulty', 'failed_cannulation', 'needle_infiltration'];
+        document.getElementById('cannulation-injury-row').style.display = cannulationEvents.includes(val) ? 'block' : 'none';
+    });
+
+    // Load on page init
+    loadAccessHistory();
 
     // ── CLINICAL REMINDER MODAL ──
     function openReminderModal() {

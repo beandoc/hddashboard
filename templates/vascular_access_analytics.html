@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vascular Access Analytics — {{ patient.name }}</title>
+  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
+  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+  <style>
+    :root {
+      --primary:#6366f1; --primary-dark:#4f46e5;
+      --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
+      --info:#0ea5e9;
+      --bg:#f8fafc; --card-shadow:0 4px 16px rgba(0,0,0,0.08);
+      --radius:14px;
+    }
+    *{box-sizing:border-box;}
+    body{background:var(--bg);font-family:'Inter',sans-serif;margin:0;color:#1e293b;line-height:1.5;}
+    header{background:linear-gradient(135deg,#1e1b4b 0%,#312e81 60%,#0f172a 100%);color:#fff;padding:52px 32px 80px;position:relative;}
+    header h1{font-family:'Outfit',sans-serif;font-size:2rem;margin:0 0 6px;letter-spacing:-0.02em;}
+    header p{margin:0;opacity:.8;font-size:1rem;}
+    .nav-breadcrumb{display:flex;align-items:center;gap:8px;padding:13px 32px;background:rgba(30,27,75,.97);color:rgba(255,255,255,.7);font-size:.84rem;}
+    .nav-breadcrumb a{color:#fff;text-decoration:none;font-weight:500;}
+    .bc-sep{opacity:.4;}
+    .bc-current{color:#a5b4fc;font-weight:600;}
+    .container{max-width:1240px;margin:-56px auto 60px;padding:0 24px;position:relative;z-index:10;}
+    .card{background:#fff;border-radius:var(--radius);box-shadow:var(--card-shadow);border:1px solid #f1f5f9;padding:24px 28px;margin-bottom:24px;}
+    .card-title{font-family:'Outfit',sans-serif;font-size:1.15rem;font-weight:700;color:#1e1b4b;margin:0 0 16px;display:flex;align-items:center;gap:10px;}
+    .card-title i{font-size:1.3rem;}
+
+    /* KPI strip */
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;}
+    .kpi{background:#fff;border-radius:var(--radius);box-shadow:var(--card-shadow);padding:20px 22px;border-left:4px solid var(--primary);}
+    .kpi.ok{border-left-color:var(--success);}
+    .kpi.warn{border-left-color:var(--warning);}
+    .kpi.danger{border-left-color:var(--danger);}
+    .kpi.info{border-left-color:var(--info);}
+    .kpi-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:6px;}
+    .kpi-value{font-size:1.9rem;font-weight:800;font-family:'Outfit',sans-serif;line-height:1.1;}
+    .kpi-sub{font-size:.72rem;color:#94a3b8;margin-top:4px;}
+
+    /* doppler card */
+    .doppler-card{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:start;}
+    @media(max-width:700px){.doppler-card{grid-template-columns:1fr;}}
+    .doppler-image{width:220px;height:160px;border-radius:10px;object-fit:cover;border:2px solid #e2e8f0;cursor:pointer;transition:transform .2s;}
+    .doppler-image:hover{transform:scale(1.03);}
+    .doppler-placeholder{width:220px;height:160px;border-radius:10px;border:2px dashed #cbd5e1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#94a3b8;gap:6px;font-size:.82rem;cursor:pointer;transition:border-color .2s;}
+    .doppler-placeholder:hover{border-color:var(--primary);color:var(--primary);}
+    .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;}
+    .pill-green{background:#dcfce7;color:#166534;}
+    .pill-amber{background:#fef3c7;color:#92400e;}
+    .pill-red{background:#fee2e2;color:#b91c1c;}
+    .pill-blue{background:#dbeafe;color:#1d4ed8;}
+    .pill-grey{background:#f1f5f9;color:#475569;}
+
+    /* action board inline */
+    .action-row{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border-radius:10px;margin-bottom:8px;}
+    .action-row.urgent{background:#fff1f2;border-left:4px solid var(--danger);}
+    .action-row.this_week{background:#fffbeb;border-left:4px solid var(--warning);}
+    .action-row.routine{background:#f0fdf4;border-left:4px solid var(--success);}
+    .action-cat{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 8px;border-radius:6px;background:#e2e8f0;color:#475569;white-space:nowrap;}
+    .action-msg{font-size:.86rem;color:#334155;flex:1;}
+
+    /* chart area */
+    .chart-wrap{width:100%;overflow:hidden;}
+
+    /* image lightbox */
+    #img-lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9000;align-items:center;justify-content:center;cursor:zoom-out;}
+    #img-lightbox img{max-width:92vw;max-height:90vh;border-radius:10px;box-shadow:0 0 60px rgba(0,0,0,.6);}
+
+    /* upload button */
+    .upload-btn{display:inline-flex;align-items:center;gap:6px;background:#ede9fe;color:#6d28d9;border:none;border-radius:8px;padding:7px 14px;font-size:.82rem;font-weight:600;cursor:pointer;}
+    .upload-btn:hover{background:#ddd6fe;}
+
+    @media(max-width:640px){
+      header{padding:32px 16px 72px;}
+      header h1{font-size:1.4rem;}
+      .container{padding:0 14px;}
+      .card{padding:16px;}
+    }
+  </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<nav class="nav-breadcrumb">
+  <a href="/">Dashboard</a><span class="bc-sep">/</span>
+  <a href="/analytics">Analytics Hub</a><span class="bc-sep">/</span>
+  <a href="/analytics/vascular-access">Access Quality</a><span class="bc-sep">/</span>
+  <span class="bc-current">{{ patient.name }}</span>
+</nav>
+
+<header>
+  <h1><i class="material-icons" style="font-size:2rem;vertical-align:middle;margin-right:8px;">settings_input_component</i>Vascular Access Analytics</h1>
+  <p>{{ patient.name }} &nbsp;·&nbsp; {{ patient.hid_no }}
+    {% if current_ep %}&nbsp;·&nbsp; <strong>{{ current_ep.access_class }}</strong> — {{ current_ep.access_subtype or current_ep.access_class }}{% endif %}
+  </p>
+</header>
+
+<div class="container">
+
+  <!-- ── KPI STRIP ──────────────────────────────────────────────────────── -->
+  <div class="kpi-grid">
+    {% if patency %}
+    <div class="kpi {{ 'ok' if patency.primary_patency_days > 365 else 'warn' if patency.primary_patency_days > 90 else 'danger' }}">
+      <div class="kpi-label">Primary Patency</div>
+      <div class="kpi-value">{{ patency.primary_patency_days }}</div>
+      <div class="kpi-sub">days</div>
+    </div>
+    <div class="kpi info">
+      <div class="kpi-label">Cumulative Patency</div>
+      <div class="kpi-value">{{ patency.cumulative_patency_days }}</div>
+      <div class="kpi-sub">days since creation</div>
+    </div>
+    <div class="kpi {{ 'ok' if patency.intervention_count <= 2 else 'warn' if patency.intervention_count <= 3 else 'danger' }}">
+      <div class="kpi-label">Interventions</div>
+      <div class="kpi-value">{{ patency.intervention_count }}</div>
+      <div class="kpi-sub">KDOQI target ≤2 establish, ≤3/yr maintain</div>
+    </div>
+    {% endif %}
+    {% if intervention_establish %}
+    <div class="kpi {{ 'ok' if not intervention_establish.exceeds else 'danger' }}">
+      <div class="kpi-label">Establish Interventions</div>
+      <div class="kpi-value">{{ intervention_establish.count }} / {{ intervention_establish.threshold }}</div>
+      <div class="kpi-sub">KDOQI 1-2-3 rule</div>
+    </div>
+    {% endif %}
+    {% if intervention_annual %}
+    <div class="kpi {{ 'ok' if not intervention_annual.exceeds else 'danger' }}">
+      <div class="kpi-label">Annual Maintain Intv.</div>
+      <div class="kpi-value">{{ intervention_annual.count }} / {{ intervention_annual.threshold }}</div>
+      <div class="kpi-sub">past 12 months</div>
+    </div>
+    {% endif %}
+    {% if current_ep %}
+    <div class="kpi {{ 'ok' if current_ep.succession_plan else 'warn' }}">
+      <div class="kpi-label">Life-Plan</div>
+      <div class="kpi-value" style="font-size:1.1rem;">{{ 'Documented' if current_ep.succession_plan else 'Missing' }}</div>
+      <div class="kpi-sub">KDOQI 1.1 annual review</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── LAST DOPPLER REPORT ───────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:var(--info);">radar</i>
+      Last Doppler / Fistulogram Report
+      {% if surveillance %}
+      <span class="pill pill-blue" style="margin-left:8px; font-size:.72rem;">{{ surveillance|length }} record{{ 's' if surveillance|length != 1 }}</span>
+      {% endif %}
+    </div>
+
+    {% if latest_doppler %}
+    <div class="doppler-card">
+      <div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+          <span class="pill pill-blue">{{ (latest_doppler.modality or 'unknown')|replace('_',' ')|title }}</span>
+          <strong style="font-size:1rem;">{{ latest_doppler.surveillance_date.strftime('%d %b %Y') }}</strong>
+          {% if latest_doppler.finding %}
+          <span class="pill {{ 'pill-green' if latest_doppler.finding == 'normal' else 'pill-amber' if 'mild' in latest_doppler.finding else 'pill-red' }}">
+            {{ latest_doppler.finding|replace('_',' ')|title }}
+          </span>
+          {% endif %}
+          {% if latest_doppler.recommendation %}
+          <span class="pill pill-grey">{{ latest_doppler.recommendation|replace('_',' ')|title }}</span>
+          {% endif %}
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+          {% if latest_doppler.qa_by_imaging %}
+          <div style="background:#f0f9ff;border-radius:8px;padding:10px 14px;">
+            <div style="font-size:.7rem;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.06em;">Qa by Imaging</div>
+            <div style="font-size:1.4rem;font-weight:800;font-family:'Outfit',sans-serif;">{{ latest_doppler.qa_by_imaging|int }} <span style="font-size:.75rem;font-weight:500;">mL/min</span></div>
+            {% if latest_doppler.qa_baseline_at_test %}
+            <div style="font-size:.7rem;color:#64748b;">Baseline: {{ latest_doppler.qa_baseline_at_test|int }} mL/min</div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if latest_doppler.stenosis_pct %}
+          <div style="background:#fff7ed;border-radius:8px;padding:10px 14px;">
+            <div style="font-size:.7rem;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:.06em;">Stenosis</div>
+            <div style="font-size:1.4rem;font-weight:800;font-family:'Outfit',sans-serif;">{{ latest_doppler.stenosis_pct|int }}<span style="font-size:.75rem;font-weight:500;">%</span></div>
+          </div>
+          {% endif %}
+          {% if latest_doppler.psv_at_stenosis %}
+          <div style="background:#f8fafc;border-radius:8px;padding:10px 14px;">
+            <div style="font-size:.7rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;">PSV at Stenosis</div>
+            <div style="font-size:1.4rem;font-weight:800;font-family:'Outfit',sans-serif;">{{ latest_doppler.psv_at_stenosis|int }} <span style="font-size:.75rem;font-weight:500;">cm/s</span></div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if latest_doppler.clinical_trigger %}
+        <div style="font-size:.8rem;background:#f0fdf4;border-left:3px solid var(--success);padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:10px;">
+          <strong style="color:#166534;">Clinical trigger:</strong> {{ latest_doppler.clinical_trigger }}
+        </div>
+        {% endif %}
+        {% if latest_doppler.performed_by %}
+        <div style="font-size:.78rem;color:#64748b;">Performed by: {{ latest_doppler.performed_by }}</div>
+        {% endif %}
+        {% if latest_doppler.notes %}
+        <div style="font-size:.82rem;color:#475569;margin-top:6px;font-style:italic;">{{ latest_doppler.notes }}</div>
+        {% endif %}
+
+        <label class="upload-btn" style="margin-top:14px;"
+               title="Upload Doppler report image or PDF for record #{{ latest_doppler.id }}">
+          <i class="material-icons" style="font-size:1rem;">upload</i> Upload / Replace Report Image
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                 style="display:none;" onchange="uploadSurveillanceImage({{ latest_doppler.id }}, this)">
+        </label>
+      </div>
+
+      <!-- Report image -->
+      <div>
+        {% if latest_doppler.report_image_path %}
+        <img class="doppler-image"
+             src="{{ latest_doppler.report_image_path }}"
+             alt="Doppler report"
+             onclick="openLightbox('{{ latest_doppler.report_image_path }}')"
+             title="Click to enlarge">
+        <div style="font-size:.7rem;color:#94a3b8;margin-top:6px;text-align:center;">Click to enlarge</div>
+        {% else %}
+        <label class="doppler-placeholder" title="Upload report image">
+          <i class="material-icons" style="font-size:2rem;">image_search</i>
+          <span>Upload report image</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                 style="display:none;" onchange="uploadSurveillanceImage({{ latest_doppler.id }}, this)">
+        </label>
+        {% endif %}
+        <div id="upload-status-{{ latest_doppler.id }}" style="font-size:.75rem;margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <!-- All surveillance history -->
+    {% if surveillance|length > 1 %}
+    <details style="margin-top:20px;">
+      <summary style="font-size:.84rem;font-weight:600;color:var(--primary);cursor:pointer;">Show all {{ surveillance|length }} surveillance records</summary>
+      <div style="margin-top:12px;">
+        {% for s in surveillance %}
+        {% if not loop.first %}
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;">
+          <span class="pill pill-blue">{{ (s.modality or '')|replace('_',' ')|title }}</span>
+          <span style="font-weight:600;font-size:.9rem;">{{ s.surveillance_date.strftime('%d %b %Y') }}</span>
+          {% if s.finding %}<span class="pill {{ 'pill-green' if s.finding=='normal' else 'pill-amber' if 'mild' in s.finding else 'pill-red' }}">{{ s.finding|replace('_',' ')|title }}</span>{% endif %}
+          {% if s.qa_by_imaging %}<span style="font-size:.82rem;">Qa {{ s.qa_by_imaging|int }} mL/min</span>{% endif %}
+          {% if s.stenosis_pct %}<span style="font-size:.82rem;">Stenosis {{ s.stenosis_pct|int }}%</span>{% endif %}
+          {% if s.report_image_path %}
+          <img src="{{ s.report_image_path }}" style="width:48px;height:36px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid #e2e8f0;"
+               onclick="openLightbox('{{ s.report_image_path }}')" title="View report">
+          {% else %}
+          <label class="upload-btn" style="font-size:.72rem;padding:4px 10px;">
+            <i class="material-icons" style="font-size:.9rem;">upload</i> Upload
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+                   style="display:none;" onchange="uploadSurveillanceImage({{ s.id }}, this)">
+          </label>
+          {% endif %}
+          <div id="upload-status-{{ s.id }}" style="font-size:.72rem;"></div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
+
+    {% else %}
+    <div style="text-align:center;padding:32px;color:#94a3b8;">
+      <i class="material-icons" style="font-size:2.5rem;opacity:.25;display:block;margin-bottom:8px;">radar</i>
+      <p style="font-size:.9rem;">No Doppler / imaging records yet.</p>
+      <p style="font-size:.8rem;">Log a clinically-triggered study from the patient profile page.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── ACTION ITEMS ──────────────────────────────────────────────────── -->
+  {% if action_items %}
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:var(--danger);">assignment_late</i> Active Action Items</div>
+    {% for item in action_items %}
+    <div class="action-row {{ item.priority }}">
+      <span class="action-cat">{{ item.category|replace('_',' ') }}</span>
+      <span class="action-msg">{{ item.message }}</span>
+      <span class="pill {{ 'pill-red' if item.priority=='urgent' else 'pill-amber' if item.priority=='this_week' else 'pill-green' }}" style="white-space:nowrap;">{{ item.priority|replace('_',' ')|title }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── CHART 1: Qa + BFR Trend ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:var(--primary);">trending_up</i> Access Flow (Qa) & Blood Flow Rate Trend</div>
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 12px;">
+      Qa &lt;600 mL/min (AVF) or &lt;500 mL/min (AVG) on 2 consecutive sessions triggers clinical review (KDOQI 2019).
+      Doppler Qa measurements are overlaid as diamond markers.
+    </p>
+    <div class="chart-wrap"><div id="chart-qa" style="height:320px;"></div></div>
+  </div>
+
+  <!-- ── CHART 2: Recirculation ───────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:var(--warning);">loop</i> Access Recirculation % (Two-Needle Urea Method)</div>
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 12px;">
+      ≥10% on 2 consecutive sessions triggers imaging referral (KDOQI 2019). &lt;5% = normal.
+    </p>
+    <div class="chart-wrap"><div id="chart-recirc" style="height:260px;"></div></div>
+  </div>
+
+  <!-- ── CHART 3: Bedside Exam Heatmap ───────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:var(--info);">health_and_safety</i> Bedside Exam — Thrill & Bruit Grade per Session</div>
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 12px;">
+      Physical exam is the primary monitoring tool at every session (KDOQI 2019). Consecutive abnormal values generate imaging action items.
+    </p>
+    <div class="chart-wrap"><div id="chart-exam" style="height:240px;"></div></div>
+  </div>
+
+  <!-- ── CHART 4: Stenosis & Imaging timeline ─────────────────────────── -->
+  {% if surveillance|length > 0 %}
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:#7c3aed;">image_search</i> Stenosis % & Qa by Imaging — Surveillance Timeline</div>
+    <div class="chart-wrap"><div id="chart-stenosis" style="height:280px;"></div></div>
+  </div>
+  {% endif %}
+
+  <!-- ── CHART 5: Event Timeline ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:var(--danger);">event_note</i> Confirmed Access Events Timeline</div>
+    <div class="chart-wrap"><div id="chart-events" style="height:220px;"></div></div>
+  </div>
+
+  <!-- ── CHART 6: Cannulation Quality ────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><i class="material-icons" style="color:#7c3aed;">tune</i> Cannulation Quality per Session</div>
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 12px;">
+      Failure rate ≥5% over last 20 sessions triggers a clinical review action item (KDOQI 2019).
+    </p>
+    <div class="chart-wrap"><div id="chart-cannulation" style="height:240px;"></div></div>
+  </div>
+
+  <!-- back link -->
+  <div style="text-align:center;padding:16px 0 40px;">
+    <a href="/analytics/patients/{{ patient.id }}" style="color:var(--primary);font-weight:600;font-size:.9rem;text-decoration:none;">
+      &larr; Back to Patient Analytics
+    </a>
+    &nbsp;&nbsp;
+    <a href="/analytics/vascular-access" style="color:var(--primary);font-weight:600;font-size:.9rem;text-decoration:none;">
+      Unit Access Quality Dashboard &rarr;
+    </a>
+  </div>
+</div>
+
+<!-- Image lightbox -->
+<div id="img-lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="Report image">
+</div>
+
+<script>
+// ── Data from server ─────────────────────────────────────────────────────────
+const SESSIONS   = {{ chart_sessions_json|safe }};
+const EVENTS     = {{ chart_events_json|safe }};
+const SURV       = {{ chart_surveillance_json|safe }};
+const PATIENT_ID = {{ patient.id }};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const gradeNum = g => ({ normal: 0, reduced: 1, absent: 2 }[g] ?? null);
+const gradeLabel = n => ['Normal','Reduced','Absent'][n] ?? '—';
+const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
+const LAYOUT_BASE = {
+  margin: { l: 48, r: 16, t: 12, b: 48 },
+  font: { family: 'Inter, sans-serif', size: 12 },
+  plot_bgcolor: '#ffffff',
+  paper_bgcolor: '#ffffff',
+  xaxis: { showgrid: false, zeroline: false, tickfont: { size: 11 } },
+  yaxis: { gridcolor: '#f1f5f9', zeroline: false, tickfont: { size: 11 } },
+  hovermode: 'x unified',
+  showlegend: true,
+  legend: { orientation: 'h', y: -0.18, x: 0, font: { size: 11 } },
+};
+
+// ── Chart 1: Qa + BFR ────────────────────────────────────────────────────────
+(function() {
+  const dates  = SESSIONS.map(s => s.date);
+  const qa     = SESSIONS.map(s => s.qa);
+  const bfrAct = SESSIONS.map(s => s.bfr_actual);
+  const bfrPre = SESSIONS.map(s => s.bfr_prescribed);
+
+  // Doppler Qa overlays
+  const survDates = SURV.filter(s => s.qa).map(s => s.date);
+  const survQa    = SURV.filter(s => s.qa).map(s => s.qa);
+
+  const traces = [
+    {
+      x: dates, y: qa, name: 'Qa (session)', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#6366f1', width: 2.5 }, marker: { size: 5, color: '#6366f1' },
+      connectgaps: true,
+    },
+    {
+      x: survDates, y: survQa, name: 'Qa (Doppler/imaging)', type: 'scatter', mode: 'markers',
+      marker: { symbol: 'diamond', size: 12, color: '#7c3aed', line: { color: '#fff', width: 2 } },
+    },
+    {
+      x: dates, y: bfrAct, name: 'Actual BFR', type: 'scatter', mode: 'lines',
+      line: { color: '#0ea5e9', width: 2, dash: 'dot' }, connectgaps: true,
+    },
+    {
+      x: dates, y: bfrPre, name: 'Prescribed BFR', type: 'scatter', mode: 'lines',
+      line: { color: '#cbd5e1', width: 1.5, dash: 'dash' }, connectgaps: true,
+    },
+  ];
+
+  const shapes = [
+    { type: 'line', y0: 600, y1: 600, x0: dates[0], x1: dates[dates.length - 1],
+      line: { color: '#ef4444', width: 1.5, dash: 'dot' }, name: 'AVF threshold 600' },
+    { type: 'line', y0: 500, y1: 500, x0: dates[0], x1: dates[dates.length - 1],
+      line: { color: '#f59e0b', width: 1.5, dash: 'dot' } },
+  ];
+
+  Plotly.newPlot('chart-qa', traces, {
+    ...LAYOUT_BASE,
+    yaxis: { ...LAYOUT_BASE.yaxis, title: 'mL/min' },
+    shapes,
+    annotations: [
+      { x: dates[dates.length - 1], y: 600, text: 'AVF min 600', showarrow: false,
+        font: { size: 10, color: '#ef4444' }, xanchor: 'right' },
+      { x: dates[dates.length - 1], y: 500, text: 'AVG min 500', showarrow: false,
+        font: { size: 10, color: '#f59e0b' }, xanchor: 'right' },
+    ],
+  }, PLOTLY_CONFIG);
+})();
+
+// ── Chart 2: Recirculation ───────────────────────────────────────────────────
+(function() {
+  const dates  = SESSIONS.filter(s => s.recirc != null).map(s => s.date);
+  const recirc = SESSIONS.filter(s => s.recirc != null).map(s => s.recirc);
+  if (!dates.length) {
+    document.getElementById('chart-recirc').innerHTML =
+      '<p style="text-align:center;color:#94a3b8;padding:40px 0;">No recirculation data recorded yet.</p>';
+    return;
+  }
+  const colors = recirc.map(v => v >= 10 ? '#ef4444' : v >= 5 ? '#f59e0b' : '#10b981');
+  Plotly.newPlot('chart-recirc', [
+    {
+      x: dates, y: recirc, type: 'bar',
+      marker: { color: colors, line: { color: '#fff', width: 1 } },
+      name: 'Recirculation %', hovertemplate: '%{x}<br>%{y:.1f}%<extra></extra>',
+    },
+  ], {
+    ...LAYOUT_BASE,
+    yaxis: { ...LAYOUT_BASE.yaxis, title: '%', range: [0, Math.max(15, ...recirc) + 2] },
+    shapes: [
+      { type: 'line', y0: 10, y1: 10, x0: dates[0], x1: dates[dates.length-1],
+        line: { color: '#ef4444', width: 1.5, dash: 'dot' } },
+      { type: 'line', y0: 5, y1: 5, x0: dates[0], x1: dates[dates.length-1],
+        line: { color: '#f59e0b', width: 1, dash: 'dash' } },
+    ],
+    showlegend: false,
+  }, PLOTLY_CONFIG);
+})();
+
+// ── Chart 3: Bedside Exam ────────────────────────────────────────────────────
+(function() {
+  const examData = SESSIONS.filter(s => s.thrill || s.bruit);
+  if (!examData.length) {
+    document.getElementById('chart-exam').innerHTML =
+      '<p style="text-align:center;color:#94a3b8;padding:40px 0;">No bedside exam data recorded yet.</p>';
+    return;
+  }
+  const dates  = examData.map(s => s.date);
+  const thrill = examData.map(s => gradeNum(s.thrill));
+  const bruit  = examData.map(s => gradeNum(s.bruit));
+
+  Plotly.newPlot('chart-exam', [
+    {
+      x: dates, y: thrill, name: 'Thrill', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#6366f1', width: 2 },
+      marker: { size: 7, color: thrill.map(v => v === 0 ? '#10b981' : v === 1 ? '#f59e0b' : '#ef4444') },
+      hovertemplate: '%{x}<br>Thrill: %{text}<extra></extra>',
+      text: thrill.map(gradeLabel),
+    },
+    {
+      x: dates, y: bruit, name: 'Bruit', type: 'scatter', mode: 'lines+markers',
+      line: { color: '#0ea5e9', width: 2, dash: 'dot' },
+      marker: { size: 7, color: bruit.map(v => v === 0 ? '#10b981' : v === 1 ? '#f59e0b' : '#ef4444') },
+      hovertemplate: '%{x}<br>Bruit: %{text}<extra></extra>',
+      text: bruit.map(gradeLabel),
+    },
+  ], {
+    ...LAYOUT_BASE,
+    yaxis: {
+      ...LAYOUT_BASE.yaxis, title: 'Grade',
+      tickvals: [0, 1, 2], ticktext: ['Normal', 'Reduced', 'Absent'],
+      range: [-0.3, 2.5],
+    },
+    showlegend: true,
+  }, PLOTLY_CONFIG);
+})();
+
+// ── Chart 4: Stenosis & Imaging Qa ──────────────────────────────────────────
+(function() {
+  const sData = SURV.filter(s => s.stenosis_pct != null || s.qa != null);
+  if (!sData.length) return;
+  const dates    = sData.map(s => s.date);
+  const stenosis = sData.map(s => s.stenosis_pct);
+  const qaImg    = sData.map(s => s.qa);
+  const colors   = stenosis.map(v => v == null ? '#94a3b8' : v >= 70 ? '#ef4444' : v >= 50 ? '#f59e0b' : '#10b981');
+
+  Plotly.newPlot('chart-stenosis', [
+    {
+      x: dates, y: stenosis, name: 'Stenosis %', type: 'bar',
+      yaxis: 'y', marker: { color: colors },
+      hovertemplate: '%{x}<br>Stenosis: %{y}%<extra></extra>',
+    },
+    {
+      x: dates, y: qaImg, name: 'Qa by imaging', type: 'scatter', mode: 'lines+markers',
+      yaxis: 'y2', line: { color: '#6366f1', width: 2.5 },
+      marker: { symbol: 'diamond', size: 10 },
+      hovertemplate: '%{x}<br>Qa: %{y} mL/min<extra></extra>',
+    },
+  ], {
+    ...LAYOUT_BASE,
+    yaxis:  { ...LAYOUT_BASE.yaxis, title: 'Stenosis %', range: [0, 105] },
+    yaxis2: { title: 'Qa (mL/min)', overlaying: 'y', side: 'right',
+               gridcolor: 'transparent', zeroline: false },
+    shapes: [
+      { type: 'line', y0: 50, y1: 50, x0: dates[0], x1: dates[dates.length-1],
+        line: { color: '#f59e0b', width: 1, dash: 'dot' } },
+      { type: 'line', y0: 70, y1: 70, x0: dates[0], x1: dates[dates.length-1],
+        line: { color: '#ef4444', width: 1.5, dash: 'dot' } },
+    ],
+  }, PLOTLY_CONFIG);
+})();
+
+// ── Chart 5: Events Timeline ─────────────────────────────────────────────────
+(function() {
+  if (!EVENTS.length) {
+    document.getElementById('chart-events').innerHTML =
+      '<p style="text-align:center;color:#94a3b8;padding:40px 0;">No confirmed events recorded yet.</p>';
+    return;
+  }
+  const CATEGORY_COLOR = {
+    thrombosis: '#ef4444', crbsi_confirmed: '#b91c1c', steal_syndrome: '#f97316',
+    maturation_failure: '#7c3aed', maturation_delay: '#a78bfa',
+    cannulation_difficulty: '#f59e0b', failed_cannulation: '#d97706',
+    needle_infiltration: '#fbbf24', aneurysm_new: '#0ea5e9', aneurysm_enlarging: '#0284c7',
+    aneurysm_concerning: '#ef4444', suboptimal_bfr: '#64748b', qa_decline_absolute: '#475569',
+    qa_decline_relative: '#64748b', high_recirculation: '#f59e0b',
+    exit_site_infection: '#dc2626', tunnel_infection: '#b91c1c',
+    crbsi_suspected: '#f87171', buttonhole_infection: '#fb923c',
+  };
+  const grouped = {};
+  EVENTS.forEach(e => {
+    if (!grouped[e.type]) grouped[e.type] = { x: [], y: [], text: [] };
+    grouped[e.type].x.push(e.date);
+    grouped[e.type].y.push(e.type.replace(/_/g, ' '));
+    grouped[e.type].text.push(`${e.date} — ${e.type.replace(/_/g,' ')}${e.steal_grade ? ' (' + e.steal_grade + ')' : ''}`);
+  });
+  const traces = Object.entries(grouped).map(([type, d]) => ({
+    x: d.x, y: d.y, type: 'scatter', mode: 'markers',
+    name: type.replace(/_/g,' '),
+    marker: { size: 14, color: CATEGORY_COLOR[type] || '#94a3b8',
+              symbol: 'circle', line: { color: '#fff', width: 2 } },
+    text: d.text, hovertemplate: '%{text}<extra></extra>',
+  }));
+  Plotly.newPlot('chart-events', traces, {
+    ...LAYOUT_BASE,
+    xaxis: { ...LAYOUT_BASE.xaxis, title: '' },
+    yaxis: { showgrid: true, gridcolor: '#f1f5f9', tickfont: { size: 10 }, zeroline: false },
+    margin: { l: 180, r: 16, t: 12, b: 36 },
+    showlegend: false,
+    height: 60 + Object.keys(grouped).length * 36,
+  }, PLOTLY_CONFIG);
+})();
+
+// ── Chart 6: Cannulation Quality ─────────────────────────────────────────────
+(function() {
+  const cData = SESSIONS.filter(s => s.cannulation_difficulty);
+  if (!cData.length) {
+    document.getElementById('chart-cannulation').innerHTML =
+      '<p style="text-align:center;color:#94a3b8;padding:40px 0;">No cannulation difficulty data recorded yet.</p>';
+    return;
+  }
+  const dates  = cData.map(s => s.date);
+  const scores = cData.map(s => ({ routine: 0, difficult: 1, failed: 2 }[s.cannulation_difficulty] ?? 0));
+  const colors = scores.map(v => v === 0 ? '#10b981' : v === 1 ? '#f59e0b' : '#ef4444');
+  const infilt = cData.map(s => s.needle_infiltration ? 1 : null);
+
+  // Rolling failure rate (window=10)
+  const window = 10;
+  const failRate = scores.map((_, i) => {
+    if (i < window - 1) return null;
+    const slice = scores.slice(i - window + 1, i + 1);
+    return slice.filter(v => v === 2).length / window * 100;
+  });
+
+  Plotly.newPlot('chart-cannulation', [
+    {
+      x: dates, y: scores, name: 'Difficulty', type: 'scatter', mode: 'markers',
+      marker: { size: 9, color: colors },
+      text: cData.map(s => s.cannulation_difficulty),
+      hovertemplate: '%{x}<br>%{text}<extra></extra>',
+      yaxis: 'y',
+    },
+    {
+      x: dates.filter((_, i) => infilt[i] != null),
+      y: infilt.filter(v => v != null).map(() => -0.2),
+      name: 'Needle infiltration', type: 'scatter', mode: 'markers',
+      marker: { symbol: 'x', size: 10, color: '#b91c1c' },
+      hovertemplate: '%{x}<br>Needle infiltration<extra></extra>',
+      yaxis: 'y',
+    },
+    {
+      x: dates, y: failRate, name: 'Failure rate (10-session rolling)', type: 'scatter', mode: 'lines',
+      line: { color: '#ef4444', width: 2, dash: 'dot' },
+      yaxis: 'y2', connectgaps: false,
+      hovertemplate: '%{x}<br>Fail rate: %{y:.0f}%<extra></extra>',
+    },
+  ], {
+    ...LAYOUT_BASE,
+    yaxis:  { title: 'Difficulty', tickvals: [0, 1, 2], ticktext: ['Routine','Difficult','Failed'],
+               range: [-0.5, 2.5], zeroline: false, gridcolor: '#f1f5f9' },
+    yaxis2: { title: 'Failure %', overlaying: 'y', side: 'right', range: [0, 30],
+               gridcolor: 'transparent', zeroline: false },
+    shapes: [{
+      type: 'line', y0: 5, y1: 5, yref: 'y2',
+      x0: dates[0], x1: dates[dates.length-1],
+      line: { color: '#ef4444', width: 1.5, dash: 'dot' },
+    }],
+  }, PLOTLY_CONFIG);
+})();
+
+// ── Image upload ─────────────────────────────────────────────────────────────
+async function uploadSurveillanceImage(recordId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById(`upload-status-${recordId}`);
+  if (statusEl) statusEl.innerHTML = '<span style="color:#6366f1;">Uploading…</span>';
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`/analytics/vascular-access/surveillance/${recordId}/upload-image`, {
+    method: 'POST', body: formData,
+  });
+  if (res.ok) {
+    const data = await res.json();
+    if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;">✓ Uploaded</span>';
+    // Reload page to show image
+    setTimeout(() => location.reload(), 800);
+  } else {
+    const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444;">${err.detail}</span>`;
+  }
+}
+
+// ── Lightbox ─────────────────────────────────────────────────────────────────
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('img-lightbox').style.display = 'flex';
+}
+function closeLightbox() {
+  document.getElementById('img-lightbox').style.display = 'none';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+</body>
+</html>

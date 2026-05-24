@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, Form
+from fastapi import APIRouter, Depends, Request, HTTPException, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -163,6 +163,41 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
                     "status": status
                 })
 
+    # ── KDOQI 2019 action board and benchmarks ────────────────────────────────
+    from services.access_surveillance_service import (
+        compute_access_action_items, compute_unit_benchmarks,
+    )
+
+    action_board_urgent: list = []
+    action_board_this_week: list = []
+    action_board_routine: list = []
+
+    for p in patients:
+        try:
+            items = compute_access_action_items(db, p.id)
+            for item in items:
+                item["patient_name"] = p.name
+                item["patient_id"] = p.id
+                item["hid_no"] = p.hid_no
+                if item["priority"] == "urgent":
+                    action_board_urgent.append(item)
+                elif item["priority"] == "this_week":
+                    action_board_this_week.append(item)
+                else:
+                    action_board_routine.append(item)
+        except Exception:
+            pass
+
+    try:
+        unit_benchmarks = compute_unit_benchmarks(db, month_str)
+    except Exception:
+        unit_benchmarks = []
+
+    # Split benchmarks by access class for template display
+    benchmarks_avf = [b for b in unit_benchmarks if b["access_class"] == "AVF"]
+    benchmarks_avg = [b for b in unit_benchmarks if b["access_class"] == "AVG"]
+    benchmarks_tcc = [b for b in unit_benchmarks if b["access_class"] == "TCC"]
+
     return templates.TemplateResponse("access_quality.html", {
         "request": request,
         "month_str": month_str,
@@ -173,13 +208,485 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
             "maturation_failure_count": len(maturation_watchlist),
             "functional_alert_count": len(functional_watchlist),
             "target_prevalent": 90.0,
-            "target_incident": 65.0
+            "target_incident": 65.0,
+            "action_board_urgent_count": len(action_board_urgent),
+            "action_board_this_week_count": len(action_board_this_week),
+            "action_board_routine_count": len(action_board_routine),
         },
         "watchlist": conversion_watchlist,
         "maturation_watchlist": maturation_watchlist,
         "functional_watchlist": functional_watchlist,
+        "action_board_urgent": action_board_urgent,
+        "action_board_this_week": action_board_this_week,
+        "action_board_routine": action_board_routine,
+        "benchmarks_avf": benchmarks_avf,
+        "benchmarks_avg": benchmarks_avg,
+        "benchmarks_tcc": benchmarks_tcc,
         "user": get_user(request)
     })
+
+
+@router.get("/vascular-access/action-board", response_class=JSONResponse)
+async def vascular_access_action_board(request: Request, patient_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Return action items for one patient or all patients (JSON)."""
+    _require_analytics_access(request)
+    from services.access_surveillance_service import compute_access_action_items
+    from database import Patient
+
+    if patient_id:
+        items = compute_access_action_items(db, patient_id)
+        return JSONResponse(content=items)
+
+    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    all_items = []
+    for p in patients:
+        try:
+            items = compute_access_action_items(db, p.id)
+            for item in items:
+                item["patient_name"] = p.name
+                item["hid_no"] = p.hid_no
+            all_items.extend(items)
+        except Exception:
+            pass
+    return JSONResponse(content=all_items)
+
+
+@router.get("/vascular-access/benchmarks", response_class=JSONResponse)
+async def vascular_access_benchmarks(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
+    """Return unit benchmarks for a given month (JSON)."""
+    _require_analytics_access(request)
+    from services.access_surveillance_service import compute_unit_benchmarks
+    month_str, _ = get_effective_month(db, month)
+    benchmarks = compute_unit_benchmarks(db, month_str)
+    return JSONResponse(content=benchmarks)
+
+
+@router.get("/vascular-access/episodes/{patient_id}", response_class=JSONResponse)
+async def patient_access_episodes(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    """Return all access episodes for a patient with patency calculations."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode, AccessEvent, AccessSurveillanceRecord
+    from services.access_surveillance_service import compute_access_patency
+    from fastapi.encoders import jsonable_encoder
+
+    episodes = (
+        db.query(AccessEpisode)
+        .filter(AccessEpisode.patient_id == patient_id)
+        .order_by(AccessEpisode.creation_date.desc())
+        .all()
+    )
+    result = []
+    for ep in episodes:
+        patency = compute_access_patency(db, ep.id)
+        events = (
+            db.query(AccessEvent)
+            .filter(AccessEvent.episode_id == ep.id)
+            .order_by(AccessEvent.event_date.desc())
+            .all()
+        )
+        surveillance = (
+            db.query(AccessSurveillanceRecord)
+            .filter(AccessSurveillanceRecord.episode_id == ep.id)
+            .order_by(AccessSurveillanceRecord.surveillance_date.desc())
+            .all()
+        )
+        result.append({
+            "episode": jsonable_encoder(ep),
+            "patency": patency,
+            "events": jsonable_encoder(events),
+            "surveillance": jsonable_encoder(surveillance),
+        })
+    return JSONResponse(content=result)
+
+
+@router.post("/vascular-access/episodes/{patient_id}", response_class=JSONResponse)
+async def create_access_episode(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    """Create a new AccessEpisode for a patient."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode
+    from fastapi.encoders import jsonable_encoder
+
+    user = get_user(request)
+    body = await request.json()
+
+    # Mark previous current episode as no longer current if creating a new one
+    if body.get("is_current", True):
+        db.query(AccessEpisode).filter(
+            AccessEpisode.patient_id == patient_id,
+            AccessEpisode.is_current == True,
+        ).update({"is_current": False})
+
+    ep = AccessEpisode(
+        patient_id=patient_id,
+        access_class=body["access_class"],
+        access_subtype=body.get("access_subtype"),
+        creation_date=date.fromisoformat(body["creation_date"]),
+        first_cannulation_date=date.fromisoformat(body["first_cannulation_date"]) if body.get("first_cannulation_date") else None,
+        insertion_site=body.get("insertion_site"),
+        catheter_type=body.get("catheter_type"),
+        is_current=body.get("is_current", True),
+        succession_plan=body.get("succession_plan"),
+        notes=body.get("notes"),
+        entered_by=getattr(user, "username", "clinician"),
+    )
+    db.add(ep)
+    db.commit()
+    db.refresh(ep)
+    return JSONResponse(content=jsonable_encoder(ep), status_code=201)
+
+
+@router.post("/vascular-access/events/{patient_id}", response_class=JSONResponse)
+async def log_access_event(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    """Log a structured AccessEvent against the patient's current episode."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode, AccessEvent
+    from fastapi.encoders import jsonable_encoder
+
+    user = get_user(request)
+    body = await request.json()
+
+    episode_id = body.get("episode_id")
+    if not episode_id:
+        current_ep = db.query(AccessEpisode).filter(
+            AccessEpisode.patient_id == patient_id,
+            AccessEpisode.is_current == True,
+        ).order_by(AccessEpisode.creation_date.desc()).first()
+        if not current_ep:
+            raise HTTPException(status_code=400, detail="No current access episode found")
+        episode_id = current_ep.id
+        access_class = current_ep.access_class
+    else:
+        ep = db.query(AccessEpisode).filter(AccessEpisode.id == episode_id).first()
+        if not ep:
+            raise HTTPException(status_code=404, detail="Episode not found")
+        access_class = ep.access_class
+
+    event = AccessEvent(
+        patient_id=patient_id,
+        episode_id=episode_id,
+        event_date=date.fromisoformat(body["event_date"]),
+        event_type=body["event_type"],
+        access_class=access_class,
+        severity=body.get("severity"),
+        steal_grade=body.get("steal_grade"),
+        cannulation_injury_grade=body.get("cannulation_injury_grade"),
+        affected_segment=body.get("affected_segment"),
+        action_taken=body.get("action_taken"),
+        outcome=body.get("outcome"),
+        status=body.get("status", "pending_review"),
+        notes=body.get("notes"),
+        entered_by=getattr(user, "username", "clinician"),
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return JSONResponse(content=jsonable_encoder(event), status_code=201)
+
+
+@router.post("/vascular-access/surveillance/{patient_id}", response_class=JSONResponse)
+async def log_surveillance_record(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    """Log a clinically-triggered imaging/Doppler surveillance record."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode, AccessSurveillanceRecord
+    from fastapi.encoders import jsonable_encoder
+
+    user = get_user(request)
+    body = await request.json()
+
+    episode_id = body.get("episode_id")
+    if not episode_id:
+        current_ep = db.query(AccessEpisode).filter(
+            AccessEpisode.patient_id == patient_id,
+            AccessEpisode.is_current == True,
+        ).order_by(AccessEpisode.creation_date.desc()).first()
+        if not current_ep:
+            raise HTTPException(status_code=400, detail="No current access episode found")
+        episode_id = current_ep.id
+
+    if not body.get("clinical_trigger"):
+        raise HTTPException(status_code=400, detail="clinical_trigger is required (KDOQI: surveillance must be clinically indicated)")
+
+    rec = AccessSurveillanceRecord(
+        patient_id=patient_id,
+        episode_id=episode_id,
+        surveillance_date=date.fromisoformat(body["surveillance_date"]),
+        clinical_trigger=body["clinical_trigger"],
+        modality=body.get("modality"),
+        qa_by_imaging=body.get("qa_by_imaging"),
+        qa_baseline_at_test=body.get("qa_baseline_at_test"),
+        psv_at_stenosis=body.get("psv_at_stenosis"),
+        stenosis_pct=body.get("stenosis_pct"),
+        finding=body.get("finding"),
+        recommendation=body.get("recommendation"),
+        next_due_date=date.fromisoformat(body["next_due_date"]) if body.get("next_due_date") else None,
+        performed_by=body.get("performed_by"),
+        status=body.get("status", "pending_review"),
+        notes=body.get("notes"),
+        entered_by=getattr(user, "username", "clinician"),
+    )
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return JSONResponse(content=jsonable_encoder(rec), status_code=201)
+
+
+@router.patch("/vascular-access/events/{event_id}/status", response_class=JSONResponse)
+async def update_access_event_status(event_id: int, request: Request, db: Session = Depends(get_db)):
+    """Confirm or rule out an access event (governance workflow)."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEvent
+    from fastapi.encoders import jsonable_encoder
+
+    user = get_user(request)
+    body = await request.json()
+    status = body.get("status")
+    if status not in ("confirmed", "ruled_out", "pending_review"):
+        raise HTTPException(status_code=400, detail="status must be confirmed, ruled_out, or pending_review")
+
+    event = db.query(AccessEvent).filter(AccessEvent.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    event.status = status
+    event.reviewed_by = getattr(user, "username", "clinician")
+    event.reviewed_at = datetime.now()
+    db.commit()
+    return JSONResponse(content=jsonable_encoder(event))
+
+
+@router.patch("/vascular-access/episodes/{episode_id}/life-plan", response_class=JSONResponse)
+async def update_life_plan(episode_id: int, request: Request, db: Session = Depends(get_db)):
+    """Update ESKD Life-Plan fields on an access episode."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode
+    from fastapi.encoders import jsonable_encoder
+
+    body = await request.json()
+    ep = db.query(AccessEpisode).filter(AccessEpisode.id == episode_id).first()
+    if not ep:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    if "succession_plan" in body:
+        ep.succession_plan = body["succession_plan"]
+    if "life_plan_reviewed_at" in body:
+        ep.life_plan_reviewed_at = date.fromisoformat(body["life_plan_reviewed_at"])
+    if "access_reviewed_at" in body:
+        ep.access_reviewed_at = date.fromisoformat(body["access_reviewed_at"])
+
+    db.commit()
+    return JSONResponse(content=jsonable_encoder(ep))
+
+
+@router.post("/vascular-access/alerts/override", response_class=JSONResponse)
+async def override_access_alert(request: Request, db: Session = Depends(get_db)):
+    """Log an alert override / acknowledgement (governance audit trail)."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessAlertOverride
+    from fastapi.encoders import jsonable_encoder
+
+    user = get_user(request)
+    body = await request.json()
+
+    if body.get("action") == "overridden" and not body.get("override_reason"):
+        raise HTTPException(status_code=400, detail="override_reason is required when action=overridden")
+
+    override = AccessAlertOverride(
+        patient_id=body["patient_id"],
+        alert_type=body["alert_type"],
+        alert_generated_at=datetime.fromisoformat(body["alert_generated_at"]),
+        alert_reason=body.get("alert_reason"),
+        action=body["action"],
+        override_reason=body.get("override_reason"),
+        actioned_by=getattr(user, "username", "clinician"),
+    )
+    db.add(override)
+    db.commit()
+    db.refresh(override)
+    return JSONResponse(content=jsonable_encoder(override), status_code=201)
+
+
+@router.post("/vascular-access/surveillance/{record_id}/upload-image", response_class=JSONResponse)
+async def upload_surveillance_image(
+    record_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload a Doppler / fistulogram report image and attach it to a surveillance record.
+
+    Accepts JPEG, PNG, WebP, PDF. Stored at static/uploads/surveillance/<record_id>_<filename>.
+    Returns the public URL path.
+    """
+    _require_analytics_access(request)
+    import os, uuid
+    from db.models.clinical import AccessSurveillanceRecord
+    from fastapi.encoders import jsonable_encoder
+
+    rec = db.query(AccessSurveillanceRecord).filter(AccessSurveillanceRecord.id == record_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Surveillance record not found")
+
+    content_type = file.content_type or ""
+    allowed = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+    if content_type not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{content_type}'. Upload JPEG, PNG, WebP, or PDF.",
+        )
+
+    ext_map = {
+        "image/jpeg": ".jpg", "image/png": ".png",
+        "image/webp": ".webp", "application/pdf": ".pdf",
+    }
+    ext = ext_map.get(content_type, ".bin")
+    safe_name = f"{record_id}_{uuid.uuid4().hex[:8]}{ext}"
+    upload_dir = os.path.join("static", "uploads", "surveillance")
+    os.makedirs(upload_dir, exist_ok=True)
+    dest_path = os.path.join(upload_dir, safe_name)
+
+    contents = await file.read()
+    with open(dest_path, "wb") as f_out:
+        f_out.write(contents)
+
+    public_path = f"/static/uploads/surveillance/{safe_name}"
+    rec.report_image_path = public_path
+    db.commit()
+    return JSONResponse(content={"url": public_path, "record_id": record_id})
+
+
+@router.get("/vascular-access/analytics/{patient_id}", response_class=HTMLResponse)
+async def vascular_access_analytics(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    """Per-patient vascular access analytics page with Plotly trend visualisations."""
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode, AccessEvent, AccessSurveillanceRecord
+    from services.access_surveillance_service import (
+        compute_access_action_items, compute_access_patency, compute_av_intervention_count,
+    )
+    from fastapi.encoders import jsonable_encoder
+
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404)
+
+    # All episodes, most recent first
+    episodes = (
+        db.query(AccessEpisode)
+        .filter(AccessEpisode.patient_id == patient_id)
+        .order_by(AccessEpisode.creation_date.desc())
+        .all()
+    )
+
+    current_ep = next((e for e in episodes if e.is_current), episodes[0] if episodes else None)
+
+    # Last 60 sessions — Qa, recirculation, thrill/bruit, cannulation difficulty
+    sessions_raw = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id == patient_id)
+        .order_by(SessionRecord.session_date.asc())
+        .limit(60)
+        .all()
+    )
+
+    # All confirmed events for timeline
+    events = (
+        db.query(AccessEvent)
+        .filter(AccessEvent.patient_id == patient_id, AccessEvent.status == "confirmed")
+        .order_by(AccessEvent.event_date.asc())
+        .all()
+    )
+
+    # All surveillance records with images
+    surveillance = (
+        db.query(AccessSurveillanceRecord)
+        .filter(AccessSurveillanceRecord.patient_id == patient_id)
+        .order_by(AccessSurveillanceRecord.surveillance_date.desc())
+        .all()
+    )
+    latest_doppler = next(
+        (s for s in surveillance if s.modality == "duplex_doppler"), None
+    )
+
+    # Action items for this patient
+    action_items = []
+    try:
+        action_items = compute_access_action_items(db, patient_id)
+    except Exception:
+        pass
+
+    # Patency for current episode
+    patency = {}
+    if current_ep:
+        patency = compute_access_patency(db, current_ep.id)
+
+    # Intervention count vs KDOQI 1-2-3
+    intervention_establish = {}
+    intervention_annual = {}
+    if current_ep:
+        intervention_establish = compute_av_intervention_count(db, current_ep.id, "establish")
+        intervention_annual = compute_av_intervention_count(db, current_ep.id, "annual")
+
+    # Serialisable chart data
+    chart_sessions = [
+        {
+            "date": str(s.session_date),
+            "qa": s.access_flow_qa,
+            "recirc": s.access_recirculation_percent,
+            "bfr_actual": s.actual_blood_flow_rate,
+            "bfr_prescribed": s.blood_flow_rate,
+            "thrill": s.thrill_grade,
+            "bruit": s.bruit_grade,
+            "cannulation_difficulty": s.cannulation_difficulty,
+            "aneurysm_flag": s.aneurysm_flag,
+            "steal_flag": s.steal_signs_flag,
+        }
+        for s in sessions_raw
+    ]
+    chart_events = [
+        {
+            "date": str(e.event_date),
+            "type": e.event_type,
+            "severity": e.severity,
+            "steal_grade": e.steal_grade,
+            "action": e.action_taken,
+        }
+        for e in events
+    ]
+    chart_surveillance = [
+        {
+            "date": str(s.surveillance_date),
+            "qa": s.qa_by_imaging,
+            "baseline": s.qa_baseline_at_test,
+            "stenosis_pct": s.stenosis_pct,
+            "psv": s.psv_at_stenosis,
+            "finding": s.finding,
+            "recommendation": s.recommendation,
+            "image_url": s.report_image_path,
+            "trigger": s.clinical_trigger,
+            "modality": s.modality,
+            "notes": s.notes,
+            "record_id": s.id,
+        }
+        for s in surveillance
+    ]
+
+    import json as _json
+    return templates.TemplateResponse("vascular_access_analytics.html", {
+        "request": request,
+        "patient": patient,
+        "episodes": episodes,
+        "current_ep": current_ep,
+        "patency": patency,
+        "action_items": action_items,
+        "intervention_establish": intervention_establish,
+        "intervention_annual": intervention_annual,
+        "latest_doppler": latest_doppler,
+        "surveillance": surveillance,
+        "chart_sessions_json": _json.dumps(chart_sessions),
+        "chart_events_json": _json.dumps(chart_events),
+        "chart_surveillance_json": _json.dumps(chart_surveillance),
+        "user": get_user(request),
+    })
+
 
 @router.get("/mortality-risk", response_class=HTMLResponse)
 async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
@@ -548,6 +1055,22 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
                 "access_condition": s.access_condition,
                 "arterial_line_pressure": s.arterial_line_pressure,
                 "venous_line_pressure": s.venous_line_pressure,
+                "weight_pre": s.weight_pre,
+                "weight_post": s.weight_post,
+                "uf_volume": s.uf_volume,
+                "uf_rate": s.uf_rate,
+                "bp_pre_sys": s.bp_pre_sys,
+                "bp_pre_dia": s.bp_pre_dia,
+                "bp_post_sys": s.bp_post_sys,
+                "bp_post_dia": s.bp_post_dia,
+                "idh_episode": s.idh_episode,
+                "is_emergency": s.is_emergency,
+                "early_termination": s.early_termination,
+                "pre_hd_dyspnea_likert": s.pre_hd_dyspnea_likert,
+                "post_hd_dyspnea_likert": s.post_hd_dyspnea_likert,
+                "anticoagulation": s.anticoagulation,
+                "duration_hours": s.duration_hours,
+                "duration_minutes": s.duration_minutes,
             }
             for s in recent_sessions
         ]

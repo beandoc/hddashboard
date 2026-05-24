@@ -132,11 +132,30 @@ class SessionRecord(Base):
     interim_ca = Column(Float)
     interim_trigger = Column(String)
 
+    # ── Vascular Access Bedside Screen (KDOQI 2019) ──────────────────────────
+    # Physical exam — mandatory at every session (primary monitoring tool per KDOQI)
+    # thrill_grade / bruit_grade: normal | reduced | absent
+    thrill_grade            = Column(String, default="normal")
+    bruit_grade             = Column(String, default="normal")
+    aneurysm_flag           = Column(Boolean, default=False)
+    steal_signs_flag        = Column(Boolean, default=False)
+
+    # Cannulation quality — AVF/AVG sessions only
+    cannulation_attempts    = Column(Integer)                  # 1–10, nullable
+    cannulation_difficulty  = Column(String, default="routine")  # routine | difficult | failed
+    needle_infiltration     = Column(Boolean, default=False)
+
     __table_args__ = (
         Index('ix_session_records_patient_month', 'patient_id', 'record_month'),
     )
 
     patient = relationship("Patient", back_populates="sessions")
+    symptom_report = relationship(
+        "PatientSymptomReport",
+        back_populates="session",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class InterimLabRecord(Base):

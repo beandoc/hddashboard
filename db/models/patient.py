@@ -207,6 +207,10 @@ class Patient(Base):
     events               = relationship("ClinicalEvent",         back_populates="patient", cascade="all, delete-orphan")
     research_records     = relationship("ResearchRecord",        back_populates="patient")
     hospitalisations     = relationship("HospitalisationEvent",  back_populates="patient", cascade="all, delete-orphan")
+    access_episodes      = relationship("AccessEpisode",          back_populates="patient", cascade="all, delete-orphan")
+    access_events        = relationship("AccessEvent",            back_populates="patient", cascade="all, delete-orphan")
+    surveillance_records = relationship("AccessSurveillanceRecord", back_populates="patient", cascade="all, delete-orphan")
+    access_alert_overrides = relationship("AccessAlertOverride",  back_populates="patient", cascade="all, delete-orphan")
 
     # ── Backward-compatible property proxies ─────────────────────────────────
 

@@ -4,6 +4,13 @@ from typing import Optional
 
 from database import Patient, SessionRecord, InterimLabRecord, PatientSymptomReport
 
+_SONG_HD_KEYS = [
+    'dialysis_recovery_time_mins', 'tiredness_score', 'energy_level_score',
+    'sleepiness_severity', 'daily_activity_impact', 'cognitive_alertness',
+    'post_hd_mood', 'symptoms', 'symptom_notes', 'severity',
+    'missed_social_or_work_event',
+]
+
 def promote_session_labs(db: Session, sess: SessionRecord):
     """Hybrid logic: promote session labs to the longitudinal InterimLabRecord table."""
     params = [
@@ -45,6 +52,19 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
     session_date = data["session_date"]
     month_str = session_date[:7]
     
+    # Compute UF volume and rate from weight delta
+    weight_pre = data.get("weight_pre")
+    weight_post = data.get("weight_post")
+    duration_hours = data.get("duration_hours")
+    duration_minutes = data.get("duration_minutes")
+    uf_volume = None
+    uf_rate = None
+    if weight_pre is not None and weight_post is not None:
+        uf_volume = round((float(weight_pre) - float(weight_post)) * 1000, 1)  # mL
+        total_hours = (float(duration_hours or 0) + float(duration_minutes or 0) / 60) or None
+        if total_hours and float(weight_pre) > 0:
+            uf_rate = round(uf_volume / (float(weight_pre) * total_hours), 2)  # mL/kg/hr
+
     rec = SessionRecord(
         patient_id=patient_id,
         session_date=datetime.strptime(session_date, "%Y-%m-%d").date(),
@@ -91,13 +111,16 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         urea_venous_v=data.get("urea_venous_v"),
         access_recirculation_percent=data.get("access_recirculation_percent"),
         access_flow_qa=data.get("access_flow_qa"),
+        uf_volume=uf_volume,
+        actual_uf_volume=uf_volume,
+        uf_rate=uf_rate,
     )
     db.add(rec)
     db.commit()
     db.refresh(rec)
     
     # Process symptom report if any symptom data is provided
-    if any(data.get(k) is not None and data.get(k) != "" for k in ['dialysis_recovery_time_mins', 'symptoms', 'symptom_notes']):
+    if any(data.get(k) is not None and data.get(k) != "" for k in _SONG_HD_KEYS):
         symptom_report = PatientSymptomReport(
             patient_id=patient_id,
             session_date=rec.session_date,
@@ -170,10 +193,25 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.urea_venous_v = data.get("urea_venous_v")
     sess.access_recirculation_percent = data.get("access_recirculation_percent")
     sess.access_flow_qa = data.get("access_flow_qa")
-    
+
+    _wp = data.get("weight_pre")
+    _wpo = data.get("weight_post")
+    _dh = data.get("duration_hours")
+    _dm = data.get("duration_minutes")
+    if _wp is not None and _wpo is not None:
+        _uf_vol = round((float(_wp) - float(_wpo)) * 1000, 1)
+        _total_h = (float(_dh or 0) + float(_dm or 0) / 60) or None
+        sess.uf_volume = _uf_vol
+        sess.actual_uf_volume = _uf_vol
+        sess.uf_rate = round(_uf_vol / (float(_wp) * _total_h), 2) if _total_h and float(_wp) > 0 else None
+    else:
+        sess.uf_volume = None
+        sess.actual_uf_volume = None
+        sess.uf_rate = None
+
     # Process symptom report
     symptom_report = db.query(PatientSymptomReport).filter(PatientSymptomReport.session_id == session_id).first()
-    if any(data.get(k) is not None and data.get(k) != "" for k in ['dialysis_recovery_time_mins', 'symptoms', 'symptom_notes']):
+    if any(data.get(k) is not None and data.get(k) != "" for k in _SONG_HD_KEYS):
         if not symptom_report:
             symptom_report = PatientSymptomReport(
                 patient_id=sess.patient_id,

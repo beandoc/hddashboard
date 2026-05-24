@@ -384,6 +384,120 @@
       </div>
     </div>
 
+    <!-- ── KDOQI 2019 Bedside Access Exam ────────────────────────────────────
+         Primary monitoring at every session. Minimal mandatory fields.
+         Abnormal findings prompt escalation to the dedicated Access Event log.
+         ──────────────────────────────────────────────────────────────────── -->
+    <div class="card" id="section-access-exam" style="border: 1px solid #e0f2fe; background: linear-gradient(to bottom right, #fff, #f0f9ff);">
+      <div class="card-title" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between;"
+           onclick="toggleAccessExam()">
+        <span><i class="material-icons" style="color:#0369a1;">health_and_safety</i> Bedside Access Exam <span style="font-size:0.72rem; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:600;">KDOQI 2019</span></span>
+        <i class="material-icons" id="access-exam-chevron" style="color:#94a3b8; transition:transform 0.2s;">expand_more</i>
+      </div>
+
+      <div id="access-exam-body" style="display:none; margin-top:16px;">
+        <p style="font-size:0.78rem; color:#64748b; margin-top:0; margin-bottom:16px;">
+          Physical examination is the primary access monitoring tool at every session (KDOQI 2019).
+          Abnormal findings escalate to the Access Event log — not free-text complications.
+        </p>
+
+        <!-- Thrill + Bruit toggles -->
+        <div class="grid" style="gap:16px; margin-bottom:16px;">
+          <div>
+            <label style="font-size:0.78rem; font-weight:700; color:#0369a1; display:block; margin-bottom:6px;">Thrill Grade</label>
+            <div style="display:flex; gap:6px;">
+              {% for grade in ["normal","reduced","absent"] %}
+              <label style="flex:1; text-align:center; cursor:pointer;">
+                <input type="radio" name="thrill_grade" value="{{ grade }}"
+                  {{ 'checked' if (session and session.thrill_grade == grade) or (not session and grade == 'normal') else '' }}
+                  style="display:none;" class="thrill-radio">
+                <span class="toggle-btn" data-val="{{ grade }}" style="display:block; padding:8px 4px; border-radius:8px; border:2px solid #e2e8f0; font-size:0.8rem; font-weight:600; transition:all 0.15s; text-transform:capitalize;
+                  {% if (session and session.thrill_grade == grade) or (not session and grade == 'normal') %}
+                    background:{{ '#dcfce7' if grade == 'normal' else '#fef3c7' if grade == 'reduced' else '#fee2e2' }};
+                    border-color:{{ '#16a34a' if grade == 'normal' else '#d97706' if grade == 'reduced' else '#ef4444' }};
+                    color:{{ '#166534' if grade == 'normal' else '#92400e' if grade == 'reduced' else '#b91c1c' }};
+                  {% endif %}
+                  ">{{ grade }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          <div>
+            <label style="font-size:0.78rem; font-weight:700; color:#0369a1; display:block; margin-bottom:6px;">Bruit Grade</label>
+            <div style="display:flex; gap:6px;">
+              {% for grade in ["normal","reduced","absent"] %}
+              <label style="flex:1; text-align:center; cursor:pointer;">
+                <input type="radio" name="bruit_grade" value="{{ grade }}"
+                  {{ 'checked' if (session and session.bruit_grade == grade) or (not session and grade == 'normal') else '' }}
+                  style="display:none;" class="bruit-radio">
+                <span class="toggle-btn" data-val="{{ grade }}" style="display:block; padding:8px 4px; border-radius:8px; border:2px solid #e2e8f0; font-size:0.8rem; font-weight:600; transition:all 0.15s; text-transform:capitalize;
+                  {% if (session and session.bruit_grade == grade) or (not session and grade == 'normal') %}
+                    background:{{ '#dcfce7' if grade == 'normal' else '#fef3c7' if grade == 'reduced' else '#fee2e2' }};
+                    border-color:{{ '#16a34a' if grade == 'normal' else '#d97706' if grade == 'reduced' else '#ef4444' }};
+                    color:{{ '#166534' if grade == 'normal' else '#92400e' if grade == 'reduced' else '#b91c1c' }};
+                  {% endif %}
+                  ">{{ grade }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Aneurysm + Steal checkboxes -->
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px 14px; font-size:0.85rem; font-weight:600; color:#c2410c;">
+            <input type="checkbox" name="aneurysm_flag" value="true"
+              {{ 'checked' if session and session.aneurysm_flag else '' }}
+              id="aneurysm-flag-cb"
+              style="width:16px; height:16px; accent-color:#c2410c;">
+            Aneurysm observed (&gt;18mm or ≥3× vessel diameter)
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; background:#fff1f2; border:1px solid #fecaca; border-radius:8px; padding:10px 14px; font-size:0.85rem; font-weight:600; color:#b91c1c;">
+            <input type="checkbox" name="steal_signs_flag" value="true"
+              {{ 'checked' if session and session.steal_signs_flag else '' }}
+              id="steal-flag-cb"
+              style="width:16px; height:16px; accent-color:#b91c1c;">
+            Steal signs (hand pain/pallor/paresthesia)
+          </label>
+        </div>
+
+        <!-- Cannulation quality — shown only for AVF/AVG -->
+        <div id="cannulation-quality-section" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:14px; display:none;">
+          <div style="font-size:0.78rem; font-weight:700; color:#475569; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.06em;">Cannulation Quality (AVF/AVG)</div>
+          <div class="grid" style="gap:14px;">
+            <div>
+              <label>Cannulation Difficulty</label>
+              <select name="cannulation_difficulty">
+                {% for diff in ["routine","difficult","failed"] %}
+                <option value="{{ diff }}" {{ 'selected' if (session and session.cannulation_difficulty == diff) or (not session and diff == 'routine') else '' }}>{{ diff | title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label>Attempts (if &gt;1)</label>
+              <input type="number" name="cannulation_attempts" min="1" max="10" inputmode="numeric"
+                placeholder="e.g. 3"
+                value="{{ session.cannulation_attempts if session and session.cannulation_attempts else '' }}">
+            </div>
+            <div style="display:flex; align-items:center; padding-top:20px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem; font-weight:600; color:#b91c1c;">
+                <input type="checkbox" name="needle_infiltration" value="true"
+                  {{ 'checked' if session and session.needle_infiltration else '' }}
+                  style="width:16px; height:16px; accent-color:#b91c1c;">
+                Needle infiltration / extravasation
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Abnormal finding banner (shown when any flag is set) -->
+        <div id="access-abnormal-banner" style="display:none; margin-top:14px; background:#fff1f2; border:1px solid #fecaca; border-radius:8px; padding:12px 16px; color:#b91c1c; font-size:0.85rem; font-weight:600; display:flex; align-items:center; gap:10px;">
+          <i class="material-icons" style="font-size:1.2rem;">report_problem</i>
+          <span>Abnormal finding recorded — please <a href="/analytics/patients/{{ patient.id }}#access-history-card" style="color:#b91c1c; text-decoration:underline;">log an Access Event</a> after saving this session.</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Weights & BP ── -->
     <div class="card" id="section-vitals">
       <div class="card-title"><i class="material-icons">monitor_weight</i> Weights & Blood Pressure</div>
@@ -826,6 +940,96 @@
     });
   }, { threshold: 0.3 });
   sectionMap.forEach(([sid]) => { const el = document.getElementById(sid); if (el) obs.observe(el); });
+
+  // ── KDOQI 2019 Bedside Access Exam ─────────────────────────────────────
+  function toggleAccessExam() {
+    const body = document.getElementById('access-exam-body');
+    const chevron = document.getElementById('access-exam-chevron');
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    chevron.style.transform = open ? '' : 'rotate(180deg)';
+  }
+
+  // Auto-expand if any abnormal value is already set (editing existing session)
+  (function() {
+    const abnormal = [
+      document.querySelector('[name="thrill_grade"][value="reduced"]')?.checked,
+      document.querySelector('[name="thrill_grade"][value="absent"]')?.checked,
+      document.querySelector('[name="bruit_grade"][value="reduced"]')?.checked,
+      document.querySelector('[name="bruit_grade"][value="absent"]')?.checked,
+      document.getElementById('aneurysm-flag-cb')?.checked,
+      document.getElementById('steal-flag-cb')?.checked,
+    ].some(Boolean);
+    if (abnormal) {
+      document.getElementById('access-exam-body').style.display = 'block';
+      document.getElementById('access-exam-chevron').style.transform = 'rotate(180deg)';
+    }
+  })();
+
+  // Radio toggle styling for thrill/bruit
+  function wireToggleGroup(radioClass) {
+    document.querySelectorAll('.' + radioClass).forEach(radio => {
+      radio.addEventListener('change', function() {
+        const group = document.querySelectorAll('.' + radioClass);
+        group.forEach(r => {
+          const span = r.nextElementSibling;
+          const v = r.value;
+          if (r.checked) {
+            span.style.background = v === 'normal' ? '#dcfce7' : v === 'reduced' ? '#fef3c7' : '#fee2e2';
+            span.style.borderColor = v === 'normal' ? '#16a34a' : v === 'reduced' ? '#d97706' : '#ef4444';
+            span.style.color = v === 'normal' ? '#166534' : v === 'reduced' ? '#92400e' : '#b91c1c';
+          } else {
+            span.style.background = '';
+            span.style.borderColor = '#e2e8f0';
+            span.style.color = '';
+          }
+        });
+        checkAccessAbnormal();
+      });
+    });
+  }
+  wireToggleGroup('thrill-radio');
+  wireToggleGroup('bruit-radio');
+
+  // Cannulation section visibility based on access type
+  function updateCannulationVisibility() {
+    const loc = document.querySelector('[name="access_location"]')?.value || '';
+    const isAVF_AVG = /AVF|AVG|Graft/i.test(loc);
+    const sec = document.getElementById('cannulation-quality-section');
+    if (sec) sec.style.display = isAVF_AVG ? 'block' : 'none';
+  }
+  const accessLocSelect = document.querySelector('[name="access_location"]');
+  if (accessLocSelect) {
+    accessLocSelect.addEventListener('change', updateCannulationVisibility);
+    updateCannulationVisibility();
+  }
+
+  // Show abnormal banner if any flag is set
+  function checkAccessAbnormal() {
+    const thrillAbnormal = ['reduced','absent'].some(v => document.querySelector(`[name="thrill_grade"][value="${v}"]`)?.checked);
+    const bruitAbnormal = ['reduced','absent'].some(v => document.querySelector(`[name="bruit_grade"][value="${v}"]`)?.checked);
+    const aneurysm = document.getElementById('aneurysm-flag-cb')?.checked;
+    const steal = document.getElementById('steal-flag-cb')?.checked;
+    const diffFailed = document.querySelector('[name="cannulation_difficulty"]')?.value === 'failed';
+    const infiltration = document.querySelector('[name="needle_infiltration"]')?.checked;
+    const anyAbnormal = thrillAbnormal || bruitAbnormal || aneurysm || steal || diffFailed || infiltration;
+    const banner = document.getElementById('access-abnormal-banner');
+    if (banner) banner.style.display = anyAbnormal ? 'flex' : 'none';
+    // Auto-expand the card if an abnormal flag is checked
+    if (anyAbnormal) {
+      document.getElementById('access-exam-body').style.display = 'block';
+      document.getElementById('access-exam-chevron').style.transform = 'rotate(180deg)';
+    }
+  }
+  ['aneurysm-flag-cb','steal-flag-cb'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', checkAccessAbnormal);
+  });
+  const cannDiff = document.querySelector('[name="cannulation_difficulty"]');
+  if (cannDiff) cannDiff.addEventListener('change', checkAccessAbnormal);
+  const needleInf = document.querySelector('[name="needle_infiltration"]');
+  if (needleInf) needleInf.addEventListener('change', checkAccessAbnormal);
+  checkAccessAbnormal();
 </script>
 </body>
 </html>
