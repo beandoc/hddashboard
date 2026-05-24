@@ -1332,17 +1332,21 @@ def compute_avf_rate_trend(db: Session, n_months: int = 6) -> list[dict]:
     Loads all active patients once, then computes per-month counts in Python.
     """
     from db.models.patient import Patient
+    from sqlalchemy.orm import joinedload
     import calendar
 
     today = date.today()
 
     # Single query — load all active patients with an HD start date once
-    all_pts = db.query(
-        Patient.hd_wef_date, Patient.access_type,
-    ).filter(
-        Patient.is_active == True,
-        Patient.hd_wef_date.isnot(None),
-    ).all()
+    all_pts = (
+        db.query(Patient)
+        .options(joinedload(Patient.vascular_access))
+        .filter(
+            Patient.is_active == True,
+            Patient.hd_wef_date.isnot(None),
+        )
+        .all()
+    )
 
     results = []
     for i in range(n_months - 1, -1, -1):
