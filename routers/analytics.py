@@ -762,25 +762,68 @@ async def vascular_access_analytics(patient_id: int, request: Request, db: Sessi
 
 
 @router.get("/mortality-risk", response_class=HTMLResponse)
-async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
+async def mortality_risk_list(
+    request: Request,
+    page: int = 1,
+    limit: int = 10,
+    tier: str = "all",
+    search: str = "",
+    db: Session = Depends(get_db)
+):
     _require_analytics_access(request)
     rows = get_all_patients_mortality_risk(db)
 
     # Sort: no-data patients last, then descending by 1-yr probability
     rows.sort(key=lambda r: (r["prob_1yr"] is None, -(r["prob_1yr"] or 0)))
 
-    high_risk   = [r for r in rows if r["risk_level"] in ("High", "Very High")]
-    moderate    = [r for r in rows if r["risk_level"] == "Moderate"]
-    low_risk    = [r for r in rows if r["risk_level"] == "Low"]
-    no_data     = [r for r in rows if not r["mort"].get("available")]
+    # Compute overall cohort counts
+    total_high = len([r for r in rows if r["risk_level"] in ("High", "Very High")])
+    total_moderate = len([r for r in rows if r["risk_level"] == "Moderate"])
+    total_low = len([r for r in rows if r["risk_level"] == "Low"])
+    total_no_data = len([r for r in rows if not r["mort"].get("available")])
+
+    # Filter by risk tier
+    filtered_rows = rows
+    if tier == "high":
+        filtered_rows = [r for r in rows if r["risk_level"] in ("High", "Very High")]
+    elif tier == "moderate":
+        filtered_rows = [r for r in rows if r["risk_level"] == "Moderate"]
+    elif tier == "low":
+        filtered_rows = [r for r in rows if r["risk_level"] == "Low"]
+    elif tier == "no_data":
+        filtered_rows = [r for r in rows if not r["mort"].get("available")]
+
+    # Filter by search string
+    if search:
+        search_lower = search.strip().lower()
+        filtered_rows = [
+            r for r in filtered_rows
+            if search_lower in r["patient"].name.lower() or search_lower in r["patient"].hid_no.lower()
+        ]
+
+    # Paginate results
+    import math
+    total_items = len(filtered_rows)
+    total_pages = max(1, math.ceil(total_items / limit))
+    page = max(1, min(page, total_pages))
+
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_rows = filtered_rows[start_idx:end_idx]
 
     return templates.TemplateResponse("mortality_risk.html", {
         "request":   request,
-        "rows":      rows,
-        "high_risk": high_risk,
-        "moderate":  moderate,
-        "low_risk":  low_risk,
-        "no_data":   no_data,
+        "rows":      paginated_rows,
+        "current_page": page,
+        "total_pages": total_pages,
+        "total_items": total_items,
+        "limit":     limit,
+        "tier":      tier,
+        "search":    search,
+        "total_high": total_high,
+        "total_moderate": total_moderate,
+        "total_low":  total_low,
+        "total_no_data": total_no_data,
         "user":      get_user(request),
     })
 

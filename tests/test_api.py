@@ -85,3 +85,19 @@ def test_patients_page_renders_with_csrf_token(client):
     response = client.get("/patients")
     assert response.status_code == 200
     assert 'name="csrf_token"' in response.text
+
+def test_mortality_risk_pagination(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+    
+    # Test main page access
+    response = client.get("/analytics/mortality-risk?page=1&limit=10&tier=all&search=")
+    assert response.status_code == 200
+    assert "Mortality Risk" in response.text
+    
+    # Test out-of-bounds page query parameters
+    response = client.get("/analytics/mortality-risk?page=9999&limit=10&tier=all&search=")
+    assert response.status_code == 200
+    assert "Mortality Risk" in response.text

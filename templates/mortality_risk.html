@@ -176,6 +176,129 @@
     td { padding: 10px 12px; }
     .prob-bar-wrap { min-width: 100px; }
   }
+
+  /* Clickable header chips navigation */
+  .header-chips a { text-decoration: none; display: inline-block; transition: all 0.2s ease; }
+  .header-chips a:hover { transform: translateY(-2px); filter: brightness(1.15); }
+  .header-chips a.active .chip { box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(0,0,0,0.15); border-color: rgba(255,255,255,0.8); opacity: 1; }
+  .chip { border: 2px solid transparent; opacity: 0.7; }
+
+  /* Controls & Search bar */
+  .controls-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--card);
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .search-form {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    max-width: 480px;
+  }
+  .search-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus {
+    border-color: var(--primary);
+  }
+  .btn-search {
+    padding: 10px 18px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.88rem;
+    transition: background-color 0.15s;
+  }
+  .btn-search:hover {
+    background: #0284c7;
+  }
+  .limit-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .limit-select {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--card);
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* Pagination Controls */
+  .pagination-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 28px;
+    font-size: 0.88rem;
+    color: var(--muted);
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .pagination-nav {
+    display: flex;
+    gap: 6px;
+  }
+  .page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .page-btn:hover:not(.disabled) {
+    background: var(--slate-bg);
+    border-color: var(--slate-border);
+  }
+  .page-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+  .page-btn.disabled {
+    color: #cbd5e1;
+    pointer-events: none;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+  }
   </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -197,16 +320,27 @@
     <h1><i class="material-icons">psychology</i> Mortality Risk — Cohort View</h1>
     <p>
       Xu et al. 2023 XGBoost (AUC 0.979 · 1-yr) + Davies Comorbidity Score (UK Renal Registry validated).
-      Sorted by descending 1-year Xu risk. Divergence flag shown when models disagree.
+      Sorted by descending 1-year Xu risk. Click a chip to filter the table.
     </p>
     <div class="header-chips">
-      <span class="chip chip-red">
-        <i class="material-icons" style="font-size:1rem;vertical-align:middle;">warning</i>
-        High Risk: {{ high_risk | length }}
-      </span>
-      <span class="chip chip-orange">Moderate: {{ moderate | length }}</span>
-      <span class="chip chip-green">Low Risk: {{ low_risk | length }}</span>
-      <span class="chip chip-slate">No Data: {{ no_data | length }}</span>
+      <a href="?tier=all&search={{ search }}&limit={{ limit }}" class="chip-link {% if tier == 'all' %}active{% endif %}">
+        <span class="chip chip-slate">All: {{ total_high + total_moderate + total_low + total_no_data }}</span>
+      </a>
+      <a href="?tier=high&search={{ search }}&limit={{ limit }}" class="chip-link {% if tier == 'high' %}active{% endif %}">
+        <span class="chip chip-red">
+          <i class="material-icons" style="font-size:1rem;vertical-align:middle;">warning</i>
+          High Risk: {{ total_high }}
+        </span>
+      </a>
+      <a href="?tier=moderate&search={{ search }}&limit={{ limit }}" class="chip-link {% if tier == 'moderate' %}active{% endif %}">
+        <span class="chip chip-orange">Moderate: {{ total_moderate }}</span>
+      </a>
+      <a href="?tier=low&search={{ search }}&limit={{ limit }}" class="chip-link {% if tier == 'low' %}active{% endif %}">
+        <span class="chip chip-green">Low Risk: {{ total_low }}</span>
+      </a>
+      <a href="?tier=no_data&search={{ search }}&limit={{ limit }}" class="chip-link {% if tier == 'no_data' %}active{% endif %}">
+        <span class="chip chip-slate">No Data: {{ total_no_data }}</span>
+      </a>
     </div>
   </div>
 </div>
@@ -224,6 +358,31 @@
       A <span style="background:#fefce8;border:1px solid #fde047;color:#713f12;padding:1px 5px;border-radius:4px;font-size:0.8rem;font-weight:700;">
       ⚡ Diverge</span> badge appears when the two models disagree on risk tier.
     </div>
+  </div>
+
+  <div class="controls-bar">
+    <form class="search-form" method="GET" action="/analytics/mortality-risk">
+      <input type="hidden" name="tier" value="{{ tier }}">
+      <input type="hidden" name="limit" value="{{ limit }}">
+      <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search by patient name or HID...">
+      <button type="submit" class="btn-search">Search</button>
+      {% if search %}
+        <a href="?tier={{ tier }}&limit={{ limit }}" class="btn-search" style="background:#64748b; text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Clear</a>
+      {% endif %}
+    </form>
+    
+    <form class="limit-form" method="GET" action="/analytics/mortality-risk">
+      <input type="hidden" name="tier" value="{{ tier }}">
+      <input type="hidden" name="search" value="{{ search }}">
+      <label for="limit-select">Show:</label>
+      <select id="limit-select" name="limit" class="limit-select" onchange="this.form.submit()">
+        <option value="10" {% if limit == 10 %}selected{% endif %}>10</option>
+        <option value="25" {% if limit == 25 %}selected{% endif %}>25</option>
+        <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+      </select>
+      <span>per page</span>
+    </form>
   </div>
 
   {# ── Macro: Davies cell ── #}
@@ -250,12 +409,6 @@
   {% endif %}
   {% endmacro %}
 
-  {% if high_risk %}
-  <div class="section-head">
-    <i class="material-icons" style="color:var(--red);">dangerous</i>
-    <h2 style="color:var(--red);">High / Very High Risk</h2>
-    <span class="count-badge">{{ high_risk | length }} patients</span>
-  </div>
   <div class="risk-table-wrap">
     <table>
       <thead>
@@ -273,21 +426,23 @@
         </tr>
       </thead>
       <tbody>
-        {% for row in high_risk %}
+        {% for row in rows %}
+        {% set p = row.patient %}
         {% set mort = row.mort.data %}
-        <tr id="patient-{{ row.patient.id }}">
+        <tr id="patient-{{ p.id }}">
           <td class="patient-name-cell">
-            <a href="/patients/{{ row.patient.id }}/profile" style="color:inherit; text-decoration:none;"><strong>{{ row.patient.name }}</strong></a>
-            <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
+            <a href="/patients/{{ p.id }}/profile" style="color:inherit; text-decoration:none;"><strong>{{ p.name }}</strong></a>
+            <div style="font-size:0.75rem;color:var(--muted);">{{ p.hid_no }}</div>
           </td>
           <td data-label="1-Year Risk">
+            {% if row.prob_1yr is not none %}
             <div class="prob-bar-wrap">
               <div class="prob-bar">
                 <div class="prob-bar-fill"
-                     style="width:{{ (row.prob_1yr * 100) | int }}%;background:{% if row.prob_1yr >= 0.65 %}#dc2626{% elif row.prob_1yr >= 0.439 %}#f97316{% else %}#f59e0b{% endif %};">
+                     style="width:{{ (row.prob_1yr * 100) | int }}%;background:{% if row.risk_level in ('High', 'Very High') %}{% if row.prob_1yr >= 0.65 %}#dc2626{% else %}#f97316{% endif %}{% elif row.risk_level == 'Moderate' %}#f59e0b{% else %}#22c55e{% endif %};">
                 </div>
               </div>
-              <span class="prob-pct" style="color:var(--red);">
+              <span class="prob-pct" style="color:{% if row.risk_level in ('High', 'Very High') %}var(--red){% elif row.risk_level == 'Moderate' %}var(--orange){% else %}var(--green){% endif %};">
                 {{ (row.prob_1yr * 100) | round | int }}%
               </span>
             </div>
@@ -296,14 +451,19 @@
               <span title="Estimated uncertainty range; not a validated predictive interval">Range: {{ (mort.uncertainty_lower * 100) | int }}%&ndash;{{ (mort.uncertainty_upper * 100) | int }}%</span>
             </div>
             {% endif %}
+            {% else %}
+            <span style="color:var(--muted); font-style:italic;">—</span>
+            {% endif %}
           </td>
           <td data-label="4-Year Risk">
-            {% if mort.prob_4yr is not none %}
+            {% if mort.prob_4yr is defined and mort.prob_4yr is not none %}
             <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (mort.prob_4yr * 100) | round | int }}%</span>
             {% else %}<span style="color:var(--muted);">—</span>{% endif %}
           </td>
           <td>
-            <span class="risk-pill pill-danger">{{ row.risk_level }}</span>
+            <span class="risk-pill {% if row.risk_level in ('High', 'Very High') %}pill-danger{% elif row.risk_level == 'Moderate' %}pill-warning{% elif row.risk_level == 'Low' %}pill-success{% else %}pill-secondary{% endif %}">
+              {{ row.risk_level if row.risk_level != 'Unknown' else 'Insufficient Data' }}
+            </span>
           </td>
           <td data-label="Davies Score">{{ davies_cell(row) }}</td>
           <td data-label="Latest Hb">
@@ -320,8 +480,9 @@
               </span>
             {% else %}<span class="lab-na">—</span>{% endif %}
           </td>
-          <td>{{ row.patient.age or '—' }}</td>
+          <td>{{ p.age or '—' }}</td>
           <td>
+            {% if mort.confidence is defined and mort.confidence %}
             <span class="conf-{{ mort.confidence }}">
               <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
             </span>
@@ -330,233 +491,66 @@
               {% if 'xgboost_full' in mort.model_type %}⚡ XGBoost (5/5){% elif 'xgboost' in mort.model_type %}⚡ XGBoost (partial){% else %}📐 Rule-based{% endif %}
             </div>
             {% endif %}
-          </td>
-          <td>
-            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
-              <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
-            </a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-  {% if moderate %}
-  <div class="section-head">
-    <i class="material-icons" style="color:var(--orange);">warning_amber</i>
-    <h2 style="color:var(--orange);">Moderate Risk</h2>
-    <span class="count-badge orange">{{ moderate | length }} patients</span>
-  </div>
-  <div class="risk-table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Patient</th>
-          <th>1-Year Risk</th>
-          <th>4-Year Risk</th>
-          <th>Risk Level</th>
-          <th>Davies Score</th>
-          <th>Latest Hb</th>
-          <th>Latest Albumin</th>
-          <th>Age</th>
-          <th>Confidence / Model</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in moderate %}
-        {% set mort = row.mort.data %}
-        <tr id="patient-{{ row.patient.id }}">
-          <td class="patient-name-cell">
-            <strong>{{ row.patient.name }}</strong>
-            <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
-          </td>
-          <td data-label="1-Year Risk">
-            <div class="prob-bar-wrap">
-              <div class="prob-bar">
-                <div class="prob-bar-fill"
-                     style="width:{{ (row.prob_1yr * 100) | int }}%;background:#f59e0b;">
-                </div>
-              </div>
-              <span class="prob-pct" style="color:var(--orange);">
-                {{ (row.prob_1yr * 100) | round | int }}%
-              </span>
-            </div>
-            {% if mort.uncertainty_lower is defined and mort.uncertainty_upper is defined %}
-            <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">
-              <span title="Approximate uncertainty range; not a validated 95% CI">Range: {{ (mort.uncertainty_lower * 100) | int }}%&ndash;{{ (mort.uncertainty_upper * 100) | int }}%</span>
-            </div>
-            {% endif %}
-          </td>
-          <td data-label="4-Year Risk">
-            {% if mort.prob_4yr is not none %}
-            <span style="font-size:0.92rem;font-weight:700;color:#7c3aed;">{{ (mort.prob_4yr * 100) | round | int }}%</span>
-            {% else %}<span style="color:var(--muted);">—</span>{% endif %}
-          </td>
-          <td>
-            <span class="risk-pill pill-warning">{{ row.risk_level }}</span>
-          </td>
-          <td data-label="Davies Score">{{ davies_cell(row) }}</td>
-          <td data-label="Latest Hb">
-            {% if row.latest_hb is not none %}
-              <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
-                {{ row.latest_hb }} g/dL
-              </span>
-            {% else %}<span class="lab-na">—</span>{% endif %}
-          </td>
-          <td data-label="Latest Albumin">
-            {% if row.latest_alb is not none %}
-              <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
-                {{ row.latest_alb }} g/dL
-              </span>
-            {% else %}<span class="lab-na">—</span>{% endif %}
-          </td>
-          <td>{{ row.patient.age or '—' }}</td>
-          <td>
-            <span class="conf-{{ mort.confidence }}">
-              <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
+            {% else %}
+            <span style="color:var(--muted); font-size:0.8rem;">
+              {{ row.n_months }} month(s) recorded
             </span>
-            {% if mort.model_type is defined %}
-            <div style="font-size:0.68rem;margin-top:2px;color:{% if 'xgboost_full' in mort.model_type %}#16a34a{% elif 'xgboost' in mort.model_type %}#d97706{% else %}#94a3b8{% endif %};font-weight:600;">
-              {% if 'xgboost_full' in mort.model_type %}⚡ XGBoost (5/5){% elif 'xgboost' in mort.model_type %}⚡ XGBoost (partial){% else %}📐 Rule-based{% endif %}
-            </div>
             {% endif %}
           </td>
           <td>
-            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
+            {% if mort.confidence is defined and mort.confidence %}
+            <a href="/analytics/patients/{{ p.id }}" class="btn-analyze">
               <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
             </a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-  {% if low_risk %}
-  <div class="section-head">
-    <i class="material-icons" style="color:var(--green);">check_circle</i>
-    <h2 style="color:var(--green);">Low Risk</h2>
-    <span class="count-badge green">{{ low_risk | length }} patients</span>
-  </div>
-  <div class="risk-table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Patient</th>
-          <th>1-Year Risk</th>
-          <th>Risk Level</th>
-          <th>Davies Score</th>
-          <th>Latest Hb</th>
-          <th>Latest Albumin</th>
-          <th>Age</th>
-          <th>Confidence</th>
-          <th>Data Points</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in low_risk %}
-        {% set mort = row.mort.data %}
-        <tr id="patient-{{ row.patient.id }}">
-          <td class="patient-name-cell">
-            <strong>{{ row.patient.name }}</strong>
-            <div style="font-size:0.75rem;color:var(--muted);">{{ row.patient.hid_no }}</div>
-          </td>
-          <td data-label="1-Year Risk">
-            <div class="prob-bar-wrap">
-              <div class="prob-bar">
-                <div class="prob-bar-fill"
-                     style="width:{{ [row.prob_1yr * 100, 5] | max | int }}%;background:#22c55e;">
-                </div>
-              </div>
-              <span class="prob-pct" style="color:var(--green);">
-                {{ (row.prob_1yr * 100) | round | int }}%
-              </span>
-            </div>
-          </td>
-          <td><span class="risk-pill pill-success">{{ row.risk_level }}</span></td>
-          <td data-label="Davies Score">{{ davies_cell(row) }}</td>
-          <td data-label="Latest Hb">
-            {% if row.latest_hb is not none %}
-              <span class="lab-val {% if row.latest_hb < 10 %}lab-low{% elif row.latest_hb < 11 %}lab-warn{% else %}lab-ok{% endif %}">
-                {{ row.latest_hb }} g/dL
-              </span>
-            {% else %}<span class="lab-na">—</span>{% endif %}
-          </td>
-          <td data-label="Latest Albumin">
-            {% if row.latest_alb is not none %}
-              <span class="lab-val {% if row.latest_alb < 3.5 %}lab-low{% elif row.latest_alb < 3.8 %}lab-warn{% else %}lab-ok{% endif %}">
-                {{ row.latest_alb }} g/dL
-              </span>
-            {% else %}<span class="lab-na">—</span>{% endif %}
-          </td>
-          <td>{{ row.patient.age or '—' }}</td>
-          <td>
-            <span class="conf-{{ mort.confidence }}">
-              <span class="conf-dot"></span>{{ mort.confidence | capitalize }}
-            </span>
-            {% if mort.model_type is defined %}
-            <div style="font-size:0.68rem;margin-top:2px;color:{% if 'xgboost_full' in mort.model_type %}#16a34a{% elif 'xgboost' in mort.model_type %}#d97706{% else %}#94a3b8{% endif %};font-weight:600;">
-              {% if 'xgboost_full' in mort.model_type %}⚡ XGBoost (5/5){% elif 'xgboost' in mort.model_type %}⚡ XGBoost (partial){% else %}📐 Rule-based{% endif %}
-            </div>
-            {% endif %}
-          </td>
-          <td>
-            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
-              <i class="material-icons" style="font-size:0.9rem;">open_in_new</i> Analyze
-            </a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-  {% if no_data %}
-  <div class="section-head">
-    <i class="material-icons" style="color:var(--muted);">hourglass_empty</i>
-    <h2 style="color:var(--muted);">Insufficient Data</h2>
-    <span class="count-badge slate">{{ no_data | length }} patients</span>
-  </div>
-  <div class="risk-table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Patient</th>
-          <th>HID</th>
-          <th>Davies Score</th>
-          <th>Months Recorded</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in no_data %}
-        <tr id="patient-{{ row.patient.id }}">
-          <td><strong>{{ row.patient.name }}</strong></td>
-          <td style="color:var(--muted);">{{ row.patient.hid_no }}</td>
-          <td>{{ davies_cell(row) }}</td>
-          <td style="color:var(--muted);">{{ row.n_months }} month(s) — add labs to enable Xu prediction</td>
-          <td>
-            <a href="/analytics/patients/{{ row.patient.id }}" class="btn-analyze">
+            {% else %}
+            <a href="/analytics/patients/{{ p.id }}" class="btn-analyze" style="background:var(--slate);">
               <i class="material-icons" style="font-size:0.9rem;">add_circle</i> Add Records
             </a>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% endif %}
 
   {% if not rows %}
   <div class="empty-state">
     <i class="material-icons">person_off</i>
-    No active patients found.
+    No patients found matching the criteria.
+  </div>
+  {% endif %}
+
+  {% if total_pages > 1 %}
+  <div class="pagination-bar">
+    <div>
+      Showing items {{ (current_page - 1) * limit + 1 }} to {{ [current_page * limit, total_items] | min }} of {{ total_items }}
+    </div>
+    <div class="pagination-nav">
+      <a href="?tier={{ tier }}&search={{ search }}&limit={{ limit }}&page=1" class="page-btn {% if current_page == 1 %}disabled{% endif %}" title="First Page">
+        <i class="material-icons" style="font-size:1.15rem; vertical-align:middle;">first_page</i>
+      </a>
+      <a href="?tier={{ tier }}&search={{ search }}&limit={{ limit }}&page={{ current_page - 1 }}" class="page-btn {% if current_page == 1 %}disabled{% endif %}" title="Previous Page">
+        <i class="material-icons" style="font-size:1.15rem; vertical-align:middle;">chevron_left</i>
+      </a>
+
+      {% set start_page = [1, current_page - 2] | max %}
+      {% set end_page = [total_pages, start_page + 4] | min %}
+      {% set start_page = [1, end_page - 4] | max %}
+
+      {% for p_num in range(start_page, end_page + 1) %}
+      <a href="?tier={{ tier }}&search={{ search }}&limit={{ limit }}&page={{ p_num }}" class="page-btn {% if current_page == p_num %}active{% endif %}">
+        {{ p_num }}
+      </a>
+      {% endfor %}
+
+      <a href="?tier={{ tier }}&search={{ search }}&limit={{ limit }}&page={{ current_page + 1 }}" class="page-btn {% if current_page == total_pages %}disabled{% endif %}" title="Next Page">
+        <i class="material-icons" style="font-size:1.15rem; vertical-align:middle;">chevron_right</i>
+      </a>
+      <a href="?tier={{ tier }}&search={{ search }}&limit={{ limit }}&page={{ total_pages }}" class="page-btn {% if current_page == total_pages %}disabled{% endif %}" title="Last Page">
+        <i class="material-icons" style="font-size:1.15rem; vertical-align:middle;">last_page</i>
+      </a>
+    </div>
   </div>
   {% endif %}
 
