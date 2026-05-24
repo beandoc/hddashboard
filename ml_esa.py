@@ -3,26 +3,27 @@ ml_esa.py
 =========
 ESA (Erythropoiesis-Stimulating Agent) Dose Normalization and Hyporesponse Detection.
 
-All ESAs are normalised to a single common currency: weekly EPO-IU equivalents.
+All ESAs are normalised to a single common currency: weekly SC IU equivalents.
+This facility uses subcutaneous administration exclusively — no IV correction is applied.
 """
 import re
 import logging
 from typing import Optional, List, Dict
 
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # ── ESA Dose Normalization ────────────────────────────────────────────────────
 #
-# All ESAs are normalised to a single common currency: weekly EPO-IU equivalents.
+# All ESAs are normalised to a single common currency: weekly SC IU equivalents.
+# SC is the only route used at this facility; no IV correction factor is applied.
 #
 # Conversion chain (per published clinical guidance):
-#   Darbepoetin 1 mcg/week  = 200 IU/week  epoetin
+#   Darbepoetin 1 mcg/week  = 200 IU/week  epoetin SC
 #   Mircera (monthly)       → weekly darbepoetin equiv = monthly_mcg ÷ 4
-#                           → weekly IU equiv          = (monthly_mcg ÷ 4) × 200
+#                           → weekly SC IU equiv       = (monthly_mcg ÷ 4) × 200
 #                                                      = monthly_mcg × 50
-#   Mircera (biweekly)      → weekly IU equiv          = biweekly_mcg × 100
+#   Mircera (biweekly)      → weekly SC IU equiv       = biweekly_mcg × 100
 #
 # Mircera threshold bands (for equivalence checks):
 #   < 8 000 IU/week epoetin  ↔  < 40 mcg/week darbepoetin  →  120 mcg/month Mircera
@@ -35,14 +36,19 @@ _EPOETIN_SYNONYMS   = {"epoetin", "epo", "erythropoietin", "procrit", "epogen", 
 
 def normalize_epo_dose(dose_str: str) -> dict:
     """
-    Convert any ESA dose string to weekly IV IU equivalents.
-    Based on research-grade conversion factors:
-    - 1 unit SC Epoetin Alfa = 1.42 units IV
-    - 1 mcg Epoetin Beta = 208 units IV
-    - 1 mcg Darbepoetin Alfa = 250 units IV
+    Convert any ESA dose string to weekly SC IU equivalents.
+
+    This facility uses subcutaneous administration exclusively.
+    No IV correction factor is applied — all output is in SC IU/week.
+
+    Conversion factors (SC basis):
+      Epoetin alfa/beta SC:  dose IU × frequency multiplier
+      Darbepoetin alfa SC:   1 mcg = 200 SC IU/week epoetin equivalent
+      Mircera SC (monthly):  monthly_mcg × 50  (= monthly_mcg / 4 weeks × 200)
+      Mircera SC (biweekly): biweekly_mcg × 100
     """
-    null = {"weekly_iu_iv": None, "drug_type": None, "frequency": None,
-            "dose_value": None, "original": dose_str, "confidence": "low", "route": "unknown"}
+    null = {"weekly_iu_sc": None, "drug_type": None, "frequency": None,
+            "dose_value": None, "original": dose_str, "confidence": "low", "route": "sc"}
     if not dose_str:
         return null
 
@@ -58,7 +64,6 @@ def normalize_epo_dose(dose_str: str) -> dict:
     dose_value = float(numbers[0])
     drug_type  = "unknown"
     frequency  = "unknown"
-    route      = "iv" if "iv" in s else "sc" if "sc" in s or "subcut" in s else "sc"  # Default to SC for HD
     weekly_iu  = None
 
     # ── Detect drug type ──────────────────────────────────────────────────────
@@ -83,53 +88,61 @@ def normalize_epo_dose(dose_str: str) -> dict:
     elif "weekly" in s or "/week" in s or "/wk" in s:
         frequency = "weekly"
 
-    # ── Apply Conversion Factors to IV Equivalents ──────────────────────────
+    # ── Apply SC conversion factors ───────────────────────────────────────────
     if drug_type == "mircera":
-        # Mircera (Methoxy PEG-epoetin beta) - using epoetin beta factor 208
-        if frequency == "unknown": frequency = "monthly"
-        mult = 208.0
+        # Mircera SC: 1 mcg ≈ 200 SC IU/week epoetin equivalent
+        if frequency == "unknown":
+            frequency = "monthly"
         if frequency == "monthly":
-            weekly_iu = (dose_value / 4.0) * mult
+            weekly_iu = dose_value * 50.0        # monthly_mcg / 4 × 200
         elif frequency == "biweekly":
-            weekly_iu = (dose_value / 2.0) * mult
+            weekly_iu = dose_value * 100.0       # biweekly_mcg / 2 × 200
         elif frequency == "every_10_days":
-            weekly_iu = (dose_value / 10.0) * 7.0 * mult
+            weekly_iu = (dose_value / 10.0) * 7.0 * 200.0
 
     elif drug_type == "darbepoetin":
-        # Darbepoetin alfa = 250 units IV epoetin alfa per 1 mcg
-        if frequency == "unknown": frequency = "weekly"
-        mult = 250.0
+        # Darbepoetin SC: 1 mcg = 200 SC IU/week epoetin equivalent
+        if frequency == "unknown":
+            frequency = "weekly"
         if frequency == "weekly":
-            weekly_iu = dose_value * mult
+            weekly_iu = dose_value * 200.0
         elif frequency == "biweekly":
-            weekly_iu = (dose_value / 2.0) * mult
+            weekly_iu = (dose_value / 2.0) * 200.0
 
     elif drug_type == "epoetin":
-        # Epoetin alfa/beta units
-        if frequency in ("tiw", "unknown") and ("tiw" in s or dose_value <= 10000):
+        # Epoetin SC: dose is already in IU; multiply by weekly frequency.
+        # Only infer frequency from explicit keywords — dose magnitude alone is
+        # not a reliable proxy (10,000 IU once-weekly is as common as TIW).
+        if frequency == "tiw":
             weekly_iu = dose_value * 3
-            if frequency == "unknown": frequency = "tiw"
-        elif frequency == "biw" or "biw" in s:
+        elif frequency == "biw":
             weekly_iu = dose_value * 2
-        else:
+        elif frequency == "weekly":
             weekly_iu = dose_value
-            if frequency == "unknown": frequency = "weekly"
-
-        # Apply SC to IV correction (1.42x) for epoetin alfa
-        if route == "sc":
-            weekly_iu = weekly_iu * 1.42
+        else:
+            # Frequency is truly ambiguous — return low confidence with no result
+            # so the caller excludes this record rather than guessing.
+            return {
+                "weekly_iu_sc": None,
+                "drug_type":    drug_type,
+                "frequency":    "unknown",
+                "dose_value":   dose_value,
+                "original":     dose_str,
+                "route":        "sc",
+                "confidence":   "low",
+            }
 
     if weekly_iu is not None:
         weekly_iu = round(weekly_iu, 2)
 
     return {
-        "weekly_iu_iv": weekly_iu,
-        "drug_type": drug_type,
-        "frequency": frequency,
-        "dose_value": dose_value,
-        "original": dose_str,
-        "route": route,
-        "confidence": "high" if drug_type != "unknown" else "low",
+        "weekly_iu_sc": weekly_iu,
+        "drug_type":    drug_type,
+        "frequency":    frequency,
+        "dose_value":   dose_value,
+        "original":     dose_str,
+        "route":        "sc",
+        "confidence":   "high" if drug_type != "unknown" else "low",
     }
 
 
@@ -159,27 +172,24 @@ def get_mircera_equivalent(epoetin_weekly_iu: float = None,
 
 
 def _parse_epo_dose(dose_str: Optional[str]) -> Optional[float]:
-    return normalize_epo_dose(dose_str).get("weekly_iu_iv")
+    return normalize_epo_dose(dose_str).get("weekly_iu_sc")
 
 
-def _resolve_weekly_iu_iv(record: dict) -> Optional[float]:
-    """Return weekly IV IU equivalent from a record."""
-    stored = record.get("epo_weekly_units")
-    if stored is not None:
-        pass
-
+def _resolve_weekly_iu_sc(record: dict) -> Optional[float]:
+    """Return weekly SC IU equivalent from a record dict."""
     dose_str = record.get("epo_mircera_dose")
     if dose_str:
         parsed = normalize_epo_dose(dose_str)
         if parsed.get("confidence") == "high":
-            return parsed.get("weekly_iu_iv")
+            return parsed.get("weekly_iu_sc")
 
+    stored = record.get("epo_weekly_units")
     if stored is not None:
-        return float(stored) * 1.42  # Manual units assume SC epoetin alfa -> convert to IV
+        return float(stored)  # Manual units are entered as SC IU directly
     return None
 
 
-def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001
+def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001 — hb_meta reserved for future caller context
     """
     Assess ESA (Epoetin / Darbepoetin / Mircera) response quality.
     """
@@ -188,6 +198,18 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
 
     # T1-4: Defensive sort descending
     df = sorted(df, key=lambda x: x.get("month", ""), reverse=True)
+
+    # Drop duplicate months — same month entered twice produces identical ERI values
+    # in the rolling window, making 2 distinct observations look like 3.
+    seen_months: set = set()
+    deduped = []
+    for r in df:
+        m = r.get("month") or r.get("record_month")
+        if m not in seen_months:
+            seen_months.add(m)
+            deduped.append(r)
+    df = deduped
+
     if not df:
         return {
             "available": False,
@@ -201,13 +223,13 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     # Gate: require 3+ months with BOTH Hb and any ESA dose entry
     complete_pairs = [
         r for r in df
-        if r.get("hb") is not None and _resolve_weekly_iu_iv(r) is not None
+        if r.get("hb") is not None and _resolve_weekly_iu_sc(r) is not None
     ]
 
     if len(complete_pairs) < 3:
         missing = []
         hb_count = sum(1 for r in df if r.get("hb") is not None)
-        dose_count = sum(1 for r in df if _resolve_weekly_iu_iv(r) is not None)
+        dose_count = sum(1 for r in df if _resolve_weekly_iu_sc(r) is not None)
         if hb_count < 3: missing.append(f"Hb ({3-hb_count} more required)")
         if dose_count < 3: missing.append(f"ESA dose ({3-dose_count} more required)")
 
@@ -238,7 +260,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     # Use endogenous Hb for ERI; transfusion-boosted Hb would inflate the denominator
     hb = _hb_endo(hb_raw, transfusion_units) if transfusion_confounded else hb_raw
 
-    dose_iv = _resolve_weekly_iu_iv(latest) or 0
+    dose_iv = _resolve_weekly_iu_sc(latest) or 0
     weight = latest.get("weight")
     if not weight or weight <= 0:
         return {
@@ -263,7 +285,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
         r_trans  = r.get("transfusion_units") or 0
         r_hb     = _hb_endo(r_hb_raw, r_trans) if r_trans > 0 else r_hb_raw
 
-        r_dose_iv = _resolve_weekly_iu_iv(r) or 0
+        r_dose_iv = _resolve_weekly_iu_sc(r) or 0
         r_w       = r.get("weight") or weight  # fallback to latest weight
 
         if r_w and r_w > 0:
@@ -311,7 +333,6 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     drug_label = {"epoetin": "Epoetin", "darbepoetin": "Darbepoetin",
                   "mircera": "Mircera"}.get(drug_type, "ESA")
     dose_display = f"{int(dose_iv):,} IV-IU/wk equiv" if dose_iv else "unknown dose"
-    eri_display = f"ERI: {eri:.2f}"
 
     transfusion_note = (
         f" [Hb corrected: {hb_raw} → {hb:.1f} g/dL after {transfusion_units} PRBC unit(s)]"
@@ -362,7 +383,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
             "confidence": confidence,
             "n_points": len(complete_pairs),
             "drug_type": drug_type,
-            "weekly_iu_iv": dose_iv,
+            "weekly_iu_sc": dose_iv,
             "transfusion_confounded": transfusion_confounded,
             "hb_raw": round(hb_raw, 1),
             "hb_corrected": round(hb, 1),

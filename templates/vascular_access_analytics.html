@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vascular Access Analytics — {{ patient.name }}</title>
-  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
   <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
   <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
   <style>
@@ -73,11 +72,34 @@
     .upload-btn{display:inline-flex;align-items:center;gap:6px;background:#ede9fe;color:#6d28d9;border:none;border-radius:8px;padding:7px 14px;font-size:.82rem;font-weight:600;cursor:pointer;}
     .upload-btn:hover{background:#ddd6fe;}
 
-    @media(max-width:640px){
+    @media(max-width:768px){
       header{padding:32px 16px 72px;}
-      header h1{font-size:1.4rem;}
+      header h1{font-size:1.6rem;}
       .container{padding:0 14px;}
-      .card{padding:16px;}
+      .card{padding:18px 14px;}
+      .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
+      .kpi-value{font-size:1.5rem;}
+      .doppler-image,.doppler-placeholder{width:100%;height:140px;}
+      .doppler-card{grid-template-columns:1fr;}
+      .action-row{flex-wrap:wrap;}
+      .action-row .action-cat{margin-bottom:4px;}
+      #chart-qa{height:240px !important;}
+      #chart-recirc{height:200px !important;}
+      #chart-exam{height:200px !important;}
+      #chart-stenosis{height:220px !important;}
+      #chart-events{height:180px !important;}
+      #chart-cannulation{height:200px !important;}
+    }
+    @media(max-width:640px){
+      header h1{font-size:1.3rem;}
+      .kpi-grid{grid-template-columns:1fr 1fr;}
+      .kpi{padding:14px 12px;}
+      .kpi-value{font-size:1.3rem;}
+      .card{padding:14px 12px;}
+      .nav-breadcrumb{padding:10px 14px;font-size:.78rem;flex-wrap:wrap;gap:4px;}
+    }
+    @media(max-width:420px){
+      .kpi-grid{grid-template-columns:1fr;}
     }
   </style>
 </head>
@@ -135,9 +157,20 @@
     {% endif %}
     {% if current_ep %}
     <div class="kpi {{ 'ok' if current_ep.succession_plan else 'warn' }}">
-      <div class="kpi-label">Life-Plan</div>
+      <div class="kpi-label">Life-Plan / Succession</div>
       <div class="kpi-value" style="font-size:1.1rem;">{{ 'Documented' if current_ep.succession_plan else 'Missing' }}</div>
+      {% if current_ep.succession_plan %}
+      <div class="kpi-sub" style="white-space:normal;line-height:1.4;">{{ current_ep.succession_plan }}</div>
+      {% else %}
       <div class="kpi-sub">KDOQI 1.1 annual review</div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if surveillance %}
+    <div class="kpi" id="kpi-last-surv">
+      <div class="kpi-label">Last Surveillance</div>
+      <div class="kpi-value" style="font-size:1.5rem;" id="kpi-surv-days">—</div>
+      <div class="kpi-sub">days ago · {{ surveillance[0].surveillance_date.strftime('%d %b %Y') }}</div>
     </div>
     {% endif %}
   </div>
@@ -217,6 +250,7 @@
         <img class="doppler-image"
              src="{{ latest_doppler.report_image_path }}"
              alt="Doppler report"
+             data-record-id="{{ latest_doppler.id }}"
              onclick="openLightbox('{{ latest_doppler.report_image_path }}')"
              title="Click to enlarge">
         <div style="font-size:.7rem;color:#94a3b8;margin-top:6px;text-align:center;">Click to enlarge</div>
@@ -361,6 +395,17 @@ const EVENTS     = {{ chart_events_json|safe }};
 const SURV       = {{ chart_surveillance_json|safe }};
 const PATIENT_ID = {{ patient.id }};
 
+// ── Days since last surveillance KPI ─────────────────────────────────────────
+(function() {
+  const el = document.getElementById('kpi-surv-days');
+  const card = document.getElementById('kpi-last-surv');
+  if (!el || !SURV.length) return;
+  const lastDate = new Date(SURV[0].date);
+  const days = Math.floor((Date.now() - lastDate.getTime()) / 86400000);
+  el.textContent = days;
+  if (card) card.classList.add(days <= 180 ? 'ok' : 'warn');
+})();
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const gradeNum = g => ({ normal: 0, reduced: 1, absent: 2 }[g] ?? null);
 const gradeLabel = n => ['Normal','Reduced','Absent'][n] ?? '—';
@@ -491,6 +536,14 @@ const LAYOUT_BASE = {
       tickvals: [0, 1, 2], ticktext: ['Normal', 'Reduced', 'Absent'],
       range: [-0.3, 2.5],
     },
+    shapes: [{
+      type: 'line', y0: 1, y1: 1, x0: dates[0], x1: dates[dates.length - 1],
+      line: { color: '#f59e0b', width: 1.5, dash: 'dot' },
+    }],
+    annotations: [{
+      x: dates[dates.length - 1], y: 1, text: 'Action threshold', showarrow: false,
+      font: { size: 10, color: '#f59e0b' }, xanchor: 'right',
+    }],
     showlegend: true,
   }, PLOTLY_CONFIG);
 })();
@@ -567,7 +620,7 @@ const LAYOUT_BASE = {
     yaxis: { showgrid: true, gridcolor: '#f1f5f9', tickfont: { size: 10 }, zeroline: false },
     margin: { l: 180, r: 16, t: 12, b: 36 },
     showlegend: false,
-    height: 60 + Object.keys(grouped).length * 36,
+    height: Math.max(160, 60 + Object.keys(grouped).length * 36),
   }, PLOTLY_CONFIG);
 })();
 
@@ -584,8 +637,8 @@ const LAYOUT_BASE = {
   const colors = scores.map(v => v === 0 ? '#10b981' : v === 1 ? '#f59e0b' : '#ef4444');
   const infilt = cData.map(s => s.needle_infiltration ? 1 : null);
 
-  // Rolling failure rate (window=10)
-  const window = 10;
+  // Rolling failure rate (window=20 — matches service threshold KDOQI)
+  const window = 20;
   const failRate = scores.map((_, i) => {
     if (i < window - 1) return null;
     const slice = scores.slice(i - window + 1, i + 1);
@@ -609,7 +662,7 @@ const LAYOUT_BASE = {
       yaxis: 'y',
     },
     {
-      x: dates, y: failRate, name: 'Failure rate (10-session rolling)', type: 'scatter', mode: 'lines',
+      x: dates, y: failRate, name: 'Failure rate (20-session rolling)', type: 'scatter', mode: 'lines',
       line: { color: '#ef4444', width: 2, dash: 'dot' },
       yaxis: 'y2', connectgaps: false,
       hovertemplate: '%{x}<br>Fail rate: %{y:.0f}%<extra></extra>',
@@ -629,10 +682,17 @@ const LAYOUT_BASE = {
 })();
 
 // ── Image upload ─────────────────────────────────────────────────────────────
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
 async function uploadSurveillanceImage(recordId, input) {
   const file = input.files[0];
   if (!file) return;
   const statusEl = document.getElementById(`upload-status-${recordId}`);
+  if (file.size > MAX_UPLOAD_BYTES) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444;">File too large (${(file.size/1048576).toFixed(1)} MB). Max 10 MB.</span>`;
+    input.value = '';
+    return;
+  }
   if (statusEl) statusEl.innerHTML = '<span style="color:#6366f1;">Uploading…</span>';
   const formData = new FormData();
   formData.append('file', file);
@@ -642,8 +702,23 @@ async function uploadSurveillanceImage(recordId, input) {
   if (res.ok) {
     const data = await res.json();
     if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;">✓ Uploaded</span>';
-    // Reload page to show image
-    setTimeout(() => location.reload(), 800);
+    // Inject the new image URL into the DOM without a full page reload
+    const existing = document.querySelector(`img[data-record-id="${recordId}"]`);
+    if (existing) {
+      existing.src = data.url;
+    } else {
+      const placeholder = input.closest('label');
+      if (placeholder) {
+        const img = document.createElement('img');
+        img.src = data.url;
+        img.className = 'doppler-image';
+        img.alt = 'Doppler report';
+        img.dataset.recordId = recordId;
+        img.onclick = () => openLightbox(data.url);
+        img.title = 'Click to enlarge';
+        placeholder.replaceWith(img);
+      }
+    }
   } else {
     const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
     if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444;">${err.detail}</span>`;
@@ -660,5 +735,6 @@ function closeLightbox() {
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 </script>
+<script src="/static/vendor/js/plotly-2.35.2.min.js" defer></script>
 </body>
 </html>

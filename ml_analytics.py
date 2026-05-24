@@ -32,7 +32,6 @@ from ml_esa import (
     get_mircera_equivalent,
     _parse_epo_dose,
     detect_epo_hyporesponse,
-    _resolve_weekly_iu_iv,
     _MIRCERA_SYNONYMS,
     _DARBE_SYNONYMS,
     _EPOETIN_SYNONYMS,

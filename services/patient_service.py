@@ -9,7 +9,22 @@ from utils import calculate_cci
 def _d(s: Optional[str]) -> Optional[datetime.date]:
     return datetime.strptime(s, "%Y-%m-%d").date() if s else None
 
+def _validate_age(age) -> None:
+    if age is None:
+        return
+    try:
+        age_int = int(age)
+    except (ValueError, TypeError):
+        raise ValueError(f"Age must be a whole number, got '{age}'.")
+    if not (1 <= age_int <= 115):
+        raise ValueError(
+            f"Age {age_int} is outside the valid range [1–115]. "
+            "Please verify — the entered value is biologically impossible."
+        )
+
+
 def create_patient_record(db: Session, data: dict) -> Patient:
+    _validate_age(data.get("age"))
     # Check if HID already exists
     existing = db.query(Patient).filter(Patient.hid_no == data["hid_no"]).first()
     if existing:
@@ -136,6 +151,7 @@ def create_patient_record(db: Session, data: dict) -> Patient:
     return p
 
 def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
+    _validate_age(data.get("age"))
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         raise ValueError("Patient not found")

@@ -992,6 +992,20 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None) -> Dict:
             }
         }
 
+    if not (1 <= age <= 115):
+        logger.warning("Implausible age %s stored for patient — mortality prediction suppressed.", age)
+        return {
+            "available": False,
+            "error":     f"Patient age {age} is outside the valid range [1–115].",
+            "data": {
+                "available": False,
+                "reason": (
+                    f"Age {age} is biologically implausible and was likely entered in error. "
+                    "Correct the patient's age in the profile to enable mortality prediction."
+                ),
+            }
+        }
+
     # ── Attempt XGBoost prediction ───────────────────────────────────────────
     models = _load_xgb_models()
     model_type = "unknown"
@@ -1318,7 +1332,14 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
     """
     # Whole-function cache hit: skip all batch queries and ML computation
     if _time.time() - _ML_FULL_CACHE["ts"] < _ML_CACHE_TTL and _ML_FULL_CACHE["rows"] is not None:
-        patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+        patients = (
+            db.query(Patient)
+            .filter(
+                Patient.is_active == True,
+                ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+            )
+            .order_by(Patient.name).all()
+        )
         pid_to_patient = {p.id: p for p in patients}
         return [
             {"patient": pid_to_patient[pid], **risk_dict}
@@ -1326,7 +1347,14 @@ def get_all_patients_mortality_risk(db: Session) -> List[Dict]:
             if pid in pid_to_patient
         ]
 
-    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    patients = (
+        db.query(Patient)
+        .filter(
+            Patient.is_active == True,
+            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+        )
+        .order_by(Patient.name).all()
+    )
     if not patients:
         return []
 

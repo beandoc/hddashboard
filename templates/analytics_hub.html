@@ -191,7 +191,7 @@
             </div>
             <div class="card-title">Unit Performance & Census</div>
             <div class="card-desc">
-                Monitor registrations, mortality events, and hospitalization rates across the unit. 
+                Monitor registrations, mortality events, and hospitalization rates across the unit.
                 Generate monthly census reports for performance benchmarking.
             </div>
             <div style="display:flex; gap:10px; flex-wrap: wrap;">
@@ -201,11 +201,94 @@
                 <a href="/analytics/sustainability" class="btn-action" style="flex:1; min-width: 100px; background:#f0fdf4; color:#166534;">
                     <i class="material-icons">eco</i> Carbon
                 </a>
-                <a href="/analytics/vascular-access" class="btn-action" style="flex:1; min-width: 100px; background:#f5f7ff; color:#1e1b4b;">
-                    <i class="material-icons">cable</i> Access
-                </a>
                 <a href="/#unit-trends" class="btn-action" style="flex:1; min-width: 100px;">
                     <i class="material-icons">dashboard</i> Trends
+                </a>
+            </div>
+        </div>
+
+        <!-- Vascular Access Quality -->
+        <div class="insight-card" style="border: 1px solid #c7d2fe; background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px;">
+                <div class="card-icon" style="background: #4f46e5; color: white; margin-bottom:0;">
+                    <i class="material-icons">settings_input_component</i>
+                </div>
+                {% if va_summary %}
+                <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                    {% if va_summary.maturation_failures > 0 %}
+                    <span style="background:#fee2e2; color:#b91c1c; font-size:0.7rem; font-weight:700; padding:3px 10px; border-radius:20px;">
+                        {{ va_summary.maturation_failures }} Maturation Failure{{ 's' if va_summary.maturation_failures != 1 }}
+                    </span>
+                    {% endif %}
+                    {% if va_summary.urgent_cvc > 0 %}
+                    <span style="background:#fef3c7; color:#92400e; font-size:0.7rem; font-weight:700; padding:3px 10px; border-radius:20px;">
+                        {{ va_summary.urgent_cvc }} Urgent CVC
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="card-title" style="color:#312e81;">Vascular Access Quality</div>
+
+            {% if va_summary %}
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:16px;">
+                <div style="background:white; border-radius:10px; padding:12px; text-align:center; border:1px solid #e0e7ff;">
+                    <div style="font-size:1.6rem; font-weight:800; font-family:'Outfit',sans-serif;
+                        color:{{ '#10b981' if va_summary.prevalent_avf_rate >= va_summary.target_prevalent else '#f59e0b' }};">
+                        {{ va_summary.prevalent_avf_rate }}%
+                    </div>
+                    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; margin-top:4px;">
+                        Prevalent AVF
+                    </div>
+                    <div style="font-size:0.65rem; color:#94a3b8; margin-top:2px;">Target ≥{{ va_summary.target_prevalent|int }}%</div>
+                </div>
+                <div style="background:white; border-radius:10px; padding:12px; text-align:center; border:1px solid #e0e7ff;">
+                    <div style="font-size:1.6rem; font-weight:800; font-family:'Outfit',sans-serif; color:#4f46e5;">
+                        {{ va_summary.avf_count }}
+                    </div>
+                    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; margin-top:4px;">
+                        On AVF
+                    </div>
+                    <div style="font-size:0.65rem; color:#94a3b8; margin-top:2px;">of {{ va_summary.total }} active</div>
+                </div>
+                <div style="background:white; border-radius:10px; padding:12px; text-align:center; border:1px solid #e0e7ff;">
+                    <div style="font-size:1.6rem; font-weight:800; font-family:'Outfit',sans-serif;
+                        color:{{ '#ef4444' if va_summary.non_avf_count > 0 else '#10b981' }};">
+                        {{ va_summary.non_avf_count }}
+                    </div>
+                    <div style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#64748b; margin-top:4px;">
+                        Non-AVF
+                    </div>
+                    <div style="font-size:0.65rem; color:#94a3b8; margin-top:2px;">CVC / AVG / Other</div>
+                </div>
+            </div>
+
+            <!-- AVF rate progress bar -->
+            <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.72rem; color:#64748b; margin-bottom:4px;">
+                    <span>Fistula-First progress</span>
+                    <span>{{ va_summary.prevalent_avf_rate }}% / {{ va_summary.target_prevalent|int }}% target</span>
+                </div>
+                <div style="height:8px; background:#e0e7ff; border-radius:4px; overflow:hidden;">
+                    <div style="height:100%; border-radius:4px; width:{{ [va_summary.prevalent_avf_rate, 100] | min }}%;
+                        background:{{ '#10b981' if va_summary.prevalent_avf_rate >= va_summary.target_prevalent else '#f59e0b' }};
+                        transition:width 1s ease;"></div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card-desc">
+                KDOQI 2019 — Fistula-First monitoring, maturation failure detection, functional alerts,
+                CRBSI surveillance, and prospective action board for the unit.
+            </div>
+            {% endif %}
+
+            <div style="display:flex; gap:8px;">
+                <a href="/analytics/vascular-access" class="btn-action" style="flex:1; background:#4f46e5; color:white;">
+                    <i class="material-icons">cable</i> Unit Dashboard
+                </a>
+                <a href="/analytics/patients" class="btn-action" style="flex:1; background:#eef2ff; color:#4f46e5;">
+                    <i class="material-icons">person_search</i> Per-Patient
                 </a>
             </div>
         </div>
@@ -286,24 +369,31 @@
     </div>
 
     <div class="at-risk-section">
-        <h2 class="section-title"><i class="material-icons" style="color:#ef4444">warning</i> Clinical Priority Watchlist</h2>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:25px;">
+            <h2 class="section-title" style="margin:0;">
+                <i class="material-icons" style="color:#ef4444">warning</i> Clinical Priority Watchlist
+            </h2>
+            <span id="wl-count-label" style="font-size:0.82rem; color:#64748b; font-weight:500;"></span>
+        </div>
         <div class="risk-table-wrap">
-            <table class="risk-table">
+            <table class="risk-table" id="wl-table">
                 <thead>
                     <tr>
+                        <th>#</th>
                         <th>Patient Name</th>
-                        <th>Parameter</th>
+                        <th>Alert</th>
                         <th>Status</th>
                         <th>Model Recommendation</th>
                         <th>Action</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="wl-tbody">
                     {% for p in patients %}
                         {% if p.alerts %}
-                        <tr>
+                        <tr class="wl-row">
+                            <td data-label="#" style="color:#94a3b8; font-size:0.8rem; width:36px;"></td>
                             <td data-label="Patient"><strong>{{ p.name }}</strong></td>
-                            <td data-label="Parameter">{{ p.alerts[0] }}</td>
+                            <td data-label="Alert">{{ p.alerts[0] }}{% if p.alerts|length > 1 %} <span style="color:#94a3b8; font-size:0.75rem;">+{{ p.alerts|length - 1 }} more</span>{% endif %}</td>
                             <td data-label="Status"><span class="risk-badge risk-high">High Risk</span></td>
                             <td data-label="Recommendation">Trend deviation detected (Kalman)</td>
                             <td data-label="Action"><a href="/analytics/patients/{{ p.id }}" class="btn-action" style="padding: 6px 12px; font-size: 0.8rem;">Analyze</a></td>
@@ -312,15 +402,160 @@
                     {% endfor %}
                 </tbody>
             </table>
+
             {% if not patients or patients|selectattr('alerts')|list|length == 0 %}
             <div style="text-align:center; padding:40px; color:#94a3b8; background:white; border-bottom-left-radius:12px; border-bottom-right-radius:12px;">
                 <i class="material-icons" style="font-size:3rem; opacity:0.2;">verified_user</i>
                 <p>No active clinical deviations detected across the unit.</p>
             </div>
             {% endif %}
+
+            <!-- Pagination bar -->
+            <div id="wl-pagination" style="display:none; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+                 padding:14px 20px; background:white; border-top:1px solid #f1f5f9;
+                 border-bottom-left-radius:12px; border-bottom-right-radius:12px;">
+                <span id="wl-page-info" style="font-size:0.82rem; color:#64748b;"></span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <button id="wl-first"  onclick="wlGo(1)"          class="pg-btn" title="First page">&#171;</button>
+                    <button id="wl-prev"   onclick="wlGo(wlPage - 1)" class="pg-btn" title="Previous">&#8249;</button>
+                    <div id="wl-page-nums" style="display:flex; gap:4px;"></div>
+                    <button id="wl-next"   onclick="wlGo(wlPage + 1)" class="pg-btn" title="Next">&#8250;</button>
+                    <button id="wl-last"   onclick="wlGo(wlTotalPages)" class="pg-btn" title="Last page">&#187;</button>
+                    <select id="wl-page-size" onchange="wlChangeSize(this.value)"
+                        style="margin-left:10px; padding:5px 8px; border:1px solid #e2e8f0; border-radius:8px;
+                               font-size:0.8rem; color:#475569; background:white; cursor:pointer;">
+                        <option value="10" selected>10 / page</option>
+                        <option value="20">20 / page</option>
+                        <option value="50">50 / page</option>
+                    </select>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+<style>
+.pg-btn {
+    min-width: 32px; height: 32px; padding: 0 8px;
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    background: white; color: #475569; font-size: 1rem;
+    cursor: pointer; transition: all 0.15s; line-height: 1;
+}
+.pg-btn:hover:not(:disabled) { background: #6366f1; color: white; border-color: #6366f1; }
+.pg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.pg-num {
+    min-width: 32px; height: 32px; padding: 0 8px;
+    border: 1px solid #e2e8f0; border-radius: 8px;
+    background: white; color: #475569; font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+}
+.pg-num:hover { background: #f1f5f9; }
+.pg-num.active { background: #6366f1; color: white; border-color: #6366f1; }
+</style>
+
+<script>
+(function () {
+    const PAGE_SIZE_DEFAULT = 10;
+    const MAX_PAGE_BTNS = 7;
+
+    const tbody      = document.getElementById('wl-tbody');
+    const pagination = document.getElementById('wl-pagination');
+    const pageInfo   = document.getElementById('wl-page-info');
+    const countLabel = document.getElementById('wl-count-label');
+    const pageNums   = document.getElementById('wl-page-nums');
+    const btnFirst   = document.getElementById('wl-first');
+    const btnPrev    = document.getElementById('wl-prev');
+    const btnNext    = document.getElementById('wl-next');
+    const btnLast    = document.getElementById('wl-last');
+
+    if (!tbody) return;
+
+    const allRows = Array.from(tbody.querySelectorAll('tr.wl-row'));
+    const total   = allRows.length;
+
+    window.wlPage       = 1;
+    window.wlPageSize   = PAGE_SIZE_DEFAULT;
+    window.wlTotalPages = 1;
+
+    if (total === 0) return;
+
+    countLabel.textContent = `${total} patient${total !== 1 ? 's' : ''} flagged`;
+
+    function render() {
+        const size  = window.wlPageSize;
+        const page  = window.wlPage;
+        const pages = Math.ceil(total / size);
+        window.wlTotalPages = pages;
+
+        const start = (page - 1) * size;
+        const end   = Math.min(start + size, total);
+
+        allRows.forEach((row, i) => {
+            const visible = i >= start && i < end;
+            row.style.display = visible ? '' : 'none';
+            if (visible) {
+                // Update the # column
+                const numCell = row.querySelector('td:first-child');
+                if (numCell) numCell.textContent = i + 1;
+            }
+        });
+
+        // Info text
+        pageInfo.textContent = `Showing ${start + 1}–${end} of ${total} patients`;
+
+        // Enable/disable arrow buttons
+        btnFirst.disabled = btnPrev.disabled = page <= 1;
+        btnNext.disabled  = btnLast.disabled  = page >= pages;
+
+        // Page number buttons
+        pageNums.innerHTML = '';
+        let rangeStart = Math.max(1, page - Math.floor(MAX_PAGE_BTNS / 2));
+        let rangeEnd   = Math.min(pages, rangeStart + MAX_PAGE_BTNS - 1);
+        if (rangeEnd - rangeStart < MAX_PAGE_BTNS - 1) {
+            rangeStart = Math.max(1, rangeEnd - MAX_PAGE_BTNS + 1);
+        }
+
+        if (rangeStart > 1) {
+            const dots = document.createElement('span');
+            dots.textContent = '…';
+            dots.style.cssText = 'padding:0 4px; color:#94a3b8; line-height:32px; font-size:.8rem;';
+            pageNums.appendChild(dots);
+        }
+
+        for (let p = rangeStart; p <= rangeEnd; p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.className = 'pg-num' + (p === page ? ' active' : '');
+            btn.onclick = () => wlGo(p);
+            pageNums.appendChild(btn);
+        }
+
+        if (rangeEnd < pages) {
+            const dots = document.createElement('span');
+            dots.textContent = '…';
+            dots.style.cssText = 'padding:0 4px; color:#94a3b8; line-height:32px; font-size:.8rem;';
+            pageNums.appendChild(dots);
+        }
+
+        // Show/hide pagination bar
+        pagination.style.display = pages > 1 ? 'flex' : 'none';
+    }
+
+    window.wlGo = function (p) {
+        const pages = Math.ceil(total / window.wlPageSize);
+        window.wlPage = Math.max(1, Math.min(p, pages));
+        render();
+        document.getElementById('wl-table').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    window.wlChangeSize = function (val) {
+        window.wlPageSize = parseInt(val, 10);
+        window.wlPage = 1;
+        render();
+    };
+
+    render();
+})();
+</script>
 </body>
 </html>

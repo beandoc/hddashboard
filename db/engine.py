@@ -29,6 +29,8 @@ if _is_sqlite:
     _connect_args = {"check_same_thread": False}
     engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 else:
+    # Supabase transaction-mode pooler (port 6543) supports up to 15 connections
+    # in session mode. Keep sync pool small to leave room for async engine.
     _connect_args = {
         "sslmode": "require",
         "connect_timeout": 30,
@@ -36,10 +38,10 @@ else:
     engine = create_engine(
         DATABASE_URL,
         connect_args=_connect_args,
-        pool_pre_ping=False,
-        pool_recycle=1800,
-        pool_size=10,
-        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=600,
+        pool_size=3,
+        max_overflow=2,
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -52,9 +54,9 @@ if not _is_sqlite:
         _async_url,
         connect_args={"ssl": "require"},
         pool_pre_ping=True,
-        pool_recycle=300,
-        pool_size=5,
-        max_overflow=10,
+        pool_recycle=600,
+        pool_size=3,
+        max_overflow=2,
     )
 else:
     async_engine = None  # type: ignore[assignment]

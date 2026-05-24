@@ -111,6 +111,13 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         urea_venous_v=data.get("urea_venous_v"),
         access_recirculation_percent=data.get("access_recirculation_percent"),
         access_flow_qa=data.get("access_flow_qa"),
+        thrill_grade=data.get("thrill_grade") or "normal",
+        bruit_grade=data.get("bruit_grade") or "normal",
+        aneurysm_flag=data.get("aneurysm_flag", False),
+        steal_signs_flag=data.get("steal_signs_flag", False),
+        cannulation_difficulty=data.get("cannulation_difficulty") or "routine",
+        cannulation_attempts=data.get("cannulation_attempts"),
+        needle_infiltration=data.get("needle_infiltration", False),
         uf_volume=uf_volume,
         actual_uf_volume=uf_volume,
         uf_rate=uf_rate,
@@ -193,6 +200,13 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.urea_venous_v = data.get("urea_venous_v")
     sess.access_recirculation_percent = data.get("access_recirculation_percent")
     sess.access_flow_qa = data.get("access_flow_qa")
+    sess.thrill_grade = data.get("thrill_grade") or "normal"
+    sess.bruit_grade = data.get("bruit_grade") or "normal"
+    sess.aneurysm_flag = data.get("aneurysm_flag", False)
+    sess.steal_signs_flag = data.get("steal_signs_flag", False)
+    sess.cannulation_difficulty = data.get("cannulation_difficulty") or "routine"
+    sess.cannulation_attempts = data.get("cannulation_attempts")
+    sess.needle_infiltration = data.get("needle_infiltration", False)
 
     _wp = data.get("weight_pre")
     _wpo = data.get("weight_post")

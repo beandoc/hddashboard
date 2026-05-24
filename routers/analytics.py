@@ -115,27 +115,40 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     _require_analytics_access(request)
     from datetime import datetime
     from ml_analytics import analyze_avf_maturation
+    from services.access_surveillance_service import (
+        compute_access_action_items, compute_unit_benchmarks, _load_config,
+    )
     month_str, _ = get_effective_month(db, month)
-    
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
+
+    patients = (
+        db.query(Patient)
+        .filter(
+            Patient.is_active == True,
+            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+        )
+        .all()
+    )
     total_prevalent = len(patients)
-    
+
     # 1. Prevalent AVF Rate (All active patients)
     prevalent_avf = [p for p in patients if p.access_type and "AVF" in p.access_type.upper()]
     prevalent_rate = (len(prevalent_avf) / total_prevalent * 100) if total_prevalent else 0
-    
+
     # 2. Incident AVF Rate (Started this month)
     incident_patients = [p for p in patients if p.hd_wef_date and p.hd_wef_date.strftime("%Y-%m") == month_str]
     incident_avf = [p for p in incident_patients if p.access_type and "AVF" in p.access_type.upper()]
     incident_rate = (len(incident_avf) / len(incident_patients) * 100) if incident_patients else 0
-    
-    # 3. Watchlists & Intelligence
+
+    today = datetime.now().date()
+
+    # ── Batch pre-fetch config once (shared across all per-patient calls) ────
+    unit_config = _load_config(db)
+
+    # 3. Watchlists & Intelligence — now all from pre-fetched data
     maturation_watchlist = []
     functional_watchlist = []
     conversion_watchlist = []
-    
-    today = datetime.now().date()
-    
+
     for p in patients:
         # a) Late Conversion Watchlist (>90 days on HD with non-AVF access)
         if p.access_type and "AVF" not in p.access_type.upper():
@@ -147,34 +160,24 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
                         "days": days_on_hd,
                         "vintage": p.hd_wef_date.strftime("%b %Y")
                     })
-        
-        # b) Intelligence Engine (Maturation & Functional)
+
+        # b) Intelligence Engine — use pre-fetched episode data (no per-patient DB calls)
         status = analyze_avf_maturation(db, p.id)
         if status.get("available"):
             data = status.get("data", {})
             if data.get("maturation_failure"):
-                maturation_watchlist.append({
-                    "patient": p,
-                    "status": status
-                })
+                maturation_watchlist.append({"patient": p, "status": status})
             if data.get("suboptimal_flow") or data.get("high_recirculation"):
-                functional_watchlist.append({
-                    "patient": p,
-                    "status": status
-                })
+                functional_watchlist.append({"patient": p, "status": status})
 
-    # ── KDOQI 2019 action board and benchmarks ────────────────────────────────
-    from services.access_surveillance_service import (
-        compute_access_action_items, compute_unit_benchmarks,
-    )
-
+    # ── KDOQI 2019 action board — pass pre-loaded config to avoid repeat DB hits
     action_board_urgent: list = []
     action_board_this_week: list = []
     action_board_routine: list = []
 
     for p in patients:
         try:
-            items = compute_access_action_items(db, p.id)
+            items = compute_access_action_items(db, p.id, config=unit_config)
             for item in items:
                 item["patient_name"] = p.name
                 item["patient_id"] = p.id
@@ -189,7 +192,7 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
             pass
 
     try:
-        unit_benchmarks = compute_unit_benchmarks(db, month_str)
+        unit_benchmarks = compute_unit_benchmarks(db, month_str, config=unit_config)
     except Exception:
         unit_benchmarks = []
 
@@ -197,6 +200,51 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
     benchmarks_avf = [b for b in unit_benchmarks if b["access_class"] == "AVF"]
     benchmarks_avg = [b for b in unit_benchmarks if b["access_class"] == "AVG"]
     benchmarks_tcc = [b for b in unit_benchmarks if b["access_class"] == "TCC"]
+
+    # ── ML: Access-loss risk scores & chart data ───────────────────────────────
+    from services.access_surveillance_service import (
+        compute_unit_access_risk, compute_unit_qa_distribution, compute_avf_rate_trend,
+    )
+    import json as _json
+
+    try:
+        access_risk_rows = compute_unit_access_risk(db, config=unit_config)
+    except Exception:
+        access_risk_rows = []
+
+    try:
+        qa_distribution = compute_unit_qa_distribution(db)
+    except Exception:
+        qa_distribution = []
+
+    try:
+        avf_trend = compute_avf_rate_trend(db, n_months=6)
+    except Exception:
+        avf_trend = []
+
+    # Access mix counts for donut chart
+    avf_n = sum(1 for p in patients if p.access_type and "AVF" in p.access_type.upper())
+    avg_n = sum(1 for p in patients if p.access_type and ("AVG" in p.access_type.upper() or "GRAFT" in p.access_type.upper()))
+    tcc_n = sum(1 for p in patients if p.access_type and any(k in p.access_type.upper() for k in ("TCC", "PERMACATH")))
+    other_n = total_prevalent - avf_n - avg_n - tcc_n
+
+    # Confirmed event type counts for bar chart (last 6 months)
+    from db.models.clinical import AccessEvent as _AE
+    from datetime import timedelta as _td
+    six_months_ago = today - _td(days=180)
+    recent_events = (
+        db.query(_AE)
+        .filter(_AE.status == "confirmed", _AE.event_date >= six_months_ago)
+        .all()
+    )
+    event_counts: dict = {}
+    for ev in recent_events:
+        label = (ev.event_type or "unknown").replace("_", " ").title()
+        event_counts[label] = event_counts.get(label, 0) + 1
+    event_chart = sorted(
+        [{"type": k, "count": v} for k, v in event_counts.items()],
+        key=lambda x: x["count"], reverse=True
+    )[:10]
 
     return templates.TemplateResponse("access_quality.html", {
         "request": request,
@@ -222,6 +270,18 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
         "benchmarks_avf": benchmarks_avf,
         "benchmarks_avg": benchmarks_avg,
         "benchmarks_tcc": benchmarks_tcc,
+        # ── Charts & ML ────────────────────────────────────────────────────────
+        "access_risk_rows": access_risk_rows,
+        "access_risk_json": _json.dumps(access_risk_rows[:20]),
+        "qa_distribution_json": _json.dumps(qa_distribution),
+        "avf_trend_json": _json.dumps(avf_trend),
+        "access_mix_json": _json.dumps([
+            {"label": "AVF", "value": avf_n, "color": "#10b981"},
+            {"label": "AVG", "value": avg_n, "color": "#f59e0b"},
+            {"label": "TCC / Permacath", "value": tcc_n, "color": "#ef4444"},
+            {"label": "Other / Unknown", "value": other_n, "color": "#94a3b8"},
+        ]),
+        "event_chart_json": _json.dumps(event_chart),
         "user": get_user(request)
     })
 
@@ -237,7 +297,14 @@ async def vascular_access_action_board(request: Request, patient_id: Optional[in
         items = compute_access_action_items(db, patient_id)
         return JSONResponse(content=items)
 
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    patients = (
+        db.query(Patient)
+        .filter(
+            Patient.is_active == True,
+            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+        )
+        .all()
+    )
     all_items = []
     for p in patients:
         try:
@@ -716,15 +783,60 @@ async def mortality_risk_list(request: Request, db: Session = Depends(get_db)):
 async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)
     from dashboard_logic import get_current_month_str
-    from ml_analytics import run_cohort_analytics
-    
+
     month_str, _ = get_effective_month(db)
     data = compute_dashboard(db, month_str)
     patient_rows = data.get("patient_rows", [])
-    
+
+    # ── Vascular access summary (fast — counts from already-loaded patients) ──
+    active_patients = (
+        db.query(Patient)
+        .filter(
+            Patient.is_active == True,
+            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+        )
+        .all()
+    )
+    total = len(active_patients)
+    avf_count = sum(1 for p in active_patients if p.access_type and "AVF" in p.access_type.upper())
+    non_avf_count = total - avf_count
+    prevalent_avf_rate = round(avf_count / total * 100, 1) if total else 0
+
+    # Urgent action item count (one query — count confirmed events needing review)
+    from db.models.clinical import AccessEpisode
+    from datetime import date as _date
+    # Count patients on non-tunnelled CVC (always urgent)
+    urgent_cvc = sum(
+        1 for p in active_patients
+        if p.access_type and any(k in p.access_type.upper() for k in ("NON-TUNNELLED", "NON_TUNNELLED", "NTCC", "TEMPORARY"))
+    )
+
+    # Count active maturation failures: no cannulation > 180 days from episode creation
+    from sqlalchemy import and_
+    late_episodes = (
+        db.query(AccessEpisode)
+        .filter(
+            AccessEpisode.is_current == True,
+            AccessEpisode.first_cannulation_date.is_(None),
+            AccessEpisode.creation_date <= (_date.today() - timedelta(days=180)),
+        )
+        .count()
+    )
+
+    va_summary = {
+        "prevalent_avf_rate": prevalent_avf_rate,
+        "avf_count": avf_count,
+        "non_avf_count": non_avf_count,
+        "total": total,
+        "maturation_failures": late_episodes,
+        "urgent_cvc": urgent_cvc,
+        "target_prevalent": 90.0,
+    }
+
     return templates.TemplateResponse("analytics_hub.html", {
         "request": request,
         "patients": patient_rows,
+        "va_summary": va_summary,
         "user": get_user(request)
     })
 

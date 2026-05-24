@@ -84,8 +84,8 @@ def test_mircera_10_days_normalization():
     assert res["drug_type"] == "mircera"
     assert res["frequency"] == "every_10_days"
     assert res["dose_value"] == 75.0
-    # Expected weekly_iu = (75 / 10.0) * 7.0 * 208 = 7.5 * 7.0 * 208 = 10920.0
-    assert res["weekly_iu_iv"] == 10920.0
+    # Expected weekly_iu_sc = (75 / 10.0) * 7.0 * 200 = 7.5 * 7.0 * 200 = 10500.0
+    assert res["weekly_iu_sc"] == 10500.0
 
     # 2. Test Bayesian interval parsing fallback for Mircera every 10 days
     from bayesian_analytics import _intervention_pseudo_beta

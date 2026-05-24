@@ -35,7 +35,7 @@ def _resolve_epo_dose(r):
     if r.epo_mircera_dose:
         _p = normalize_epo_dose(r.epo_mircera_dose)
         if _p.get("confidence") == "high":
-            return _p.get("weekly_iu_iv")
+            return _p.get("weekly_iu_sc")
     return None
 
 
@@ -224,10 +224,14 @@ def compute_dashboard(db: Session, month: str = None):
         six_months = [month]
 
     # Fetch all active patients in alphabetical order (eager-load sub-tables used for new metrics)
+    # Exclude dependent rows (W/O, S/O, D/O, F/O, M/O) — these are family contacts, not HD patients.
     from sqlalchemy.orm import joinedload
     active_patients = (
         db.query(Patient)
-        .filter(Patient.is_active == True)
+        .filter(
+            Patient.is_active == True,
+            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+        )
         .options(
             joinedload(Patient.viral_markers_),
             joinedload(Patient.renal_profile),
@@ -788,7 +792,14 @@ def get_patients_needing_alerts(db: Session, month: str = None):
     if not month:
         month = get_current_month_str()
 
-    active_patients = db.query(Patient).filter(Patient.is_active == True).all()
+    active_patients = (
+        db.query(Patient)
+        .filter(
+            Patient.is_active == True,
+            ~Patient.relation_type.in_(["W/O", "S/O", "D/O", "F/O", "M/O"]),
+        )
+        .all()
+    )
     records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
     record_map = {r.patient_id: r for r in records}
 
