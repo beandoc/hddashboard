@@ -28,28 +28,39 @@ REQUIRED_DB_VERSION = "0012"
 
 
 def _check_schema_version() -> None:
-    """Warn (never crash) if the DB schema version is unexpected."""
+    """Run alembic upgrade head if the DB is behind; warn and continue on failure."""
     db = SessionLocal()
     try:
         row = db.execute(
             text("SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1")
         ).fetchone()
         current = row[0] if row else None
-        if current != REQUIRED_DB_VERSION:
-            logging.warning(
-                "DB schema is at version '%s', app expects '%s'. "
-                "Run 'alembic upgrade head' to apply pending migrations.",
-                current, REQUIRED_DB_VERSION,
-            )
-        else:
-            logging.info("Schema version OK: %s", current)
     except Exception as exc:
-        # alembic_version table may not exist yet on first deploy —
-        # log the real error and continue; the app will work if the
-        # underlying tables are present.
         logging.warning("Schema version check skipped: %s", exc)
+        db.close()
+        return
     finally:
         db.close()
+
+    if current == REQUIRED_DB_VERSION:
+        logging.info("Schema version OK: %s", current)
+        return
+
+    logging.warning(
+        "DB schema is at version '%s', app expects '%s' — running alembic upgrade head …",
+        current, REQUIRED_DB_VERSION,
+    )
+    result = subprocess.run(
+        ["alembic", "upgrade", "head"],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0:
+        logging.info("Migrations applied successfully.\n%s", result.stdout)
+    else:
+        logging.error(
+            "alembic upgrade head failed (exit %s).\nstdout: %s\nstderr: %s",
+            result.returncode, result.stdout, result.stderr,
+        )
 
 
 def _seed_default_users() -> None:
