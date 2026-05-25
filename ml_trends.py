@@ -669,3 +669,141 @@ def classify_iron_status(latest: Dict, staleness: Dict = None) -> Dict:
             "inputs_missing":   []
         }
     }
+
+
+def _phosphorus_kalman(xs: list, ys: list) -> dict:
+    """Kalman filter with phosphorus-specific clinical priors."""
+    return _kalman_trend(
+        xs, ys,
+        prior_level = 4.5,    # target range 3.5–5.5 mg/dL
+        prior_slope = 0.0,
+        P_level     = 2.25,   # variance corresponding to ±1.5 mg/dL initial uncertainty
+        P_slope     = 0.25,   # initial slope uncertainty
+        q_level     = 0.05,   # phosphorus changes moderately quickly due to diet/compliance
+        q_slope     = 0.005,
+        r_obs       = 0.16,   # ±0.4 mg/dL lab measurement noise (1σ)
+    )
+
+
+def _phosphorus_trajectory_severity(current: Optional[float]) -> str:
+    """Classify phosphorus severity based on current level."""
+    if current is None: return "unknown"
+    if current > 7.0:   return "critical_high" # Risk of calciphylaxis, vascular calcification
+    if current > 5.5:   return "high"          # Above KDOQI target
+    if current < 3.0:   return "critical"      # Malnutrition or over-suppressed
+    if current < 3.5:   return "watch"         # Borderline low
+    if 3.5 <= current <= 5.5: return "optimal"
+    return "stable"
+
+
+def _phosphorus_trajectory_message(
+    severity: str, current: float, predicted: float
+) -> str:
+    """Generate human-readable clinical message for Phosphorus trajectory."""
+    predicting_improvement = (predicted is not None and current is not None and predicted < current)
+    predicting_increase = (predicted is not None and current is not None and predicted > current)
+
+    if severity == "critical_high":
+        return f"🚨 CRITICAL HIGH: Phosphorus {current:.1f} mg/dL is severely elevated (target 3.5-5.5). High risk of calciphylaxis/cardiovascular calcification. Limit dietary phosphate and verify binder adherence/dosage immediately."
+
+    if severity == "high":
+        if predicting_improvement:
+            return f"Phosphorus is elevated at {current:.1f} mg/dL, but predicted to decline to {predicted:.1f} mg/dL next month. Continue current binder regimen and monitor diet."
+        return f"Phosphorus is elevated at {current:.1f} mg/dL and projected to remain high at {predicted:.1f} mg/dL. Review phosphate binder dosage and reinforce dietary restriction."
+
+    if severity == "critical":
+        return f"🚨 CRITICAL LOW: Phosphorus is low at {current:.1f} mg/dL (target 3.5-5.5). Risk of malnutrition or over-suppression of PTH. Consider decreasing phosphate binder dose."
+
+    if severity == "watch":
+        if predicting_increase:
+            return f"Phosphorus is borderline low at {current:.1f} mg/dL, but projected to rise to {predicted:.1f} mg/dL. Monitor closely without altering therapy."
+        return f"Phosphorus is borderline low at {current:.1f} mg/dL and predicted to stay low. Review nutritional intake and consider tapering phosphate binders."
+
+    if severity == "optimal":
+        if predicted is not None and predicted > 5.5:
+            return f"✅ Optimal: Current Phosphorus is {current:.1f} mg/dL, but projected to rise above target to {predicted:.1f} mg/dL next month. Monitor dietary intake."
+        if predicted is not None and predicted < 3.5:
+            return f"✅ Optimal: Current Phosphorus is {current:.1f} mg/dL, but projected to drop to {predicted:.1f} mg/dL next month. Review binder therapy."
+        return f"✅ Optimal: Phosphorus is {current:.1f} mg/dL, within target range (3.5-5.5 mg/dL)."
+
+    return "Phosphorus trajectory stable."
+
+
+def predict_phosphorus_trajectory(df: List[Dict]) -> Dict:
+    # Sort descending
+    df = sorted(df, key=lambda x: x.get("month", ""), reverse=True)
+    readiness = compute_ml_readiness(df, "phosphorus")
+    current = next((r["phosphorus"] for r in df if r.get("phosphorus") is not None), None)
+
+    _severity = _phosphorus_trajectory_severity(current)
+
+    base = {
+        "current": current,
+        "confidence": readiness["confidence"],
+        "n_points": readiness["n_points"],
+        "completeness": readiness["completeness"],
+        "recommendation": readiness["recommendation"],
+        "alert": current is not None and (current > 5.5 or current < 3.0),
+        "severity": _severity,
+    }
+
+    if not readiness["ready"]:
+        return {
+            "available": False,
+            "error":     readiness["recommendation"],
+            "data": {
+                **base,
+                "ready_for_prediction": False,
+                "predicted": None, "next_predicted": None,
+                "pi_lower": None, "pi_upper": None,
+                "r_squared": None, "adj_r_squared": None,
+                "p_value": None, "durbin_watson": None,
+                "alert_predicted_high": False,
+                "alert_predicted_low": False,
+                "message": readiness["recommendation"],
+                "inputs_missing": [f"Phosphorus ({2 - readiness['n_points']} more required)"]
+            }
+        }
+
+    pairs = [
+        (
+            _month_to_ordinal(r["month"]),
+            r["phosphorus"],
+        )
+        for r in df
+        if r.get("phosphorus") is not None and r.get("month")
+    ]
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+
+    kal   = _phosphorus_kalman(xs, ys)
+    ols   = _linear_trend_with_ci(xs, ys)
+
+    predicted = kal.get("next_predicted") or ols.get("next_predicted")
+    message = _phosphorus_trajectory_message(_severity, current, predicted)
+
+    return {
+        "available": True,
+        "error":     None,
+        "data": {
+            **base,
+            "ready_for_prediction": True,
+            "predicted":       predicted,
+            "next_predicted":  predicted,
+            "slope":           kal.get("slope") or ols.get("slope"),
+            "filtered_level":  kal.get("filtered_level"),
+            "pi_lower":        kal.get("pi_lower"),
+            "pi_upper":        kal.get("pi_upper"),
+            "posterior_std":   kal.get("posterior_std"),
+            "method":          kal.get("method", "OLS"),
+            "r_squared":       ols.get("r_squared"),
+            "adj_r_squared":   ols.get("adj_r_squared"),
+            "p_value":         ols.get("p_value"),
+            "durbin_watson":   ols.get("durbin_watson"),
+            "n_points":        kal.get("n_points") or ols.get("n_points"),
+            "alert_predicted_high": bool(predicted is not None and predicted > 5.5),
+            "alert_predicted_low": bool(predicted is not None and predicted < 3.0),
+            "message": message,
+            "inputs_missing": []
+        }
+    }

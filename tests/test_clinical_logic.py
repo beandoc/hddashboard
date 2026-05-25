@@ -426,5 +426,51 @@ def test_pds_analysis_matching(db):
     assert res3["unmatched_count"] == 1
 
 
+def test_new_clinical_alerts(db):
+    from ml_trends import predict_phosphorus_trajectory
+    from ml_cascade import analyze_idwg_velocity, analyze_bfr_trend
+
+    # 1. Test Phosphorus Kalman Trend
+    # Setup phosphorus values over 3 months
+    df_phos = [
+        {"month": "2026-02", "phosphorus": 4.5},
+        {"month": "2026-03", "phosphorus": 5.2},
+        {"month": "2026-04", "phosphorus": 6.1},  # elevated > 5.5
+    ]
+    res_phos = predict_phosphorus_trajectory(df_phos)
+    assert res_phos["available"] is True
+    assert res_phos["data"]["current"] == 6.1
+    assert res_phos["data"]["alert"] is True
+    assert res_phos["data"]["severity"] == "high"
+    assert res_phos["data"]["next_predicted"] is not None
+
+    # 2. Test IDWG Velocity
+    sessions = [
+        {"session_date": "2026-05-10", "weight_pre": 72.0, "weight_post": 70.0},
+        {"session_date": "2026-05-12", "weight_pre": 73.6, "weight_post": 71.0}, # IDWG = 73.6 - 70.0 = 3.6 over 2 days -> 1.8 kg/day velocity
+        {"session_date": "2026-05-14", "weight_pre": 75.0, "weight_post": 72.0}, # IDWG = 75.0 - 71.0 = 4.0 over 2 days -> 2.0 kg/day velocity
+    ]
+    res_idwg = analyze_idwg_velocity(sessions, dry_weight=70.0)
+    assert res_idwg["available"] is True
+    assert res_idwg["avg_velocity"] == 1.9  # avg of 1.8 and 2.0
+    assert res_idwg["alert_level"] == "critical"  # > 1.5 is critical
+
+    # 3. Test BFR Rolling Slope / Stenosis Warning
+    bfr_sessions = [
+        {"session_date": "2026-05-01", "actual_blood_flow_rate": 350.0, "blood_flow_rate": 350.0},
+        {"session_date": "2026-05-03", "actual_blood_flow_rate": 330.0, "blood_flow_rate": 350.0},
+        {"session_date": "2026-05-05", "actual_blood_flow_rate": 310.0, "blood_flow_rate": 350.0},
+        {"session_date": "2026-05-07", "actual_blood_flow_rate": 280.0, "blood_flow_rate": 350.0},
+        {"session_date": "2026-05-09", "actual_blood_flow_rate": 250.0, "blood_flow_rate": 350.0},
+        {"session_date": "2026-05-11", "actual_blood_flow_rate": 210.0, "blood_flow_rate": 350.0}, # rolling slope ~ -27 mL/min/session (highly negative)
+    ]
+    res_bfr = analyze_bfr_trend(bfr_sessions)
+    assert res_bfr["available"] is True
+    assert res_bfr["rolling_slope"] is not None
+    assert res_bfr["rolling_slope"] <= -5.0
+    assert res_bfr["alert_level"] == "critical"
+    assert "Progressive decline" in "; ".join(res_bfr["alert_reasons"])
+
+
 
 

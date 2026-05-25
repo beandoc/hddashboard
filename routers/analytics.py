@@ -11,7 +11,7 @@ from config import templates
 from dependencies import get_user, _require_analytics_access
 from dashboard_logic import compute_dashboard, get_current_month_str, get_effective_month
 from ml_analytics import (
-    run_patient_analytics, analyze_bfr_trend,
+    run_patient_analytics, analyze_bfr_trend, analyze_idwg_velocity,
     analyze_pds, analyze_mia_cascade,
     analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
     get_deterioration_model_status,
@@ -1424,6 +1424,7 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
             for s in recent_sessions_20
         ]
         bfr_analytics = analyze_bfr_trend(session_dicts)
+        idwg_analytics = analyze_idwg_velocity(session_dicts, patient.dry_weight)
         pds_analytics = analyze_pds(db, patient_id, prefetched_reports=prefetched_reports, recent_sessions=recent_sessions)
         mia_cascade = analyze_mia_cascade(db, patient_id, prefetched_records=prefetched_records, recent_sessions=recent_sessions)
         cardiorenal_cascade = analyze_cardiorenal_cascade(
@@ -1444,7 +1445,7 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
     return templates.TemplateResponse("patient_analytics.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
-        "bfr_analytics": bfr_analytics, "recent_sessions": recent_sessions_20,
+        "bfr_analytics": bfr_analytics, "idwg_analytics": idwg_analytics, "recent_sessions": recent_sessions_20,
         "pds_analytics": pds_analytics,
         "mia_cascade": mia_cascade,
         "cardiorenal_cascade": cardiorenal_cascade,
@@ -1453,6 +1454,81 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
         "doctor_note": doctor_note,
         "current_month": current_month_str,
         "note_saved": success == "note_saved",
+    })
+
+@router.get("/patients/{patient_id}/session-trends", response_class=HTMLResponse)
+async def patient_session_trends_page(patient_id: int, request: Request, limit: int = 20, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    from sqlalchemy.orm import joinedload
+    
+    if limit not in (10, 20, 30, 50):
+        limit = 20
+
+    patient = (
+        db.query(Patient)
+        .options(
+            joinedload(Patient.vascular_access),
+            joinedload(Patient.comorbidity_profile),
+            joinedload(Patient.cardiac),
+        )
+        .filter(Patient.id == patient_id)
+        .first()
+    )
+    if not patient:
+        raise HTTPException(status_code=404)
+
+    recent_sessions = (
+        db.query(SessionRecord)
+        .options(joinedload(SessionRecord.symptom_report))
+        .filter(SessionRecord.patient_id == patient_id)
+        .order_by(SessionRecord.session_date.desc())
+        .limit(limit)
+        .all()
+    )
+
+    session_dicts = [
+        {
+            "session_date": str(s.session_date),
+            "blood_flow_rate": s.blood_flow_rate,
+            "actual_blood_flow_rate": s.actual_blood_flow_rate,
+            "access_condition": s.access_condition,
+            "arterial_line_pressure": s.arterial_line_pressure,
+            "venous_line_pressure": s.venous_line_pressure,
+            "weight_pre": s.weight_pre,
+            "weight_post": s.weight_post,
+            "uf_volume": s.uf_volume,
+            "uf_rate": s.uf_rate,
+            "bp_pre_sys": s.bp_pre_sys,
+            "bp_pre_dia": s.bp_pre_dia,
+            "bp_post_sys": s.bp_post_sys,
+            "bp_post_dia": s.bp_post_dia,
+            "idh_episode": s.idh_episode,
+            "is_emergency": s.is_emergency,
+            "early_termination": s.early_termination,
+            "pre_hd_dyspnea_likert": s.pre_hd_dyspnea_likert,
+            "post_hd_dyspnea_likert": s.post_hd_dyspnea_likert,
+            "anticoagulation": s.anticoagulation,
+            "duration_hours": s.duration_hours,
+            "duration_minutes": s.duration_minutes,
+        }
+        for s in recent_sessions
+    ]
+
+    bfr_analytics = analyze_bfr_trend(session_dicts)
+    idwg_analytics = analyze_idwg_velocity(session_dicts, patient.dry_weight)
+
+    idh_last_5 = [s.idh_episode for s in recent_sessions[:5] if s.idh_episode]
+    idh_alarm_active = len(idh_last_5) >= 2
+
+    return templates.TemplateResponse("session_trends.html", {
+        "request": request,
+        "patient": patient,
+        "recent_sessions": recent_sessions,
+        "bfr_analytics": bfr_analytics,
+        "idwg_analytics": idwg_analytics,
+        "limit": limit,
+        "idh_alarm_active": idh_alarm_active,
+        "user": get_user(request),
     })
 
 @router.post("/patients/{patient_id}/note")

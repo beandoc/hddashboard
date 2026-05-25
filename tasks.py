@@ -344,7 +344,7 @@ def task_refresh_feature_snapshots(month_str: str = None, force: bool = False):
                     continue
 
                 # Build the same feature vector the model uses at inference time
-                raw_vec = _extract_record_features_for_training(rec, p)
+                raw_vec = _extract_record_features_for_training(rec, p, db)
                 feature_vector = {
                     "hb_alert":     raw_vec[0],
                     "hb":           raw_vec[1],
@@ -356,6 +356,8 @@ def task_refresh_feature_snapshots(month_str: str = None, force: bool = False):
                     "cad":          raw_vec[7],
                     "chf":          raw_vec[8],
                     "dm_type":      raw_vec[9],
+                    "num_recent_hospitalizations_90d": raw_vec[10],
+                    "recent_infection_events": raw_vec[11],
                 }
                 vec_json   = _json.dumps(feature_vector, sort_keys=True)
                 vec_hash   = hashlib.sha256(vec_json.encode()).hexdigest()

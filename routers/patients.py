@@ -436,6 +436,12 @@ async def patient_clinical_summary(patient_id: int, request: Request, db: Sessio
         if record.single_pool_ktv and record.single_pool_ktv < 1.2: alerts.append(f"Inadequate Kt/V: {record.single_pool_ktv}")
         if record.idwg and record.idwg > 2.5: alerts.append(f"High IDWG: {record.idwg} kg")
 
+        # Persistent IDH Alarm
+        sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
+        recent_idh = [s.idh_episode for s in sessions if s.idh_episode]
+        if len(recent_idh) >= 2:
+            alerts.append("Persistent Intradialytic Hypotension: Risk of myocardial stunning & access clotting.")
+
     return templates.TemplateResponse("patient_summary_card.html", {
         "request": request, "patient": patient, "record": record, "meds": meds,
         "alerts": alerts, "now": datetime.now(), "user": get_user(request)
@@ -735,6 +741,17 @@ async def add_hospitalisation(
         entered_by=username,
     )
     db.add(ev)
+
+    from services.patient_service import sync_hospitalization_to_monthly_record
+    sync_hospitalization_to_monthly_record(
+        db=db,
+        patient_id=patient_id,
+        event_date=adm,
+        diagnosis=primary_diagnosis or "",
+        icd_code=primary_icd or "",
+        icd_diagnosis=cause_category or ""
+    )
+
     db.commit()
     return RedirectResponse(url=f"/patients/{patient_id}?msg=Hospitalisation+event+saved", status_code=303)
 

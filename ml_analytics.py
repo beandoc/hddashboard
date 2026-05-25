@@ -39,6 +39,7 @@ from ml_esa import (
 
 from ml_trends import (
     predict_hb_trajectory,
+    predict_phosphorus_trajectory,
     assess_albumin_decline,
     classify_iron_status,
     compute_ml_readiness,
@@ -85,6 +86,7 @@ from ml_cascade import (
     analyze_avf_maturation,
     analyze_pds,
     analyze_bfr_trend,
+    analyze_idwg_velocity,
     detect_occult_overload,
     _compute_gnri,
 )
@@ -354,6 +356,7 @@ def run_patient_analytics(
     # BUG 6 FIX: log exceptions with full traceback and expose error key in result
     try:
         hb_traj    = predict_hb_trajectory(df)
+        phos_traj  = predict_phosphorus_trajectory(df)
         epo_resp   = detect_epo_hyporesponse(df, hb_traj)
         alb_risk   = assess_albumin_decline(df)
         iron_stat  = classify_iron_status(df[0], lab_staleness)
@@ -375,6 +378,7 @@ def run_patient_analytics(
         logger.exception("Error in patient analytics sub-components for patient %d: %s", patient_id, e)
         analytics_error = str(e)
         hb_traj = hb_traj if 'hb_traj' in locals() else {"available": False, "data": {}}
+        phos_traj = phos_traj if 'phos_traj' in locals() else {"available": False, "data": {}}
         epo_resp = epo_resp if 'epo_resp' in locals() else {"available": False, "data": {}}
         alb_risk = alb_risk if 'alb_risk' in locals() else {"available": False, "data": {}}
         iron_stat = iron_stat if 'iron_stat' in locals() else {"available": False, "data": {}}
@@ -388,6 +392,7 @@ def run_patient_analytics(
     result = {
         "status": "ok",
         "hb_trajectory": hb_traj,
+        "phosphorus_trajectory": phos_traj,
         "epo_response": epo_resp,
         "albumin_risk": alb_risk,
         "iron_status": iron_stat,

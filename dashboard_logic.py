@@ -4,7 +4,7 @@ dashboard_logic.py
 Core clinical calculation logic for the Hemodialysis Dashboard.
 Locked - Do not modify without clinical validation.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func, and_
 from database import Patient, MonthlyRecord, InterimLabRecord, SessionRecord, ClinicalEvent
 from datetime import datetime, timedelta
@@ -350,6 +350,28 @@ def compute_dashboard(db: Session, month: str = None):
             session_by_patient[s.patient_id] = []
         session_by_patient[s.patient_id].append(s)
 
+    # Fetch the 5 most recent sessions per patient for IDH alarm
+    subq = (
+        db.query(
+            SessionRecord,
+            func.row_number().over(
+                partition_by=SessionRecord.patient_id,
+                order_by=SessionRecord.session_date.desc()
+            ).label("rn")
+        )
+        .filter(SessionRecord.patient_id.in_([p.id for p in active_patients]))
+        .subquery()
+    )
+    session_alias = aliased(SessionRecord, subq)
+    recent_5_sessions = db.query(session_alias).filter(subq.c.rn <= 5).all()
+
+    # Map patient_id -> list of SessionRecord
+    recent_sessions_by_patient = {}
+    for s in recent_5_sessions:
+        if s.patient_id not in recent_sessions_by_patient:
+            recent_sessions_by_patient[s.patient_id] = []
+        recent_sessions_by_patient[s.patient_id].append(s)
+
     # Fetch latest session date per patient for current month
     session_map = {}
     session_rows = (
@@ -539,6 +561,12 @@ def compute_dashboard(db: Session, month: str = None):
             row["adherence_flags"] = adherence_flags
             for f in adherence_flags:
                 row["alerts"].append(f)
+
+        # 4.5 Persistent IDH Alarm
+        recent_pt_sessions = recent_sessions_by_patient.get(p.id, [])
+        recent_idh = [s.idh_episode for s in recent_pt_sessions if s.idh_episode]
+        if len(recent_idh) >= 2:
+            row["alerts"].append("Persistent Intradialytic Hypotension: Risk of myocardial stunning & access clotting.")
 
         # 5. Override with Latest Interim Labs
         p_interim = interim_map.get(p.id, {})
@@ -824,6 +852,28 @@ def get_patients_needing_alerts(db: Session, month: str = None):
     records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
     record_map = {r.patient_id: r for r in records}
 
+    # Fetch the 5 most recent sessions per patient for IDH alarm
+    subq = (
+        db.query(
+            SessionRecord,
+            func.row_number().over(
+                partition_by=SessionRecord.patient_id,
+                order_by=SessionRecord.session_date.desc()
+            ).label("rn")
+        )
+        .filter(SessionRecord.patient_id.in_([p.id for p in active_patients]))
+        .subquery()
+    )
+    session_alias = aliased(SessionRecord, subq)
+    recent_5_sessions = db.query(session_alias).filter(subq.c.rn <= 5).all()
+
+    # Map patient_id -> list of SessionRecord
+    recent_sessions_by_patient = {}
+    for s in recent_5_sessions:
+        if s.patient_id not in recent_sessions_by_patient:
+            recent_sessions_by_patient[s.patient_id] = []
+        recent_sessions_by_patient[s.patient_id].append(s)
+
     result = []
     for p in active_patients:
         r = record_map.get(p.id)
@@ -864,6 +914,12 @@ def get_patients_needing_alerts(db: Session, month: str = None):
                 alerts.append("ESA Over-dosing Risk")
             elif not _hb_below and _dose_kg >= 150:
                 alerts.append("ESA De-escalation Due")
+
+        # Persistent IDH Alarm
+        recent_pt_sessions = recent_sessions_by_patient.get(p.id, [])
+        recent_idh = [s.idh_episode for s in recent_pt_sessions if s.idh_episode]
+        if len(recent_idh) >= 2:
+            alerts.append("Persistent Intradialytic Hypotension: Risk of myocardial stunning & access clotting.")
         if alerts:
             result.append({
                 "patient": p,

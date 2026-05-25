@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 # ── Deterioration Risk ────────────────────────────────────────────────────────
 
-# 10 features used for both training and inference — must stay in sync
+# 12 features used for both training and inference — must stay in sync
 DETERIORATION_FEATURE_NAMES = [
     "hb_alert",       # Binary: Hb < 10.0 g/dL
     "hb_value",       # Continuous: Hb g/dL (median-imputed when missing)
@@ -68,6 +68,8 @@ DETERIORATION_FEATURE_NAMES = [
     "cad",            # Binary: coronary artery disease / IHD
     "chf",            # Binary: congestive heart failure
     "dm",             # Binary: any diabetes mellitus (type 1 or 2)
+    "num_recent_hospitalizations_90d", # Continuous: number of admissions in last 90d
+    "recent_infection_events",         # Continuous: infection event count in last 90d
 ]
 
 _MODEL_PATH      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model.joblib")
@@ -79,7 +81,8 @@ def get_snapshot_feature_vector(db, patient_id: int, month_str: str) -> Optional
 
     Calling code should fall back to live feature extraction when this returns None.
     The vector ordering matches _build_feature_vector:
-      [hb_alert, hb, alb_alert, albumin, target_score, epo_hypo, age, cad, chf, dm_type]
+      [hb_alert, hb, alb_alert, albumin, target_score, epo_hypo, age, cad, chf, dm_type,
+       num_recent_hospitalizations_90d, recent_infection_events]
     """
     snap = (
         db.query(PatientFeatureSnapshot)
@@ -104,6 +107,8 @@ def get_snapshot_feature_vector(db, patient_id: int, month_str: str) -> Optional
         fv.get("cad", 0),
         fv.get("chf", 0),
         fv.get("dm_type", 0),
+        fv.get("num_recent_hospitalizations_90d", 0.0),
+        fv.get("recent_infection_events", 0.0),
     ]
 
 
@@ -113,6 +118,8 @@ def _build_feature_vector(
     target_score,
     epo_hypo,
     age, cad, chf, dm_status,
+    num_recent_hospitalizations_90d=0.0,
+    recent_infection_events=0.0,
     is_training=False
 ) -> list:
     """
@@ -124,6 +131,8 @@ def _build_feature_vector(
         hb_val       = hb_val if hb_val is not None else 10.0
         alb_val      = alb_val if alb_val is not None else 3.5
         target_score = target_score if target_score is not None else 5.0
+        num_recent_hospitalizations_90d = num_recent_hospitalizations_90d if num_recent_hospitalizations_90d is not None else 0.0
+        recent_infection_events = recent_infection_events if recent_infection_events is not None else 0.0
 
     return [
         float(hb_alert or 0),
@@ -136,10 +145,12 @@ def _build_feature_vector(
         float(cad or 0),
         float(chf or 0),
         1.0 if "type" in str(dm_status or "").lower() else 0.0,
+        float(num_recent_hospitalizations_90d),
+        float(recent_infection_events),
     ]
 
 
-def _extract_record_features_for_training(record, patient) -> list:
+def _extract_record_features_for_training(record, patient, db: Session) -> list:
     """ORM path for training."""
     hb      = record.hb
     albumin = record.albumin
@@ -161,6 +172,43 @@ def _extract_record_features_for_training(record, patient) -> list:
 
     epo_hypo = (hb is not None and hb < 10.0 and (record.epo_weekly_units is not None or bool(record.epo_mircera_dose)))
 
+    # Compute timeline event features for training month (up to 90 days lookback)
+    import calendar
+    from datetime import date, timedelta
+    
+    month_str = record.record_month
+    year = int(month_str[:4])
+    month = int(month_str[5:7])
+    last_day = calendar.monthrange(year, month)[1]
+    end_date = date(year, month, last_day)
+    start_date = end_date - timedelta(days=90)
+    
+    from database import HospitalisationEvent, ClinicalEvent
+    
+    hosp_dates = set()
+    for h in db.query(HospitalisationEvent.admission_date).filter(
+        HospitalisationEvent.patient_id == patient.id,
+        HospitalisationEvent.admission_date >= start_date,
+        HospitalisationEvent.admission_date <= end_date
+    ).all():
+        hosp_dates.add(h[0])
+    for e in db.query(ClinicalEvent.event_date).filter(
+        ClinicalEvent.patient_id == patient.id,
+        ClinicalEvent.event_type.in_(["Hospitalization", "Admission"]),
+        ClinicalEvent.event_date >= start_date,
+        ClinicalEvent.event_date <= end_date
+    ).all():
+        hosp_dates.add(e[0])
+    num_recent_hospitalizations_90d = float(len(hosp_dates))
+    
+    inf_count = db.query(ClinicalEvent).filter(
+        ClinicalEvent.patient_id == patient.id,
+        (ClinicalEvent.event_type.like("%Infection%") | ClinicalEvent.event_type.in_(["Infection", "Sepsis / Bacteremia", "Catheter / Exit-Site Infection"])),
+        ClinicalEvent.event_date >= start_date,
+        ClinicalEvent.event_date <= end_date
+    ).count()
+    recent_infection_events = float(inf_count)
+
     return _build_feature_vector(
         hb_val       = hb,
         hb_alert     = (hb is not None and hb < 10.0),
@@ -172,6 +220,8 @@ def _extract_record_features_for_training(record, patient) -> list:
         cad          = patient.cad_status,
         chf          = patient.chf_status,
         dm_status    = patient.dm_status,
+        num_recent_hospitalizations_90d = num_recent_hospitalizations_90d,
+        recent_infection_events = recent_infection_events,
         is_training  = True
     )
 
@@ -179,6 +229,8 @@ def _extract_record_features_for_training(record, patient) -> list:
 def _extract_analytics_features_for_inference(
     hb: dict, alb: dict, target: dict,
     epo: dict = None, patient_info: dict = None,
+    num_recent_hospitalizations_90d=0.0,
+    recent_infection_events=0.0,
 ) -> list:
     """Dict path for real-time inference."""
     epo          = epo or {}
@@ -194,6 +246,8 @@ def _extract_analytics_features_for_inference(
         cad          = patient_info.get("cad_status"),
         chf          = patient_info.get("chf_status"),
         dm_status    = patient_info.get("dm_status"),
+        num_recent_hospitalizations_90d = num_recent_hospitalizations_90d,
+        recent_infection_events = recent_infection_events,
         is_training  = False
     )
 
@@ -258,7 +312,7 @@ def train_deterioration_model(db: Session) -> dict:
             except Exception:
                 continue
 
-            feats = _extract_record_features_for_training(curr, patient)
+            feats = _extract_record_features_for_training(curr, patient, db)
             label = int(
                 bool(nxt.hospitalization_this_month) or
                 bool(nxt.hospitalization_diagnosis)  or
@@ -574,7 +628,52 @@ def compute_deterioration_risk(
             logger.debug("ModelArtifact gate check failed: %s", _gate_exc)
 
     if model is not None:
-        feats = _extract_analytics_features_for_inference(hb_data, alb_data, target_data, epo_data, patient_info)
+        patient_id = (patient_info or {}).get("id")
+        num_recent_hospitalizations_90d = 0.0
+        recent_infection_events = 0.0
+        
+        if patient_id:
+            from database import SessionLocal as _SL, HospitalisationEvent as _HE, ClinicalEvent as _CE
+            from datetime import date, timedelta
+            
+            _ev_db = _SL()
+            try:
+                today = date.today()
+                start_date = today - timedelta(days=90)
+                
+                hosp_dates = set()
+                for h in _ev_db.query(_HE.admission_date).filter(
+                    _HE.patient_id == patient_id,
+                    _HE.admission_date >= start_date,
+                    _HE.admission_date <= today
+                ).all():
+                    hosp_dates.add(h[0])
+                for e in _ev_db.query(_CE.event_date).filter(
+                    _CE.patient_id == patient_id,
+                    _CE.event_type.in_(["Hospitalization", "Admission"]),
+                    _CE.event_date >= start_date,
+                    _CE.event_date <= today
+                ).all():
+                    hosp_dates.add(e[0])
+                num_recent_hospitalizations_90d = float(len(hosp_dates))
+                
+                inf_count = _ev_db.query(_CE).filter(
+                    _CE.patient_id == patient_id,
+                    (_CE.event_type.like("%Infection%") | _CE.event_type.in_(["Infection", "Sepsis / Bacteremia", "Catheter / Exit-Site Infection"])),
+                    _CE.event_date >= start_date,
+                    _CE.event_date <= today
+                ).count()
+                recent_infection_events = float(inf_count)
+            except Exception as _q_exc:
+                logger.debug("Failed to query event counts for patient %s: %s", patient_id, _q_exc)
+            finally:
+                _ev_db.close()
+
+        feats = _extract_analytics_features_for_inference(
+            hb_data, alb_data, target_data, epo_data, patient_info,
+            num_recent_hospitalizations_90d=num_recent_hospitalizations_90d,
+            recent_infection_events=recent_infection_events
+        )
         try:
             prob      = float(model.predict_proba(np.array([feats]))[0][1])
             risk_pct  = round(prob * 100, 1)

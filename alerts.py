@@ -199,6 +199,13 @@ def build_individual_whatsapp_link(patient, record, month_label: str) -> str:
             elif _eri >= 1.5:
                 alerts.append(f"ESA Hypo-response [HypoR2] (Hb {record.hb} g/dL)")
 
+        # Persistent IDH Alarm
+        if patient.sessions:
+            sorted_sessions = sorted(patient.sessions, key=lambda s: s.session_date, reverse=True)
+            recent_idh = [s.idh_episode for s in sorted_sessions[:5] if s.idh_episode]
+            if len(recent_idh) >= 2:
+                alerts.append("Persistent Intradialytic Hypotension: Risk of myocardial stunning & access clotting.")
+
     upcoming = compute_upcoming_sessions(patient)
     if upcoming:
         lines = []

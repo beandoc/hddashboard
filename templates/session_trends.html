@@ -1,0 +1,1244 @@
+{% from "_macros.html" import breadcrumb %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ patient.name }} — Session Trends & Analytics | HD Dashboard</title>
+  
+  <!-- Chart.js and Fonts -->
+  <script src="/static/vendor/js/chart.min.js"></script>
+  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+  
+  <style>
+    :root {
+      --primary: #0ea5e9;
+      --primary-dark: #0284c7;
+      --bg-main: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent-red: #ef4444;
+      --accent-green: #10b981;
+      --accent-orange: #f97316;
+      --accent-purple: #8b5cf6;
+      --border: #e2e8f0;
+      --radius: 16px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow: 0 4px 15px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -2px rgba(15, 23, 42, 0.05);
+      --shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.08);
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-main);
+      margin: 0;
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 24px auto 60px;
+      padding: 0 24px;
+    }
+
+    /* Header Nav Styling */
+    .header-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+    .back-btn:hover {
+      color: var(--text-main);
+      transform: translateX(-2px);
+    }
+
+    /* Profile Header Card */
+    .patient-header-card {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      border-radius: var(--radius);
+      padding: 24px 32px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      position: relative;
+      overflow: hidden;
+    }
+    .patient-header-card::before {
+      content: '';
+      position: absolute;
+      top: -30%;
+      right: -10%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .patient-meta h1 {
+      font-size: 1.8rem;
+      letter-spacing: -0.02em;
+    }
+    .patient-meta p {
+      opacity: 0.7;
+      font-size: 0.88rem;
+      margin-top: 4px;
+    }
+    .header-badges {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .header-badge {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px 18px;
+      text-align: center;
+      min-width: 110px;
+      backdrop-filter: blur(4px);
+    }
+    .header-badge-val {
+      font-size: 1.15rem;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+    }
+    .header-badge-lbl {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      opacity: 0.6;
+      letter-spacing: 0.05em;
+      margin-top: 2px;
+    }
+
+    /* Filter Controls & Lookback Tabs */
+    .dashboard-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-card);
+      padding: 14px 20px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .toolbar-title {
+      font-size: 1.05rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar-title i {
+      color: var(--primary);
+    }
+    .tab-group {
+      display: inline-flex;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: var(--transition);
+    }
+    .tab-btn.active {
+      background: var(--bg-card);
+      color: var(--primary-dark);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Alerts and Warning Panel */
+    .alert-banner {
+      background: #fef2f2;
+      border: 1px solid #fee2e2;
+      border-left: 5px solid var(--accent-red);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      animation: pulse-border 2s infinite ease-in-out;
+    }
+    @keyframes pulse-border {
+      0%, 100% { border-color: #fca5a5; }
+      50% { border-color: #fee2e2; }
+    }
+    .alert-icon {
+      background: #fee2e2;
+      color: var(--accent-red);
+      padding: 8px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .alert-content h4 {
+      font-size: 0.95rem;
+      color: #991b1b;
+      margin-bottom: 4px;
+    }
+    .alert-content p {
+      font-size: 0.85rem;
+      color: #7f1d1d;
+      margin: 0;
+      font-weight: 500;
+    }
+
+    /* Summary KPI Bar */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .summary-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+    }
+    .summary-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+      border-color: #cbd5e1;
+    }
+    .summary-icon-box {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .summary-card.idh .summary-icon-box { background: #fff5f5; color: var(--accent-red); }
+    .summary-card.emergency .summary-icon-box { background: #fffaf0; color: var(--accent-orange); }
+    .summary-card.early-stop .summary-icon-box { background: #fefdf0; color: var(--accent-amber); }
+    .summary-card.avg-ufr .summary-icon-box { background: #ecfeff; color: #06b6d4; }
+    .summary-info h5 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+    .summary-val {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      line-height: 1.2;
+    }
+
+    /* Charts Grid Layout */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 900px) {
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      min-height: 310px;
+      transition: var(--transition);
+    }
+    .chart-card:hover {
+      box-shadow: var(--shadow);
+      border-color: #cbd5e1;
+    }
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .chart-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #334155;
+    }
+    .chart-title i {
+      font-size: 1.25rem;
+      padding: 8px;
+      border-radius: 10px;
+      background: #f1f5f9;
+      color: var(--text-muted);
+    }
+    .chart-card.weight .chart-title i { background: #f0f9ff; color: #0ea5e9; }
+    .chart-card.ufr .chart-title i { background: #ecfeff; color: #06b6d4; }
+    .chart-card.bp .chart-title i { background: #fff1f2; color: #f43f5e; }
+    .chart-card.dyspnea .chart-title i { background: #f5f3ff; color: #8b5cf6; }
+    .chart-card.bfr .chart-title i { background: #f0f9ff; color: #0284c7; }
+    .chart-card.idwg .chart-title i { background: #ecfdf5; color: #10b981; }
+
+    .chart-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid transparent;
+    }
+    .chart-badge.info {
+      background: #f0f9ff;
+      color: #0369a1;
+      border-color: #bae6fd;
+    }
+    .chart-badge.danger {
+      background: #fef2f2;
+      color: #b91c1c;
+      border-color: #fca5a5;
+    }
+    .chart-badge.warning {
+      background: #fffbeb;
+      color: #b45309;
+      border-color: #fde68a;
+    }
+    .chart-canvas-wrapper {
+      position: relative;
+      flex-grow: 1;
+      width: 100%;
+      min-height: 200px;
+    }
+
+    /* Detailed Sessions Grid */
+    .table-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+    }
+    .table-title-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .table-title {
+      font-size: 1.1rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .table-title i {
+      color: var(--text-muted);
+    }
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    .sessions-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+    .sessions-table th {
+      background: #f8fafc;
+      color: var(--text-muted);
+      font-weight: 700;
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.72rem;
+    }
+    .sessions-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    .sessions-table tr {
+      transition: var(--transition);
+    }
+    .sessions-table tr:hover {
+      background: #f8fafc;
+    }
+    .sessions-table td a {
+      color: var(--primary-dark);
+      text-decoration: none;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .sessions-table td a:hover {
+      text-decoration: underline;
+    }
+    .indicator-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .indicator-pill.danger { background: #fee2e2; color: #b91c1c; }
+    .indicator-pill.warning { background: #fef3c7; color: #92400e; }
+    .indicator-pill.success { background: #dcfce7; color: #166534; }
+    .indicator-pill.info { background: #e0f2fe; color: #0369a1; }
+    
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .status-dot.active { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+    .status-dot.inactive { background: var(--accent-red); }
+
+    .symptom-tag {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #475569;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.72rem;
+      margin: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  {% include "_nav.html" %}
+  {% include "_patient_context_nav.html" %}
+  
+  {{ breadcrumb([
+    ("Dashboard", "/"), 
+    ("Analytics", "/analytics"), 
+    (patient.name + " Analytics", "/analytics/patients/" + (patient.id | string)), 
+    ("Session Trends", None)
+  ]) }}
+
+  <!-- Jinja data aggregation -->
+  {% set ns = namespace(
+      weight_labels=[], weight_pre=[], weight_post=[], uf_rates=[],
+      bp_pre_s=[], bp_post_s=[],
+      idh_count=0, emergency_count=0, early_term_count=0,
+      dyspnea_pre=[], dyspnea_post=[], dyspnea_labels=[],
+      bfr_prescribed=[], bfr_actual=[]
+  ) %}
+  {% for s in recent_sessions | reverse %}
+    {% if s.session_date %}
+      {% set _ = ns.weight_labels.append(s.session_date | string) %}
+      {% set _ = ns.weight_pre.append(s.weight_pre | default(none)) %}
+      {% set _ = ns.weight_post.append(s.weight_post | default(none)) %}
+      {% set _ = ns.uf_rates.append(s.uf_rate | default(none)) %}
+      {% set _ = ns.bp_pre_s.append(s.bp_pre_sys | default(none)) %}
+      {% set _ = ns.bp_post_s.append(s.bp_post_sys | default(none)) %}
+      {% set _ = ns.bfr_prescribed.append(s.blood_flow_rate | default(none)) %}
+      {% set _ = ns.bfr_actual.append(s.actual_blood_flow_rate | default(none)) %}
+      {% if s.idh_episode %}{% set ns.idh_count = ns.idh_count + 1 %}{% endif %}
+      {% if s.is_emergency %}{% set ns.emergency_count = ns.emergency_count + 1 %}{% endif %}
+      {% if s.early_termination %}{% set ns.early_term_count = ns.early_term_count + 1 %}{% endif %}
+      {% if s.pre_hd_dyspnea_likert is not none or s.post_hd_dyspnea_likert is not none %}
+        {% set _ = ns.dyspnea_labels.append(s.session_date | string) %}
+        {% set _ = ns.dyspnea_pre.append(s.pre_hd_dyspnea_likert | default(none)) %}
+        {% set _ = ns.dyspnea_post.append(s.post_hd_dyspnea_likert | default(none)) %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {% set idwg_labels = [] %}
+  {% set idwg_vals = [] %}
+  {% set idwg_vels = [] %}
+  {% if idwg_analytics.available %}
+    {% for p in idwg_analytics.points %}
+      {% set _ = idwg_labels.append(p.date) %}
+      {% set _ = idwg_vals.append(p.idwg) %}
+      {% set _ = idwg_vels.append(p.velocity) %}
+    {% endfor %}
+  {% endif %}
+
+  {% set valid_ufrs = ns.uf_rates | reject('none') | list %}
+  {% set avg_ufr = (valid_ufrs | sum / valid_ufrs | length) if valid_ufrs else 0 %}
+  {% set max_ufr = valid_ufrs | max | default(0) %}
+
+  <div class="container">
+    
+    <!-- Header Navigation Back -->
+    <div class="header-nav">
+      <a href="/analytics/patients/{{ patient.id }}" class="back-btn">
+        <i class="material-icons">arrow_back</i> Back to Clinical Review
+      </a>
+    </div>
+
+    <!-- Patient Banner Card -->
+    <div class="patient-header-card">
+      <div class="patient-meta">
+        <h1>{{ patient.name }}</h1>
+        <p>HID: {{ patient.hid_no }} • {{ patient.sex }} • Age: {{ patient.age or '—' }} • Diagnosis: {{ patient.diagnosis or '—' }}</p>
+      </div>
+      <div class="header-badges">
+        <div class="header-badge">
+          <div class="header-badge-val">{{ patient.dry_weight or '—' }} <small>kg</small></div>
+          <div class="header-badge-lbl">Dry Weight</div>
+        </div>
+        <div class="header-badge">
+          <div class="header-badge-val">{{ patient.hd_frequency or '2' }}x <small>/wk</small></div>
+          <div class="header-badge-lbl">HD Frequency</div>
+        </div>
+        <div class="header-badge">
+          <div class="header-badge-val">
+            {% if patient.is_active %}
+              <span class="status-dot active"></span>Active
+            {% else %}
+              <span class="status-dot inactive"></span>Inactive
+            {% endif %}
+          </div>
+          <div class="header-badge-lbl">Clinical Status</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alarm / Alerts Banner -->
+    {% if idh_alarm_active %}
+    <div class="alert-banner">
+      <div class="alert-icon">
+        <i class="material-icons">warning</i>
+      </div>
+      <div class="alert-content">
+        <h4>Persistent Intradialytic Hypotension Warning (IDH Alarm)</h4>
+        <p>Persistent Intradialytic Hypotension: Risk of myocardial stunning & access clotting. The patient has experienced {{ idh_last_5 | length }} IDH episode(s) in their last 5 dialysis sessions.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Filter Control Toolbar -->
+    <div class="dashboard-toolbar">
+      <div class="toolbar-title">
+        <i class="material-icons">assessment</i>
+        <span>Session Lookback Trend Analytics</span>
+      </div>
+      <div class="tab-group">
+        <a href="?limit=10" class="tab-btn {% if limit == 10 %}active{% endif %}">10 Sessions</a>
+        <a href="?limit=20" class="tab-btn {% if limit == 20 %}active{% endif %}">20 Sessions</a>
+        <a href="?limit=30" class="tab-btn {% if limit == 30 %}active{% endif %}">30 Sessions</a>
+        <a href="?limit=55" class="tab-btn {% if limit == 50 %}active{% endif %}">50 Sessions</a> <!-- 55 maps to 50 max fallback -->
+      </div>
+    </div>
+
+    <!-- Summary KPI Panel -->
+    <div class="summary-grid">
+      
+      <!-- IDH Episodes -->
+      <div class="summary-card idh" title="IDH episodes in the selected lookback window">
+        <div class="summary-icon-box">
+          <i class="material-icons">trending_down</i>
+        </div>
+        <div class="summary-info">
+          <h5>IDH Episodes</h5>
+          <div class="summary-val">{{ ns.idh_count }}</div>
+        </div>
+      </div>
+
+      <!-- Emergency -->
+      <div class="summary-card emergency" title="Clinical emergency events during session lookback">
+        <div class="summary-icon-box">
+          <i class="material-icons">emergency</i>
+        </div>
+        <div class="summary-info">
+          <h5>Emergency Stops</h5>
+          <div class="summary-val">{{ ns.emergency_count }}</div>
+        </div>
+      </div>
+
+      <!-- Early Stop -->
+      <div class="summary-card early-stop" title="Early session termination incidents">
+        <div class="summary-icon-box">
+          <i class="material-icons">stop_circle</i>
+        </div>
+        <div class="summary-info">
+          <h5>Early Terms</h5>
+          <div class="summary-val">{{ ns.early_term_count }}</div>
+        </div>
+      </div>
+
+      <!-- Avg UFR -->
+      <div class="summary-card avg-ufr" title="Average Ultrafiltration Rate">
+        <div class="summary-icon-box">
+          <i class="material-icons">water</i>
+        </div>
+        <div class="summary-info">
+          <h5>Avg UF Rate</h5>
+          <div class="summary-val">{{ avg_ufr | round(2) }} <small style="font-size:0.75rem;">mL/kg/h</small></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Chart Grid -->
+    <div class="chart-grid">
+      
+      <!-- Weight Trend Card -->
+      <div class="chart-card weight">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i class="material-icons">monitor_weight</i>
+            <span>Weight Pre/Post Trajectory</span>
+          </div>
+          <span class="chart-badge info">Target: {{ patient.dry_weight or '—' }} kg</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="weightChart"></canvas>
+        </div>
+      </div>
+
+      <!-- UF Rate Trend Card -->
+      <div class="chart-card ufr">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i class="material-icons">water</i>
+            <span>Ultrafiltration Rate (UFR)</span>
+          </div>
+          <span class="chart-badge {% if max_ufr > 13 %}danger{% else %}info{% endif %}">
+            Limit: &le;13 KDOQI
+          </span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="ufrChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Systolic BP Card -->
+      <div class="chart-card bp">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i class="material-icons">favorite</i>
+            <span>Systolic Blood Pressure Pre/Post</span>
+          </div>
+          <span class="chart-badge info">HD Hemodynamics</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="bpChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Dyspnea score Card -->
+      <div class="chart-card dyspnea">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i class="material-icons">air</i>
+            <span>Dyspnea Scores (Pre vs Post HD)</span>
+          </div>
+          <span class="chart-badge info">Likert (1-5 Scale)</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          {% if ns.dyspnea_labels %}
+            <canvas id="dyspneaChart"></canvas>
+          {% else %}
+            <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.85rem;font-style:italic;">
+              No dyspnea scoring logged in these sessions.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- BFR & Stenosis Card -->
+      <div class="chart-card bfr">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i class="material-icons">water_drop</i>
+            <span>BFR & Stenosis Monitoring</span>
+          </div>
+          <span class="chart-badge info">Stenosis Hazard Index</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="bfrTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- IDWG Velocity Card -->
+      <div class="chart-card idwg">
+        <div class="chart-header">
+          <div class="chart-title">
+            <i class="material-icons">speed</i>
+            <span>IDWG Gain Rate & Velocity</span>
+          </div>
+          <span class="chart-badge info">Target &le;1.5 kg/day</span>
+        </div>
+        <div class="chart-canvas-wrapper">
+          <canvas id="idwgVelocityChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Raw Data Grid Table -->
+    <div class="table-card">
+      <div class="table-title-bar">
+        <div class="table-title">
+          <i class="material-icons">list_alt</i>
+          <span> dialysis Session Records (Last {{ recent_sessions | length }} sessions)</span>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="sessions-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Weight Pre/Post (kg)</th>
+              <th>UF Volume (L) / Rate</th>
+              <th>BP Pre/Post (mmHg)</th>
+              <th>BFR Prescribed/Actual</th>
+              <th>Access Condition</th>
+              <th>IDH?</th>
+              <th>Emergency?</th>
+              <th>Early Stop?</th>
+              <th>Symptoms</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in recent_sessions %}
+            <tr>
+              <td>
+                <a href="/sessions/{{ s.id }}/edit" title="Click to edit session details">
+                  <i class="material-icons" style="font-size:0.95rem;">edit</i>
+                  {{ s.session_date }}
+                </a>
+              </td>
+              <td>
+                <strong>{{ s.weight_pre or '—' }}</strong> / {{ s.weight_post or '—' }}
+                {% if s.weight_pre and s.weight_post %}
+                  <span style="color:var(--text-muted);font-size:0.75rem;margin-left:4px;">(&Delta;{{ (s.weight_pre - s.weight_post) | round(2) }}kg)</span>
+                {% endif %}
+              </td>
+              <td>
+                {{ s.uf_volume or '—' }} L 
+                {% if s.uf_rate %}
+                  <span class="indicator-pill {% if s.uf_rate > 13 %}danger{% elif s.uf_rate > 10 %}warning{% else %}success{% endif %}" style="margin-left:4px; font-size:0.7rem;">
+                    {{ s.uf_rate | round(1) }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <span style="color:#ef4444;font-weight:600;">{{ s.bp_pre_sys or '—' }}</span>/{{ s.bp_pre_dia or '—' }} &rarr; 
+                <span style="color:#f97316;font-weight:600;">{{ s.bp_post_sys or '—' }}</span>/{{ s.bp_post_dia or '—' }}
+              </td>
+              <td>
+                {{ s.blood_flow_rate or '—' }} / 
+                <strong style="color:{% if s.actual_blood_flow_rate and s.blood_flow_rate and s.actual_blood_flow_rate < s.blood_flow_rate - 30 %}#ef4444{% else %}#1e293b{% endif %};">
+                  {{ s.actual_blood_flow_rate or '—' }}
+                </strong>
+              </td>
+              <td>
+                {% if s.access_condition %}
+                  <span class="indicator-pill {% if s.access_condition == 'Good' %}success{% else %}warning{% endif %}">
+                    {{ s.access_condition }}
+                  </span>
+                {% else %}
+                  <span style="color:var(--text-muted);">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.idh_episode %}
+                  <span class="indicator-pill danger">IDH</span>
+                {% else %}
+                  <span style="color:var(--text-muted);">No</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.is_emergency %}
+                  <span class="indicator-pill danger">Yes</span>
+                {% else %}
+                  <span style="color:var(--text-muted);">No</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.early_termination %}
+                  <span class="indicator-pill warning">Early</span>
+                {% else %}
+                  <span style="color:var(--text-muted);">No</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s.symptom_report and s.symptom_report.symptoms %}
+                  {% for sym in s.symptom_report.symptoms.split(',') %}
+                    <span class="symptom-tag">{{ sym | trim }}</span>
+                  {% endfor %}
+                {% else %}
+                  <span style="color:var(--text-muted);font-style:italic;font-size:0.75rem;">None reported</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    (function() {
+      // Setup Chart.js styling variables
+      Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      Chart.defaults.color = "#64748b";
+      Chart.defaults.plugins.tooltip.padding = 12;
+      Chart.defaults.plugins.tooltip.cornerRadius = 10;
+      Chart.defaults.plugins.tooltip.backgroundColor = "#0f172a";
+      Chart.defaults.plugins.tooltip.titleFont = { size: 11, weight: 'bold' };
+      Chart.defaults.plugins.tooltip.bodyFont = { size: 10 };
+
+      var labels = {{ ns.weight_labels | tojson }};
+
+      var commonGridOpts = {
+        y: {
+          grid: { color: 'rgba(226, 232, 240, 0.4)', drawBorder: false },
+          ticks: { font: { size: 10 }, padding: 6 }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 9 }, maxRotation: 45, padding: 6 }
+        }
+      };
+
+      // 1. Weight Chart
+      var wCanvas = document.getElementById('weightChart');
+      if (wCanvas) {
+        var wCtx = wCanvas.getContext('2d');
+        
+        var preGrad = wCtx.createLinearGradient(0, 0, 0, 200);
+        preGrad.addColorStop(0, 'rgba(14, 165, 233, 0.15)');
+        preGrad.addColorStop(1, 'rgba(14, 165, 233, 0.00)');
+
+        var postGrad = wCtx.createLinearGradient(0, 0, 0, 200);
+        postGrad.addColorStop(0, 'rgba(16, 185, 129, 0.15)');
+        postGrad.addColorStop(1, 'rgba(16, 185, 129, 0.00)');
+
+        var dryWeightVal = {{ patient.dry_weight | default('null') }};
+        var dryWeightLine = dryWeightVal ? new Array(labels.length).fill(dryWeightVal) : [];
+
+        var datasets = [
+          {
+            label: 'Pre-Weight',
+            data: {{ ns.weight_pre | tojson }},
+            borderColor: '#0ea5e9',
+            backgroundColor: preGrad,
+            tension: 0.3,
+            borderWidth: 3,
+            pointRadius: 4,
+            pointBackgroundColor: '#ffffff',
+            pointBorderWidth: 2,
+            fill: true
+          },
+          {
+            label: 'Post-Weight',
+            data: {{ ns.weight_post | tojson }},
+            borderColor: '#10b981',
+            backgroundColor: postGrad,
+            tension: 0.3,
+            borderWidth: 3,
+            pointRadius: 4,
+            pointBackgroundColor: '#ffffff',
+            pointBorderWidth: 2,
+            fill: true
+          }
+        ];
+
+        if (dryWeightVal) {
+          datasets.push({
+            label: 'Dry Target Target',
+            data: dryWeightLine,
+            borderColor: 'rgba(239, 68, 68, 0.45)',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            tension: 0,
+            pointRadius: 0,
+            fill: false
+          });
+        }
+
+        new Chart(wCtx, {
+          type: 'line',
+          data: { labels: labels, datasets: datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } }
+            },
+            scales: commonGridOpts
+          }
+        });
+      }
+
+      // 2. UFR Chart
+      var uCanvas = document.getElementById('ufrChart');
+      if (uCanvas) {
+        var uCtx = uCanvas.getContext('2d');
+        var ufrData = {{ ns.uf_rates | tojson }};
+        new Chart(uCtx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'UFR (mL/kg/hr)',
+              data: ufrData,
+              backgroundColor: ufrData.map(function(v) {
+                return v > 13 ? 'rgba(239, 68, 68, 0.85)' : v > 10 ? 'rgba(245, 158, 11, 0.85)' : 'rgba(6, 182, 212, 0.85)';
+              }),
+              borderColor: ufrData.map(function(v) {
+                return v > 13 ? '#ef4444' : v > 10 ? '#f59e0b' : '#06b6d4';
+              }),
+              borderWidth: 1.5,
+              borderRadius: 6,
+              barPercentage: 0.55
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: {
+                grid: { color: 'rgba(226, 232, 240, 0.4)', drawBorder: false },
+                ticks: { font: { size: 10 } },
+                suggestedMax: 15
+              },
+              x: commonGridOpts.x
+            }
+          }
+        });
+      }
+
+      // 3. BP Chart
+      var bCanvas = document.getElementById('bpChart');
+      if (bCanvas) {
+        var bCtx = bCanvas.getContext('2d');
+        new Chart(bCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Pre SBP',
+                data: {{ ns.bp_pre_s | tojson }},
+                borderColor: '#ef4444',
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                borderWidth: 3,
+                pointRadius: 4,
+                pointBackgroundColor: '#ffffff',
+                pointBorderWidth: 2,
+                fill: false
+              },
+              {
+                label: 'Post SBP',
+                data: {{ ns.bp_post_s | tojson }},
+                borderColor: '#f97316',
+                backgroundColor: 'transparent',
+                tension: 0.3,
+                borderWidth: 3,
+                pointRadius: 4,
+                pointBackgroundColor: '#ffffff',
+                pointBorderWidth: 2,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } }
+            },
+            scales: commonGridOpts
+          }
+        });
+      }
+
+      // 4. Dyspnea Chart
+      var dCanvas = document.getElementById('dyspneaChart');
+      if (dCanvas) {
+        var dCtx = dCanvas.getContext('2d');
+        new Chart(dCtx, {
+          type: 'line',
+          data: {
+            labels: {{ ns.dyspnea_labels | tojson }},
+            datasets: [
+              {
+                label: 'Pre-HD Dyspnea',
+                data: {{ ns.dyspnea_pre | tojson }},
+                borderColor: '#8b5cf6',
+                backgroundColor: 'transparent',
+                tension: 0.35,
+                borderWidth: 3,
+                pointRadius: 4.5,
+                pointBackgroundColor: '#ffffff',
+                pointBorderWidth: 2,
+                fill: false
+              },
+              {
+                label: 'Post-HD Dyspnea',
+                data: {{ ns.dyspnea_post | tojson }},
+                borderColor: '#ec4899',
+                backgroundColor: 'transparent',
+                tension: 0.35,
+                borderWidth: 3,
+                pointRadius: 4.5,
+                pointBackgroundColor: '#ffffff',
+                pointBorderWidth: 2,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } }
+            },
+            scales: {
+              y: {
+                min: 1,
+                max: 5,
+                ticks: { stepSize: 1, font: { size: 10 } },
+                grid: { color: 'rgba(226, 232, 240, 0.4)', drawBorder: false }
+              },
+              x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 45 } }
+            }
+          }
+        });
+      }
+
+      // 5. BFR & Stenosis Chart
+      var bfrCanvas = document.getElementById('bfrTrendChart');
+      if (bfrCanvas) {
+        var bfrCtx = bfrCanvas.getContext('2d');
+        var bfrActual = {{ ns.bfr_actual | tojson }};
+        var bfrPrescribed = {{ ns.bfr_prescribed | tojson }};
+
+        // Linear regression trendline
+        var xVals = [];
+        var yVals = [];
+        for (var i = 0; i < bfrActual.length; i++) {
+          if (bfrActual[i] !== null) {
+            xVals.push(i);
+            yVals.push(bfrActual[i]);
+          }
+        }
+        var trendData = new Array(bfrActual.length).fill(null);
+        if (xVals.length >= 2) {
+          var sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+          var N = xVals.length;
+          for (var k = 0; k < N; k++) {
+            sumX += xVals[k];
+            sumY += yVals[k];
+            sumXY += xVals[k] * yVals[k];
+            sumXX += xVals[k] * xVals[k];
+          }
+          var slope = (N * sumXY - sumX * sumY) / (N * sumXX - sumX * sumX);
+          var intercept = (sumY - slope * sumX) / N;
+          for (var i = 0; i < bfrActual.length; i++) {
+            trendData[i] = slope * i + intercept;
+          }
+        }
+
+        var bfrGrad = bfrCtx.createLinearGradient(0, 0, 0, 200);
+        bfrGrad.addColorStop(0, 'rgba(2, 132, 199, 0.15)');
+        bfrGrad.addColorStop(1, 'rgba(2, 132, 199, 0.00)');
+
+        new Chart(bfrCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Delivered BFR',
+                data: bfrActual,
+                borderColor: '#0284c7',
+                backgroundColor: bfrGrad,
+                tension: 0.25,
+                borderWidth: 3,
+                pointRadius: 4.5,
+                pointBackgroundColor: '#ffffff',
+                pointBorderWidth: 2,
+                fill: true
+              },
+              {
+                label: 'Prescribed BFR',
+                data: bfrPrescribed,
+                borderColor: '#f97316',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                tension: 0,
+                pointRadius: 0,
+                fill: false
+              },
+              {
+                label: 'Trendline',
+                data: trendData,
+                borderColor: '#ef4444',
+                borderDash: [2, 2],
+                borderWidth: 1.5,
+                tension: 0,
+                pointRadius: 0,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } }
+            },
+            scales: {
+              y: {
+                ticks: { font: { size: 10 } },
+                grid: { color: 'rgba(226, 232, 240, 0.4)', drawBorder: false },
+                suggestedMin: 150,
+                suggestedMax: 400
+              },
+              x: commonGridOpts.x
+            }
+          }
+        });
+      }
+
+      // 6. IDWG Velocity Chart
+      var idwgCanvas = document.getElementById('idwgVelocityChart');
+      if (idwgCanvas) {
+        var idwgCtx = idwgCanvas.getContext('2d');
+        var idwgLabels = {{ idwg_labels | tojson }};
+        var idwgVals = {{ idwg_vals | tojson }};
+        var idwgVels = {{ idwg_vels | tojson }};
+
+        new Chart(idwgCtx, {
+          type: 'bar',
+          data: {
+            labels: idwgLabels,
+            datasets: [
+              {
+                type: 'bar',
+                label: 'IDWG (kg)',
+                data: idwgVals,
+                backgroundColor: 'rgba(14, 165, 233, 0.15)',
+                borderColor: '#0ea5e9',
+                borderWidth: 1.5,
+                borderRadius: 5,
+                yAxisID: 'y',
+                barPercentage: 0.55
+              },
+              {
+                type: 'line',
+                label: 'Velocity (kg/day)',
+                data: idwgVels,
+                borderColor: '#10b981',
+                backgroundColor: 'transparent',
+                tension: 0.35,
+                borderWidth: 3,
+                pointRadius: 4,
+                pointBackgroundColor: '#ffffff',
+                pointBorderWidth: 2,
+                yAxisID: 'yVelocity'
+              },
+              {
+                type: 'line',
+                label: 'Limit (1.5 kg/d)',
+                data: new Array(idwgLabels.length).fill(1.5),
+                borderColor: 'rgba(239, 68, 68, 0.45)',
+                borderDash: [4, 4],
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: false,
+                yAxisID: 'yVelocity'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } }
+            },
+            scales: {
+              y: {
+                type: 'linear',
+                position: 'left',
+                title: { display: true, text: 'IDWG (kg)', font: { size: 9, weight: 'bold' } },
+                ticks: { font: { size: 10 } },
+                grid: { color: 'rgba(226, 232, 240, 0.4)', drawBorder: false }
+              },
+              yVelocity: {
+                type: 'linear',
+                position: 'right',
+                title: { display: true, text: 'Velocity (kg/day)', font: { size: 9, weight: 'bold' } },
+                ticks: { font: { size: 10 } },
+                grid: { drawOnChartArea: false },
+                suggestedMax: 2.0
+              },
+              x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 45 } }
+            }
+          }
+        });
+      }
+
+    })();
+  </script>
+
+</body>
+</html>

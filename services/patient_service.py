@@ -2,8 +2,9 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import re
 from typing import Optional
+import json
 
-from database import Patient, ClinicalEvent
+from database import Patient, ClinicalEvent, MonthlyRecord
 from utils import calculate_cci
 
 def _d(s: Optional[str]) -> Optional[datetime.date]:
@@ -291,3 +292,62 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     db.commit()
     db.refresh(p)
     return p
+
+
+def sync_hospitalization_to_monthly_record(
+    db: Session,
+    patient_id: int,
+    event_date: datetime.date,
+    diagnosis: Optional[str] = None,
+    icd_code: Optional[str] = None,
+    icd_diagnosis: Optional[str] = None
+) -> MonthlyRecord:
+    month_str = event_date.strftime("%Y-%m")
+    rec = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month == month_str
+    ).first()
+    
+    if not rec:
+        rec = MonthlyRecord(patient_id=patient_id, record_month=month_str)
+        db.add(rec)
+    
+    rec.hospitalization_this_month = True
+    
+    # Load existing details or start fresh
+    try:
+        current_details = json.loads(rec.hospitalization_details) if rec.hospitalization_details else []
+    except Exception:
+        current_details = []
+        
+    diag_str = (diagnosis or "").strip()
+    code_str = (icd_code or "").strip()
+    icd_diag_str = (icd_diagnosis or "").strip()
+    
+    # Check duplicate
+    exists = any(
+        d.get("date") == event_date.isoformat() and 
+        d.get("diagnosis") == diag_str and 
+        d.get("icd_code") == code_str
+        for d in current_details
+    )
+    if not exists and (diag_str or code_str or icd_diag_str):
+        current_details.append({
+            "date": event_date.isoformat(),
+            "diagnosis": diag_str,
+            "icd_code": code_str,
+            "icd_diagnosis": icd_diag_str
+        })
+        rec.hospitalization_details = json.dumps(current_details)
+        
+    # Update flat fields with first entry if empty
+    if not rec.hospitalization_date:
+        rec.hospitalization_date = event_date
+    if not rec.hospitalization_diagnosis and diag_str:
+        rec.hospitalization_diagnosis = diag_str
+    if not rec.hospitalization_icd_code and code_str:
+        rec.hospitalization_icd_code = code_str
+    if not rec.hospitalization_icd_diagnosis and icd_diag_str:
+        rec.hospitalization_icd_diagnosis = icd_diag_str
+        
+    return rec

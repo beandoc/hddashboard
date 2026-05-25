@@ -1019,6 +1019,17 @@ def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
         sxy = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(len(xs)))
         slope = round(sxy / sxx, 2) if sxx else 0.0
 
+    rolling_slope = None
+    if len(actual_series) >= 3:
+        recent_series = actual_series[-6:]
+        r_xs = [p[0] for p in recent_series]
+        r_ys = [p[1] for p in recent_series]
+        r_x_mean = sum(r_xs) / len(r_xs)
+        r_y_mean = sum(r_ys) / len(r_ys)
+        r_sxx = sum((x - r_x_mean) ** 2 for x in r_xs)
+        r_sxy = sum((r_xs[idx] - r_x_mean) * (r_ys[idx] - r_y_mean) for idx in range(len(r_xs)))
+        rolling_slope = round(r_sxy / r_sxx, 2) if r_sxx else 0.0
+
     # ── Consecutive decline counter ───────────────────────────────────────────
     consecutive_decline = 0
     abfr_vals = [s["actual_blood_flow_rate"] for s in bfr_sessions
@@ -1058,6 +1069,10 @@ def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
         alert_level = "warning" if alert_level == "ok" else alert_level
         alert_reasons.append(f"{consecutive_decline} consecutive sessions with declining BFR — early dysfunction signal")
 
+    if rolling_slope is not None and rolling_slope <= -5.0:
+        alert_level = "critical"
+        alert_reasons.append(f"Progressive decline: BFR rolling slope is {rolling_slope:+.1f} mL/min/session (stenosis risk)")
+
     if poor_or_infected:
         alert_level = "critical"
         alert_reasons.append("Access condition flagged as Poor / Infected in recent sessions")
@@ -1082,6 +1097,7 @@ def analyze_bfr_trend(sessions: List[Dict]) -> Dict:
         "latest_prescribed_bfr": latest_pbfr,
         "bfr_deficit":         bfr_deficit,
         "slope":               slope,
+        "rolling_slope":       rolling_slope,
         "consecutive_decline": consecutive_decline,
         "access_conditions":   recent_conditions,
         "poor_or_infected":    poor_or_infected,
@@ -1156,4 +1172,122 @@ def detect_occult_overload(
         "available": False,
         "error":     "No occult overload detected.",
         "data":      {}
+    }
+
+
+def analyze_idwg_velocity(sessions: List[Dict], dry_weight: Optional[float] = None) -> Dict:
+    """
+    Analyze the interdialytic weight gain (IDWG) velocity (fluid accumulation rate)
+    between consecutive dialysis sessions.
+
+    Formula:
+      IDWG = weight_pre[t] - weight_post[t-1]
+      Days = session_date[t] - session_date[t-1] (in days)
+      Daily Velocity (kg/day) = IDWG / Days
+    """
+    _null = {
+        "available": False,
+        "alert_level": "unknown",
+        "message": "No sufficient session records to compute IDWG velocity.",
+        "points": [],
+        "avg_velocity": None,
+        "rolling_slope": None,
+    }
+    if len(sessions) < 2:
+        return _null
+
+    # Sort oldest to newest
+    cron_sessions = sorted(sessions, key=lambda s: s.get("session_date") or "")
+
+    points = []
+    from datetime import datetime
+    for i in range(1, len(cron_sessions)):
+        curr = cron_sessions[i]
+        prev = cron_sessions[i - 1]
+
+        w_pre = curr.get("weight_pre")
+        w_post_prev = prev.get("weight_post")
+        d_curr_str = curr.get("session_date")
+        d_prev_str = prev.get("session_date")
+
+        if w_pre is not None and w_post_prev is not None and d_curr_str and d_prev_str:
+            try:
+                d_curr = datetime.strptime(d_curr_str, "%Y-%m-%d").date()
+                d_prev = datetime.strptime(d_prev_str, "%Y-%m-%d").date()
+                delta_days = (d_curr - d_prev).days
+                if delta_days > 0:
+                    idwg = round(w_pre - w_post_prev, 2)
+                    velocity = round(idwg / delta_days, 2) # kg/day
+                    pct_velocity = None
+                    if dry_weight and dry_weight > 0:
+                        pct_velocity = round((velocity / dry_weight) * 100, 2) # % dry weight/day
+                    points.append({
+                        "date": d_curr_str,
+                        "idwg": idwg,
+                        "days": delta_days,
+                        "velocity": velocity,
+                        "pct_velocity": pct_velocity
+                    })
+            except Exception:
+                continue
+
+    if not points:
+        return _null
+
+    # Calculate average velocity over last 6 points
+    recent_points = points[-6:]
+    avg_vel = round(sum(p["velocity"] for p in recent_points) / len(recent_points), 2)
+
+    # Compute slope of velocity (acceleration)
+    # y = velocity, x = index
+    slope = None
+    if len(recent_points) >= 3:
+        xs = list(range(len(recent_points)))
+        ys = [p["velocity"] for p in recent_points]
+        x_mean = sum(xs) / len(xs)
+        y_mean = sum(ys) / len(ys)
+        sxx = sum((x - x_mean) ** 2 for x in xs)
+        sxy = sum((xs[idx] - x_mean) * (ys[idx] - y_mean) for idx in range(len(xs)))
+        slope = round(sxy / sxx, 3) if sxx else 0.0
+
+    # Determine alert level
+    alert_level = "ok"
+    alert_reasons = []
+
+    latest_vel = recent_points[-1]["velocity"]
+    if latest_vel > 2.0:
+        alert_level = "critical"
+        alert_reasons.append(f"Latest fluid gain rate {latest_vel:.2f} kg/day is critically high (>2.0 kg/day)")
+    elif latest_vel > 1.5:
+        alert_level = "warning"
+        alert_reasons.append(f"Latest fluid gain rate {latest_vel:.2f} kg/day is elevated (>1.5 kg/day)")
+
+    if avg_vel > 1.5:
+        alert_level = "critical"
+        alert_reasons.append(f"Average fluid gain rate {avg_vel:.2f} kg/day is critically high")
+    elif avg_vel > 1.2:
+        alert_level = "warning" if alert_level != "critical" else alert_level
+        alert_reasons.append(f"Average fluid gain rate {avg_vel:.2f} kg/day is elevated")
+
+    if slope is not None and slope > 0.15:
+        alert_level = "warning" if alert_level == "ok" else alert_level
+        alert_reasons.append(f"Fluid accumulation is accelerating (velocity slope +{slope:.2f} kg/day per session)")
+
+    # Build message
+    if alert_level == "critical":
+        message = "🚨 CRITICAL: Rapid fluid accumulation rate. " + "; ".join(alert_reasons) + ". Counsel patient on strict fluid limit (<1L/day) and low-salt diet. Check compliance."
+    elif alert_level == "warning":
+        message = "⚠ Warning: Elevated fluid accumulation rate. " + "; ".join(alert_reasons) + ". Monitor dry weight and BP."
+    else:
+        message = f"Fluid accumulation velocity is stable. Average rate {avg_vel:.2f} kg/day."
+
+    return {
+        "available": True,
+        "alert_level": alert_level,
+        "css_class": "danger" if alert_level == "critical" else "warning" if alert_level == "warning" else "success",
+        "points": points,
+        "avg_velocity": avg_vel,
+        "latest_velocity": latest_vel,
+        "rolling_slope": slope,
+        "message": message,
     }

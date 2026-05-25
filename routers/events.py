@@ -140,44 +140,79 @@ async def create_event(
     )
     db.add(ev)
     
-    # 2. Sync to MonthlyRecord if Hospitalization
-    if event_type == "Hospitalization" and (hosp_diagnosis or hosp_icd_code):
-        month_str = event_date[:7]
-        rec = db.query(MonthlyRecord).filter(
-            MonthlyRecord.patient_id == patient_id,
-            MonthlyRecord.record_month == month_str
+    # 2. Sync to MonthlyRecord and HospitalisationEvent if Hospitalization
+    if event_type == "Hospitalization":
+        from services.patient_service import sync_hospitalization_to_monthly_record
+        diag_list = hosp_diagnosis or []
+        code_list = hosp_icd_code or []
+        diag_icd_list = hosp_icd_diag or []
+        
+        adm_date = date.fromisoformat(event_date)
+        
+        if not diag_list and not code_list:
+            sync_hospitalization_to_monthly_record(
+                db=db,
+                patient_id=patient_id,
+                event_date=adm_date,
+                diagnosis="",
+                icd_code="",
+                icd_diagnosis=""
+            )
+        else:
+            for d, c, i in zip(diag_list, code_list, diag_icd_list):
+                sync_hospitalization_to_monthly_record(
+                    db=db,
+                    patient_id=patient_id,
+                    event_date=adm_date,
+                    diagnosis=d,
+                    icd_code=c,
+                    icd_diagnosis=i
+                )
+        
+        # Create corresponding HospitalisationEvent if it doesn't already exist
+        from database import HospitalisationEvent
+        hosp_exists = db.query(HospitalisationEvent).filter(
+            HospitalisationEvent.patient_id == patient_id,
+            HospitalisationEvent.admission_date == adm_date
         ).first()
-        
-        if not rec:
-            rec = MonthlyRecord(patient_id=patient_id, record_month=month_str)
-            db.add(rec)
-        
-        rec.hospitalization_this_month = True
-        
-        # Load existing details or start fresh
-        try:
-            current_details = json.loads(rec.hospitalization_details) if rec.hospitalization_details else []
-        except:
-            current_details = []
+        if not hosp_exists:
+            from datetime import timedelta
+            prior = (
+                db.query(HospitalisationEvent)
+                .filter(
+                    HospitalisationEvent.patient_id == patient_id,
+                    HospitalisationEvent.discharge_date != None,
+                    HospitalisationEvent.discharge_date >= adm_date - timedelta(days=30),
+                    HospitalisationEvent.discharge_date < adm_date,
+                )
+                .first()
+            )
+            d_val = hosp_diagnosis[0] if hosp_diagnosis else None
+            c_val = hosp_icd_code[0] if hosp_icd_code else None
+            i_val = hosp_icd_diag[0] if hosp_icd_diag else None
             
-        # Add new entries
-        for d, c, i in zip(hosp_diagnosis, hosp_icd_code, hosp_icd_diag):
-            if d.strip() or c.strip():
-                current_details.append({
-                    "date": event_date,
-                    "diagnosis": d.strip(),
-                    "icd_code": c.strip(),
-                    "icd_diagnosis": i.strip()
-                })
-        
-        rec.hospitalization_details = json.dumps(current_details)
-        
-        # Update flat fields with first entry if empty
-        if not rec.hospitalization_date:
-            rec.hospitalization_date = date.fromisoformat(event_date)
-            rec.hospitalization_diagnosis = hosp_diagnosis[0] if hosp_diagnosis else ""
-            rec.hospitalization_icd_code = hosp_icd_code[0] if hosp_icd_code else ""
-            rec.hospitalization_icd_diagnosis = hosp_icd_diag[0] if hosp_icd_diag else ""
+            ev_hosp = HospitalisationEvent(
+                patient_id=patient_id,
+                admission_date=adm_date,
+                primary_icd=c_val or None,
+                primary_diagnosis=d_val or None,
+                cause_category=i_val or None,
+                readmission_within_30d=bool(prior),
+                notes=final_notes or None,
+                entered_by=created_by
+            )
+            db.add(ev_hosp)
+
+    elif event_type == "Discharge":
+        from database import HospitalisationEvent
+        dis_date = date.fromisoformat(event_date)
+        open_hosp = db.query(HospitalisationEvent).filter(
+            HospitalisationEvent.patient_id == patient_id,
+            HospitalisationEvent.discharge_date == None
+        ).order_by(HospitalisationEvent.admission_date.desc()).first()
+        if open_hosp:
+            open_hosp.discharge_date = dis_date
+            open_hosp.los_days = max((dis_date - open_hosp.admission_date).days, 0)
 
     try:
         db.commit()
