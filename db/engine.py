@@ -29,9 +29,11 @@ if _is_sqlite:
     _connect_args = {"check_same_thread": False}
     engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 else:
-    # PERF FIX: Increased pool to 8+12=20 max connections.
-    # Previous pool of 3+2=5 caused thread queuing under any concurrent load.
-    # statement_timeout=30s prevents runaway queries from holding connections.
+    # Configure pool size via env variables to prevent EMAXCONNSESSION on Supabase (max 15)
+    # Defaulting to 3+2=5 sync and 2+1=3 async connections is safe for multi-process (Web + Celery) setups.
+    db_pool_size = int(os.environ.get("DB_POOL_SIZE", 3))
+    db_max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", 2))
+    
     _connect_args = {
         "sslmode": "require",
         "connect_timeout": 15,
@@ -42,8 +44,8 @@ else:
         connect_args=_connect_args,
         pool_pre_ping=True,
         pool_recycle=300,      # recycle stale connections every 5 min (was 10 min)
-        pool_size=8,           # was 3 — tripled to handle concurrent staff sessions
-        max_overflow=12,       # was 2 — burst headroom to 20 total
+        pool_size=db_pool_size,
+        max_overflow=db_max_overflow,
         pool_timeout=20,       # wait max 20 s for a free connection before raising
     )
 
@@ -53,13 +55,16 @@ _REPLICA_URL = os.environ.get("DATABASE_REPLICA_URL") or DATABASE_URL
 
 if not _is_sqlite:
     _async_url = _REPLICA_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+    async_pool_size = int(os.environ.get("DB_ASYNC_POOL_SIZE", 2))
+    async_max_overflow = int(os.environ.get("DB_ASYNC_MAX_OVERFLOW", 1))
+    
     async_engine = create_async_engine(
         _async_url,
         connect_args={"ssl": "require"},
         pool_pre_ping=True,
         pool_recycle=300,  # was 600
-        pool_size=6,       # was 3
-        max_overflow=8,    # was 2
+        pool_size=async_pool_size,
+        max_overflow=async_max_overflow,
     )
 else:
     async_engine = None  # type: ignore[assignment]
