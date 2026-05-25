@@ -147,6 +147,9 @@ class SessionRecord(Base):
 
     __table_args__ = (
         Index('ix_session_records_patient_month', 'patient_id', 'record_month'),
+        # PERF FIX: standalone index for dashboard adherence query that fetches all
+        # sessions WHERE record_month = ? (no patient_id filter).
+        Index('ix_session_record_month_only', 'record_month'),
     )
 
     patient = relationship("Patient", back_populates="sessions")
@@ -185,6 +188,9 @@ class InterimLabRecord(Base):
 
     __table_args__ = (
         Index('ix_interim_patient_month', 'patient_id', 'record_month'),
+        # PERF FIX: standalone index for dashboard interim-labs query that filters
+        # by record_month only (no patient_id predicate).
+        Index('ix_interim_record_month_only', 'record_month'),
     )
 
     patient = relationship("Patient", back_populates="interim_labs")

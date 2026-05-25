@@ -24,7 +24,7 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "0013"
+REQUIRED_DB_VERSION = "0014"
 
 
 def _check_schema_version() -> None:
@@ -167,6 +167,12 @@ _AUTH_PATHS = {"/login", "/logout", "/change-password", "/api/login"}
 # TTL is kept short (120s) so role/active-status changes propagate quickly.
 _USER_IDENTITY_CACHE: dict = {}
 _USER_IDENTITY_CACHE_TTL = 120  # seconds
+
+# Process-level ML analytics cache — these are heavyweight computations that
+# run ML scoring over all patients. Cache for 5 minutes to avoid re-executing
+# on every dashboard page navigation.
+_ML_ANALYTICS_CACHE: dict = {}
+_ML_ANALYTICS_TTL = 300  # seconds (5 min)
 
 
 def _invalidate_user_cache(username: str) -> None:
@@ -391,12 +397,24 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
 
     high_risk_count = 0
     if getattr(user, "role", None) == "doctor" or (isinstance(user, dict) and user.get("role") == "doctor"):
-        from ml_analytics import get_high_risk_mortality_count
-        high_risk_count = get_high_risk_mortality_count(db)
+        _cache_key_hr = "high_risk_count"
+        _cached_hr = _ML_ANALYTICS_CACHE.get(_cache_key_hr)
+        if _cached_hr and time.time() < _cached_hr[1]:
+            high_risk_count = _cached_hr[0]
+        else:
+            from ml_analytics import get_high_risk_mortality_count
+            high_risk_count = get_high_risk_mortality_count(db)
+            _ML_ANALYTICS_CACHE[_cache_key_hr] = (high_risk_count, time.time() + _ML_ANALYTICS_TTL)
 
     try:
-        from ml_analytics import run_cohort_analytics
-        cohort_data = run_cohort_analytics(db)
+        _cache_key_cohort = "cohort_analytics"
+        _cached_cohort = _ML_ANALYTICS_CACHE.get(_cache_key_cohort)
+        if _cached_cohort and time.time() < _cached_cohort[1]:
+            cohort_data = _cached_cohort[0]
+        else:
+            from ml_analytics import run_cohort_analytics
+            cohort_data = run_cohort_analytics(db)
+            _ML_ANALYTICS_CACHE[_cache_key_cohort] = (cohort_data, time.time() + _ML_ANALYTICS_TTL)
     except Exception as _ce:
         logging.warning(f"Cohort analytics failed: {_ce}")
         cohort_data = {"available": False}

@@ -356,8 +356,10 @@ async def strip_western_foods(request: Request, db: Session = Depends(get_db)):
 async def download_backup(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
     from database import FoodDatabaseItem
+    from dynamic_vars import VariableDefinition
     data = {
         "patients": [p.__dict__ for p in db.query(Patient).all()],
+        "variable_definitions": [v.__dict__ for v in db.query(VariableDefinition).all()],
         "monthly_records": [r.__dict__ for r in db.query(MonthlyRecord).all()],
         "session_records": [s.__dict__ for s in db.query(SessionRecord).all()],
         "interim_labs": [l.__dict__ for l in db.query(InterimLabRecord).all()],

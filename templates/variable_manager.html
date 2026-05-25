@@ -184,6 +184,7 @@ textarea { resize:vertical; min-height:70px; }
     <button class="tab-btn active" onclick="switchTab('defined')">Defined Variables</button>
     <button class="tab-btn" onclick="switchTab('entry')">Retrospective Data Entry</button>
     <button class="tab-btn" onclick="switchTab('view')">View Data by Variable</button>
+    <button class="tab-btn" onclick="switchTab('export')">Export Data</button>
   </div>
 
   <!-- TAB 1: DEFINED VARIABLES -->
@@ -409,6 +410,56 @@ textarea { resize:vertical; min-height:70px; }
             <thead><tr><th>Patient</th><th>HID</th><th id="viewSummaryValueHeader">Value</th><th>vs Threshold</th></tr></thead>
             <tbody id="viewSummaryBody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: EXPORT DATA -->
+  <div id="tab-export" class="tab-panel">
+    <div class="card">
+      <h2 style="font-size:1.2em; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+        <i class="material-icons" style="color:var(--blue)">cloud_download</i> Export Clinical Variables & Data
+      </h2>
+      <p style="color:#64748b; font-size:0.88em; margin-bottom:24px; line-height:1.5;">
+        Download all clinical variables, configuration schema metadata, and retrospective patient records saved at the backend in your preferred format.
+      </p>
+
+      <div class="form-grid two" style="gap:20px;">
+        <!-- Card 1: Variable Definitions -->
+        <div class="card" style="border: 1px solid var(--border); box-shadow: none; margin-bottom: 0; padding: 20px;">
+          <h3 style="font-size:1em; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+            <i class="material-icons" style="color:var(--blue)">settings</i>Variable Definitions (Schema)
+          </h3>
+          <p style="font-size:0.82em; color:#64748b; margin-bottom:20px; min-height:48px; line-height:1.5;">
+            Export the configuration metadata of all custom and virtual variables, including units, categories, thresholds, and normal ranges.
+          </p>
+          <div style="display:flex; gap:12px;">
+            <a href="/variables/export/definitions?format=json" class="btn btn-ghost btn-sm" download style="text-decoration:none;">
+              <i class="material-icons" style="font-size:16px;">download</i> JSON Format
+            </a>
+            <a href="/variables/export/definitions?format=csv" class="btn btn-ghost btn-sm" download style="text-decoration:none;">
+              <i class="material-icons" style="font-size:16px;">download</i> CSV Format
+            </a>
+          </div>
+        </div>
+
+        <!-- Card 2: Variable Values -->
+        <div class="card" style="border: 1px solid var(--border); box-shadow: none; margin-bottom: 0; padding: 20px;">
+          <h3 style="font-size:1em; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+            <i class="material-icons" style="color:var(--green)">analytics</i>Patient Variable Data
+          </h3>
+          <p style="font-size:0.82em; color:#64748b; margin-bottom:20px; min-height:48px; line-height:1.5;">
+            Export the complete table of monthly records and custom variable values for all patients in a flat tabular format.
+          </p>
+          <div style="display:flex; gap:12px;">
+            <a href="/variables/export/values?format=json" class="btn btn-ghost btn-sm" download style="text-decoration:none;">
+              <i class="material-icons" style="font-size:16px;">download</i> JSON Format
+            </a>
+            <a href="/variables/export/values?format=csv" class="btn btn-ghost btn-sm" download style="text-decoration:none;">
+              <i class="material-icons" style="font-size:16px;">download</i> CSV Format
+            </a>
+          </div>
         </div>
       </div>
     </div>

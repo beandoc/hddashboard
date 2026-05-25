@@ -101,3 +101,70 @@ def test_mortality_risk_pagination(client):
     response = client.get("/analytics/mortality-risk?page=9999&limit=10&tier=all&search=")
     assert response.status_code == 200
     assert "Mortality Risk" in response.text
+
+
+def test_export_definitions_json(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    response = client.get("/variables/export/definitions?format=json")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    data = response.json()
+    assert isinstance(data, list)
+    assert any(d["name"] == "hb" for d in data)
+
+
+def test_export_definitions_csv(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    response = client.get("/variables/export/definitions?format=csv")
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    assert "attachment; filename=clinical_variable_definitions.csv" in response.headers["content-disposition"]
+    assert "name,display_name" in response.text
+
+
+def test_export_values_json(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    response = client.get("/variables/export/values?format=json")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    data = response.json()
+    assert isinstance(data, list)
+
+
+def test_export_values_csv(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    response = client.get("/variables/export/values?format=csv")
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    assert "attachment; filename=patient_variables_data.csv" in response.headers["content-disposition"]
+    assert "patient_id,patient_name" in response.text
+
+
+def test_admin_backup_includes_variables(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    response = client.get("/admin/db/export")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    data = response.json()
+    assert "variable_definitions" in data
+    assert isinstance(data["variable_definitions"], list)

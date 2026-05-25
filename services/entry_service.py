@@ -481,9 +481,9 @@ def save_monthly_record(
             rec = MonthlyRecord(patient_id=patient_id, record_month=month_str, **fields)
             db.add(rec)
 
-        # Sync certain fields back to Patient model — re-fetch in the main db session
-        # so SQLAlchemy can lazy-load relations (p_obj came from a closed thread session).
-        p = db.query(Patient).filter(Patient.id == patient_id).first()
+        # Sync certain fields back to Patient model — reuse p_obj already loaded above
+        # in this same DB session (eliminates a redundant network round-trip to Supabase).
+        p = p_obj
         if p:
             if user_role in ["admin", "doctor"]:
                 if "clinical_background" in data:

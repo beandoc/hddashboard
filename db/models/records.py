@@ -23,6 +23,10 @@ class MonthlyRecord(Base):
 
     __table_args__ = (
         Index('ix_monthly_patient_month', 'patient_id', 'record_month'),
+        # PERF FIX: standalone index for dashboard queries that filter by record_month
+        # across ALL patients (no patient_id in WHERE clause). Without this, PostgreSQL
+        # must do a full sequential table scan on every dashboard load.
+        Index('ix_monthly_record_month_only', 'record_month'),
         UniqueConstraint('patient_id', 'record_month', name='uq_patient_month'),
     )
 

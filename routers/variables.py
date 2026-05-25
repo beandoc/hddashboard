@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
+import csv
+import io
 
 from database import get_db, Patient, MonthlyRecord
 from dynamic_vars import (
@@ -107,6 +109,171 @@ async def variable_manager(request: Request, db: Session = Depends(get_db)):
         "default_from": "2023-01", "default_to": get_current_month_str(),
         "user": get_user(request),
     })
+
+
+# ── Export endpoints ─────────────────────────────────────────────────────────
+
+@router.get("/export/definitions")
+async def export_definitions(
+    request: Request,
+    format: str = Query("json"),
+    db: Session = Depends(get_db)
+):
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    custom_vars = db.query(VariableDefinition).order_by(VariableDefinition.category, VariableDefinition.display_name).all()
+
+    core_display = {
+        "hb": "Hemoglobin", "albumin": "Albumin", "phosphorus": "Phosphorus",
+        "calcium": "Calcium", "alkaline_phosphate": "Alk. Phos.", "ipth": "iPTH",
+        "vit_d": "Vitamin D", "ferritin": "Ferritin", "tsat": "TSAT",
+        "serum_iron": "Serum Iron", "tibc": "TIBC", "urr": "URR", "kt_v": "Kt/V",
+        "bicarbonate": "Bicarbonate", "uric_acid": "Uric Acid", "creatinine": "Creatinine",
+        "sodium": "Sodium", "potassium": "Potassium", "crp": "CRP",
+        "systolic_bp_pre": "Systolic BP (Pre)", "idwg": "IDWG",
+        "dry_weight": "Target Dry Weight", "nt_probnp": "NT-ProBNP",
+        "ef": "Ejection Fraction", "wbc": "WBC Count", "platelets": "Platelet Count",
+    }
+
+    defined_names = {v.name for v in custom_vars}
+
+    defs_list = []
+    # Custom definitions first
+    for v in custom_vars:
+        defs_list.append({
+            "name": v.name,
+            "display_name": v.display_name,
+            "unit": v.unit or "",
+            "category": v.category,
+            "data_type": v.data_type,
+            "threshold_low": v.threshold_low,
+            "threshold_high": v.threshold_high,
+            "target_low": v.target_low,
+            "target_high": v.target_high,
+            "description": v.description or "",
+            "normal_range": v.normal_range or "",
+            "clinical_significance": v.clinical_significance or "",
+            "is_active": v.is_active,
+            "source": "Custom"
+        })
+
+    # Virtual core definitions next
+    for name, disp in core_display.items():
+        if name not in defined_names:
+            defs_list.append({
+                "name": name,
+                "display_name": disp,
+                "unit": "",
+                "category": "Core",
+                "data_type": "number",
+                "threshold_low": None,
+                "threshold_high": None,
+                "target_low": None,
+                "target_high": None,
+                "description": "Core clinical variable from monthly records",
+                "normal_range": "",
+                "clinical_significance": "",
+                "is_active": True,
+                "source": "Core"
+            })
+
+    if format == "csv":
+        output = io.StringIO()
+        headers = ["name", "display_name", "unit", "category", "data_type", "threshold_low",
+                   "threshold_high", "target_low", "target_high", "description",
+                   "normal_range", "clinical_significance", "is_active", "source"]
+        writer = csv.DictWriter(output, fieldnames=headers)
+        writer.writeheader()
+        for row in defs_list:
+            row_clean = {k: ("" if v is None else str(v)) for k, v in row.items()}
+            writer.writerow(row_clean)
+        output.seek(0)
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode("utf-8")),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=clinical_variable_definitions.csv"}
+        )
+
+    return defs_list
+
+
+@router.get("/export/values")
+async def export_values(
+    request: Request,
+    format: str = Query("json"),
+    db: Session = Depends(get_db)
+):
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    custom_vars = db.query(VariableDefinition).all()
+    custom_var_names = [v.name for v in custom_vars]
+
+    patients = db.query(Patient).all()
+    patient_map = {p.id: p for p in patients}
+
+    records = db.query(MonthlyRecord).order_by(MonthlyRecord.record_month.desc(), MonthlyRecord.patient_id).all()
+
+    export_data = []
+    for r in records:
+        p = patient_map.get(r.patient_id)
+        if not p:
+            continue
+
+        row = {
+            "patient_id": p.id,
+            "patient_name": p.name,
+            "hid_no": p.hid_no,
+            "record_month": r.record_month,
+            "entered_by": r.entered_by or "",
+        }
+
+        # Add core variables
+        for var_name, db_col in VAR_TO_MONTHLY.items():
+            val = getattr(r, db_col, None)
+            if val is None and r.dynamic_data:
+                entry = r.dynamic_data.get(var_name)
+                if isinstance(entry, dict):
+                    val = entry.get("v") if entry.get("v") is not None else entry.get("t")
+            row[var_name] = val
+
+        # Add custom dynamic variables
+        dynamic_data = r.dynamic_data or {}
+        for var_name in custom_var_names:
+            if var_name in VAR_TO_MONTHLY:
+                continue
+            entry = dynamic_data.get(var_name)
+            val = None
+            if entry and isinstance(entry, dict):
+                val = entry.get("v") if entry.get("v") is not None else entry.get("t")
+            row[var_name] = val
+
+        export_data.append(row)
+
+    if format == "csv":
+        output = io.StringIO()
+        headers = ["patient_id", "patient_name", "hid_no", "record_month", "entered_by"]
+        headers.extend(list(VAR_TO_MONTHLY.keys()))
+        for name in custom_var_names:
+            if name not in VAR_TO_MONTHLY:
+                headers.append(name)
+
+        writer = csv.DictWriter(output, fieldnames=headers)
+        writer.writeheader()
+        for row in export_data:
+            row_clean = {k: ("" if v is None else str(v)) for k, v in row.items()}
+            writer.writerow(row_clean)
+        output.seek(0)
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode("utf-8")),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=patient_variables_data.csv"}
+        )
+
+    return export_data
 
 
 # ── Variable definition CRUD ──────────────────────────────────────────────────

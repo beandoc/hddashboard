@@ -29,19 +29,22 @@ if _is_sqlite:
     _connect_args = {"check_same_thread": False}
     engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 else:
-    # Supabase transaction-mode pooler (port 6543) supports up to 15 connections
-    # in session mode. Keep sync pool small to leave room for async engine.
+    # PERF FIX: Increased pool to 8+12=20 max connections.
+    # Previous pool of 3+2=5 caused thread queuing under any concurrent load.
+    # statement_timeout=30s prevents runaway queries from holding connections.
     _connect_args = {
         "sslmode": "require",
-        "connect_timeout": 30,
+        "connect_timeout": 15,
+        "options": "-c statement_timeout=30000",  # 30 s hard kill for runaway queries
     }
     engine = create_engine(
         DATABASE_URL,
         connect_args=_connect_args,
         pool_pre_ping=True,
-        pool_recycle=600,
-        pool_size=3,
-        max_overflow=2,
+        pool_recycle=300,      # recycle stale connections every 5 min (was 10 min)
+        pool_size=8,           # was 3 — tripled to handle concurrent staff sessions
+        max_overflow=12,       # was 2 — burst headroom to 20 total
+        pool_timeout=20,       # wait max 20 s for a free connection before raising
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -54,9 +57,9 @@ if not _is_sqlite:
         _async_url,
         connect_args={"ssl": "require"},
         pool_pre_ping=True,
-        pool_recycle=600,
-        pool_size=3,
-        max_overflow=2,
+        pool_recycle=300,  # was 600
+        pool_size=6,       # was 3
+        max_overflow=8,    # was 2
     )
 else:
     async_engine = None  # type: ignore[assignment]
