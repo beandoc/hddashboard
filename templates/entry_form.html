@@ -884,10 +884,13 @@
     document.querySelector('form').addEventListener('submit', function() {
         const spinner = document.getElementById('save-spinner');
         if (spinner) spinner.style.display = 'block';
-        document.querySelectorAll('.btn-wiz-submit').forEach(b => {
-            b.disabled = true;
-            b.style.opacity = '0.6';
-        });
+        // Disable buttons asynchronously to allow form payload creation
+        setTimeout(() => {
+            document.querySelectorAll('.btn-wiz-submit').forEach(b => {
+                b.disabled = true;
+                b.style.opacity = '0.6';
+            });
+        }, 0);
     });
 
     function addAntiMedRow() {
