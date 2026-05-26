@@ -121,8 +121,10 @@
       .section-title { font-size: 1.1rem; }
     }
     </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
 </head>
 <body>
 
@@ -133,7 +135,7 @@
 <div class="analytics-header">
     <div>
         <h1>Analytics — Clinical Intelligence Hub</h1>
-        <p>Advanced ML and predictive analytics for hemodialysis care · CH(SC) Nephrology</p>
+        <p>Predictive analytics and KDOQI-based clinical surveillance for hemodialysis care · CH(SC) Nephrology</p>
     </div>
 </div>
 

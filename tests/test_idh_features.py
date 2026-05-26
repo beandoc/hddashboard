@@ -169,8 +169,8 @@ def test_extract_idh_features_training_and_inference(db):
     assert feats_train[36] == -120.0
     # Feature 37: prev_venous_pressure (s1.venous_line_pressure = 140.0)
     assert feats_train[37] == 140.0
-    # Feature 38: heart_rate_variation (None -> 0.0)
-    assert feats_train[38] == 0.0
+    # Feature 38: heart_rate_variation (None)
+    assert feats_train[38] is None
     # Feature 39: prior_dialysate_temp_mean (s1 temp = 36.5)
     assert feats_train[39] == 36.5
     # Feature 40: prior_dialysate_sodium_mean (s1 sodium = 137.0)

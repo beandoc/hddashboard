@@ -36,22 +36,10 @@ async def patient_list(
         logger.error(f"Dashboard computation failed for {month_str}: {e}", exc_info=True)
         data = {"patient_rows": [], "metrics": {}, "data_note": data_note}
 
-    query = db.query(Patient).filter(Patient.is_active == True)
-
-    if filter == "Male":
-        query = query.filter(Patient.sex == "Male")
-    elif filter == "Female":
-        query = query.filter(Patient.sex == "Female")
-
-    patients = query.order_by(Patient.name).all()
-    patients_by_id = {p.id: p for p in patients}
-
     _current_month = get_current_month_str()
     csrf_token = _csrf_signer.sign("events-new").decode()
     return templates.TemplateResponse("patients.html", {
         "request": request,
-        "patients": patients,
-        "patients_by_id": patients_by_id,
         "data": data,
         "month_str": month_str,
         "current_month": _current_month,

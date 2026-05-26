@@ -79,7 +79,7 @@ def compute_mia_score(db: Session, patient_id: int, prefetched_records = None, r
         crp_val = recent_crp_interim.value if recent_crp_interim else None
 
     inflam = False
-    if crp_val is not None and crp_val > 0.3:
+    if crp_val is not None and crp_val > 3.0:
         inflam = True
 
     # 3. Malnutrition Component (GNRI < 92)
@@ -252,10 +252,10 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
 
         if crp is not None:
             values["inflammation"] = {"CRP": crp}
-            if crp > 0.3:
+            if crp > 3.0:
                 inflam_score = 2
-                events.append({"icon": "🔥", "color": "#ef4444", "text": f"High Inflammation (CRP {crp:.2f} > 0.3)"})
-            elif crp > 0.1:
+                events.append({"icon": "🔥", "color": "#ef4444", "text": f"High Inflammation (CRP {crp:.2f} > 3.0)"})
+            elif crp > 1.0:
                 inflam_score = 1
 
         scores["inflammation"] = inflam_score
@@ -264,7 +264,7 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
 
         # ── 3. ATHEROSCLEROSIS — Dynamic Multi-tier Assessment ────────────────
         # Tier 1 (score 2): Confirmed history of CAD / stroke / PVD — static
-        # Tier 2 (score 2): Wide pulse pressure >60 mmHg — validated arterial
+        # Tier 2 (score 1): Wide pulse pressure >60 mmHg — validated arterial
         #   stiffness surrogate in HD (Guerin et al. JASN 2001; London et al. KI 2001)
         # Tier 3 (score 1): Isolated systolic hypertension (SBP >160) without
         #   wide PP — early vascular marker
@@ -289,7 +289,7 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
 
         elif pulse_pressure is not None and pulse_pressure > 60:
             # Tier 2 — wide pulse pressure → arterial stiffness (subclinical atherosclerosis)
-            athero_score = 2
+            athero_score = 1
             values["atherosclerosis"] = {
                 "status":        "Arterial Stiffness Detected",
                 "pulse_pressure": round(pulse_pressure, 1),
@@ -339,7 +339,13 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
         # ── 4. DIALYSIS & EVENTS ──────────────────────────────────────────────
         dial_score = 0
         ktv = rec.single_pool_ktv
-        if ktv and ktv < 1.2: dial_score = 1
+        if ktv is not None:
+            if ktv < 1.2:
+                dial_score = 2
+                events.append({"icon": "📉", "color": "#ef4444", "text": f"Critically inadequate dialysis (spKt/V {ktv:.2f} < 1.2)"})
+            elif ktv < 1.4:
+                dial_score = 1
+                events.append({"icon": "📉", "color": "#f59e0b", "text": f"Sub-optimal dialysis (spKt/V {ktv:.2f} < 1.4)"})
         scores["dialysis"] = dial_score
         data_available["dialysis"] = (ktv is not None)
         missing_fields["dialysis"] = ["Kt/V"] if ktv is None else []
@@ -463,18 +469,20 @@ def analyze_cardiorenal_cascade(db, patient_id: int, prefetched_records = None, 
     if nt_vals:
         latest_nt = nt_vals[-1][1]
         inputs_found.append(f"NT-proBNP {latest_nt:.0f} pg/mL")
-        if latest_nt > 5000:
+        age = p.age or 60
+        t_elevated, t_marked, t_severe = (2000, 4000, 10000) if age >= 75 else (1000, 2000, 5000)
+        if latest_nt > t_severe:
             risk_score += 3
             events.append({"type": "biomarker",
-                "text": f"NT-proBNP severely elevated: {latest_nt:.0f} pg/mL (>5000 — strong fluid overload signal in HD)"})
-        elif latest_nt > 2000:
+                "text": f"NT-proBNP severely elevated: {latest_nt:.0f} pg/mL (>{t_severe} — strong fluid overload signal in HD)"})
+        elif latest_nt > t_marked:
             risk_score += 2
             events.append({"type": "biomarker",
-                "text": f"NT-proBNP markedly elevated: {latest_nt:.0f} pg/mL (>2000 — significant volume excess)"})
-        elif latest_nt > 1000:
+                "text": f"NT-proBNP markedly elevated: {latest_nt:.0f} pg/mL (>{t_marked} — significant volume excess)"})
+        elif latest_nt > t_elevated:
             risk_score += 1
             events.append({"type": "biomarker",
-                "text": f"NT-proBNP elevated: {latest_nt:.0f} pg/mL (>1000 — monitor closely)"})
+                "text": f"NT-proBNP elevated: {latest_nt:.0f} pg/mL (>{t_elevated} — monitor closely)"})
         if len(nt_vals) >= 3:
             vals = [v for _, v in nt_vals[-3:]]
             if vals[-1] > vals[-2] > vals[-3]:
@@ -604,7 +612,7 @@ def analyze_cardiorenal_cascade(db, patient_id: int, prefetched_records = None, 
 
 def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessions = None) -> dict:
     """
-    Vascular Access Quality Intelligence: AVF Maturation Monitoring.
+    Vascular Access Surveillance: AVF Maturation Monitoring (KDOQI rule-based).
     """
     from database import Patient, SessionRecord
     from datetime import date, datetime
@@ -695,11 +703,18 @@ def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessi
                     )
                 })
                 if days_since_surgery > 42:
-                    alerts.append(
-                        f"AVF Maturation Failure Risk: {days_since_surgery} days since surgery "
-                        "without cannulation — KDOQI 6-week threshold exceeded. "
-                        "Assess fistula maturity; consider Doppler ultrasound."
-                    )
+                    is_high_risk = bool(p.age and p.age >= 65) or bool(p.dm_status and p.dm_status.strip().lower() not in ("none", ""))
+                    if is_high_risk:
+                        alerts.append(
+                            f"AVF Maturation Surveillance: {days_since_surgery} days since surgery without cannulation. "
+                            "Note: Patient is elderly or diabetic — maturation may naturally take up to 12 weeks. "
+                            "Assess clinically for thrill/bruit and consider Doppler ultrasound before initiating cannulation."
+                        )
+                    else:
+                        alerts.append(
+                            f"AVF Maturation Surveillance: {days_since_surgery} days since surgery without cannulation. "
+                            "Fistula should be assessed for maturity. Consider Doppler ultrasound before starting cannulation."
+                        )
                     risk_score += 3
                 elif days_since_surgery > 28:
                     events.append({
@@ -930,15 +945,16 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
     if reports_with_drt:
         avg_drt = sum(e["drt_mins"] for e in reports_with_drt) / len(reports_with_drt)
 
-        if avg_drt > 360:  # > 6 hours
-            risk_level = "high"
+        if avg_drt > 120:  # > 2 hours
+            risk_level = "high" if avg_drt > 240 else "medium"
             flags.append(f"Prolonged average recovery time: {round(avg_drt/60, 1)} hours.")
 
-            if any(e["ufr"] and e["ufr"] > 10.0 and e["drt_mins"] > 360 for e in correlated_events):
+            limit = 240 if avg_drt > 240 else 120
+            if any(e["ufr"] and e["ufr"] > 10.0 and e["drt_mins"] > limit for e in correlated_events):
                 flags.append("Prolonged DRT correlates with high Ultrafiltration Rate.")
                 interventions.append("Review fluid allowance and target dry weight.")
 
-            if any(e["idh"] and e["drt_mins"] > 360 for e in correlated_events):
+            if any(e["idh"] and e["drt_mins"] > limit for e in correlated_events):
                 flags.append("Prolonged DRT correlates with Intradialytic Hypotension.")
                 interventions.append("Consider cool dialysate or adjusting dialysate sodium.")
 
@@ -959,7 +975,7 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
         "avg_drt_mins": round(avg_drt) if avg_drt is not None else None,
         "avg_drt_hours": round(avg_drt / 60, 1) if avg_drt is not None else None,
         "risk_level": risk_level,
-        "css_class": "danger" if risk_level == "high" else "success",
+        "css_class": "danger" if risk_level == "high" else ("warning" if risk_level == "medium" else "success"),
         "flags": flags,
         "interventions": interventions,
         "events": correlated_events,       # DRT-correlated events for the chart
@@ -1138,9 +1154,9 @@ def detect_occult_overload(
     else:
         sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(10).all()
 
-    dw_drop = 0
+    dw_change = 0
     if first_record and first_record.target_dry_weight and patient.dry_weight:
-        dw_drop = first_record.target_dry_weight - patient.dry_weight
+        dw_change = patient.dry_weight - first_record.target_dry_weight
 
     alb_decline = False
     if len(recent_records) >= 2:
@@ -1152,8 +1168,8 @@ def detect_occult_overload(
     emergency_sessions = [s for s in sessions if s.is_emergency and s.reason_emergency in ["Fluid Overload", "Pulmonary Oedema", "Severe Dyspnea"]]
     freq_emergency = len(emergency_sessions) >= 1
 
-    if (dw_drop > 3 and alb_decline) or (breathless and alb_decline) or (freq_emergency):
-        reason = f"Significant DW drop ({round(dw_drop,1)}kg) with declining Albumin and persistent dyspnea."
+    if (dw_change >= 0 and alb_decline) or (breathless and alb_decline) or (freq_emergency):
+        reason = f"Stable/rising dry weight ({round(dw_change,1)}kg change) with declining Albumin and persistent dyspnea."
         if freq_emergency:
             reason = f"Emergency session required due to {emergency_sessions[0].reason_emergency}. " + reason
 

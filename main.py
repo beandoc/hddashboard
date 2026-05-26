@@ -12,6 +12,7 @@ from typing import Optional
 import logging
 import os
 import subprocess
+import threading
 import time
 
 from database import get_db, Patient, SessionLocal, User, create_tables
@@ -24,11 +25,11 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "0014"
+REQUIRED_DB_VERSION = "0016"
 
 
 def _check_schema_version() -> None:
-    """Run alembic upgrade head if the DB is behind; warn and continue on failure."""
+    """Log the current DB schema version. Migrations run via scripts/pre_deploy.py at deploy time."""
     db = SessionLocal()
     try:
         row = db.execute(
@@ -37,29 +38,17 @@ def _check_schema_version() -> None:
         current = row[0] if row else None
     except Exception as exc:
         logging.warning("Schema version check skipped: %s", exc)
-        db.close()
         return
     finally:
         db.close()
 
     if current == REQUIRED_DB_VERSION:
         logging.info("Schema version OK: %s", current)
-        return
-
-    logging.warning(
-        "DB schema is at version '%s', app expects '%s' — running alembic upgrade head …",
-        current, REQUIRED_DB_VERSION,
-    )
-    result = subprocess.run(
-        ["alembic", "upgrade", "head"],
-        capture_output=True, text=True,
-    )
-    if result.returncode == 0:
-        logging.info("Migrations applied successfully.\n%s", result.stdout)
     else:
-        logging.error(
-            "alembic upgrade head failed (exit %s).\nstdout: %s\nstderr: %s",
-            result.returncode, result.stdout, result.stderr,
+        logging.warning(
+            "DB schema is at version '%s', app expects '%s'. "
+            "Run scripts/pre_deploy.py to apply migrations — NOT done at runtime.",
+            current, REQUIRED_DB_VERSION,
         )
 
 
@@ -87,33 +76,87 @@ def _seed_default_users() -> None:
         db.close()
 
 
-def _warm_caches() -> None:
-    """Pre-populate dashboard and ML caches at startup so the first user request is fast."""
-    import threading
+# Set when the dashboard warm-up thread finishes (or fails).  The dashboard
+# route waits on this before running compute_dashboard so the first cold
+# request finds a warm cache instead of paying the full DB cost itself.
+_DASHBOARD_WARM_EVENT = threading.Event()
 
-    def _warm():
+
+def _warm_caches() -> None:
+    """Pre-populate dashboard and ML caches at startup.
+
+    Two daemon threads run in parallel so dashboard data and ML scores are
+    both ready before the first real user request lands.  Each thread gets its
+    own SessionLocal so they don't share a connection or fight over pool slots.
+    """
+    def _warm_dashboard():
         db = SessionLocal()
         try:
             from dashboard_logic import compute_dashboard
             compute_dashboard(db)
-            from ml_analytics import get_all_patients_mortality_risk
-            get_all_patients_mortality_risk(db)
-            logging.info("Cache warm-up complete.")
+            logging.info("Dashboard cache warm-up complete.")
         except Exception as exc:
-            logging.warning(f"Cache warm-up failed (non-fatal): {exc}")
+            logging.warning("Dashboard cache warm-up failed (non-fatal): %s", exc)
+        finally:
+            db.close()
+            _DASHBOARD_WARM_EVENT.set()
+
+    def _warm_ml():
+        db = SessionLocal()
+        try:
+            from ml_analytics import get_all_patients_mortality_risk, run_cohort_analytics
+            result = get_all_patients_mortality_risk(db)
+            cohort = run_cohort_analytics(db)
+            hr_count = sum(1 for p in result if p.get("risk_level") == "high")
+            expiry = time.time() + _ML_ANALYTICS_TTL
+            with _ML_ANALYTICS_LOCK:
+                _ML_ANALYTICS_CACHE["high_risk_count"]  = (hr_count, expiry)
+                _ML_ANALYTICS_CACHE["cohort_analytics"] = (cohort,    expiry)
+            logging.info("ML analytics cache warm-up complete.")
+        except Exception as exc:
+            logging.warning("ML cache warm-up failed (non-fatal): %s", exc)
         finally:
             db.close()
 
-    threading.Thread(target=_warm, daemon=True, name="cache-warmup").start()
+    threading.Thread(target=_warm_dashboard, daemon=True, name="cache-warmup-dashboard").start()
+    threading.Thread(target=_warm_ml,        daemon=True, name="cache-warmup-ml").start()
+
+
+# Readiness flag: False until the background startup thread finishes its DB
+# work.  The /health endpoint returns 503 while this is False so load-balancers
+# and Render's health-check don't route traffic to an unready instance.
+_APP_READY = False
+
+
+def _background_startup() -> None:
+    """Run all blocking startup work off the event loop.
+
+    Runs in a daemon thread so uvicorn starts accepting connections (and can
+    respond to the Render/UptimeRobot health probe) immediately, instead of
+    waiting for DB round-trips before the first `yield` in lifespan.
+    """
+    global _APP_READY
+    try:
+        create_tables()
+        _check_schema_version()
+        _seed_default_users()
+        logging.info("Background startup complete.")
+    except Exception as exc:
+        logging.error("Background startup error: %s", exc)
+    finally:
+        _APP_READY = True   # flip even on error so health check reports degraded
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_tables()
-    _check_schema_version()
-    _seed_default_users()
-    _warm_caches()
-    logging.info("Startup complete.")
+    # Fire all blocking work in the background and yield immediately so the
+    # ASGI server is ready to accept connections within milliseconds.
+    startup_thread = threading.Thread(
+        target=_background_startup, daemon=True, name="startup"
+    )
+    startup_thread.start()
+    _warm_caches()          # also non-blocking (spawns its own threads)
+    logging.info("Startup complete — background initialisation in progress.")
     yield
 
 
@@ -155,6 +198,49 @@ class RewriteLoginMiddleware:
 
 app.add_middleware(RewriteLoginMiddleware)
 
+
+class StaticCacheMiddleware:
+    """Add long-lived Cache-Control headers to versioned static assets.
+
+    Versioned assets (URLs containing ?v= or /vendor/) are immutable and safe
+    to cache for 1 year.  Font files (.woff2) and JS bundles get the same
+    treatment.  All other /static/ responses get a short revalidation window
+    so changes propagate within a minute.
+    """
+    _IMMUTABLE_EXTS = frozenset([".woff2", ".woff", ".ttf", ".otf", ".eot"])
+    _LONG_CACHE = b"public, max-age=31536000, immutable"   # 1 year
+    _SHORT_CACHE = b"public, max-age=60, must-revalidate"  # 1 minute
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http" or not scope.get("path", "").startswith("/static/"):
+            await self.app(scope, receive, send)
+            return
+
+        path: str = scope["path"]
+        qs: str = scope.get("query_string", b"").decode()
+        ext = path.rsplit(".", 1)[-1] if "." in path else ""
+        is_immutable = (
+            f".{ext}" in self._IMMUTABLE_EXTS
+            or "v=" in qs
+            or "/vendor/" in path
+        )
+        cache_value = self._LONG_CACHE if is_immutable else self._SHORT_CACHE
+
+        async def send_with_cache(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers = [(k, v) for k, v in headers if k.lower() != b"cache-control"]
+                headers.append((b"cache-control", cache_value))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_cache)
+
+app.add_middleware(StaticCacheMiddleware)
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -168,11 +254,12 @@ _AUTH_PATHS = {"/login", "/logout", "/change-password", "/api/login"}
 _USER_IDENTITY_CACHE: dict = {}
 _USER_IDENTITY_CACHE_TTL = 120  # seconds
 
-# Process-level ML analytics cache — these are heavyweight computations that
-# run ML scoring over all patients. Cache for 5 minutes to avoid re-executing
-# on every dashboard page navigation.
+# Process-level ML analytics cache — heavyweight computations scored over all
+# patients.  TTL = 5 minutes.  Lock prevents the check-then-set race where two
+# concurrent threads both see a stale entry, both recompute, and both write.
 _ML_ANALYTICS_CACHE: dict = {}
-_ML_ANALYTICS_TTL = 300  # seconds (5 min)
+_ML_ANALYTICS_LOCK  = threading.Lock()
+_ML_ANALYTICS_TTL   = 300  # seconds
 
 
 def _invalidate_user_cache(username: str) -> None:
@@ -318,105 +405,133 @@ async def run_migrations(secret: str = ""):
         "stderr": result.stderr,
     }
 
+_DASHBOARD_EMPTY: dict = {
+    "alerts": {
+        "hb_low": {"count": 0, "names": []},
+        "albumin_low": {"count": 0, "names": []},
+        "phos_high": {"count": 0, "names": []},
+        "ca_low": {"count": 0, "names": []},
+        "idwg_high": {"count": 0, "names": []},
+        "non_avf": {"count": 0, "names": []},
+        "epo_hypo": {"count": 0, "names": []},
+        "iv_iron_rec": {"count": 0, "names": []},
+        "trend_hb": [],
+    },
+    "metrics": {
+        "total_patients": {"count": 0, "names": []},
+        "male_patients": {"count": 0, "names": []},
+        "female_patients": {"count": 0, "names": []},
+        "non_avf": {"count": 0, "names": [], "types": {}},
+        "idwg_high": {"count": 0, "names": []},
+        "albumin_low": {"count": 0, "names": []},
+        "calcium_low": {"count": 0, "names": []},
+        "phos_high": {"count": 0, "names": []},
+        "hb_high": {"count": 0, "names": []},
+        "hb_variability_high": {"count": 0, "names": []},
+        "adherence_risk": {"count": 0, "names": []},
+        "ipth_very_high": {"count": 0, "names": []},
+        "infectious_hd": {"count": 0, "names": []},
+        "avf_low_flow": {"count": 0, "names": []},
+        "transplant_prospects": {"count": 0, "names": []},
+        "cadaveric_listed": {"count": 0, "names": []},
+        "avf_count": 0,
+        "avg_count": 0,
+        "epo_hypo":    {"count": 0, "names": []},
+        "epo_hypo_r2": {"count": 0, "names": []},
+        "epo_hypo_r3": {"count": 0, "names": [], "cutoff": None},
+        "iv_iron_rec": {"count": 0, "names": []},
+        "missing_records": {"count": 0, "names": []},
+        "trend_hb": [],
+        "trend_albumin": [],
+        "trend_phosphorus": [],
+        "avg_hb": None,
+    },
+    "patient_rows": [],
+    "prev_month_label": "N/A",
+    "total_active": 0,
+}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard_index(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
-    month_str, data_note = get_effective_month(db, month)
-    try:
-        data = compute_dashboard(db, month_str)
-        data["data_note"] = data_note
-    except Exception as e:
-        logging.error(f"Dashboard error: {e}")
-        data = {
-            "alerts": {
-                "hb_low": {"count": 0, "names": []},
-                "albumin_low": {"count": 0, "names": []},
-                "phos_high": {"count": 0, "names": []},
-                "ca_low": {"count": 0, "names": []},
-                "idwg_high": {"count": 0, "names": []},
-                "non_avf": {"count": 0, "names": []},
-                "epo_hypo": {"count": 0, "names": []},
-                "iv_iron_rec": {"count": 0, "names": []},
-                "trend_hb": [],
-            },
-            "metrics": {
-                "total_patients": {"count": 0, "names": []},
-                "male_patients": {"count": 0, "names": []},
-                "female_patients": {"count": 0, "names": []},
-                "non_avf": {"count": 0, "names": [], "types": {}},
-                "idwg_high": {"count": 0, "names": []},
-                "albumin_low": {"count": 0, "names": []},
-                "calcium_low": {"count": 0, "names": []},
-                "phos_high": {"count": 0, "names": []},
-                "hb_high": {"count": 0, "names": []},
-                "hb_variability_high": {"count": 0, "names": []},
-                "adherence_risk": {"count": 0, "names": []},
-                "ipth_very_high": {"count": 0, "names": []},
-                "infectious_hd": {"count": 0, "names": []},
-                "avf_low_flow": {"count": 0, "names": []},
-                "transplant_prospects": {"count": 0, "names": []},
-                "cadaveric_listed": {"count": 0, "names": []},
-                "avf_count": 0,
-                "avg_count": 0,
-                "epo_hypo":    {"count": 0, "names": []},
-                "epo_hypo_r2": {"count": 0, "names": []},
-                "epo_hypo_r3": {"count": 0, "names": [], "cutoff": None},
-                "iv_iron_rec": {"count": 0, "names": []},
-                "missing_records": {"count": 0, "names": []},
-                "trend_hb": [],
-                "trend_albumin": [],
-                "trend_phosphorus": [],
-                "avg_hb": None,
-            },
-            "patient_rows": [],
-            "month_label": get_month_label(month_str),
-            "prev_month_label": "N/A",
-            "total_active": 0,
-            "data_note": data_note,
-        }
+    import asyncio
+    from datetime import datetime as _dt
 
-    _current_month = get_current_month_str()
-    
-    # Contextual banner logic for staff
-    greeting = "morning"
-    from datetime import datetime, date
-    hour = datetime.now().hour
-    if hour < 12: greeting = "morning"
-    elif hour < 17: greeting = "afternoon"
-    else: greeting = "evening"
-
-    pending_entry_count = data.get("metrics", {}).get("missing_records", {}).get("count", 0)
-
-    # Authentication check
+    # Auth check first — unauthenticated requests pay zero DB cost.
     user = get_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    
-    # Patient role check - redirect to portal
     if getattr(user, "role", None) == "patient" or (isinstance(user, dict) and user.get("role") == "patient"):
         return RedirectResponse(url="/patient/dashboard", status_code=302)
 
+    loop = asyncio.get_running_loop()
+
+    # Wait for the startup warm-up to finish (max 8 s) so the first request
+    # finds a warm cache instead of paying the full cold-compute cost itself.
+    # After warm-up, the event stays set so subsequent requests skip this wait.
+    if not _DASHBOARD_WARM_EVENT.is_set():
+        await loop.run_in_executor(None, lambda: _DASHBOARD_WARM_EVENT.wait(timeout=8))
+
+    # compute_dashboard uses synchronous SQLAlchemy.  Running it directly in an
+    # async handler blocks the uvicorn event loop for the full query duration —
+    # with a pool of 3 connections, two simultaneous requests would deadlock.
+    # run_in_executor hands the work to the default ThreadPoolExecutor so the
+    # event loop stays free to handle other requests while queries execute.
+    def _sync_dashboard():
+        m_str, d_note = get_effective_month(db, month)
+        try:
+            d = compute_dashboard(db, m_str)
+            d["data_note"] = d_note
+        except Exception as exc:
+            logging.error("Dashboard error: %s", exc)
+            d = dict(_DASHBOARD_EMPTY)
+            d["month_label"] = get_month_label(m_str)
+            d["data_note"] = d_note
+        return m_str, d
+
+    month_str, data = await loop.run_in_executor(None, _sync_dashboard)
+
+    _current_month = get_current_month_str()
+    hour = _dt.now().hour
+    if hour < 12:
+        greeting = "morning"
+    elif hour < 17:
+        greeting = "afternoon"
+    else:
+        greeting = "evening"
+
+    pending_entry_count = data.get("metrics", {}).get("missing_records", {}).get("count", 0)
+
     high_risk_count = 0
     if getattr(user, "role", None) == "doctor" or (isinstance(user, dict) and user.get("role") == "doctor"):
-        _cache_key_hr = "high_risk_count"
-        _cached_hr = _ML_ANALYTICS_CACHE.get(_cache_key_hr)
-        if _cached_hr and time.time() < _cached_hr[1]:
-            high_risk_count = _cached_hr[0]
+        with _ML_ANALYTICS_LOCK:
+            _cached_hr = _ML_ANALYTICS_CACHE.get("high_risk_count")
+            _hr_stale  = not (_cached_hr and time.time() < _cached_hr[1])
+        if _hr_stale:
+            def _sync_hr():
+                from ml_analytics import get_high_risk_mortality_count
+                return get_high_risk_mortality_count(db)
+            high_risk_count = await loop.run_in_executor(None, _sync_hr)
+            with _ML_ANALYTICS_LOCK:
+                _ML_ANALYTICS_CACHE["high_risk_count"] = (high_risk_count, time.time() + _ML_ANALYTICS_TTL)
         else:
-            from ml_analytics import get_high_risk_mortality_count
-            high_risk_count = get_high_risk_mortality_count(db)
-            _ML_ANALYTICS_CACHE[_cache_key_hr] = (high_risk_count, time.time() + _ML_ANALYTICS_TTL)
+            high_risk_count = _cached_hr[0]
 
     try:
-        _cache_key_cohort = "cohort_analytics"
-        _cached_cohort = _ML_ANALYTICS_CACHE.get(_cache_key_cohort)
-        if _cached_cohort and time.time() < _cached_cohort[1]:
-            cohort_data = _cached_cohort[0]
+        with _ML_ANALYTICS_LOCK:
+            _cached_cohort = _ML_ANALYTICS_CACHE.get("cohort_analytics")
+            _cohort_stale  = not (_cached_cohort and time.time() < _cached_cohort[1])
+        if _cohort_stale:
+            def _sync_cohort():
+                from ml_analytics import run_cohort_analytics
+                return run_cohort_analytics(db)
+            cohort_data = await loop.run_in_executor(None, _sync_cohort)
+            with _ML_ANALYTICS_LOCK:
+                _ML_ANALYTICS_CACHE["cohort_analytics"] = (cohort_data, time.time() + _ML_ANALYTICS_TTL)
         else:
-            from ml_analytics import run_cohort_analytics
-            cohort_data = run_cohort_analytics(db)
-            _ML_ANALYTICS_CACHE[_cache_key_cohort] = (cohort_data, time.time() + _ML_ANALYTICS_TTL)
+            cohort_data = _cached_cohort[0]
     except Exception as _ce:
-        logging.warning(f"Cohort analytics failed: {_ce}")
+        logging.warning("Cohort analytics failed: %s", _ce)
         cohort_data = {"available": False}
 
     return templates.TemplateResponse("dashboard.html", {
@@ -435,21 +550,33 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
 # Root health check — GET for humans, HEAD for UptimeRobot/monitoring probes
 @app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
-    import time, os
-    from sqlalchemy import text
+    from fastapi.responses import JSONResponse
     db_host = os.environ.get("DATABASE_URL", "").split("@")[-1].split("/")[0] if "@" in os.environ.get("DATABASE_URL", "") else "unknown"
     region = "Mumbai (ap-south-1)" if "ap-south-1" in db_host else ("Tokyo (ap-northeast-1)" if "ap-northeast-1" in db_host else db_host)
     try:
-        db = SessionLocal()
+        _db = SessionLocal()
         t0 = time.time()
-        db.execute(text("SELECT 1"))
+        _db.execute(text("SELECT 1"))
         db_latency_ms = round((time.time() - t0) * 1000, 1)
-        db.close()
+        _db.close()
         db_status = "ok"
     except Exception as e:
         db_latency_ms = None
         db_status = str(e)
-    return {"status": "ok", "version": "2.0.0", "db_region": region, "db_host": db_host, "db_latency_ms": db_latency_ms, "db_status": db_status}
+
+    payload = {
+        "status": "ok" if _APP_READY else "starting",
+        "ready": _APP_READY,
+        "version": "2.0.0",
+        "db_region": region,
+        "db_host": db_host,
+        "db_latency_ms": db_latency_ms,
+        "db_status": db_status,
+    }
+    # Return 503 while startup is still running so Render doesn't route live
+    # traffic to an instance that hasn't finished table creation / seeding.
+    status_code = 200 if _APP_READY else 503
+    return JSONResponse(content=payload, status_code=status_code)
 
 if __name__ == "__main__":
     import uvicorn

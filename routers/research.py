@@ -5,21 +5,34 @@ from typing import Optional
 from datetime import date as date_type, datetime
 from collections import defaultdict
 import json
-import numpy as np
-from scipy import stats as scipy_stats
 
 from database import get_db, Patient, ResearchProject, ResearchRecord, MonthlyRecord, SessionRecord
 from config import templates
 from dependencies import get_user, _require_admin_role, _require_researcher_role
-from ml_analytics import (
-    run_cohort_analytics,
-    run_group_comparison,
-    run_correlation_analysis,
-    run_survival_analysis,
-    run_logrank_test,
-    run_cox_ph,
-    run_bayesian_multilevel,
-)
+
+# numpy, scipy and ml_analytics are large — defer until first request so they
+# don't extend cold-start import time.
+class _LazyModule:
+    __slots__ = ("_name", "_mod")
+    def __init__(self, name): self._name = name; self._mod = None
+    def __getattr__(self, attr):
+        if attr in ("_name", "_mod"): raise AttributeError(attr)
+        if self._mod is None:
+            import importlib
+            object.__setattr__(self, "_mod", importlib.import_module(self._name))
+        return getattr(self._mod, attr)
+
+np           = _LazyModule("numpy")
+scipy_stats  = _LazyModule("scipy.stats")
+_ml_analytics = _LazyModule("ml_analytics")
+
+def run_cohort_analytics(*a, **kw):      return _ml_analytics.run_cohort_analytics(*a, **kw)
+def run_group_comparison(*a, **kw):      return _ml_analytics.run_group_comparison(*a, **kw)
+def run_correlation_analysis(*a, **kw):  return _ml_analytics.run_correlation_analysis(*a, **kw)
+def run_survival_analysis(*a, **kw):     return _ml_analytics.run_survival_analysis(*a, **kw)
+def run_logrank_test(*a, **kw):          return _ml_analytics.run_logrank_test(*a, **kw)
+def run_cox_ph(*a, **kw):                return _ml_analytics.run_cox_ph(*a, **kw)
+def run_bayesian_multilevel(*a, **kw):   return _ml_analytics.run_bayesian_multilevel(*a, **kw)
 
 
 def _survival_endpoint(p, study_end):

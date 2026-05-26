@@ -144,7 +144,7 @@ def _build_feature_vector(
         float(age or 60),
         float(cad or 0),
         float(chf or 0),
-        1.0 if "type" in str(dm_status or "").lower() else 0.0,
+        0.0 if str(dm_status or "").strip().lower() in ("", "none", "no", "0", "false", "n") else 1.0,
         float(num_recent_hospitalizations_90d),
         float(recent_infection_events),
     ]
@@ -808,9 +808,9 @@ def _indian_recalibrate(prob_raw: float, apply: bool = True) -> tuple:
         prob_cal  = round(max(0.001, min(0.999, prob_cal)), 3)
 
         note = (
-            f"Re-calibrated for Indian HD population (DOPPS India Phase 5 baseline ~14-18% 1-yr mortality). "
+            f"Ad-hoc literature-approximated Platt scaling (DOPPS India Phase 5 baseline ~14-18% 1-yr mortality). "
             f"Raw Xu et al. probability: {prob_raw*100:.1f}% → Indian-adjusted: {prob_cal*100:.1f}%. "
-            f"{'⚠ Literature-approximated calibration — replace with local fitted parameters once ≥50 outcome events collected.' if not _INDIAN_CAL_VALIDATED else '✅ Locally validated calibration.'}"
+            f"⚠ This recalibration is manually approximated — replace with locally fitted parameters once ≥50 outcome events are collected."
         )
         return prob_cal, note
     except Exception:
@@ -1423,7 +1423,7 @@ def predict_mortality_risk(df: List[Dict], patient_info: dict = None, _precomput
             "risk_level":         risk_level,
             "class":              css_class,
             "data_completeness":  data_completeness,
-            "model_calibration_status": "pending Indian cohort validation",
+            "model_calibration_status": "ad-hoc literature-approximated (non-validated)",
             "n_core_used":        n_core_used,
             "features_used":      used,
             "features_missing":   missing,
@@ -1508,15 +1508,6 @@ def compute_davies_score(patient_info: dict, latest_record: dict = None) -> dict
         score += 3
         components.append("Active neoplasia (+3)")
 
-    albumin_gdl = None
-    if latest_record:
-        albumin_gdl = latest_record.get("albumin")
-    if albumin_gdl is None:
-        n_missing += 1
-        inputs_missing.append("Albumin")
-    elif albumin_gdl < 2.5:
-        score += 2
-        components.append("Albumin < 2.5 g/dL (+2)")
 
     if score <= 1:
         risk_group = "Low"

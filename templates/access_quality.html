@@ -355,8 +355,10 @@
             .dr-grid { grid-template-columns: 1fr; }
         }
     </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
 </head>
 <body>
 
@@ -834,14 +836,14 @@
     </div>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         SECTION: CHARTS & ML PREDICTIONS
+         SECTION: CHARTS & ACCESS SURVEILLANCE
          ════════════════════════════════════════════════════════════════════ -->
 
     <!-- Data Readiness Panel -->
     <div class="data-readiness">
         <div class="data-readiness-title">
             <i class="material-icons" style="font-size:1.3rem;">checklist</i>
-            Data Readiness — What's needed for charts &amp; ML to activate
+            Data Readiness — What's needed for charts &amp; surveillance to activate
         </div>
         <div class="dr-grid">
             <div class="dr-item {{ 'ok' if metrics.total_patients > 0 else 'missing' }}">
@@ -889,7 +891,7 @@
                 <div>
                     <div class="dr-label">AccessEpisode Records</div>
                     <div class="dr-value">Per-patient access episodes</div>
-                    <div class="dr-hint">Powers: ML risk model, Maturation watchlist, all KDOQI benchmarks · Create via Access Analytics → New Episode</div>
+                    <div class="dr-hint">Powers: KDOQI risk scoring, Maturation watchlist, all KDOQI benchmarks · Create via Access Analytics → New Episode</div>
                 </div>
             </div>
         </div>
@@ -899,8 +901,8 @@
     <div style="margin:48px 0 24px; display:flex; align-items:center; gap:12px;">
         <div style="width:4px; height:32px; background:linear-gradient(180deg,#6366f1,#818cf8); border-radius:2px;"></div>
         <div>
-            <h2 style="font-family:'Outfit',sans-serif; margin:0; font-size:1.5rem; color:#1e1b4b;">Analytics & ML Predictions</h2>
-            <p style="margin:4px 0 0; font-size:0.85rem; color:#64748b;">Unit-level vascular access intelligence — charts and risk scoring</p>
+            <h2 style="font-family:'Outfit',sans-serif; margin:0; font-size:1.5rem; color:#1e1b4b;">Analytics & Access Surveillance</h2>
+            <p style="margin:4px 0 0; font-size:0.85rem; color:#64748b;">Unit-level vascular access surveillance — charts and KDOQI-based risk scoring</p>
         </div>
     </div>
 
@@ -944,12 +946,12 @@
         </div>
     </div>
 
-    <!-- ── ML: Access-Loss Risk Prediction ───────────────────────────────── -->
+    <!-- ── KDOQI Rule-Based: Access-Loss Risk Scoring ─────────────────────── -->
     <div class="card {{ 'chart-card-live' if access_risk_json != '[]' else 'chart-card-empty' }}">
         <h3 style="margin:0 0 4px; font-family:'Outfit',sans-serif; color:#1e1b4b; font-size:1.2rem; display:flex; align-items:center; gap:10px;">
-            <i class="material-icons" style="color:#7c3aed;">psychology</i>
-            ML — Access-Loss Risk Prediction
-            <span style="font-size:0.72rem; font-weight:500; background:#ede9fe; color:#6d28d9; padding:3px 10px; border-radius:20px; margin-left:4px;">Rule-weighted scoring model</span>
+            <i class="material-icons" style="color:#7c3aed;">rule</i>
+            Access-Loss Risk Scoring
+            <span style="font-size:0.72rem; font-weight:500; background:#ede9fe; color:#6d28d9; padding:3px 10px; border-radius:20px; margin-left:4px;">KDOQI rule-based scoring</span>
             {% if access_risk_json == '[]' %}<span style="font-size:0.68rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;">Needs: AccessEpisode records</span>{% endif %}
         </h3>
         <p style="font-size:0.85rem; color:#64748b; margin:4px 0 20px; line-height:1.6;">
@@ -1190,7 +1192,7 @@ const GRID_COLOR   = '#f1f5f9';
     }, PLOTLY_CFG);
 })();
 
-// ── Chart 5: ML Risk score bar ───────────────────────────────────────────────
+// ── Chart 5: KDOQI risk score bar ────────────────────────────────────────────
 (function() {
     if (!RISK_ROWS.length) return;
     const top = RISK_ROWS.slice(0, 15);

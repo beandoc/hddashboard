@@ -5,7 +5,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from typing import Optional
 import json
-import io
 import logging
 import re
 import secrets
@@ -352,35 +351,82 @@ async def strip_western_foods(request: Request, db: Session = Depends(get_db)):
         status_code=303
     )
 
+_EXPORT_CHUNK_SIZE = 200  # rows per yield — keeps peak memory bounded
+
+
+def _row_to_dict(obj) -> dict:
+    """Serialise a SQLAlchemy ORM row to a JSON-safe dict."""
+    d = {k: v for k, v in obj.__dict__.items() if k != "_sa_instance_state"}
+    for k, v in d.items():
+        if isinstance(v, (date, datetime)):
+            d[k] = v.isoformat()
+        elif isinstance(v, bytes):
+            d[k] = None  # skip binary blobs (e.g. model_binary) in exports
+    return d
+
+
+def _stream_table(db: Session, model, order_col, label: str):
+    """Yield JSON fragments for one table, chunked to avoid OOM on large tables."""
+    yield f'  "{label}": [\n'
+    first = True
+    offset = 0
+    while True:
+        chunk = (
+            db.query(model)
+            .order_by(order_col)
+            .limit(_EXPORT_CHUNK_SIZE)
+            .offset(offset)
+            .all()
+        )
+        if not chunk:
+            break
+        for row in chunk:
+            prefix = "" if first else ",\n"
+            yield f"{prefix}    {json.dumps(_row_to_dict(row))}"
+            first = False
+        offset += _EXPORT_CHUNK_SIZE
+        db.expunge_all()  # free ORM identity-map memory between chunks
+    yield "\n  ]"
+
+
 @router.get("/db/export")
 async def download_backup(request: Request, db: Session = Depends(get_db)):
     _require_admin(request)
+    import asyncio
     from database import FoodDatabaseItem
     from dynamic_vars import VariableDefinition
-    data = {
-        "patients": [p.__dict__ for p in db.query(Patient).all()],
-        "variable_definitions": [v.__dict__ for v in db.query(VariableDefinition).all()],
-        "monthly_records": [r.__dict__ for r in db.query(MonthlyRecord).all()],
-        "session_records": [s.__dict__ for s in db.query(SessionRecord).all()],
-        "interim_labs": [l.__dict__ for l in db.query(InterimLabRecord).all()],
-        "clinical_events": [e.__dict__ for e in db.query(ClinicalEvent).all()],
-        "users": [u.__dict__ for u in db.query(User).all()],
-        "food_items": [f.__dict__ for f in db.query(FoodDatabaseItem).all()],
-    }
-    # Remove SQLAlchemy internal state
-    for key in data:
-        for item in data[key]:
-            item.pop("_sa_instance_state", None)
-            # Convert dates/datetimes to strings
-            for k, v in item.items():
-                if isinstance(v, (date, datetime)):
-                    item[k] = v.isoformat()
-    
-    json_data = json.dumps(data, indent=2)
+
+    # Stream the JSON so Supabase's 30-second statement_timeout is never
+    # hit in one query, and peak container memory stays bounded regardless
+    # of how many session/monthly records exist.
+    def _generate():
+        yield '{\n'
+        tables = [
+            (Patient,            Patient.id,              "patients"),
+            (VariableDefinition, VariableDefinition.id,   "variable_definitions"),
+            (MonthlyRecord,      MonthlyRecord.id,        "monthly_records"),
+            (SessionRecord,      SessionRecord.id,        "session_records"),
+            (InterimLabRecord,   InterimLabRecord.id,     "interim_labs"),
+            (ClinicalEvent,      ClinicalEvent.id,        "clinical_events"),
+            (User,               User.id,                 "users"),
+            (FoodDatabaseItem,   FoodDatabaseItem.id,     "food_items"),
+        ]
+        for i, (model, order_col, label) in enumerate(tables):
+            yield from _stream_table(db, model, order_col, label)
+            if i < len(tables) - 1:
+                yield ",\n"
+            else:
+                yield "\n"
+        yield '}\n'
+
     return StreamingResponse(
-        io.BytesIO(json_data.encode()),
+        _generate(),
         media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename=hd_dashboard_backup_{date.today().isoformat()}.json"}
+        headers={
+            "Content-Disposition": (
+                f"attachment; filename=hd_dashboard_backup_{date.today().isoformat()}.json"
+            )
+        },
     )
 
 @router.post("/db/import")

@@ -14,7 +14,15 @@ from sqlalchemy.orm import Session
 
 from database import Patient, get_db
 from dependencies import get_user
-from services.ocr_service import extract_from_image, get_field_labels, get_field_units
+
+# ocr_service imports google-genai and PIL — defer until first OCR request.
+def _ocr():
+    from services import ocr_service
+    return ocr_service
+
+def extract_from_image(*a, **kw):  return _ocr().extract_from_image(*a, **kw)
+def get_field_labels(*a, **kw):    return _ocr().get_field_labels(*a, **kw)
+def get_field_units(*a, **kw):     return _ocr().get_field_units(*a, **kw)
 
 logger = logging.getLogger(__name__)
 

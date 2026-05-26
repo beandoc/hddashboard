@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}HD Dashboard{% endblock %}</title>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <!-- Preload font CSS asynchronously to avoid render-blocking -->
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
     <link rel="stylesheet" href="/static/css/clinical.css"/>
     <!-- Tailwind utilities: replace with /static/css/tailwind.css once CLI build runs -->
     <script src="/static/vendor/js/tailwind-play-cdn.js" defer></script>

@@ -5,8 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Patients — {{ data.month_label }} | HD Dashboard</title>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
     <link rel="stylesheet" href="/static/css/clinical.css?v=2.0.2"/>
     <link rel="stylesheet" href="/static/css/pages/patients.css?v=2.0.2"/>
 </head>
@@ -214,14 +216,13 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
             </thead>
             <tbody>
                 {% for row in data.patient_rows %}
-                {% set p = patients_by_id[row.id] %}
-                {% set unknown_gender = (p.sex == 'Unknown' or not p.sex) %}
+                {% set unknown_gender = (row.sex == 'Unknown' or not row.sex) %}
                 {% set row_status = 'missing' if (not row.has_record or row.has_missing_data) else ('alert' if row.alerts else 'stable') %}
                 <tr data-status="{{ row_status }}"
                     data-urgency="{{ '0' if (not row.has_record or row.has_missing_data) else ('1' if row.alerts else '2') }}"
-                    data-relative="{{ p.relation if p.relation else '' }}"
+                    data-relative="{{ row.relation if row.relation else '' }}"
                     data-last-session="{{ row.last_session_date.strftime('%Y-%m-%d') if row.last_session_date else '' }}"
-                    data-access="{{ p.access_type or '' }}"
+                    data-access="{{ row.access or '' }}"
                     class="{{ 'row-missing' if (not row.has_record or row.has_missing_data) else '' }}">
 
                     <!-- Patient: name + HID + sex badge -->
@@ -229,13 +230,13 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
                         <a href="/patients/{{ row.id }}/profile" class="cell-name">{{ row.name }}</a>
                         <div class="cell-hid">{{ row.hid }}</div>
                         <div style="display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px;">
-                            <span class="sex-badge {{ 'sex-m' if p.sex == 'Male' else ('sex-f' if p.sex == 'Female' else 'sex-unk') }}">
-                                {{ p.sex or '?' }}
+                            <span class="sex-badge {{ 'sex-m' if row.sex == 'Male' else ('sex-f' if row.sex == 'Female' else 'sex-unk') }}">
+                                {{ row.sex or '?' }}
                             </span>
-                            {% if p.relation %}
+                            {% if row.relation %}
                             <span style="font-size: 0.65rem; color: #475569; background: #f1f5f9; padding: 1px 6px; border-radius: 10px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px;">
                                 <i class="material-icons" style="font-size:0.8rem; color:#64748b;">family_restroom</i>
-                                <span>{{ p.relation }}</span>
+                                <span>{{ row.relation }}</span>
                             </span>
                             {% endif %}
                         </div>

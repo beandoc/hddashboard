@@ -29,24 +29,37 @@ if _is_sqlite:
     _connect_args = {"check_same_thread": False}
     engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 else:
-    # Configure pool size via env variables to prevent EMAXCONNSESSION on Supabase (max 15)
-    # Defaulting to 3+2=5 sync and 2+1=3 async connections is safe for multi-process (Web + Celery) setups.
-    db_pool_size = int(os.environ.get("DB_POOL_SIZE", 3))
-    db_max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", 2))
-    
+    # Pool sizing: Supabase pgBouncer runs in transaction pooling mode.
+    # session-level SET commands (e.g. statement_timeout via `options=`) are
+    # silently discarded by pgBouncer because each transaction gets a fresh
+    # backend connection.  Use execution_options(schema_translate_map=None) and
+    # set statement_timeout at the Supabase dashboard level, OR pass it via
+    # connect_args only when pgBouncer is bypassed (direct connection string).
+    #
+    # Pool math (per process):
+    #   Web process:    sync=5 + overflow=3  → up to  8 connections
+    #   Celery worker:  sync=3 + overflow=2  → up to  5 connections
+    #   async engine:   async=3 + overflow=2 → up to  5 connections
+    # Supabase Free allows ~60 direct; pgBouncer multiplexes further.
+    # Set DB_POOL_SIZE / DB_MAX_OVERFLOW env vars to tune per deployment tier.
+    db_pool_size    = int(os.environ.get("DB_POOL_SIZE",    5))
+    db_max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", 3))
+
     _connect_args = {
         "sslmode": "require",
         "connect_timeout": 15,
-        "options": "-c statement_timeout=30000",  # 30 s hard kill for runaway queries
+        # statement_timeout only works on direct (non-pgBouncer) connections.
+        # Keep it here as a safety net; set it in Supabase dashboard too.
+        "options": "-c statement_timeout=30000",
     }
     engine = create_engine(
         DATABASE_URL,
         connect_args=_connect_args,
         pool_pre_ping=True,
-        pool_recycle=300,      # recycle stale connections every 5 min (was 10 min)
+        pool_recycle=300,
         pool_size=db_pool_size,
         max_overflow=db_max_overflow,
-        pool_timeout=20,       # wait max 20 s for a free connection before raising
+        pool_timeout=30,   # raised from 20s: avoids spurious timeouts during cold-start
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -55,14 +68,14 @@ _REPLICA_URL = os.environ.get("DATABASE_REPLICA_URL") or DATABASE_URL
 
 if not _is_sqlite:
     _async_url = _REPLICA_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-    async_pool_size = int(os.environ.get("DB_ASYNC_POOL_SIZE", 2))
-    async_max_overflow = int(os.environ.get("DB_ASYNC_MAX_OVERFLOW", 1))
-    
+    async_pool_size    = int(os.environ.get("DB_ASYNC_POOL_SIZE",    3))
+    async_max_overflow = int(os.environ.get("DB_ASYNC_MAX_OVERFLOW", 2))
+
     async_engine = create_async_engine(
         _async_url,
         connect_args={"ssl": "require"},
         pool_pre_ping=True,
-        pool_recycle=300,  # was 600
+        pool_recycle=300,
         pool_size=async_pool_size,
         max_overflow=async_max_overflow,
     )

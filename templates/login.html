@@ -76,7 +76,8 @@
             .login-card { padding: 28px 20px; margin: 16px; }
         }
     </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
 </head>
 <body>
     <div class="login-card">

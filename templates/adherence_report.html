@@ -89,8 +89,10 @@
       .flag-pill { font-size: 0.68rem; padding: 3px 8px; }
     }
     </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
 </head>
 <body>
 

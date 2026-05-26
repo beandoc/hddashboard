@@ -5,8 +5,10 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard — {{ data.month_label }} | HD Dashboard</title>
-  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+  <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+  <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+  <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+  <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
   <link rel="stylesheet" href="/static/css/clinical.css"/>
   <link rel="stylesheet" href="/static/css/pages/dashboard.css"/>
   <!-- Preload hint so browser fetches Plotly in parallel with page render -->

@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime, Text,
-    ForeignKey, UniqueConstraint,
+    ForeignKey, UniqueConstraint, LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -102,6 +102,8 @@ class ModelArtifact(Base):
     metrics_json        = Column(Text, nullable=True)
     feature_schema_json = Column(Text, nullable=True)
     artifact_path       = Column(String, nullable=True)
+    # Serialised joblib bytes — survives container redeploys on ephemeral filesystems.
+    model_binary        = Column(LargeBinary, nullable=True)
     created_at          = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 

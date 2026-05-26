@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Statistical Analysis – Research Hub</title>    <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
+    <title>Statistical Analysis – Research Hub</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -190,8 +190,10 @@
             .config-panel, .results-panel { padding: 16px; }
         }
     </style>
-    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
-    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
 </head>
 <body>
     {% include "_nav.html" %}
@@ -329,6 +331,7 @@
 
     </div>
 
+    <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
     <script>
         let currentTest = 'descriptive';
 

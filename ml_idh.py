@@ -184,6 +184,29 @@ def _slope(values: List[float]) -> float:
     return num / den if den != 0 else 0.0
 
 
+def _month_to_int(month_str: Optional[str]) -> Optional[int]:
+    if not month_str:
+        return None
+    try:
+        parts = str(month_str).split("-")
+        return int(parts[0]) * 12 + int(parts[1])
+    except Exception:
+        return None
+
+
+def _slope_with_x(points: List[tuple[float, float]]) -> float:
+    """Ordinary-least-squares slope for a 2-D sequence of (x, y) coordinates."""
+    clean = [(x, y) for x, y in points if y is not None and not math.isnan(y)]
+    if len(clean) < 2:
+        return 0.0
+    n = len(clean)
+    xm = sum(p[0] for p in clean) / n
+    ym = sum(p[1] for p in clean) / n
+    num = sum((p[0] - xm) * (p[1] - ym) for p in clean)
+    den = sum((p[0] - xm) ** 2 for p in clean)
+    return num / den if den != 0 else 0.0
+
+
 # ── IDH label logic ───────────────────────────────────────────────────────────
 
 def _compute_idh_label(session) -> int:
@@ -265,21 +288,6 @@ def _build_idh_feature_vector(
         uf_rate_ml_kg_h             = uf_rate_ml_kg_h if uf_rate_ml_kg_h is not None else 8.0
         uf_achievement_ratio        = uf_achievement_ratio if uf_achievement_ratio is not None else 1.0
         diastolic_dysfunction_grade = diastolic_dysfunction_grade if diastolic_dysfunction_grade is not None else 0.0
-        hd_frequency                = hd_frequency if hd_frequency is not None else 3.0
-        dialysis_vintage            = dialysis_vintage if dialysis_vintage is not None else 365.0
-        hb                          = hb if hb is not None else 10.0
-        calcium                     = calcium if calcium is not None else 9.0
-        phosphorus                  = phosphorus if phosphorus is not None else 4.5
-        prev_muscle_cramps          = prev_muscle_cramps if prev_muscle_cramps is not None else 0.0
-        prev_nausea_vomiting        = prev_nausea_vomiting if prev_nausea_vomiting is not None else 0.0
-        prev_giddiness              = prev_giddiness if prev_giddiness is not None else 0.0
-        prev_recovery_time          = prev_recovery_time if prev_recovery_time is not None else 120.0
-        prev_blood_flow_rate        = prev_blood_flow_rate if prev_blood_flow_rate is not None else 250.0
-        prev_arterial_pressure      = prev_arterial_pressure if prev_arterial_pressure is not None else -150.0
-        prev_venous_pressure        = prev_venous_pressure if prev_venous_pressure is not None else 150.0
-        heart_rate_variation        = heart_rate_variation if heart_rate_variation is not None else 0.0
-        prior_dialysate_temp_mean   = prior_dialysate_temp_mean if prior_dialysate_temp_mean is not None else 37.0
-        prior_dialysate_sodium_mean = prior_dialysate_sodium_mean if prior_dialysate_sodium_mean is not None else 138.0
 
     alb_safe = max(albumin or 0.1, 0.1)
     uf_rate_albumin_ratio = (uf_rate_ml_kg_h or 0.0) / alb_safe
@@ -313,21 +321,21 @@ def _build_idh_feature_vector(
         float(uf_rate_albumin_ratio),
         
         # 15 new clinical features
-        float(hd_frequency if hd_frequency is not None else 3.0),
-        float(dialysis_vintage if dialysis_vintage is not None else 365.0),
-        float(hb if hb is not None else 10.0),
-        float(calcium if calcium is not None else 9.0),
-        float(phosphorus if phosphorus is not None else 4.5),
-        float(prev_muscle_cramps or 0.0),
-        float(prev_nausea_vomiting or 0.0),
-        float(prev_giddiness or 0.0),
-        float(prev_recovery_time if prev_recovery_time is not None else 120.0),
-        float(prev_blood_flow_rate if prev_blood_flow_rate is not None else 250.0),
-        float(prev_arterial_pressure if prev_arterial_pressure is not None else -150.0),
-        float(prev_venous_pressure if prev_venous_pressure is not None else 150.0),
-        float(heart_rate_variation if heart_rate_variation is not None else 0.0),
-        float(prior_dialysate_temp_mean if prior_dialysate_temp_mean is not None else 37.0),
-        float(prior_dialysate_sodium_mean if prior_dialysate_sodium_mean is not None else 138.0),
+        float(hd_frequency) if hd_frequency is not None else None,
+        float(dialysis_vintage) if dialysis_vintage is not None else None,
+        float(hb) if hb is not None else None,
+        float(calcium) if calcium is not None else None,
+        float(phosphorus) if phosphorus is not None else None,
+        float(prev_muscle_cramps) if prev_muscle_cramps is not None else None,
+        float(prev_nausea_vomiting) if prev_nausea_vomiting is not None else None,
+        float(prev_giddiness) if prev_giddiness is not None else None,
+        float(prev_recovery_time) if prev_recovery_time is not None else None,
+        float(prev_blood_flow_rate) if prev_blood_flow_rate is not None else None,
+        float(prev_arterial_pressure) if prev_arterial_pressure is not None else None,
+        float(prev_venous_pressure) if prev_venous_pressure is not None else None,
+        float(heart_rate_variation) if heart_rate_variation is not None else None,
+        float(prior_dialysate_temp_mean) if prior_dialysate_temp_mean is not None else None,
+        float(prior_dialysate_sodium_mean) if prior_dialysate_sodium_mean is not None else None,
     ]
 
 
@@ -350,7 +358,7 @@ def _extract_idh_features_for_training(
 
     # ── Patient static features ───────────────────────────────────────────────
     age   = float(p.age or 60)
-    dm    = 1.0 if p.dm_status and "type" in str(p.dm_status).lower() else 0.0
+    dm    = 0.0 if not p.dm_status or str(p.dm_status).strip().lower() in ("", "none", "no", "0", "false", "n") else 1.0
     chf   = float(p.chf_status or 0)
     cad   = float(p.cad_status or 0)
     pvd   = float(p.history_of_pvd or 0)
@@ -369,12 +377,12 @@ def _extract_idh_features_for_training(
     # IDWG = weight_pre this session − weight_post of previous session
     idwg_kg = None
     if past_sessions and past_sessions[0].weight_post is not None and session.weight_pre is not None:
-        idwg_kg = session.weight_pre - past_sessions[0].weight_post
+        idwg_kg = max(0.0, session.weight_pre - past_sessions[0].weight_post)
 
     uf_vol  = session.uf_volume
     hours   = (session.duration_hours or 4) + (session.duration_minutes or 0) / 60.0
-    dry_wt  = p.dry_weight or 70.0
-    uf_rate = (uf_vol / dry_wt / hours) if (uf_vol and hours > 0) else None
+    actual_wt = session.weight_pre or p.dry_weight or 70.0
+    uf_rate = (uf_vol / actual_wt / hours) if (uf_vol and hours > 0) else None
     dt      = session.dialysate_temperature
     ds      = session.dialysate_sodium
     antihyp_prehd = float(session.antihypertensive_taken_prehd or 0)
@@ -402,8 +410,13 @@ def _extract_idh_features_for_training(
     # ── Albumin 3-month slope ─────────────────────────────────────────────────
     alb_slope = 0.0
     if monthly_records_3mo and len(monthly_records_3mo) >= 2:
-        alb_vals = [r.albumin for r in monthly_records_3mo if r.albumin is not None]
-        alb_slope = _slope(list(reversed(alb_vals)))  # oldest first
+        points = []
+        for r in monthly_records_3mo:
+            m_val = _month_to_int(getattr(r, "record_month", None))
+            a_val = getattr(r, "albumin", None)
+            if m_val is not None and a_val is not None:
+                points.append((m_val, float(a_val)))
+        alb_slope = _slope_with_x(points)
 
     # ── 15 New Clinical Features (Training / ORM) ─────────────────────────────
     hd_frequency = float(p.hd_frequency) if p.hd_frequency is not None else None
@@ -437,10 +450,26 @@ def _extract_idh_features_for_training(
                 prev_giddiness = 0.0
             if sr.dialysis_recovery_time_mins is not None:
                 prev_recovery_time = float(sr.dialysis_recovery_time_mins)
+        else:
+            prev_giddiness = 0.0
+            prev_recovery_time = None
         
-        prev_blood_flow_rate = prev.actual_blood_flow_rate if prev.actual_blood_flow_rate is not None else prev.blood_flow_rate
-        prev_arterial_pressure = prev.arterial_line_pressure
-        prev_venous_pressure = prev.venous_line_pressure
+        # Scan back for the actual values entered by the user
+        for s in past_sessions:
+            bfr_val = s.actual_blood_flow_rate if s.actual_blood_flow_rate is not None else s.blood_flow_rate
+            if bfr_val is not None:
+                prev_blood_flow_rate = float(bfr_val)
+                break
+        
+        for s in past_sessions:
+            if s.arterial_line_pressure is not None:
+                prev_arterial_pressure = float(s.arterial_line_pressure)
+                break
+                
+        for s in past_sessions:
+            if s.venous_line_pressure is not None:
+                prev_venous_pressure = float(s.venous_line_pressure)
+                break
 
     heart_rate_variation = None
 
@@ -516,7 +545,7 @@ def _extract_idh_features_for_inference(
 
     # ── Patient features ──────────────────────────────────────────────────────
     age   = float(pi.get("age") or 60)
-    dm    = 1.0 if pi.get("dm_status") and "type" in str(pi.get("dm_status", "")).lower() else 0.0
+    dm    = 0.0 if not pi.get("dm_status") or str(pi.get("dm_status")).strip().lower() in ("", "none", "no", "0", "false", "n") else 1.0
     chf   = float(pi.get("chf_status") or 0)
     cad   = float(pi.get("cad_status") or 0)
     pvd   = float(pi.get("history_of_pvd") or 0)
@@ -533,8 +562,9 @@ def _extract_idh_features_for_inference(
     pre_sbp = sp.get("pre_hd_sbp")
     uf_vol  = sp.get("uf_volume")
     hours   = (sp.get("duration_hours") or 4) + (sp.get("duration_minutes") or 0) / 60.0
-    dry_wt  = float(pi.get("dry_weight") or 70.0)
-    uf_rate = (uf_vol / dry_wt / hours) if (uf_vol and hours > 0) else None
+    weight_pre = sp.get("weight_pre")
+    actual_wt = float(weight_pre) if weight_pre is not None else float(pi.get("dry_weight") or 70.0)
+    uf_rate = (uf_vol / actual_wt / hours) if (uf_vol and hours > 0) else None
     dt      = sp.get("dialysate_temp")
     ds      = sp.get("dialysate_sodium")
     antihyp_prehd = float(sp.get("antihypertensive_prehd") or 0)
@@ -546,7 +576,7 @@ def _extract_idh_features_for_inference(
     if past_sessions_list:
         prev_wt_post = past_sessions_list[0].get("weight_post") if isinstance(past_sessions_list[0], dict) else getattr(past_sessions_list[0], "weight_post", None)
         if prev_wt_post is not None and weight_pre is not None:
-            idwg_kg = float(weight_pre) - float(prev_wt_post)
+            idwg_kg = max(0.0, float(weight_pre) - float(prev_wt_post))
 
     # UF achievement ratio from previous session
     uf_achiev = 1.0
@@ -586,13 +616,14 @@ def _extract_idh_features_for_inference(
     sbp_slope = _slope(list(reversed(pre_sbps_hist)))
 
     alb_slope = 0.0
-    if len(mr3) >= 2:
-        alb_vals = []
+    if mr3 and len(mr3) >= 2:
+        points = []
         for r in mr3:
-            v = r.get("albumin") if isinstance(r, dict) else getattr(r, "albumin", None)
-            if v is not None:
-                alb_vals.append(v)
-        alb_slope = _slope(list(reversed(alb_vals)))
+            m_val = _month_to_int(_get(r, "record_month"))
+            a_val = _get(r, "albumin")
+            if m_val is not None and a_val is not None:
+                points.append((m_val, float(a_val)))
+        alb_slope = _slope_with_x(points)
 
     # ── 15 New Clinical Features (Inference / Dict) ───────────────────────────
     hd_frequency = pi.get("hd_frequency")
@@ -673,19 +704,34 @@ def _extract_idh_features_for_inference(
         if recovery_time_val is not None:
             prev_recovery_time = float(recovery_time_val)
 
-        prev_bfr = _get(prev, "actual_blood_flow_rate")
-        if prev_bfr is None:
-            prev_bfr = _get(prev, "blood_flow_rate")
+        prev_bfr = None
+        for s in past_sessions_list:
+            bfr_val = _get(s, "actual_blood_flow_rate")
+            if bfr_val is None:
+                bfr_val = _get(s, "blood_flow_rate")
+            if bfr_val is not None:
+                prev_bfr = float(bfr_val)
+                break
         if prev_bfr is not None:
-            prev_blood_flow_rate = float(prev_bfr)
+            prev_blood_flow_rate = prev_bfr
 
-        prev_ap = _get(prev, "arterial_line_pressure")
+        prev_ap = None
+        for s in past_sessions_list:
+            ap_val = _get(s, "arterial_line_pressure")
+            if ap_val is not None:
+                prev_ap = float(ap_val)
+                break
         if prev_ap is not None:
-            prev_arterial_pressure = float(prev_ap)
+            prev_arterial_pressure = prev_ap
 
-        prev_vp = _get(prev, "venous_line_pressure")
+        prev_vp = None
+        for s in past_sessions_list:
+            vp_val = _get(s, "venous_line_pressure")
+            if vp_val is not None:
+                prev_vp = float(vp_val)
+                break
         if prev_vp is not None:
-            prev_venous_pressure = float(prev_vp)
+            prev_venous_pressure = prev_vp
 
     heart_rate_variation = None
 
@@ -737,20 +783,76 @@ def _extract_idh_features_for_inference(
 
 # ── Model cache ───────────────────────────────────────────────────────────────
 
-_IDH_MODEL      = None
+_IDH_MODEL       = None
 _IDH_MODEL_MTIME = 0
+
+
+def _restore_model_from_db() -> bool:
+    """Write the latest IDH model binary and metadata from the DB to local disk.
+
+    Called when the local .joblib or json file is missing (e.g. after a container
+    redeploy wipes the ephemeral filesystem).  Returns True if restored.
+    """
+    if not _JOBLIB_AVAILABLE:
+        return False
+    try:
+        from database import SessionLocal as _SL, ModelArtifact as _MA
+        _db = _SL()
+        try:
+            art = (
+                _db.query(_MA)
+                .filter(_MA.model_name == "idh_v1", _MA.model_binary.isnot(None))
+                .order_by(_MA.trained_at.desc())
+                .first()
+            )
+            if art is None or not art.model_binary:
+                return False
+            with open(_IDH_MODEL_PATH, "wb") as f:
+                f.write(art.model_binary)
+            logger.info("IDH model restored from DB (version=%s)", art.version)
+
+            # Recreate the idh_model_meta.json file from DB metrics
+            try:
+                metrics = json.loads(art.metrics_json) if art.metrics_json else {}
+                meta = {
+                    "trained_at": art.version,
+                    "algorithm": metrics.get("algorithm", "XGBoost (calibrated)" if _XGB_AVAILABLE else "LogisticRegression (calibrated)"),
+                    "n_samples": metrics.get("n_samples"),
+                    "n_events": metrics.get("n_events"),
+                    "event_rate": round(metrics.get("n_events") / metrics.get("n_samples"), 4) if metrics.get("n_samples") and metrics.get("n_events") is not None else 0.0,
+                    "events_per_feature": metrics.get("epf"),
+                    "overfitting_risk": metrics.get("epf", 10.0) < _EPF_WARN if metrics.get("epf") is not None else False,
+                    "cv_auc": metrics.get("cv_auc"),
+                    "cv_auc_uncalibrated": metrics.get("cv_auc_uncalibrated"),
+                    "auc_warning": metrics.get("cv_auc", 1.0) < 0.65 if metrics.get("cv_auc") is not None else False,
+                    "feature_names": IDH_FEATURE_NAMES,
+                }
+                with open(_IDH_META_PATH, "w") as f:
+                    json.dump(meta, f, indent=2)
+                logger.info("IDH model metadata restored from DB")
+            except Exception as meta_exc:
+                logger.warning("Failed to restore IDH model metadata from DB: %s", meta_exc)
+
+            return True
+        finally:
+            _db.close()
+    except Exception as exc:
+        logger.warning("IDH model DB restore failed: %s", exc)
+        return False
 
 
 def _load_idh_model():
     global _IDH_MODEL, _IDH_MODEL_MTIME
-    if not os.path.exists(_IDH_MODEL_PATH):
+    if not _JOBLIB_AVAILABLE:
         return None
+    # If the local file or meta file is missing, attempt to restore it from the database.
+    if not os.path.exists(_IDH_MODEL_PATH) or not os.path.exists(_IDH_META_PATH):
+        if not _restore_model_from_db():
+            return None
     try:
         mtime = os.path.getmtime(_IDH_MODEL_PATH)
         if _IDH_MODEL is not None and mtime <= _IDH_MODEL_MTIME:
             return _IDH_MODEL
-        if not _JOBLIB_AVAILABLE:
-            return None
         _IDH_MODEL       = joblib.load(_IDH_MODEL_PATH)
         _IDH_MODEL_MTIME = mtime
         return _IDH_MODEL
@@ -791,49 +893,71 @@ def train_idh_model(db) -> dict:
     Requires ≥ _MIN_EVENTS (130) IDH events for a trained model;
     returns an informative error otherwise.
     """
-    from sqlalchemy.orm import Session as _Session
+    from sqlalchemy.orm import Session as _Session, joinedload
     from database import Patient, SessionRecord, MonthlyRecord
 
     if not (_SKLEARN_AVAILABLE and _JOBLIB_AVAILABLE):
         return {"success": False, "error": "scikit-learn or joblib not installed."}
 
-    # ── 1. Load all active patients ────────────────────────────────────────────
-    patients = db.query(Patient).filter(Patient.is_active == True).all()
+    # ── 1. Bulk-load all data in 3 queries (replaces N+1 per-patient queries) ──
+    patients = (
+        db.query(Patient)
+        .options(
+            joinedload(Patient.comorbidity_profile),
+            joinedload(Patient.cardiac),
+        )
+        .filter(Patient.is_active == True)
+        .all()
+    )
+    if not patients:
+        return {"success": False, "error": "No active patients found."}
+
+    patient_ids = [p.id for p in patients]
+    patient_map = {p.id: p for p in patients}
+
+    all_sessions = (
+        db.query(SessionRecord)
+        .options(joinedload(SessionRecord.symptom_report))
+        .filter(SessionRecord.patient_id.in_(patient_ids))
+        .order_by(SessionRecord.patient_id, SessionRecord.session_date.asc())
+        .all()
+    )
+    all_monthly = (
+        db.query(MonthlyRecord)
+        .filter(MonthlyRecord.patient_id.in_(patient_ids))
+        .order_by(MonthlyRecord.patient_id, MonthlyRecord.record_month.desc())
+        .all()
+    )
+
+    # Group into per-patient dicts for O(1) lookup during feature extraction.
+    from collections import defaultdict
+    sessions_by_patient: dict = defaultdict(list)
+    for s in all_sessions:
+        sessions_by_patient[s.patient_id].append(s)
+
+    monthly_by_patient: dict = defaultdict(list)
+    for r in all_monthly:
+        monthly_by_patient[r.patient_id].append(r)
 
     X, y = [], []
     skipped_patients = 0
 
-    for patient in patients:
-        # Fetch all sessions ordered oldest first
-        sessions = (
-            db.query(SessionRecord)
-            .filter(SessionRecord.patient_id == patient.id)
-            .order_by(SessionRecord.session_date.asc())
-            .all()
-        )
+    for pid, patient in patient_map.items():
+        sessions    = sessions_by_patient[pid]   # already sorted asc by session_date
+        monthly_recs = monthly_by_patient[pid]   # already sorted desc by record_month
+
         if len(sessions) < 2:
             skipped_patients += 1
             continue
 
-        # Fetch monthly records for this patient (sorted desc for 3-month window)
-        monthly_recs = (
-            db.query(MonthlyRecord)
-            .filter(MonthlyRecord.patient_id == patient.id)
-            .order_by(MonthlyRecord.record_month.desc())
-            .all()
-        )
         monthly_by_month = {r.record_month: r for r in monthly_recs}
 
         for i, sess in enumerate(sessions):
-            # Need at least 1 past session for temporal features
             if i == 0:
                 continue
             past = list(reversed(sessions[:i]))   # sorted desc (newest-past first)
 
-            # Match monthly record to this session's month
-            mr = monthly_by_month.get(sess.record_month)
-
-            # 3-month albumin records (latest 3)
+            mr  = monthly_by_month.get(sess.record_month)
             mr3 = monthly_recs[:3]
 
             try:
@@ -904,15 +1028,40 @@ def train_idh_model(db) -> dict:
                 random_state=42,
                 verbosity=0,
             )
-            # Wrap in sklearn pipeline for imputation
             pipe = Pipeline([
                 ("imputer", SimpleImputer(strategy="median")),
                 ("xgb", base_xgb),
             ])
-            cv_probs  = cross_val_predict(pipe, X_arr, y_arr, cv=cv, method="predict_proba")
-            cv_auc    = round(float(roc_auc_score(y_arr, cv_probs[:, 1])), 3)
+            # cv_auc_uncalibrated: discrimination of the raw XGBoost pipeline.
+            cv_probs_raw      = cross_val_predict(pipe, X_arr, y_arr, cv=cv, method="predict_proba")
+            cv_auc_uncalib    = round(float(roc_auc_score(y_arr, cv_probs_raw[:, 1])), 3)
+
+            # cv_auc: AUC of the calibrated model via manual cross-validation split (no leakage, no 2x CV speed issue)
+            cv_probs = np.zeros(len(y_arr))
+            for train_idx, val_idx in cv.split(X_arr, y_arr):
+                X_train, y_train = X_arr[train_idx], y_arr[train_idx]
+                X_val, y_val = X_arr[val_idx], y_arr[val_idx]
+                
+                from sklearn.base import clone
+                fold_pipe = clone(pipe)
+                
+                n_events_train = int(sum(y_train))
+                inner_cv = min(3, n_events_train) if n_events_train >= 3 else 2
+                
+                fold_cal = CalibratedClassifierCV(
+                    fold_pipe,
+                    cv=inner_cv,
+                    method="isotonic" if len(y_train) >= 50 else "sigmoid"
+                )
+                fold_cal.fit(X_train, y_train)
+                cv_probs[val_idx] = fold_cal.predict_proba(X_val)[:, 1]
+                
+            cv_auc = round(float(roc_auc_score(y_arr, cv_probs)), 3)
+
+            # cal_model: full fit on all data (used for inference).
             cal_model = CalibratedClassifierCV(pipe, cv=n_folds, method="isotonic" if n_samples >= 50 else "sigmoid")
             cal_model.fit(X_arr, y_arr)
+
         algorithm = "XGBoost (calibrated)"
 
     else:
@@ -926,19 +1075,45 @@ def train_idh_model(db) -> dict:
                 solver="lbfgs", max_iter=1000,
             )),
         ])
-        cv_probs  = cross_val_predict(base_lr, X_arr, y_arr, cv=cv, method="predict_proba")
-        cv_auc    = round(float(roc_auc_score(y_arr, cv_probs[:, 1])), 3)
+        cv_probs_raw   = cross_val_predict(base_lr, X_arr, y_arr, cv=cv, method="predict_proba")
+        cv_auc_uncalib = round(float(roc_auc_score(y_arr, cv_probs_raw[:, 1])), 3)
+
+        # cv_auc: AUC of the calibrated model via manual cross-validation split
+        cv_probs = np.zeros(len(y_arr))
+        for train_idx, val_idx in cv.split(X_arr, y_arr):
+            X_train, y_train = X_arr[train_idx], y_arr[train_idx]
+            X_val, y_val = X_arr[val_idx], y_arr[val_idx]
+            
+            from sklearn.base import clone
+            fold_lr = clone(base_lr)
+            
+            n_events_train = int(sum(y_train))
+            inner_cv = min(3, n_events_train) if n_events_train >= 3 else 2
+            
+            fold_cal = CalibratedClassifierCV(fold_lr, cv=inner_cv, method="sigmoid")
+            fold_cal.fit(X_train, y_train)
+            cv_probs[val_idx] = fold_cal.predict_proba(X_val)[:, 1]
+            
+        cv_auc = round(float(roc_auc_score(y_arr, cv_probs)), 3)
+
         cal_model = CalibratedClassifierCV(base_lr, cv=n_folds, method="sigmoid")
         cal_model.fit(X_arr, y_arr)
+        
         algorithm = "LogisticRegression (calibrated, XGBoost unavailable)"
 
     auc_warning = cv_auc < 0.65 or overfitting_risk
 
     # ── 3. Persist model ───────────────────────────────────────────────────────
-    import hashlib as _hl, json as _js
+    import hashlib as _hl, json as _js, io as _io
     global _IDH_MODEL
     joblib.dump(cal_model, _IDH_MODEL_PATH, compress=3)
-    _IDH_MODEL = None   # invalidate cache
+    _IDH_MODEL = None   # invalidate in-process cache
+
+    # Capture the compressed bytes for DB storage so the model survives
+    # container redeployments on ephemeral filesystems.
+    _model_buf = _io.BytesIO()
+    joblib.dump(cal_model, _model_buf, compress=3)
+    _model_bytes = _model_buf.getvalue()
 
     from datetime import datetime as _dt
     trained_at_str = _dt.now().isoformat(timespec="seconds")
@@ -947,19 +1122,24 @@ def train_idh_model(db) -> dict:
     ).hexdigest()
 
     meta = {
-        "trained_at":         trained_at_str,
-        "algorithm":          algorithm,
-        "n_samples":          n_samples,
-        "n_events":           n_events,
-        "event_rate":         event_rate,
-        "events_per_feature": epf,
-        "overfitting_risk":   overfitting_risk,
-        "n_folds":            n_folds,
-        "cv_auc":             cv_auc,
-        "auc_warning":        auc_warning,
-        "feature_names":      IDH_FEATURE_NAMES,
-        "skipped_patients":   skipped_patients,
-        "training_data_hash": training_data_hash,
+        "trained_at":              trained_at_str,
+        "algorithm":               algorithm,
+        "n_samples":               n_samples,
+        "n_events":                n_events,
+        "event_rate":              event_rate,
+        "events_per_feature":      epf,
+        "overfitting_risk":        overfitting_risk,
+        "n_folds":                 n_folds,
+        # cv_auc: cross-validated AUC of the *calibrated* model — this is what
+        # is deployed and what the reported metric should reflect.
+        "cv_auc":                  cv_auc,
+        # cv_auc_uncalibrated: AUC of the base pipeline before calibration,
+        # kept for diagnostic comparison only.
+        "cv_auc_uncalibrated":     cv_auc_uncalib,
+        "auc_warning":             auc_warning,
+        "feature_names":           IDH_FEATURE_NAMES,
+        "skipped_patients":        skipped_patients,
+        "training_data_hash":      training_data_hash,
         "data_quality_note":  (
             f"EPF={epf:.1f} (need ≥{_EPF_WARN} for reliable estimates). "
             + ("⚠ Overfitting risk." if overfitting_risk else "EPF adequate.")
@@ -968,7 +1148,7 @@ def train_idh_model(db) -> dict:
     with open(_IDH_META_PATH, "w") as f:
         json.dump(meta, f, indent=2)
 
-    # ── 4. Register ModelArtifact ──────────────────────────────────────────────
+    # ── 4. Register ModelArtifact (with binary blob) ───────────────────────────
     try:
         from database import SessionLocal as _SL, ModelArtifact as _MA
         from datetime import datetime as _dt2
@@ -980,11 +1160,16 @@ def train_idh_model(db) -> dict:
                 trained_at          = _dt2.fromisoformat(trained_at_str),
                 training_data_hash  = training_data_hash,
                 metrics_json        = json.dumps({
-                    "cv_auc": cv_auc, "n_samples": n_samples,
-                    "n_events": n_events, "epf": epf, "algorithm": algorithm,
+                    "cv_auc": cv_auc,
+                    "cv_auc_uncalibrated": cv_auc_uncalib,
+                    "n_samples": n_samples,
+                    "n_events": n_events,
+                    "epf": epf,
+                    "algorithm": algorithm,
                 }),
                 feature_schema_json = json.dumps(IDH_FEATURE_NAMES),
                 artifact_path       = os.path.relpath(_IDH_MODEL_PATH),
+                model_binary        = _model_bytes,
             )
             _art_db.add(art)
             _art_db.commit()
@@ -1267,7 +1452,7 @@ def compute_idh_risk(
 
     if model is not None:
         try:
-            prob       = float(model.predict_proba(np.array([feats]))[0][1])
+            prob       = float(model.predict_proba(np.array([feats], dtype=float))[0][1])
             risk_pct   = round(prob * 100, 1)
             risk_level = _prob_to_risk_level(prob)
 

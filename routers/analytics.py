@@ -10,15 +10,38 @@ from database import get_db, SessionLocal, Patient, ClinicalEvent, SessionRecord
 from config import templates
 from dependencies import get_user, _require_analytics_access
 from dashboard_logic import compute_dashboard, get_current_month_str, get_effective_month
-from ml_analytics import (
-    run_patient_analytics, analyze_bfr_trend, analyze_idwg_velocity,
-    analyze_pds, analyze_mia_cascade,
-    analyze_cardiorenal_cascade, analyze_avf_maturation, detect_occult_overload,
-    get_deterioration_model_status,
-    get_all_patients_mortality_risk,
-)
-from ml_risk import get_deterioration_model_status  # noqa: F811 (re-export for admin endpoint)
-from ml_idh import get_idh_model_status, compute_idh_risk
+# Heavy ML modules are deferred to first use so they don't block startup.
+# The _LazyModule proxy is transparent — attr access triggers the real import
+# exactly once, then delegates every subsequent access directly to the module.
+class _LazyModule:
+    __slots__ = ("_name", "_mod")
+    def __init__(self, name): self._name = name; self._mod = None
+    def __getattr__(self, attr):
+        if attr in ("_name", "_mod"): raise AttributeError(attr)
+        if self._mod is None:
+            import importlib
+            object.__setattr__(self, "_mod", importlib.import_module(self._name))
+        return getattr(self._mod, attr)
+
+_ml_analytics = _LazyModule("ml_analytics")
+_ml_risk      = _LazyModule("ml_risk")
+_ml_idh       = _LazyModule("ml_idh")
+
+# Local aliases — same names the handlers already use, zero handler changes needed.
+def run_patient_analytics(*a, **kw):      return _ml_analytics.run_patient_analytics(*a, **kw)
+def analyze_bfr_trend(*a, **kw):          return _ml_analytics.analyze_bfr_trend(*a, **kw)
+def analyze_idwg_velocity(*a, **kw):      return _ml_analytics.analyze_idwg_velocity(*a, **kw)
+def analyze_pds(*a, **kw):                return _ml_analytics.analyze_pds(*a, **kw)
+def analyze_mia_cascade(*a, **kw):        return _ml_analytics.analyze_mia_cascade(*a, **kw)
+def analyze_cardiorenal_cascade(*a, **kw): return _ml_analytics.analyze_cardiorenal_cascade(*a, **kw)
+def analyze_avf_maturation(*a, **kw):     return _ml_analytics.analyze_avf_maturation(*a, **kw)
+def detect_occult_overload(*a, **kw):     return _ml_analytics.detect_occult_overload(*a, **kw)
+def get_all_patients_mortality_risk(*a, **kw): return _ml_analytics.get_all_patients_mortality_risk(*a, **kw)
+def run_cohort_analytics(*a, **kw):       return _ml_analytics.run_cohort_analytics(*a, **kw)
+def get_deterioration_model_status(*a, **kw): return _ml_risk.get_deterioration_model_status(*a, **kw)
+def get_idh_model_status(*a, **kw):       return _ml_idh.get_idh_model_status(*a, **kw)
+def compute_idh_risk(*a, **kw):           return _ml_idh.compute_idh_risk(*a, **kw)
+
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
 logger = logging.getLogger(__name__)

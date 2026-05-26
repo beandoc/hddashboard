@@ -5,13 +5,79 @@ Core clinical calculation logic for the Hemodialysis Dashboard.
 Locked - Do not modify without clinical validation.
 """
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, text
 from database import Patient, MonthlyRecord, InterimLabRecord, SessionRecord, ClinicalEvent
 from datetime import datetime, timedelta
 import logging
 from ml_analytics import normalize_epo_dose
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_recent_n_sessions(
+    db: Session,
+    patient_ids: list,
+    n: int = 5,
+) -> dict:
+    """Return {patient_id: [SessionRecord, ...]} for the N most-recent sessions
+    per patient, using a single server-side query.
+
+    On Postgres (Supabase) this compiles to a ranked CTE that the planner can
+    push an index scan through — far cheaper than the aliased-subquery pattern
+    which materialises all rows first and filters afterwards.
+    On SQLite (dev) it falls back to the ORM window-function approach so local
+    testing still works.
+    """
+    if not patient_ids:
+        return {}
+
+    from db.engine import _is_sqlite  # local flag set in engine.py
+
+    if not _is_sqlite:
+        # Postgres path: CTE with ROW_NUMBER pushed to the server.
+        id_list = ",".join(str(int(pid)) for pid in patient_ids)
+        sql = text(f"""
+            WITH ranked AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY patient_id
+                           ORDER BY session_date DESC, id DESC
+                       ) AS rn
+                FROM session_records
+                WHERE patient_id IN ({id_list})
+            )
+            SELECT * FROM ranked WHERE rn <= :n
+        """)
+        rows = db.execute(sql, {"n": n}).mappings().all()
+        # Re-hydrate as ORM objects via identity map to preserve attribute access.
+        ids = [r["id"] for r in rows]
+        if not ids:
+            return {}
+        sessions = (
+            db.query(SessionRecord)
+            .filter(SessionRecord.id.in_(ids))
+            .all()
+        )
+    else:
+        # SQLite fallback (dev only).
+        subq = (
+            db.query(
+                SessionRecord,
+                func.row_number().over(
+                    partition_by=SessionRecord.patient_id,
+                    order_by=SessionRecord.session_date.desc(),
+                ).label("rn"),
+            )
+            .filter(SessionRecord.patient_id.in_(patient_ids))
+            .subquery()
+        )
+        session_alias = aliased(SessionRecord, subq)
+        sessions = db.query(session_alias).filter(subq.c.rn <= n).all()
+
+    result: dict = {}
+    for s in sessions:
+        result.setdefault(s.patient_id, []).append(s)
+    return result
 
 # In-memory cache for dashboard results
 _DASHBOARD_CACHE = {}
@@ -149,16 +215,12 @@ def compute_dashboard(db: Session, month: str = None):
     if not month:
         month = get_current_month_str()
 
-    # 1. Check Cache
+    # 1. Check Cache — single UNION ALL query instead of 3 separate round-trips
     global _DASHBOARD_CACHE
-    
-    # Get last modification timestamp for this month across MonthlyRecord, SessionRecord, and ClinicalEvent
-    last_mod_monthly = db.query(func.max(MonthlyRecord.timestamp)).filter(MonthlyRecord.record_month == month).scalar()
-    last_mod_session = db.query(func.max(SessionRecord.timestamp)).filter(SessionRecord.record_month == month).scalar()
-    
+
     try:
-        start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
         y, m = int(month[:4]), int(month[5:7])
+        start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
         if m == 12:
             next_month_start = datetime.strptime(f"{y+1}-01-01", "%Y-%m-%d").date()
         else:
@@ -167,36 +229,40 @@ def compute_dashboard(db: Session, month: str = None):
         logger.error(f"Month parsing error for '{month}': {e}")
         raise
 
-    last_mod_event = db.query(func.max(ClinicalEvent.created_at)).filter(
-        ClinicalEvent.event_date >= start_date,
-        ClinicalEvent.event_date < next_month_start
-    ).scalar()
+    from sqlalchemy import union_all, literal, select as sa_select, cast, DateTime
+    _mr_ts = (
+        db.query(func.max(MonthlyRecord.timestamp).label("ts"))
+        .filter(MonthlyRecord.record_month == month)
+    )
+    _sr_ts = (
+        db.query(func.max(SessionRecord.timestamp).label("ts"))
+        .filter(SessionRecord.record_month == month)
+    )
+    _ce_ts = (
+        db.query(func.max(ClinicalEvent.created_at).label("ts"))
+        .filter(
+            ClinicalEvent.event_date >= start_date,
+            ClinicalEvent.event_date < next_month_start,
+        )
+    )
+    _union = union_all(_mr_ts, _sr_ts, _ce_ts).subquery()
+    last_mod_row = db.query(func.max(_union.c.ts)).scalar()
 
-    timestamps = [ts for ts in [last_mod_monthly, last_mod_session, last_mod_event] if ts is not None]
-    if timestamps:
-        last_mod = max(timestamps)
-        last_mod_str = last_mod.isoformat()
-    else:
-        last_mod_str = "none"
-    
+    last_mod_str = last_mod_row.isoformat() if last_mod_row else "none"
     cache_key = f"{month}_{last_mod_str}_v3"
     now = datetime.utcnow()
-    
+
     if cache_key in _DASHBOARD_CACHE:
         cached_data, expiry = _DASHBOARD_CACHE[cache_key]
         if now < expiry:
             return cached_data
 
-    # 2. If not in cache or expired, compute from scratch
-    try:
-        y, m = int(month[:4]), int(month[5:7])
-        if m == 1:
-            prev_month = f"{y-1}-12"
-        else:
-            prev_month = f"{y}-{m-1:02d}"
-    except Exception as e:
-        logger.error(f"Month parsing error for '{month}': {e}")
-        raise
+    # 2. If not in cache or expired, compute from scratch.
+    # y, m, start_date, next_month_start already parsed above.
+    if m == 1:
+        prev_month = f"{y-1}-12"
+    else:
+        prev_month = f"{y}-{m-1:02d}"
 
 
     metrics = {
@@ -351,26 +417,9 @@ def compute_dashboard(db: Session, month: str = None):
         session_by_patient[s.patient_id].append(s)
 
     # Fetch the 5 most recent sessions per patient for IDH alarm
-    subq = (
-        db.query(
-            SessionRecord,
-            func.row_number().over(
-                partition_by=SessionRecord.patient_id,
-                order_by=SessionRecord.session_date.desc()
-            ).label("rn")
-        )
-        .filter(SessionRecord.patient_id.in_([p.id for p in active_patients]))
-        .subquery()
+    recent_sessions_by_patient = _fetch_recent_n_sessions(
+        db, [p.id for p in active_patients], n=5
     )
-    session_alias = aliased(SessionRecord, subq)
-    recent_5_sessions = db.query(session_alias).filter(subq.c.rn <= 5).all()
-
-    # Map patient_id -> list of SessionRecord
-    recent_sessions_by_patient = {}
-    for s in recent_5_sessions:
-        if s.patient_id not in recent_sessions_by_patient:
-            recent_sessions_by_patient[s.patient_id] = []
-        recent_sessions_by_patient[s.patient_id].append(s)
 
     # Fetch latest session date per patient for current month
     session_map = {}
@@ -457,6 +506,8 @@ def compute_dashboard(db: Session, month: str = None):
             "last_session_date": session_map.get(p.id),
             "name": p.name,
             "hid": p.hid_no,
+            "sex": p.sex,
+            "relation": p.relation,
             "has_record": r is not None,
             "has_missing_data": _has_missing_data,
             "is_admitted": is_admitted,
@@ -853,26 +904,9 @@ def get_patients_needing_alerts(db: Session, month: str = None):
     record_map = {r.patient_id: r for r in records}
 
     # Fetch the 5 most recent sessions per patient for IDH alarm
-    subq = (
-        db.query(
-            SessionRecord,
-            func.row_number().over(
-                partition_by=SessionRecord.patient_id,
-                order_by=SessionRecord.session_date.desc()
-            ).label("rn")
-        )
-        .filter(SessionRecord.patient_id.in_([p.id for p in active_patients]))
-        .subquery()
+    recent_sessions_by_patient = _fetch_recent_n_sessions(
+        db, [p.id for p in active_patients], n=5
     )
-    session_alias = aliased(SessionRecord, subq)
-    recent_5_sessions = db.query(session_alias).filter(subq.c.rn <= 5).all()
-
-    # Map patient_id -> list of SessionRecord
-    recent_sessions_by_patient = {}
-    for s in recent_5_sessions:
-        if s.patient_id not in recent_sessions_by_patient:
-            recent_sessions_by_patient[s.patient_id] = []
-        recent_sessions_by_patient[s.patient_id].append(s)
 
     result = []
     for p in active_patients:
