@@ -51,6 +51,8 @@ async def create_session(
     duration_minutes: Optional[int] = Form(None),
     weight_pre: Optional[float] = Form(None),
     weight_post: Optional[float] = Form(None),
+    uf_volume: Optional[float] = Form(None),
+    actual_uf_volume: Optional[float] = Form(None),
     bp_pre_sys: Optional[float] = Form(None),
     bp_pre_dia: Optional[float] = Form(None),
     bp_post_sys: Optional[float] = Form(None),
@@ -127,7 +129,7 @@ async def edit_session_form(session_id: int, request: Request, db: Session = Dep
 
 @session_router.post("/{session_id}/edit")
 async def update_session(
-    session_id: int, db: Session = Depends(get_db),
+    session_id: int, request: Request, db: Session = Depends(get_db),
     session_date: str = Form(...),
     blood_flow_rate: Optional[float] = Form(None),
     actual_blood_flow_rate: Optional[float] = Form(None),
@@ -137,6 +139,8 @@ async def update_session(
     duration_minutes: Optional[int] = Form(None),
     weight_pre: Optional[float] = Form(None),
     weight_post: Optional[float] = Form(None),
+    uf_volume: Optional[float] = Form(None),
+    actual_uf_volume: Optional[float] = Form(None),
     bp_pre_sys: Optional[float] = Form(None),
     bp_pre_dia: Optional[float] = Form(None),
     bp_post_sys: Optional[float] = Form(None),
@@ -195,19 +199,32 @@ async def update_session(
     try:
         kwargs = locals().copy()
         kwargs['symptoms'] = ",".join(symptoms) if symptoms else ""
+        # Remove request and db from kwargs so they aren't parsed as session field data
+        kwargs.pop("request", None)
+        kwargs.pop("db", None)
         session_service.update_session_record(db, session_id, kwargs)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
-    return RedirectResponse(url=f"/analytics/patients/{sess.patient_id}", status_code=303)
+    user = get_user(request)
+    role = getattr(user, "role", None) if not isinstance(user, dict) else user.get("role", "")
+    if role == "staff":
+        return RedirectResponse(url=f"/patients/{sess.patient_id}/profile", status_code=303)
+    else:
+        return RedirectResponse(url=f"/analytics/patients/{sess.patient_id}", status_code=303)
 
 @session_router.post("/{session_id}/delete")
-async def delete_session(session_id: int, db: Session = Depends(get_db)):
+async def delete_session(session_id: int, request: Request, db: Session = Depends(get_db)):
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
     if sess:
         pid = sess.patient_id
         db.delete(sess)
         db.commit()
-        return RedirectResponse(url=f"/analytics/patients/{pid}", status_code=303)
+        user = get_user(request)
+        role = getattr(user, "role", None) if not isinstance(user, dict) else user.get("role", "")
+        if role == "staff":
+            return RedirectResponse(url=f"/patients/{pid}/profile", status_code=303)
+        else:
+            return RedirectResponse(url=f"/analytics/patients/{pid}", status_code=303)
     return RedirectResponse(url="/patients", status_code=303)

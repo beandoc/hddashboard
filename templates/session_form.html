@@ -545,6 +545,24 @@
           </div>
         </div>
         <div>
+          <label>Ultrafiltration Target (mL)</label>
+          <input type="number" name="uf_volume" id="uf-target" step="50" inputmode="numeric"
+            placeholder="e.g. 3000"
+            value="{{ session.uf_volume if session and session.uf_volume else '' }}">
+          <div class="bfr-hint"><i class="material-icons" style="font-size:0.9rem;">info</i> Prescribed target volume</div>
+        </div>
+        <div>
+          <label>Ultrafiltration Actual (mL)</label>
+          <input type="number" name="actual_uf_volume" id="uf-actual" step="50" inputmode="numeric"
+            placeholder="e.g. 2500"
+            value="{{ session.actual_uf_volume if session and session.actual_uf_volume else '' }}">
+          <div id="uf-reduction-label" style="font-size:0.75rem; font-weight: 600; margin-top: 4px; display: none;"></div>
+          <div id="uf-reduction-bar" style="height: 6px; border-radius: 3px; background: #fee2e2; margin-top: 10px; overflow: hidden; display: none;">
+            <div id="uf-reduction-fill" style="height: 100%; border-radius: 3px; background: var(--danger); transition: width 0.3s;"></div>
+          </div>
+          <div id="ufr-calc-label" style="font-size:0.75rem; font-weight: 700; margin-top: 8px; display: none;"></div>
+        </div>
+        <div>
           <label>BP Pre Systolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
           <input type="number" name="bp_pre_sys" step="1" inputmode="numeric" required
             placeholder="e.g. 150"
@@ -904,6 +922,128 @@
   pInput.addEventListener('input', updateBfrDelta);
   aInput.addEventListener('input', updateBfrDelta);
   updateBfrDelta();
+
+  // UF reduction live indicator
+  var ufTargetInput = document.getElementById('uf-target');
+  var ufActualInput = document.getElementById('uf-actual');
+  var ufBar         = document.getElementById('uf-reduction-bar');
+  var ufFill        = document.getElementById('uf-reduction-fill');
+  var ufLabel       = document.getElementById('uf-reduction-label');
+
+  function updateUfReduction() {
+    var target = parseFloat(ufTargetInput.value);
+    var actual = parseFloat(ufActualInput.value);
+    if (isNaN(target) || isNaN(actual)) { ufBar.style.display = 'none'; ufLabel.style.display = 'none'; return; }
+    
+    var reduction = target - actual;
+    ufBar.style.display  = 'block';
+    ufLabel.style.display = 'block';
+    
+    if (reduction <= 0) {
+      ufBar.style.display = 'none';
+      ufLabel.style.color     = 'var(--success)';
+      ufLabel.textContent     = '✓ No reduction in planned ultrafiltration';
+    } else {
+      var pct = Math.round((reduction / target) * 100);
+      ufFill.style.width   = Math.min(100, pct) + '%';
+      if (pct > 20) {
+        ufFill.style.background = 'var(--danger)';
+        ufLabel.style.color     = 'var(--danger)';
+        ufLabel.textContent     = '⚠ Significant reduction: ' + reduction + ' mL (' + pct + '% drop)';
+      } else {
+        ufFill.style.background = 'var(--warning)';
+        ufLabel.style.color     = 'var(--warning)';
+        ufLabel.textContent     = '⚠ Minor reduction: ' + reduction + ' mL (' + pct + '% drop)';
+      }
+    }
+  }
+
+  ufTargetInput.addEventListener('input', updateUfReduction);
+  ufActualInput.addEventListener('input', updateUfReduction);
+  updateUfReduction();
+
+  // Auto-calculate actual UF based on weight pre/post if empty
+  var weightPreInput = document.querySelector('input[name="weight_pre"]');
+  var weightPostInput = document.querySelector('input[name="weight_post"]');
+  
+  function autoCalculateActualUf() {
+    var pre = parseFloat(weightPreInput.value);
+    var post = parseFloat(weightPostInput.value);
+    if (!isNaN(pre) && !isNaN(post)) {
+      var calculatedUf = Math.round((pre - post) * 1000);
+      if (calculatedUf > 0) {
+        // If target is empty, set it too
+        if (!ufTargetInput.value) {
+          ufTargetInput.value = calculatedUf;
+          ufTargetInput.dispatchEvent(new Event('input'));
+        }
+        // If actual is empty, set it
+        if (!ufActualInput.value) {
+          ufActualInput.value = calculatedUf;
+          ufActualInput.dispatchEvent(new Event('input'));
+        }
+      }
+    }
+  }
+  
+  weightPreInput.addEventListener('input', autoCalculateActualUf);
+  weightPostInput.addEventListener('input', autoCalculateActualUf);
+
+  // Default actual to target if actual is empty or matches target
+  var lastTargetVal = ufTargetInput.value;
+  ufTargetInput.addEventListener('input', function() {
+    var target = parseFloat(ufTargetInput.value);
+    var actual = parseFloat(ufActualInput.value);
+    if (isNaN(actual) || ufActualInput.value === lastTargetVal) {
+      if (!isNaN(target)) {
+        ufActualInput.value = ufTargetInput.value;
+      } else {
+        ufActualInput.value = '';
+      }
+      ufActualInput.dispatchEvent(new Event('input'));
+    }
+    lastTargetVal = ufTargetInput.value;
+  });
+
+  // Calculate UFR dynamically
+  var durationHoursInput = document.querySelector('input[name="duration_hours"]');
+  var durationMinutesInput = document.querySelector('input[name="duration_minutes"]');
+  var ufrLabel = document.getElementById('ufr-calc-label');
+  
+  function calculateUfrRate() {
+    var preWeight = parseFloat(weightPreInput.value);
+    var hours = parseFloat(durationHoursInput.value) || 0;
+    var minutes = parseFloat(durationMinutesInput.value) || 0;
+    var actualUf = parseFloat(ufActualInput.value);
+    
+    var totalHours = hours + (minutes / 60);
+    
+    if (isNaN(preWeight) || preWeight <= 0 || totalHours <= 0 || isNaN(actualUf)) {
+      ufrLabel.style.display = 'none';
+      return;
+    }
+    
+    var ufr = actualUf / (preWeight * totalHours);
+    ufr = Math.round(ufr * 100) / 100; // 2 decimal places
+    
+    ufrLabel.style.display = 'block';
+    if (ufr > 13) {
+      ufrLabel.style.color = 'var(--danger)';
+      ufrLabel.innerHTML = '⚠ Ultrafiltration Rate: <span style="font-size:0.85rem; font-weight:800;">' + ufr + ' mL/kg/hr</span> <span style="font-weight:600;">(High UFR > 13 increases IDH / mortality risk!)</span>';
+    } else if (ufr > 10) {
+      ufrLabel.style.color = 'var(--warning)';
+      ufrLabel.innerHTML = '⚠ Ultrafiltration Rate: <span style="font-size:0.85rem; font-weight:800;">' + ufr + ' mL/kg/hr</span> <span style="font-weight:600;">(Moderate UFR)</span>';
+    } else {
+      ufrLabel.style.color = 'var(--success)';
+      ufrLabel.innerHTML = '✓ Ultrafiltration Rate: <span style="font-size:0.85rem; font-weight:800;">' + ufr + ' mL/kg/hr</span> <span style="font-weight:600;">(Safe UFR < 10)</span>';
+    }
+  }
+
+  [weightPreInput, durationHoursInput, durationMinutesInput, ufTargetInput, ufActualInput].forEach(el => {
+    el.addEventListener('input', calculateUfrRate);
+  });
+  
+  calculateUfrRate();
 
   // Colour access-card border based on condition
   var condSelect = document.getElementById('access-condition-select');

@@ -52,18 +52,37 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
     session_date = data["session_date"]
     month_str = session_date[:7]
     
-    # Compute UF volume and rate from weight delta
+    # Compute UF volume and rate from weight delta or explicit input
     weight_pre = data.get("weight_pre")
     weight_post = data.get("weight_post")
     duration_hours = data.get("duration_hours")
     duration_minutes = data.get("duration_minutes")
-    uf_volume = None
+    
+    uf_volume = data.get("uf_volume")
+    if uf_volume is None or uf_volume == "":
+        if weight_pre is not None and weight_post is not None:
+            uf_volume = round((float(weight_pre) - float(weight_post)) * 1000, 1)  # mL
+        else:
+            uf_volume = None
+    else:
+        uf_volume = float(uf_volume)
+        
+    actual_uf_volume = data.get("actual_uf_volume")
+    if actual_uf_volume is None or actual_uf_volume == "":
+        if uf_volume is not None:
+            actual_uf_volume = uf_volume
+        elif weight_pre is not None and weight_post is not None:
+            actual_uf_volume = round((float(weight_pre) - float(weight_post)) * 1000, 1)  # mL
+        else:
+            actual_uf_volume = None
+    else:
+        actual_uf_volume = float(actual_uf_volume)
+
     uf_rate = None
-    if weight_pre is not None and weight_post is not None:
-        uf_volume = round((float(weight_pre) - float(weight_post)) * 1000, 1)  # mL
+    if actual_uf_volume is not None and weight_pre is not None:
         total_hours = (float(duration_hours or 0) + float(duration_minutes or 0) / 60) or None
         if total_hours and float(weight_pre) > 0:
-            uf_rate = round(uf_volume / (float(weight_pre) * total_hours), 2)  # mL/kg/hr
+            uf_rate = round(actual_uf_volume / (float(weight_pre) * total_hours), 2)  # mL/kg/hr
 
     rec = SessionRecord(
         patient_id=patient_id,
@@ -121,7 +140,7 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         cannulation_attempts=data.get("cannulation_attempts"),
         needle_infiltration=data.get("needle_infiltration", False),
         uf_volume=uf_volume,
-        actual_uf_volume=uf_volume,
+        actual_uf_volume=actual_uf_volume,
         uf_rate=uf_rate,
     )
     db.add(rec)
@@ -216,15 +235,34 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     _wpo = data.get("weight_post")
     _dh = data.get("duration_hours")
     _dm = data.get("duration_minutes")
-    if _wp is not None and _wpo is not None:
-        _uf_vol = round((float(_wp) - float(_wpo)) * 1000, 1)
-        _total_h = (float(_dh or 0) + float(_dm or 0) / 60) or None
-        sess.uf_volume = _uf_vol
-        sess.actual_uf_volume = _uf_vol
-        sess.uf_rate = round(_uf_vol / (float(_wp) * _total_h), 2) if _total_h and float(_wp) > 0 else None
+    
+    _uf_target = data.get("uf_volume")
+    if _uf_target is None or _uf_target == "":
+        if _wp is not None and _wpo is not None:
+            sess.uf_volume = round((float(_wp) - float(_wpo)) * 1000, 1)
+        else:
+            sess.uf_volume = None
     else:
-        sess.uf_volume = None
-        sess.actual_uf_volume = None
+        sess.uf_volume = float(_uf_target)
+        
+    _uf_actual = data.get("actual_uf_volume")
+    if _uf_actual is None or _uf_actual == "":
+        if sess.uf_volume is not None:
+            sess.actual_uf_volume = sess.uf_volume
+        elif _wp is not None and _wpo is not None:
+            sess.actual_uf_volume = round((float(_wp) - float(_wpo)) * 1000, 1)
+        else:
+            sess.actual_uf_volume = None
+    else:
+        sess.actual_uf_volume = float(_uf_actual)
+
+    if sess.actual_uf_volume is not None and _wp is not None:
+        _total_h = (float(_dh or 0) + float(_dm or 0) / 60) or None
+        if _total_h and float(_wp) > 0:
+            sess.uf_rate = round(sess.actual_uf_volume / (float(_wp) * _total_h), 2)
+        else:
+            sess.uf_rate = None
+    else:
         sess.uf_rate = None
 
     # Process symptom report

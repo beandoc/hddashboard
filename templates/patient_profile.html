@@ -63,8 +63,13 @@
             <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">arrow_back</i> <span class="btn-text">Back</span>
         </a>
         <div class="profile-actions-grid">
+            {% if user and user.role in ['admin', 'doctor'] %}
             <a href="/analytics/patients/{{ patient.id }}" class="btn-action btn-primary" style="background:#7c3aed; border-color:#7c3aed;">
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">query_stats</i> <span class="btn-text">Analytics</span>
+            </a>
+            {% endif %}
+            <a href="/patients/{{ patient.id }}/sessions/new" class="btn-action btn-primary" style="background:#0ea5e9; border-color:#0ea5e9;">
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_circle</i> <span class="btn-text">Log Session</span>
             </a>
             <a href="/patients/{{ patient.id }}/edit" class="btn-action btn-ghost">
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">edit</i> <span class="btn-text">Edit</span>
@@ -500,7 +505,12 @@
             <section class="card" aria-labelledby="sessions-heading">
                 <h2 class="section-title" id="sessions-heading" style="justify-content:space-between;">
                     <span><i class="material-icons" aria-hidden="true">history</i> Recent Session Snapshots</span>
-                    <a href="/analytics/patients/{{ patient.id }}" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 0.75rem;">Full History</a>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <a href="/patients/{{ patient.id }}/sessions/new" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 0.75rem; border-color: var(--primary); color: var(--primary);">+ Log Session</a>
+                        {% if user and user.role in ['admin', 'doctor'] %}
+                        <a href="/analytics/patients/{{ patient.id }}" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 0.75rem;">Full History</a>
+                        {% endif %}
+                    </div>
                 </h2>
                 <div class="session-strip" role="list" aria-label="Recent dialysis sessions">
                     {% for s in sessions %}
