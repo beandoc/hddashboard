@@ -545,26 +545,38 @@
           </div>
         </div>
         <div>
-          <label>BP Pre Systolic (mmHg)</label>
-          <input type="number" name="bp_pre_sys" step="1" inputmode="numeric"
+          <label>BP Pre Systolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
+          <input type="number" name="bp_pre_sys" step="1" inputmode="numeric" required
             placeholder="e.g. 150"
             value="{{ session.bp_pre_sys if session and session.bp_pre_sys else '' }}">
         </div>
         <div>
-          <label>BP Pre Diastolic (mmHg)</label>
-          <input type="number" name="bp_pre_dia" step="1" inputmode="numeric"
+          <label>BP Pre Diastolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
+          <input type="number" name="bp_pre_dia" step="1" inputmode="numeric" required
             placeholder="e.g. 90"
             value="{{ session.bp_pre_dia if session and session.bp_pre_dia else '' }}">
         </div>
         <div>
+          <label>BP Nadir Systolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
+          <input type="number" name="bp_nadir_sys" step="1" inputmode="numeric" required
+            placeholder="e.g. 110 (lowest reading)"
+            value="{{ session.bp_nadir_sys if session and session.bp_nadir_sys else '' }}">
+        </div>
+        <div>
+          <label>BP Nadir Diastolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
+          <input type="number" name="bp_nadir_dia" step="1" inputmode="numeric" required
+            placeholder="e.g. 70 (lowest reading)"
+            value="{{ session.bp_nadir_dia if session and session.bp_nadir_dia else '' }}">
+        </div>
+        <div>
           <label>BP Post Systolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
-          <input type="number" name="bp_post_sys" step="1" inputmode="numeric"
+          <input type="number" name="bp_post_sys" step="1" inputmode="numeric" required
             placeholder="e.g. 130"
             value="{{ session.bp_post_sys if session and session.bp_post_sys else '' }}">
         </div>
         <div>
           <label>BP Post Diastolic (mmHg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
-          <input type="number" name="bp_post_dia" step="1" inputmode="numeric"
+          <input type="number" name="bp_post_dia" step="1" inputmode="numeric" required
             placeholder="e.g. 80"
             value="{{ session.bp_post_dia if session and session.bp_post_dia else '' }}">
         </div>

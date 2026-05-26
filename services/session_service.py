@@ -82,6 +82,8 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         bp_pre_dia=data.get("bp_pre_dia"),
         bp_post_sys=data.get("bp_post_sys"),
         bp_post_dia=data.get("bp_post_dia"),
+        bp_nadir_sys=data.get("bp_nadir_sys"),
+        bp_nadir_dia=data.get("bp_nadir_dia"),
         arterial_line_pressure=data.get("arterial_line_pressure"),
         venous_line_pressure=data.get("venous_line_pressure"),
         access_location=data.get("access_location", ""),
@@ -171,6 +173,8 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.bp_pre_dia = data.get("bp_pre_dia")
     sess.bp_post_sys = data.get("bp_post_sys")
     sess.bp_post_dia = data.get("bp_post_dia")
+    sess.bp_nadir_sys = data.get("bp_nadir_sys")
+    sess.bp_nadir_dia = data.get("bp_nadir_dia")
     sess.arterial_line_pressure = data.get("arterial_line_pressure")
     sess.venous_line_pressure = data.get("venous_line_pressure")
     sess.access_location = data.get("access_location", "")

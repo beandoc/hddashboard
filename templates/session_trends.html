@@ -476,7 +476,7 @@
   {% set ns = namespace(
       weight_labels=[], weight_pre=[], weight_post=[], uf_rates=[],
       bp_pre_s=[], bp_post_s=[],
-      idh_count=0, emergency_count=0, early_term_count=0,
+      idh_count=0, emergency_count=0, early_term_count=0, nadir_count=0,
       dyspnea_pre=[], dyspnea_post=[], dyspnea_labels=[],
       bfr_prescribed=[], bfr_actual=[]
   ) %}
@@ -493,6 +493,7 @@
       {% if s.idh_episode %}{% set ns.idh_count = ns.idh_count + 1 %}{% endif %}
       {% if s.is_emergency %}{% set ns.emergency_count = ns.emergency_count + 1 %}{% endif %}
       {% if s.early_termination %}{% set ns.early_term_count = ns.early_term_count + 1 %}{% endif %}
+      {% if s.bp_nadir_sys is not none and s.bp_nadir_sys > 0 %}{% set ns.nadir_count = ns.nadir_count + 1 %}{% endif %}
       {% if s.pre_hd_dyspnea_likert is not none or s.post_hd_dyspnea_likert is not none %}
         {% set _ = ns.dyspnea_labels.append(s.session_date | string) %}
         {% set _ = ns.dyspnea_pre.append(s.pre_hd_dyspnea_likert | default(none)) %}
@@ -515,6 +516,7 @@
   {% set valid_ufrs = ns.uf_rates | reject('none') | list %}
   {% set avg_ufr = (valid_ufrs | sum / valid_ufrs | length) if valid_ufrs else 0 %}
   {% set max_ufr = valid_ufrs | max | default(0) %}
+  {% set nadir_completeness = (ns.nadir_count / (recent_sessions | length) * 100) if recent_sessions else 0 %}
 
   <div class="container">
     
@@ -564,6 +566,100 @@
         <p>Persistent Intradialytic Hypotension: Risk of myocardial stunning & access clotting. The patient has experienced {{ idh_last_5 | length }} IDH episode(s) in their last 5 dialysis sessions.</p>
       </div>
     </div>
+    {% endif %}
+
+    {# ── IDH Pre-Session Predictive Risk Card ──────────────────────────────── #}
+    {% if idh_risk and idh_risk.risk_score is defined %}
+    {% set rl = idh_risk.risk_level | default('Low') %}
+    {% set rs = idh_risk.risk_score | default(0) %}
+    {% if rl in ('High', 'Very High') or rs >= 20 %}
+    <div style="
+      background: {% if rl == 'Very High' %}linear-gradient(135deg,#fff1f2,#ffe4e6)
+                  {% elif rl == 'High' %}linear-gradient(135deg,#fff7ed,#ffedd5)
+                  {% elif rl == 'Moderate' %}linear-gradient(135deg,#fefce8,#fef9c3)
+                  {% else %}linear-gradient(135deg,#f0fdf4,#dcfce7){% endif %};
+      border: 1.5px solid {% if rl == 'Very High' %}#fca5a5{% elif rl == 'High' %}#fdba74{% elif rl == 'Moderate' %}#fde047{% else %}#86efac{% endif %};
+      border-left: 5px solid {% if rl == 'Very High' %}#ef4444{% elif rl == 'High' %}#f97316{% elif rl == 'Moderate' %}#eab308{% else %}#22c55e{% endif %};
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    " id="idh-risk-card">
+      <div style="display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;">
+        <!-- Risk Score Dial -->
+        <div style="text-align:center;min-width:90px;">
+          <div style="
+            width: 80px; height: 80px; border-radius: 50%;
+            background: conic-gradient(
+              {% if rl == 'Very High' %}#ef4444{% elif rl == 'High' %}#f97316{% elif rl == 'Moderate' %}#eab308{% else %}#22c55e{% endif %}
+              {{ rs }}%, #e2e8f0 0
+            );
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 6px;
+            box-shadow: 0 0 0 4px #fff, 0 0 0 6px {% if rl == 'Very High' %}#fca5a5{% elif rl == 'High' %}#fdba74{% elif rl == 'Moderate' %}#fde047{% else %}#86efac{% endif %};
+          ">
+            <div style="
+              width: 62px; height: 62px; border-radius: 50%; background: white;
+              display: flex; flex-direction: column; align-items: center; justify-content: center;
+            ">
+              <span style="font-size:1.1rem;font-weight:900;line-height:1;color:{% if rl == 'Very High' %}#ef4444{% elif rl == 'High' %}#f97316{% elif rl == 'Moderate' %}#b45309{% else %}#16a34a{% endif %};">{{ rs | round(0) | int }}%</span>
+              <span style="font-size:0.55rem;color:#94a3b8;letter-spacing:0.03em;text-transform:uppercase;">IDH Risk</span>
+            </div>
+          </div>
+          <span style="
+            display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em;
+            background:{% if rl == 'Very High' %}#ef4444{% elif rl == 'High' %}#f97316{% elif rl == 'Moderate' %}#eab308{% else %}#22c55e{% endif %};
+            color:white;
+          ">{{ rl | upper }}</span>
+        </div>
+        <!-- Content -->
+        <div style="flex:1;min-width:200px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <i class="material-icons" style="color:{% if rl == 'Very High' %}#ef4444{% elif rl == 'High' %}#f97316{% else %}#eab308{% endif %};font-size:1.2rem;">{% if rl in ('High','Very High') %}crisis_alert{% else %}warning_amber{% endif %}</i>
+            <h4 style="margin:0;font-size:0.95rem;font-weight:700;color:{% if rl == 'Very High' %}#991b1b{% elif rl == 'High' %}#9a3412{% else %}#713f12{% endif %};">
+              Pre-Session IDH Risk — {{ rl }} ({{ rs | round(1) }}%)
+            </h4>
+            <span style="font-size:0.65rem;color:#94a3b8;margin-left:auto;">{{ idh_risk.method | default('Heuristic') | truncate(28,true,'…') }}</span>
+          </div>
+
+          {% if idh_risk.risk_factors %}
+          <div style="margin-bottom:10px;">
+            <p style="font-size:0.75rem;color:#64748b;font-weight:600;margin:0 0 5px;text-transform:uppercase;letter-spacing:0.04em;">Key Risk Drivers</p>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              {% for f in idh_risk.risk_factors[:4] %}
+              <span style="background:{% if rl == 'Very High' %}#fee2e2{% elif rl == 'High' %}#fff7ed{% else %}#fefce8{% endif %};
+                           color:{% if rl == 'Very High' %}#991b1b{% elif rl == 'High' %}#9a3412{% else %}#713f12{% endif %};
+                           border:1px solid {% if rl == 'Very High' %}#fca5a5{% elif rl == 'High' %}#fed7aa{% else %}#fde68a{% endif %};
+                           border-radius:6px;padding:3px 9px;font-size:0.72rem;font-weight:600;">
+                {{ f | truncate(40, true, '…') }}
+              </span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if idh_risk.actions %}
+          <div>
+            <p style="font-size:0.75rem;color:#64748b;font-weight:600;margin:0 0 5px;text-transform:uppercase;letter-spacing:0.04em;">Recommended Actions</p>
+            <ul style="margin:0;padding:0 0 0 18px;font-size:0.8rem;color:#374151;line-height:1.7;">
+              {% for action in idh_risk.actions[:3] %}
+              <li>{{ action }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.07);display:flex;align-items:center;gap:8px;">
+        <i class="material-icons" style="font-size:0.85rem;color:#94a3b8;">info</i>
+        <span style="font-size:0.72rem;color:#94a3b8;">
+          Predictive risk based on {% if idh_risk.method and 'Heuristic' in idh_risk.method %}clinical rules (train ML model via Admin → IDH Model){% else %}trained IDH model{% if idh_risk.model_cv_auc %} · AUC {{ idh_risk.model_cv_auc }}{% endif %}{% endif %}.
+          Always apply clinical judgement.
+        </span>
+        <a href="/analytics/api/v1/patients/{{ patient.id }}/idh-risk" target="_blank" style="margin-left:auto;font-size:0.72rem;color:#6366f1;text-decoration:none;font-weight:600;">Full Report →</a>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
 
     <!-- Filter Control Toolbar -->
@@ -624,6 +720,17 @@
         <div class="summary-info">
           <h5>Avg UF Rate</h5>
           <div class="summary-val">{{ avg_ufr | round(2) }} <small style="font-size:0.75rem;">mL/kg/h</small></div>
+        </div>
+      </div>
+
+      <!-- Nadir BP Quality -->
+      <div class="summary-card nadir-completeness" title="Nadir BP Completeness is critical for IDH ML model training and prediction.">
+        <div class="summary-icon-box" style="background: #e0e7ff; color: #4f46e5;">
+          <i class="material-icons">query_stats</i>
+        </div>
+        <div class="summary-info">
+          <h5>Nadir BP Quality</h5>
+          <div class="summary-val" style="color: {% if nadir_completeness >= 80 %}#16a34a{% elif nadir_completeness >= 50 %}#d97706{% else %}#dc2626{% endif %};font-family: 'Outfit', sans-serif;">{{ nadir_completeness | round(1) }}%</div>
         </div>
       </div>
 

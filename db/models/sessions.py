@@ -98,6 +98,8 @@ class SessionRecord(Base):
     # ── Intradialytic Events ──────────────────────────────────────────────────
     idh_episode = Column(Boolean)
     idh_hypertension = Column(Boolean)
+    saline_bolus_count = Column(Integer, nullable=True)  # Saline rescue boluses during session (IDH intervention marker)
+    antihypertensive_taken_prehd = Column(Boolean, nullable=True)  # Patient took antihypertensives on morning of session
 
     # ── Respiratory Symptoms ─────────────────────────────────────────────────
     pre_hd_dyspnea_likert = Column(Integer)

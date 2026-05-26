@@ -17,9 +17,12 @@ from ml_analytics import (
     get_deterioration_model_status,
     get_all_patients_mortality_risk,
 )
+from ml_risk import get_deterioration_model_status  # noqa: F811 (re-export for admin endpoint)
+from ml_idh import get_idh_model_status, compute_idh_risk
 from constants import EVENT_TYPES, EVENT_TYPE_GROUPS
 
 logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 root_router = APIRouter(tags=["clinical-review"])
@@ -1520,6 +1523,27 @@ async def patient_session_trends_page(patient_id: int, request: Request, limit: 
     idh_last_5 = [s.idh_episode for s in recent_sessions[:5] if s.idh_episode]
     idh_alarm_active = len(idh_last_5) >= 2
 
+    # ── IDH Pre-Session Risk ──────────────────────────────────────────────────
+    try:
+        from alerts import compute_idh_alert_for_patient
+        from database import MonthlyRecord as _MR
+        recent_mr = (
+            db.query(_MR)
+            .filter(_MR.patient_id == patient_id)
+            .order_by(_MR.record_month.desc())
+            .first()
+        )
+        mr3 = (
+            db.query(_MR)
+            .filter(_MR.patient_id == patient_id)
+            .order_by(_MR.record_month.desc())
+            .limit(3)
+            .all()
+        )
+        idh_risk = compute_idh_alert_for_patient(patient, recent_sessions, recent_mr, mr3)
+    except Exception:
+        idh_risk = {"has_alert": False}
+
     return templates.TemplateResponse("session_trends.html", {
         "request": request,
         "patient": patient,
@@ -1528,8 +1552,10 @@ async def patient_session_trends_page(patient_id: int, request: Request, limit: 
         "idwg_analytics": idwg_analytics,
         "limit": limit,
         "idh_alarm_active": idh_alarm_active,
+        "idh_risk": idh_risk,
         "user": get_user(request),
     })
+
 
 @router.post("/patients/{patient_id}/note")
 async def save_doctor_note(
@@ -1804,3 +1830,192 @@ async def _legacy_ukm_adequacy():
 @router.post("/api/phosphate/calculate")
 async def _legacy_phosphate_calculate():
     return RedirectResponse(url="/api/v1/phosphate/calculate", status_code=308)
+
+
+# ── IDH Prediction Model Endpoints ────────────────────────────────────────────
+
+@router.post("/admin/train-idh-model")
+async def admin_train_idh_model():
+    """
+    Queue an async Celery task to train (or retrain) the IDH prediction model
+    against all current SessionRecord data.
+
+    Returns immediately with a queued confirmation.
+    Poll GET /analytics/admin/idh-model-status after ~60 seconds.
+    """
+    try:
+        from tasks import task_train_idh_model
+        task_train_idh_model.delay()
+    except Exception as e:
+        logger.exception("Failed to queue IDH model training task")
+        raise HTTPException(status_code=500, detail=str(e))
+    return JSONResponse(content={
+        "queued": True,
+        "message": "IDH training job queued. Refresh in ~60 seconds.",
+    })
+
+
+@router.get("/admin/idh-model-status")
+async def admin_idh_model_status(db: Session = Depends(get_db)):
+    """
+    Return metadata about the currently deployed IDH model:
+    training date, sample/event counts, cross-validated AUC, feature list,
+    latest MLOps metrics, and count of new sessions since last training.
+    """
+    try:
+        status = get_idh_model_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Merge latest MLModelMetrics row
+    try:
+        latest_metrics = (
+            db.query(MLModelMetrics)
+            .filter(MLModelMetrics.model_name == "idh_v1")
+            .order_by(MLModelMetrics.computed_at.desc())
+            .first()
+        )
+        if latest_metrics:
+            status["pr_auc"]              = latest_metrics.pr_auc
+            status["brier_score"]         = latest_metrics.brier_score
+            status["calibration_slope"]   = latest_metrics.calibration_slope
+            status["drift_flagged"]       = latest_metrics.drift_flagged
+            status["drift_detail"]        = latest_metrics.drift_detail
+        else:
+            status.update({"pr_auc": None, "brier_score": None,
+                           "calibration_slope": None, "drift_flagged": None, "drift_detail": None})
+    except Exception:
+        pass
+
+    # Count SessionRecords entered after last training
+    try:
+        from database import SessionRecord as _SR
+        trained_at_str = status.get("trained_at")
+        if trained_at_str:
+            from datetime import datetime as _dt
+            trained_at_dt = _dt.fromisoformat(trained_at_str)
+            new_sessions = db.query(_SR).filter(_SR.timestamp > trained_at_dt).count()
+        else:
+            new_sessions = db.query(_SR).count()
+        status["new_sessions_since_training"] = new_sessions
+    except Exception:
+        status["new_sessions_since_training"] = None
+
+    return JSONResponse(content=status)
+
+
+@router.get("/api/v1/patients/{patient_id}/idh-risk")
+async def patient_idh_risk(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    session_date: Optional[str] = None,
+    uf_volume: Optional[float] = None,
+    duration_hours: Optional[int] = None,
+    pre_hd_sbp: Optional[float] = None,
+    dialysate_temp: Optional[float] = None,
+    dialysate_sodium: Optional[float] = None,
+    antihypertensive_prehd: Optional[bool] = None,
+):
+    """
+    Compute pre-session IDH risk for a patient's upcoming dialysis session.
+
+    All query parameters are optional — they represent the planned session
+    prescription. When omitted, values are taken from the most recent session
+    or imputed with safe clinical defaults.
+
+    Returns risk_score (0–100), risk_level, risk_factors, recommended actions,
+    and SHAP feature attributions (if model is trained).
+    """
+    _require_analytics_access(request)
+    from sqlalchemy.orm import joinedload as _jl
+
+    patient = (
+        db.query(Patient)
+        .options(
+            _jl(Patient.comorbidity_profile),
+            _jl(Patient.cardiac),
+        )
+        .filter(Patient.id == patient_id)
+        .first()
+    )
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Past sessions (last 10, desc)
+    past_sessions = (
+        db.query(SessionRecord)
+        .filter(SessionRecord.patient_id == patient_id)
+        .order_by(SessionRecord.session_date.desc())
+        .limit(10)
+        .all()
+    )
+
+    # Most recent monthly record
+    recent_mr = (
+        db.query(MonthlyRecord)
+        .filter(MonthlyRecord.patient_id == patient_id)
+        .order_by(MonthlyRecord.record_month.desc())
+        .first()
+    )
+
+    # Last 3 monthly records for albumin slope
+    mr3 = (
+        db.query(MonthlyRecord)
+        .filter(MonthlyRecord.patient_id == patient_id)
+        .order_by(MonthlyRecord.record_month.desc())
+        .limit(3)
+        .all()
+    )
+
+    # If no session plan provided, use last session as template
+    last_sess = past_sessions[0] if past_sessions else None
+
+    session_plan = {
+        "session_date":              session_date,
+        "pre_hd_sbp":                pre_hd_sbp or (last_sess.bp_pre_sys if last_sess else None),
+        "uf_volume":                 uf_volume or (last_sess.uf_volume if last_sess else None),
+        "duration_hours":            duration_hours or (last_sess.duration_hours if last_sess else 4),
+        "duration_minutes":          (last_sess.duration_minutes if last_sess else 0),
+        "dialysate_temp":            dialysate_temp or (last_sess.dialysate_temperature if last_sess else None),
+        "dialysate_sodium":          dialysate_sodium or (last_sess.dialysate_sodium if last_sess else None),
+        "antihypertensive_prehd":    antihypertensive_prehd,
+        "weight_pre":                (last_sess.weight_pre if last_sess else None),
+        "intradialytic_meals_planned": None,
+    }
+
+    patient_info = {
+        "id":                  patient.id,
+        "age":                 patient.age,
+        "dm_status":           patient.dm_status,
+        "chf_status":          patient.chf_status,
+        "cad_status":          patient.cad_status,
+        "history_of_pvd":      patient.history_of_pvd,
+        "af_status":           patient.af_status,
+        "liver_disease":       patient.liver_disease,
+        "ejection_fraction":   patient.ejection_fraction,
+        "diastolic_dysfunction": patient.diastolic_dysfunction,
+        "dry_weight":          patient.dry_weight,
+        "hd_frequency":        patient.hd_frequency,
+        "hd_wef_date":         patient.hd_wef_date,
+    }
+
+    monthly_data = {
+        "albumin":               recent_mr.albumin if recent_mr else None,
+        "antihypertensive_count": recent_mr.antihypertensive_count if recent_mr else None,
+        "hb":                    recent_mr.hb if recent_mr else None,
+        "calcium":               recent_mr.calcium if recent_mr else None,
+        "phosphorus":            recent_mr.phosphorus if recent_mr else None,
+    }
+
+    try:
+        result = await asyncio.to_thread(
+            compute_idh_risk,
+            session_plan, patient_info, past_sessions, monthly_data, mr3,
+        )
+    except Exception as exc:
+        logger.exception("IDH risk computation failed for patient %s", patient_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    from fastapi.encoders import jsonable_encoder
+    return JSONResponse(content=jsonable_encoder(result))

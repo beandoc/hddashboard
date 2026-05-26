@@ -1003,3 +1003,92 @@ def send_entry_alert_email(patient_name: str, hid: str, month_label: str,
 
     import threading
     threading.Thread(target=_send, daemon=True).start()
+
+
+# ── IDH Pre-Session Alert ────────────────────────────────────────────────────
+
+def compute_idh_alert_for_patient(patient, past_sessions: list,
+                                   recent_mr=None, monthly_records_3mo: list = None) -> dict:
+    """
+    Compute IDH pre-session risk for a patient and return an alert dict
+    if risk level is High or Very High.
+
+    Returns:
+        {
+            "has_alert": bool,
+            "risk_level": str,
+            "risk_score": float,
+            "risk_factors": [str],
+            "actions": [str],
+        }
+    or {"has_alert": False} if risk is Low/Moderate or computation fails.
+
+    This is a lightweight synchronous call — safe to embed in page renders.
+    Never raises; silently returns no-alert on any error.
+    """
+    try:
+        from ml_idh import compute_idh_risk
+
+        last_sess = past_sessions[0] if past_sessions else None
+
+        session_plan = {
+            "session_date":   date.today(),
+            "pre_hd_sbp":     last_sess.bp_pre_sys if last_sess else None,
+            "uf_volume":      last_sess.uf_volume if last_sess else None,
+            "duration_hours": last_sess.duration_hours if last_sess else 4,
+            "duration_minutes": last_sess.duration_minutes if last_sess else 0,
+            "dialysate_temp": last_sess.dialysate_temperature if last_sess else None,
+            "dialysate_sodium": last_sess.dialysate_sodium if last_sess else None,
+            "antihypertensive_prehd": None,
+            "weight_pre":     last_sess.weight_pre if last_sess else None,
+            "intradialytic_meals_planned": None,
+        }
+
+        patient_info = {
+            "id":                patient.id,
+            "age":               patient.age,
+            "dm_status":         patient.dm_status,
+            "chf_status":        patient.chf_status,
+            "cad_status":        patient.cad_status,
+            "history_of_pvd":    patient.history_of_pvd,
+            "af_status":         patient.af_status,
+            "liver_disease":     patient.liver_disease,
+            "ejection_fraction": patient.ejection_fraction,
+            "diastolic_dysfunction": patient.diastolic_dysfunction,
+            "dry_weight":        patient.dry_weight,
+            "hd_frequency":      patient.hd_frequency,
+            "hd_wef_date":       patient.hd_wef_date,
+        }
+
+        monthly_data = {
+            "albumin":                recent_mr.albumin if recent_mr else None,
+            "antihypertensive_count": recent_mr.antihypertensive_count if recent_mr else None,
+            "hb":                     recent_mr.hb if recent_mr else None,
+            "calcium":                recent_mr.calcium if recent_mr else None,
+            "phosphorus":             recent_mr.phosphorus if recent_mr else None,
+        } if recent_mr else {}
+
+        result = compute_idh_risk(
+            session_plan, patient_info, past_sessions,
+            monthly_data, monthly_records_3mo,
+            log_prediction=False,  # don't log — this is a display call, not an inference call
+        )
+
+        data = result.get("data", {})
+        risk_level = data.get("risk_level", "Low")
+
+        if risk_level in ("High", "Very High"):
+            return {
+                "has_alert":    True,
+                "risk_level":   risk_level,
+                "risk_score":   data.get("risk_score", 0),
+                "risk_factors": data.get("risk_factors", []),
+                "actions":      data.get("actions", []),
+                "method":       data.get("method", ""),
+            }
+        return {"has_alert": False, "risk_level": risk_level,
+                "risk_score": data.get("risk_score", 0)}
+
+    except Exception as exc:
+        logger.debug("IDH alert computation skipped for patient %s: %s", getattr(patient, "id", "?"), exc)
+        return {"has_alert": False}

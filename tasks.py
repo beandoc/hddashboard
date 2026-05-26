@@ -425,3 +425,107 @@ def task_train_deterioration_model():
         raise
     finally:
         db.close()
+
+
+# ── IDH Model Tasks ───────────────────────────────────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_train_idh_model():
+    """Async Celery task to train (or retrain) the IDH prediction model.
+
+    Called via .delay() from POST /analytics/admin/train-idh-model.
+    Training may take 30–90 seconds depending on session volume.
+    Persists the model to idh_model.joblib and registers a ModelArtifact row.
+    """
+    from ml_idh import train_idh_model
+    db = SessionLocal()
+    try:
+        result = train_idh_model(db)
+        if result.get("success"):
+            logger.info(
+                "task_train_idh_model: training complete — cv_auc=%.3f n_sessions=%d n_events=%d algo=%s",
+                result.get("cv_auc", 0), result.get("n_samples", 0),
+                result.get("n_events", 0), result.get("algorithm", "?"),
+            )
+        else:
+            logger.error(
+                "task_train_idh_model: training failed — %s",
+                result.get("error", "unknown error"),
+            )
+        return result
+    except Exception as exc:
+        logger.exception("task_train_idh_model: unhandled exception")
+        raise
+    finally:
+        db.close()
+
+
+def _backfill_idh_outcomes(db) -> int:
+    """
+    Back-fill observed_outcome on IDH ml_predictions rows after the session
+    has been completed and its data entered.
+
+    The outcome is 1 if the completed session had IDH (hybrid label),
+    matched by patient_id and prediction_month (YYYY-MM).
+    """
+    from database import SessionRecord
+    from ml_idh import _compute_idh_label
+
+    pending = (
+        db.query(MLPrediction)
+        .filter(
+            MLPrediction.model_name == "idh_v1",
+            MLPrediction.observed_outcome.is_(None),
+        )
+        .all()
+    )
+    filled = 0
+    for pred in pending:
+        if not pred.prediction_month:
+            continue
+        # Find sessions for this patient in the prediction month
+        sessions = (
+            db.query(SessionRecord)
+            .filter(
+                SessionRecord.patient_id == pred.patient_id,
+                SessionRecord.record_month == pred.prediction_month,
+            )
+            .all()
+        )
+        if not sessions:
+            continue
+        # If ANY session in the month had IDH, mark the month's prediction as positive
+        idh_occurred = any(_compute_idh_label(s) for s in sessions)
+        pred.observed_outcome = int(idh_occurred)
+        filled += 1
+    return filled
+
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_backfill_idh_outcomes():
+    """
+    Nightly task: back-fill IDH observed outcomes into ml_predictions.
+
+    Runs after sessions are entered so that MLOps metrics can be computed.
+    Safe to run repeatedly — only processes rows where observed_outcome is NULL.
+    """
+    db = SessionLocal()
+    try:
+        filled = _backfill_idh_outcomes(db)
+        db.commit()
+        logger.info("task_backfill_idh_outcomes: filled %d rows", filled)
+        return {"filled": filled}
+    except Exception as exc:
+        logger.exception("task_backfill_idh_outcomes failed")
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_compute_idh_model_metrics(lookback_days: int = 90):
+    """
+    Compute MLOps performance metrics for the IDH model.
+    Delegates to the generic task_compute_model_metrics with model_name='idh_v1'.
+    """
+    return task_compute_model_metrics("idh_v1", lookback_days)

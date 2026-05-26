@@ -786,13 +786,15 @@
           </div>
 
           {% set ns = namespace(
-              idh_count=0, emergency_count=0, early_term_count=0
+              idh_count=0, emergency_count=0, early_term_count=0, nadir_count=0
           ) %}
           {% for s in recent_sessions %}
             {% if s.idh_episode %}{% set ns.idh_count = ns.idh_count + 1 %}{% endif %}
             {% if s.is_emergency %}{% set ns.emergency_count = ns.emergency_count + 1 %}{% endif %}
             {% if s.early_termination %}{% set ns.early_term_count = ns.early_term_count + 1 %}{% endif %}
+            {% if s.bp_nadir_sys is not none and s.bp_nadir_sys > 0 %}{% set ns.nadir_count = ns.nadir_count + 1 %}{% endif %}
           {% endfor %}
+          {% set nadir_completeness = (ns.nadir_count / (recent_sessions | length) * 100) if recent_sessions else 0 %}
 
           <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; align-items: center;">
             <div style="font-size: 0.88rem; color: #475569; line-height: 1.6;">
@@ -830,6 +832,10 @@
               <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
                 <span style="color: #64748b; display: flex; align-items: center; gap: 4px;"><i class="material-icons" style="font-size: 0.95rem; color: #ca8a04;">stop_circle</i> Early Terms:</span>
                 <strong style="color: #854d0e;">{{ ns.early_term_count }}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                <span style="color: #64748b; display: flex; align-items: center; gap: 4px;"><i class="material-icons" style="font-size: 0.95rem; color: #4f46e5;">query_stats</i> Nadir BP Quality:</span>
+                <strong style="color: {% if nadir_completeness >= 80 %}#16a34a{% elif nadir_completeness >= 50 %}#d97706{% else %}#dc2626{% endif %};">{{ nadir_completeness | round(1) }}%</strong>
               </div>
             </div>
           </div>

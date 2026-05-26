@@ -46,6 +46,7 @@ class PatientComorbidities(Base):
     solid_tumor               = Column(String)
     leukemia                  = Column(Boolean)
     lymphoma                  = Column(Boolean)
+    af_status                 = Column(Boolean, nullable=True)   # Atrial fibrillation — IDH predictor
     smoking_status            = Column(String)
     alcohol_consumption       = Column(String)
     charlson_comorbidity_index = Column(Integer)
@@ -379,6 +380,14 @@ class Patient(Base):
     @lymphoma.setter
     def lymphoma(self, v):
         self._ensure_comorbidities().lymphoma = v
+
+    @property
+    def af_status(self):
+        return self.comorbidity_profile.af_status if self.comorbidity_profile else None
+
+    @af_status.setter
+    def af_status(self, v):
+        self._ensure_comorbidities().af_status = v
 
     @property
     def smoking_status(self):
