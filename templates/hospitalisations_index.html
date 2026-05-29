@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hospitalisations | HD Dashboard</title>
+  <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+  <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+  <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+  <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
+  <link rel="stylesheet" href="/static/css/clinical.css"/>
+  <style>
+    body { background:#f8fafc; font-family:'Inter',sans-serif; }
+    .page-wrap { max-width:1200px; margin:0 auto; padding:24px 20px 60px; }
+
+    .ph { background:linear-gradient(135deg,#fffbeb,#fff); border:1px solid #fde68a; border-radius:16px; padding:22px 28px; margin-bottom:22px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; }
+    .ph-left { display:flex; align-items:center; gap:14px; }
+    .ph-icon { width:48px; height:48px; border-radius:12px; background:#fef3c7; display:flex; align-items:center; justify-content:center; }
+    .ph-icon i { color:#d97706; font-size:1.5rem; }
+    .ph-title { font-size:1.2rem; font-weight:800; color:#0f172a; margin:0 0 2px; }
+    .ph-sub { font-size:0.82rem; color:#92400e; margin:0; }
+    .ph-stats { display:flex; gap:20px; flex-wrap:wrap; }
+    .ph-stat-val { font-size:1.5rem; font-weight:800; color:#0f172a; line-height:1; }
+    .ph-stat-lbl { font-size:0.7rem; color:#6b7280; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
+
+    .filter-bar { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .filter-bar select, .filter-bar input { padding:9px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.88rem; font-family:'Inter',sans-serif; background:#f8fafc; }
+    .filter-bar select:focus, .filter-bar input:focus { border-color:#f59e0b; outline:none; }
+    .filter-btn { background:#f59e0b; color:#fff; border:none; border-radius:8px; padding:9px 18px; font-size:0.88rem; font-weight:700; cursor:pointer; }
+    .filter-btn:hover { background:#d97706; }
+
+    .ev-table { width:100%; border-collapse:collapse; font-size:0.875rem; }
+    .ev-table thead tr { background:#f8fafc; border-bottom:2px solid #e2e8f0; }
+    .ev-table th { padding:11px 14px; text-align:left; color:#64748b; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap; }
+    .ev-table th.c { text-align:center; }
+    .ev-table tbody tr { border-bottom:1px solid #f1f5f9; transition:background 0.1s; }
+    .ev-table tbody tr:hover { background:#fffbeb; }
+    .ev-table tbody tr:last-child { border-bottom:none; }
+    .ev-table td { padding:13px 14px; vertical-align:middle; }
+    .ev-table td.c { text-align:center; }
+    .patient-link { font-weight:700; color:#0ea5e9; text-decoration:none; }
+    .patient-link:hover { text-decoration:underline; }
+    .hid { font-size:0.75rem; color:#6b7280; }
+    .td-date { font-weight:600; color:#0f172a; white-space:nowrap; }
+    .badge { display:inline-flex; align-items:center; border-radius:7px; padding:3px 10px; font-size:0.78rem; font-weight:700; white-space:nowrap; }
+    .badge-ongoing  { background:#fef3c7; color:#92400e; }
+    .badge-los      { background:#f1f5f9; color:#374151; }
+    .badge-icd      { background:#fef3c7; color:#92400e; font-family:monospace; font-size:0.8rem; }
+    .badge-30d      { background:#fee2e2; color:#dc2626; }
+    .badge-cat-cardiac    { background:#fee2e2; color:#dc2626; }
+    .badge-cat-infection  { background:#fef3c7; color:#d97706; }
+    .badge-cat-fluid      { background:#dbeafe; color:#1d4ed8; }
+    .badge-cat-access     { background:#f3e8ff; color:#7e22ce; }
+    .badge-cat-metabolic  { background:#dcfce7; color:#15803d; }
+    .badge-cat-vascular   { background:#ffe4e6; color:#be123c; }
+    .badge-cat-renal      { background:#e0f2fe; color:#0369a1; }
+    .badge-cat-other      { background:#f1f5f9; color:#475569; }
+
+    .table-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.05); }
+    .table-card-header { padding:16px 20px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; }
+    .table-card-title { font-weight:700; color:#0f172a; }
+    .table-card-sub { font-size:0.78rem; color:#64748b; }
+    .empty { text-align:center; padding:56px 24px; }
+    .empty i { font-size:2.5rem; color:#fde68a; display:block; margin-bottom:10px; }
+    .empty p { color:#94a3b8; font-size:0.88rem; margin:0; }
+  </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="page-wrap">
+
+  <!-- Header -->
+  <div class="ph">
+    <div class="ph-left">
+      <div class="ph-icon"><i class="material-icons">local_hospital</i></div>
+      <div>
+        <h1 class="ph-title">Hospitalisation Log</h1>
+        <p class="ph-sub">All active patients · most recent admissions first</p>
+      </div>
+    </div>
+    <div class="ph-stats">
+      <div>
+        <div class="ph-stat-val">{{ events | length }}</div>
+        <div class="ph-stat-lbl">Total shown</div>
+      </div>
+      {% set open_count = events | rejectattr('discharge_date') | list | length %}
+      <div>
+        <div class="ph-stat-val" style="color:{% if open_count %}#d97706{% else %}#16a34a{% endif %};">{{ open_count }}</div>
+        <div class="ph-stat-lbl">Currently admitted</div>
+      </div>
+      {% set readmit_count = events | selectattr('readmission_within_30d') | list | length %}
+      <div>
+        <div class="ph-stat-val" style="color:{% if readmit_count %}#dc2626{% else %}#16a34a{% endif %};">{{ readmit_count }}</div>
+        <div class="ph-stat-lbl">30-day readmissions</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <form method="GET" action="/hospitalisations" class="filter-bar">
+    <label style="font-size:0.8rem;font-weight:700;color:#374151;">Filter by patient:</label>
+    <select name="patient_id" onchange="this.form.submit()">
+      <option value="">All Patients</option>
+      {% for p in patients %}
+      <option value="{{ p.id }}" {% if filter_patient_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    {% if filter_patient_id %}
+    <a href="/hospitalisations" style="font-size:0.82rem;color:#64748b;text-decoration:none;font-weight:600;">
+      <i class="material-icons" style="font-size:0.9rem;vertical-align:middle;">close</i> Clear filter
+    </a>
+    {% endif %}
+    {% if filter_patient_id %}
+    <a href="/patients/{{ filter_patient_id }}/hospitalisations?open=1"
+      style="margin-left:auto;display:flex;align-items:center;gap:6px;background:#f59e0b;color:#fff;border-radius:8px;padding:9px 16px;font-size:0.85rem;font-weight:700;text-decoration:none;">
+      <i class="material-icons" style="font-size:1rem;">add</i> Add Admission for this Patient
+    </a>
+    {% endif %}
+  </form>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-card-header">
+      <div class="table-card-title">Admission Records</div>
+      <div class="table-card-sub">{{ events | length }} record{{ 's' if events | length != 1 else '' }}</div>
+    </div>
+    {% if events %}
+    <div style="overflow-x:auto;">
+      <table class="ev-table">
+        <thead>
+          <tr>
+            <th>Patient</th>
+            <th>Admitted</th>
+            <th>Discharged</th>
+            <th class="c">LOS</th>
+            <th>ICD</th>
+            <th>Diagnosis</th>
+            <th>Category</th>
+            <th class="c">30d</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in events %}
+          {% set cat_cls = {
+            'Cardiac':'cardiac','Infection':'infection','Fluid overload':'fluid',
+            'Access-related':'access','Metabolic':'metabolic','Vascular':'vascular',
+            'Renal':'renal'
+          }.get(h.cause_category, 'other') %}
+          <tr>
+            <td>
+              <a href="/patients/{{ h.patient_id }}/hospitalisations" class="patient-link">{{ h.patient.name }}</a>
+              <div class="hid">{{ h.patient.hid_no }}</div>
+            </td>
+            <td><span class="td-date">{{ h.admission_date.strftime('%d %b %Y') }}</span></td>
+            <td>
+              {% if h.discharge_date %}
+                <span class="td-date">{{ h.discharge_date.strftime('%d %b %Y') }}</span>
+              {% else %}
+                <span class="badge badge-ongoing">Ongoing</span>
+              {% endif %}
+            </td>
+            <td class="c">
+              {% if h.los_days is not none %}<span class="badge badge-los">{{ h.los_days }}d</span>{% else %}—{% endif %}
+            </td>
+            <td>
+              {% if h.primary_icd %}<span class="badge badge-icd">{{ h.primary_icd }}</span>{% else %}—{% endif %}
+            </td>
+            <td style="max-width:200px;color:#0f172a;" title="{{ h.primary_diagnosis or '' }}">{{ h.primary_diagnosis or '—' }}</td>
+            <td>
+              {% if h.cause_category %}
+                <span class="badge badge-cat-{{ cat_cls }}">{{ h.cause_category }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="c">
+              {% if h.readmission_within_30d %}<span class="badge badge-30d">30d ⚠</span>{% else %}—{% endif %}
+            </td>
+            <td style="color:#6b7280;font-size:0.8rem;max-width:180px;">{{ h.notes or '—' }}</td>
+            <td>
+              <a href="/patients/{{ h.patient_id }}/hospitalisations" title="Open patient admissions"
+                style="color:#0ea5e9;text-decoration:none;display:inline-flex;align-items:center;">
+                <i class="material-icons" style="font-size:1.1rem;">open_in_new</i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <i class="material-icons">local_hospital</i>
+      <p>No hospitalisation events recorded{% if filter_patient_id %} for this patient{% endif %}.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% include "_confirm_modal.html" %}
+</body>
+</html>

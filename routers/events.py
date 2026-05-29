@@ -103,10 +103,15 @@ async def create_event(
     severity: str = Form("Medium"),
     notes: str = Form(""),
     hospital_name: str = Form(""),
+    discharge_date: Optional[str] = Form(None),
+    los_days: Optional[int] = Form(None),
     discharge_diagnosis: str = Form(""),
     hosp_diagnosis: list[str] = Form([]),
     hosp_icd_code: list[str] = Form([]),
     hosp_icd_diag: list[str] = Form([]),
+    proc_setting: str = Form(""),
+    proc_outcome: str = Form(""),
+    proc_operator: str = Form(""),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
@@ -124,11 +129,29 @@ async def create_event(
         else:
             created_by = getattr(user, "username", "Unknown")
 
-    final_notes = notes
-    if hospital_name and f"Hospital: {hospital_name}" not in final_notes:
-        final_notes = f"Hospital: {hospital_name}\n{final_notes}".strip()
-    if discharge_diagnosis and "Discharge Diagnosis:" not in final_notes:
-        final_notes = f"{final_notes}\nDischarge Diagnosis: {discharge_diagnosis}".strip()
+    # Build notes — prepend contextual metadata for each event class
+    from constants import PROCEDURE_EVENT_TYPES
+    final_notes = notes.strip() if notes else ""
+
+    if event_type == "Hospitalization":
+        if hospital_name and f"Hospital: {hospital_name}" not in final_notes:
+            final_notes = f"Hospital: {hospital_name}\n{final_notes}".strip()
+        if discharge_diagnosis and "Discharge Diagnosis:" not in final_notes:
+            final_notes = f"{final_notes}\nDischarge Diagnosis: {discharge_diagnosis}".strip()
+
+    elif event_type == "Discharge":
+        if hospital_name and f"Hospital: {hospital_name}" not in final_notes:
+            final_notes = f"Hospital: {hospital_name}\n{final_notes}".strip()
+        if discharge_diagnosis and "Discharge Diagnosis:" not in final_notes:
+            final_notes = f"{final_notes}\nDischarge Diagnosis: {discharge_diagnosis}".strip()
+
+    elif event_type in PROCEDURE_EVENT_TYPES:
+        parts = []
+        if proc_setting:  parts.append(f"Setting: {proc_setting}")
+        if proc_outcome:  parts.append(f"Outcome: {proc_outcome}")
+        if proc_operator: parts.append(f"Operator: {proc_operator}")
+        if final_notes:   parts.append(final_notes)
+        final_notes = "\n".join(parts)
 
     ev = ClinicalEvent(
         patient_id=patient_id,
@@ -139,37 +162,40 @@ async def create_event(
         created_by=created_by
     )
     db.add(ev)
-    
+
     # 2. Sync to MonthlyRecord and HospitalisationEvent if Hospitalization
     if event_type == "Hospitalization":
         from services.patient_service import sync_hospitalization_to_monthly_record
-        diag_list = hosp_diagnosis or []
-        code_list = hosp_icd_code or []
+        diag_list     = hosp_diagnosis or []
+        code_list     = hosp_icd_code or []
         diag_icd_list = hosp_icd_diag or []
-        
+
         adm_date = date.fromisoformat(event_date)
-        
+
+        # Parse optional same-day discharge from admission modal
+        dis_date_adm = None
+        los_adm = los_days
+        if discharge_date:
+            try:
+                dis_date_adm = date.fromisoformat(discharge_date)
+                if los_adm is None:
+                    los_adm = max((dis_date_adm - adm_date).days, 0)
+            except ValueError:
+                pass
+
         if not diag_list and not code_list:
             sync_hospitalization_to_monthly_record(
-                db=db,
-                patient_id=patient_id,
-                event_date=adm_date,
-                diagnosis="",
-                icd_code="",
-                icd_diagnosis=""
+                db=db, patient_id=patient_id, event_date=adm_date,
+                diagnosis="", icd_code="", icd_diagnosis=""
             )
         else:
             for d, c, i in zip(diag_list, code_list, diag_icd_list):
                 sync_hospitalization_to_monthly_record(
-                    db=db,
-                    patient_id=patient_id,
-                    event_date=adm_date,
-                    diagnosis=d,
-                    icd_code=c,
-                    icd_diagnosis=i
+                    db=db, patient_id=patient_id, event_date=adm_date,
+                    diagnosis=d, icd_code=c, icd_diagnosis=i
                 )
-        
-        # Create corresponding HospitalisationEvent if it doesn't already exist
+
+        # Create HospitalisationEvent if not already existing for this admission date
         from database import HospitalisationEvent
         hosp_exists = db.query(HospitalisationEvent).filter(
             HospitalisationEvent.patient_id == patient_id,
@@ -187,21 +213,33 @@ async def create_event(
                 )
                 .first()
             )
-            d_val = hosp_diagnosis[0] if hosp_diagnosis else None
-            c_val = hosp_icd_code[0] if hosp_icd_code else None
-            i_val = hosp_icd_diag[0] if hosp_icd_diag else None
-            
-            ev_hosp = HospitalisationEvent(
+            # Primary ICD from hidden field (ICD search); secondary rows in diag_list
+            c_val = code_list[0] if code_list else None
+            d_val = diag_list[0] if diag_list else None
+            # cause_category derived from ICD code via shortlist mapping
+            _ICD_CATEGORY = {
+                "J81":"Fluid overload","I50.0":"Cardiac","A41.9":"Infection",
+                "T82.7":"Access-related","I10":"Cardiac","E87.5":"Metabolic",
+                "J18.9":"Infection","I21":"Cardiac","R55":"Cardiac",
+                "D64.9":"Metabolic","T85.7":"Access-related","N18.6":"Renal",
+                "E83.5":"Metabolic","E83.3":"Metabolic","I48":"Cardiac",
+                "K92.1":"GI","G40":"Neurological","I63":"Neurological",
+                "E11":"Metabolic","N28.9":"Renal",
+            }
+            cat_val = _ICD_CATEGORY.get(c_val, None) if c_val else None
+
+            db.add(HospitalisationEvent(
                 patient_id=patient_id,
                 admission_date=adm_date,
+                discharge_date=dis_date_adm,
+                los_days=los_adm,
                 primary_icd=c_val or None,
                 primary_diagnosis=d_val or None,
-                cause_category=i_val or None,
+                cause_category=cat_val,
                 readmission_within_30d=bool(prior),
                 notes=final_notes or None,
-                entered_by=created_by
-            )
-            db.add(ev_hosp)
+                entered_by=created_by,
+            ))
 
     elif event_type == "Discharge":
         from database import HospitalisationEvent
@@ -213,6 +251,8 @@ async def create_event(
         if open_hosp:
             open_hosp.discharge_date = dis_date
             open_hosp.los_days = max((dis_date - open_hosp.admission_date).days, 0)
+            if discharge_diagnosis:
+                open_hosp.notes = (open_hosp.notes or "") + f"\nDischarge Dx: {discharge_diagnosis}"
 
     try:
         db.commit()

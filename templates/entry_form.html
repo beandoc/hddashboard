@@ -681,79 +681,165 @@
                     <div id="hospWrapper" style="display:{{ 'block' if hosp_details else 'none' }};">
                         {% if hosp_details %}
                             {% for h in hosp_details %}
-                            <div class="hosp-row" style="background:#fffbeb;padding:16px;border-radius:12px;position:relative;border:1px solid #fde68a;margin-bottom:10px;">
+                            <div class="hosp-row" style="background:#fffbeb;padding:16px;border-radius:12px;position:relative;border:1px solid #fde68a;margin-bottom:12px;">
                                 <button type="button" onclick="this.closest('.hosp-row').remove()"
-                                    style="position:absolute;top:10px;right:10px;background:#fee2e2;color:#ef4444;border:none;padding:6px;border-radius:8px;cursor:pointer;">
+                                    style="position:absolute;top:10px;right:10px;background:#fee2e2;color:#ef4444;border:none;padding:6px;border-radius:8px;cursor:pointer;"
+                                    title="Remove this admission">
                                     <i class="material-icons" style="font-size:1.1rem;">delete</i>
                                 </button>
-                                <div class="grid">
-                                    <div class="form-group">
-                                        <label>Event Date</label>
+                                <div style="font-weight:700;color:#92400e;font-size:0.85rem;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em;">Admission</div>
+                                <!-- Row 1: Admission date, Discharge date, LOS (auto) -->
+                                <div class="grid" style="grid-template-columns:1fr 1fr 120px;gap:12px;margin-bottom:12px;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>Admission Date <span style="color:#ef4444;">*</span></label>
                                         <input type="date" name="hospitalization_date" value="{{ h.date if h.date else '' }}"
+                                            oninput="calcLOS(this)"
                                             style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
                                     </div>
-                                    <div class="form-group" style="grid-column:1/-1;">
-                                        <label>Clinical Diagnosis</label>
-                                        <input type="text" name="hospitalization_diagnosis" value="{{ h.diagnosis if h.diagnosis else '' }}"
-                                            placeholder="e.g. Acute pulmonary oedema"
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>Discharge Date</label>
+                                        <input type="date" name="hospitalization_discharge_date" value="{{ h.discharge_date if h.discharge_date else '' }}"
+                                            oninput="calcLOS(this)"
                                             style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
                                     </div>
-                                    <div class="form-group">
-                                        <label>ICD-10 Code</label>
-                                        <input type="text" name="hospitalization_icd_code" value="{{ h.icd_code if h.icd_code else '' }}"
-                                            placeholder="e.g. J81"
-                                            style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>ICD-10 Diagnosis</label>
-                                        <input type="text" name="hospitalization_icd_diagnosis" value="{{ h.icd_diagnosis if h.icd_diagnosis else '' }}"
-                                            placeholder="e.g. Pulmonary oedema"
-                                            style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>LOS (days)</label>
+                                        <input type="number" name="hospitalization_los" value="{{ h.los_days if h.los_days else '' }}"
+                                            min="0" placeholder="Auto"
+                                            style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#64748b;" readonly>
                                     </div>
                                 </div>
+                                <!-- Row 2: Primary cause (ICD search) -->
+                                <div class="form-group" style="margin-bottom:12px;">
+                                    <label>Primary Cause <span style="color:#ef4444;">*</span> <span style="font-weight:400;color:#6b7280;font-size:0.8rem;">— type to search HD common causes</span></label>
+                                    <div style="position:relative;">
+                                        <input type="text" class="icd-search-input"
+                                            placeholder="e.g. fluid overload, sepsis, potassium, access…"
+                                            autocomplete="off"
+                                            oninput="searchICD(this)"
+                                            onfocus="searchICD(this)"
+                                            onblur="setTimeout(()=>closeICD(this),200)"
+                                            style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;box-sizing:border-box;">
+                                        <div class="icd-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #fde68a;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:999;max-height:220px;overflow-y:auto;"></div>
+                                        <!-- Hidden fields written by ICD picker -->
+                                        <input type="hidden" name="hospitalization_icd_code" value="{{ h.icd_code if h.icd_code else '' }}">
+                                        <input type="hidden" name="hospitalization_diagnosis" value="{{ h.diagnosis if h.diagnosis else '' }}">
+                                        <input type="hidden" name="hospitalization_icd_diagnosis" value="{{ h.icd_diagnosis if h.icd_diagnosis else '' }}">
+                                        <input type="hidden" name="hospitalization_cause_category" value="{{ h.cause_category if h.cause_category else '' }}">
+                                    </div>
+                                    <!-- Pill showing selected code -->
+                                    <div class="icd-selected-pill" style="{% if h.icd_code %}display:flex{% else %}display:none{% endif %};margin-top:6px;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fde68a;border-radius:20px;padding:4px 10px;width:fit-content;font-size:0.82rem;font-weight:600;color:#92400e;">
+                                        <span class="icd-pill-text">{% if h.icd_code %}{{ h.icd_code }} · {{ h.diagnosis }}{% endif %}</span>
+                                        <span onclick="clearICD(this)" style="cursor:pointer;color:#ef4444;font-weight:700;font-size:1rem;line-height:1;">×</span>
+                                    </div>
+                                </div>
+                                <!-- Row 3: Secondary diagnoses -->
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label style="font-size:0.85rem;color:#6b7280;">Secondary Diagnoses <span style="font-weight:400;">(optional)</span></label>
+                                    <div class="secondary-diag-wrap" style="display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;align-items:center;">
+                                        {% if h.secondary_diagnoses %}
+                                            {% for sd in h.secondary_diagnoses %}
+                                            <span class="sec-diag-pill" style="display:flex;align-items:center;gap:4px;background:#fef3c7;border:1px solid #fde68a;border-radius:20px;padding:3px 10px;font-size:0.8rem;font-weight:600;color:#92400e;">
+                                                <input type="hidden" name="hospitalization_secondary_icd" value="{{ sd.icd_code }}">
+                                                <input type="hidden" name="hospitalization_secondary_diagnosis" value="{{ sd.diagnosis }}">
+                                                {{ sd.icd_code }} · {{ sd.diagnosis }}
+                                                <span onclick="this.closest('.sec-diag-pill').remove()" style="cursor:pointer;color:#ef4444;font-weight:700;font-size:1rem;line-height:1;margin-left:2px;">×</span>
+                                            </span>
+                                            {% endfor %}
+                                        {% endif %}
+                                        <span class="add-secondary-btn" onclick="openSecondaryICD(this)"
+                                            style="cursor:pointer;color:#92400e;font-size:0.8rem;font-weight:600;padding:3px 8px;border:1px dashed #fde68a;border-radius:20px;">+ Add</span>
+                                    </div>
+                                </div>
+                                <!-- Readmission badge (auto-computed on save, shown if set) -->
+                                {% if h.readmission_within_30d %}
+                                <div style="margin-top:10px;display:flex;align-items:center;gap:6px;color:#dc2626;font-size:0.8rem;font-weight:600;">
+                                    <i class="material-icons" style="font-size:1rem;">replay</i> Readmission within 30 days
+                                </div>
+                                {% endif %}
                             </div>
                             {% endfor %}
                         {% else %}
-                            <!-- default blank row shown when checkbox is ticked -->
+                            <!-- blank row added by addHospRow() when checkbox ticked -->
                         {% endif %}
                     </div>
+
+                    <!-- Template for new blank row -->
                     <template id="hosp-row-template">
-                        <div class="hosp-row" style="background:#fffbeb;padding:16px;border-radius:12px;position:relative;border:1px solid #fde68a;margin-bottom:10px;">
+                        <div class="hosp-row" style="background:#fffbeb;padding:16px;border-radius:12px;position:relative;border:1px solid #fde68a;margin-bottom:12px;">
                             <button type="button" onclick="this.closest('.hosp-row').remove()"
-                                style="position:absolute;top:10px;right:10px;background:#fee2e2;color:#ef4444;border:none;padding:6px;border-radius:8px;cursor:pointer;">
+                                style="position:absolute;top:10px;right:10px;background:#fee2e2;color:#ef4444;border:none;padding:6px;border-radius:8px;cursor:pointer;"
+                                title="Remove this admission">
                                 <i class="material-icons" style="font-size:1.1rem;">delete</i>
                             </button>
-                            <div class="grid">
-                                <div class="form-group">
-                                    <label>Event Date</label>
+                            <div style="font-weight:700;color:#92400e;font-size:0.85rem;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em;">Admission</div>
+                            <div class="grid" style="grid-template-columns:1fr 1fr 120px;gap:12px;margin-bottom:12px;">
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Admission Date <span style="color:#ef4444;">*</span></label>
                                     <input type="date" name="hospitalization_date"
+                                        oninput="calcLOS(this)"
                                         style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
                                 </div>
-                                <div class="form-group" style="grid-column:1/-1;">
-                                    <label>Clinical Diagnosis</label>
-                                    <input type="text" name="hospitalization_diagnosis"
-                                        placeholder="e.g. Acute pulmonary oedema"
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Discharge Date</label>
+                                    <input type="date" name="hospitalization_discharge_date"
+                                        oninput="calcLOS(this)"
                                         style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
                                 </div>
-                                <div class="form-group">
-                                    <label>ICD-10 Code</label>
-                                    <input type="text" name="hospitalization_icd_code"
-                                        placeholder="e.g. J81"
-                                        style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>LOS (days)</label>
+                                    <input type="number" name="hospitalization_los" min="0" placeholder="Auto"
+                                        style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#64748b;" readonly>
                                 </div>
-                                <div class="form-group">
-                                    <label>ICD-10 Diagnosis</label>
-                                    <input type="text" name="hospitalization_icd_diagnosis"
-                                        placeholder="e.g. Pulmonary oedema"
-                                        style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;">
+                            </div>
+                            <div class="form-group" style="margin-bottom:12px;">
+                                <label>Primary Cause <span style="color:#ef4444;">*</span> <span style="font-weight:400;color:#6b7280;font-size:0.8rem;">— type to search HD common causes</span></label>
+                                <div style="position:relative;">
+                                    <input type="text" class="icd-search-input"
+                                        placeholder="e.g. fluid overload, sepsis, potassium, access…"
+                                        autocomplete="off"
+                                        oninput="searchICD(this)"
+                                        onfocus="searchICD(this)"
+                                        onblur="setTimeout(()=>closeICD(this),200)"
+                                        style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;box-sizing:border-box;">
+                                    <div class="icd-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #fde68a;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);z-index:999;max-height:220px;overflow-y:auto;"></div>
+                                    <input type="hidden" name="hospitalization_icd_code" value="">
+                                    <input type="hidden" name="hospitalization_diagnosis" value="">
+                                    <input type="hidden" name="hospitalization_icd_diagnosis" value="">
+                                    <input type="hidden" name="hospitalization_cause_category" value="">
+                                </div>
+                                <div class="icd-selected-pill" style="display:none;margin-top:6px;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fde68a;border-radius:20px;padding:4px 10px;width:fit-content;font-size:0.82rem;font-weight:600;color:#92400e;">
+                                    <span class="icd-pill-text"></span>
+                                    <span onclick="clearICD(this)" style="cursor:pointer;color:#ef4444;font-weight:700;font-size:1rem;line-height:1;">×</span>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label style="font-size:0.85rem;color:#6b7280;">Secondary Diagnoses <span style="font-weight:400;">(optional)</span></label>
+                                <div class="secondary-diag-wrap" style="display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;align-items:center;">
+                                    <span class="add-secondary-btn" onclick="openSecondaryICD(this)"
+                                        style="cursor:pointer;color:#92400e;font-size:0.8rem;font-weight:600;padding:3px 8px;border:1px dashed #fde68a;border-radius:20px;">+ Add</span>
                                 </div>
                             </div>
                         </div>
                     </template>
+
                     <button type="button" onclick="addHospRow()"
                         style="margin-top:10px;background:#fffbeb;color:#92400e;border:1px solid #fde68a;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;">
-                        + Add Hospitalisation Event
+                        + Add Admission
                     </button>
+                </div>
+
+                <!-- ICD secondary search mini-modal -->
+                <div id="icd-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1100;align-items:center;justify-content:center;">
+                    <div style="background:#fff;border-radius:16px;padding:24px;width:380px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,0.18);">
+                        <div style="font-weight:700;color:#92400e;margin-bottom:12px;">Add Secondary Diagnosis</div>
+                        <input id="icd-sec-search" type="text" placeholder="Type to search…" autocomplete="off"
+                            oninput="searchICDModal(this)"
+                            style="width:100%;padding:12px;border:1px solid #e2e8f0;border-radius:10px;box-sizing:border-box;font-size:1rem;margin-bottom:8px;">
+                        <div id="icd-sec-results" style="max-height:200px;overflow-y:auto;border:1px solid #fde68a;border-radius:10px;"></div>
+                        <button type="button" onclick="document.getElementById('icd-secondary-modal').style.display='none'"
+                            style="margin-top:12px;background:#f1f5f9;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:600;">Cancel</button>
+                    </div>
                 </div>
                 {% endif %}
 
@@ -908,6 +994,143 @@
         wrap.style.display = 'block';
         wrap.appendChild(tmpl.content.cloneNode(true));
         document.querySelector('input[name="hospitalization_this_month"]').checked = true;
+    }
+
+    // ── HD-specific ICD-10 shortlist (covers ~90% of HD admissions) ──────────
+    const HD_ICD = [
+        {code:"J81",   label:"Pulmonary oedema",          keywords:["fluid","pulmonary","oedema","edema","apo","lvf","breathless","sob"],         category:"Fluid overload"},
+        {code:"I50.0", label:"Congestive cardiac failure", keywords:["ccf","cardiac failure","heart failure","chf","congestive"],                 category:"Cardiac"},
+        {code:"A41.9", label:"Sepsis",                     keywords:["sepsis","septicemia","bacteremia","blood infection"],                        category:"Infection"},
+        {code:"T82.7", label:"Vascular access infection",  keywords:["access","avf","graft","catheter","fistula","line","avf infection","tcc"],    category:"Access"},
+        {code:"I10",   label:"Hypertensive crisis",        keywords:["hypertension","bp","blood pressure","htn","hypertensive"],                  category:"Cardiac"},
+        {code:"E87.5", label:"Hyperkalaemia",              keywords:["potassium","hyperkalemia","hyperkalaemia","high k","k+"],                   category:"Electrolyte"},
+        {code:"J18.9", label:"Pneumonia",                  keywords:["pneumonia","chest infection","lrti","lung"],                                category:"Infection"},
+        {code:"I21",   label:"Acute myocardial infarction",keywords:["mi","heart attack","ami","troponin","acs","nstemi","stemi"],                category:"Cardiac"},
+        {code:"R55",   label:"Syncope / IDH collapse",     keywords:["syncope","collapse","idh","hypotension","dizzy","faint"],                   category:"Intradialytic"},
+        {code:"D64.9", label:"Severe anaemia",             keywords:["anaemia","anemia","transfusion","low hb","hemoglobin"],                     category:"Anaemia"},
+        {code:"T85.7", label:"Catheter complication",      keywords:["catheter","permcath","tcc","line","port","implant"],                        category:"Access"},
+        {code:"N18.6", label:"ESRD — fluid overload",      keywords:["esrd","renal","fluid overload","volume","overloaded"],                      category:"Renal"},
+        {code:"E83.5", label:"Hypocalcaemia",              keywords:["calcium","hypocalcaemia","low calcium","tetany"],                           category:"Electrolyte"},
+        {code:"E83.3", label:"Hyperphosphataemia",         keywords:["phosphorus","phosphate","high phosphorus"],                                 category:"Electrolyte"},
+        {code:"I48",   label:"Atrial fibrillation",        keywords:["af","atrial fibrillation","afib","arrhythmia","palpitation"],               category:"Cardiac"},
+        {code:"N28.9", label:"Renal complication",         keywords:["renal","kidney","ckd","dialysis complication"],                             category:"Renal"},
+        {code:"K92.1", label:"GI bleeding",                keywords:["bleeding","gi bleed","haematemesis","melena","blood stool"],                category:"GI"},
+        {code:"G40",   label:"Seizure",                    keywords:["seizure","convulsion","fit","epilepsy"],                                    category:"Neurological"},
+        {code:"I63",   label:"Stroke / CVA",               keywords:["stroke","cva","cerebral","neuro","weakness","hemiplegia"],                  category:"Neurological"},
+        {code:"E11",   label:"Diabetic complication",      keywords:["diabetes","diabetic","sugar","hyperglycemia","dka","hhs"],                  category:"Metabolic"},
+    ];
+
+    function searchICD(inputEl) {
+        const row   = inputEl.closest('.hosp-row');
+        const drop  = row.querySelector('.icd-dropdown');
+        const q     = inputEl.value.toLowerCase().trim();
+        if (!q) { drop.style.display = 'none'; return; }
+        const hits  = HD_ICD.filter(i =>
+            i.code.toLowerCase().includes(q) ||
+            i.label.toLowerCase().includes(q) ||
+            i.keywords.some(k => k.includes(q))
+        );
+        if (!hits.length) { drop.style.display = 'none'; return; }
+        drop.innerHTML = hits.map(i => `
+            <div onclick="selectICD(this,'${i.code}','${i.label}','${i.label}','${i.category}')"
+                style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #fef3c7;font-size:0.9rem;"
+                onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
+                <span style="font-weight:700;color:#92400e;margin-right:6px;">${i.code}</span>
+                <span>${i.label}</span>
+                <span style="float:right;font-size:0.75rem;color:#9ca3af;background:#f1f5f9;border-radius:10px;padding:1px 7px;">${i.category}</span>
+            </div>`).join('');
+        drop.style.display = 'block';
+    }
+
+    function selectICD(el, code, diag, icdDiag, category) {
+        const row  = el.closest('.hosp-row');
+        const drop = row.querySelector('.icd-dropdown');
+        const inp  = row.querySelector('.icd-search-input');
+        row.querySelector('[name="hospitalization_icd_code"]').value      = code;
+        row.querySelector('[name="hospitalization_diagnosis"]').value     = diag;
+        row.querySelector('[name="hospitalization_icd_diagnosis"]').value = icdDiag;
+        row.querySelector('[name="hospitalization_cause_category"]').value = category;
+        const pill = row.querySelector('.icd-selected-pill');
+        pill.querySelector('.icd-pill-text').textContent = `${code} · ${diag}`;
+        pill.style.display = 'flex';
+        inp.value = '';
+        drop.style.display = 'none';
+    }
+
+    function clearICD(spanEl) {
+        const row = spanEl.closest('.hosp-row');
+        row.querySelector('[name="hospitalization_icd_code"]').value      = '';
+        row.querySelector('[name="hospitalization_diagnosis"]').value     = '';
+        row.querySelector('[name="hospitalization_icd_diagnosis"]').value = '';
+        row.querySelector('[name="hospitalization_cause_category"]').value = '';
+        const pill = row.querySelector('.icd-selected-pill');
+        pill.querySelector('.icd-pill-text').textContent = '';
+        pill.style.display = 'none';
+    }
+
+    function closeICD(inputEl) {
+        const drop = inputEl.closest('.hosp-row').querySelector('.icd-dropdown');
+        if (drop) drop.style.display = 'none';
+    }
+
+    function calcLOS(inputEl) {
+        const row  = inputEl.closest('.hosp-row');
+        const admEl = row.querySelector('[name="hospitalization_date"]');
+        const disEl = row.querySelector('[name="hospitalization_discharge_date"]');
+        const losEl = row.querySelector('[name="hospitalization_los"]');
+        if (admEl.value && disEl.value) {
+            const diff = Math.max(0, Math.round((new Date(disEl.value) - new Date(admEl.value)) / 86400000));
+            losEl.value = diff;
+        } else {
+            losEl.value = '';
+        }
+    }
+
+    // Secondary ICD modal
+    let _secTargetWrap = null;
+    function openSecondaryICD(btnEl) {
+        _secTargetWrap = btnEl.closest('.secondary-diag-wrap');
+        document.getElementById('icd-sec-search').value = '';
+        document.getElementById('icd-sec-results').innerHTML = '';
+        const modal = document.getElementById('icd-secondary-modal');
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('icd-sec-search').focus(), 50);
+    }
+
+    function searchICDModal(inputEl) {
+        const q    = inputEl.value.toLowerCase().trim();
+        const res  = document.getElementById('icd-sec-results');
+        if (!q) { res.innerHTML = ''; return; }
+        const hits = HD_ICD.filter(i =>
+            i.code.toLowerCase().includes(q) ||
+            i.label.toLowerCase().includes(q) ||
+            i.keywords.some(k => k.includes(q))
+        );
+        res.innerHTML = hits.map(i => `
+            <div onclick="addSecondaryPill('${i.code}','${i.label}')"
+                style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #fef3c7;font-size:0.9rem;"
+                onmouseover="this.style.background='#fffbeb'" onmouseout="this.style.background=''">
+                <span style="font-weight:700;color:#92400e;margin-right:6px;">${i.code}</span>${i.label}
+                <span style="float:right;font-size:0.75rem;color:#9ca3af;">${i.category}</span>
+            </div>`).join('') || '<div style="padding:12px;color:#9ca3af;font-size:0.85rem;">No matches</div>';
+    }
+
+    function addSecondaryPill(code, label) {
+        if (!_secTargetWrap) return;
+        // Prevent duplicate
+        const existing = [..._secTargetWrap.querySelectorAll('.sec-diag-pill')].map(p => p.dataset.code);
+        if (existing.includes(code)) { document.getElementById('icd-secondary-modal').style.display='none'; return; }
+        const pill = document.createElement('span');
+        pill.className = 'sec-diag-pill';
+        pill.dataset.code = code;
+        pill.style.cssText = 'display:flex;align-items:center;gap:4px;background:#fef3c7;border:1px solid #fde68a;border-radius:20px;padding:3px 10px;font-size:0.8rem;font-weight:600;color:#92400e;';
+        pill.innerHTML = `<input type="hidden" name="hospitalization_secondary_icd" value="${code}">
+            <input type="hidden" name="hospitalization_secondary_diagnosis" value="${label}">
+            ${code} · ${label}
+            <span onclick="this.closest('.sec-diag-pill').remove()" style="cursor:pointer;color:#ef4444;font-weight:700;font-size:1rem;line-height:1;margin-left:2px;">×</span>`;
+        const addBtn = _secTargetWrap.querySelector('.add-secondary-btn');
+        _secTargetWrap.insertBefore(pill, addBtn);
+        document.getElementById('icd-secondary-modal').style.display = 'none';
     }
     </script>
 

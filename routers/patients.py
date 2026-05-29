@@ -672,6 +672,29 @@ async def deactivate_patient(
 
 # ── Hospitalisation Event Log ─────────────────────────────────────────────────
 
+@router.get("/{patient_id}/hospitalisations", response_class=HTMLResponse)
+async def patient_hospitalisations_page(
+    patient_id: int, request: Request, db: Session = Depends(get_db),
+    open: Optional[str] = None,
+):
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    hospitalisations = (
+        db.query(HospitalisationEvent)
+        .filter(HospitalisationEvent.patient_id == patient_id)
+        .order_by(HospitalisationEvent.admission_date.desc())
+        .all()
+    )
+    return templates.TemplateResponse("patient_hospitalisations.html", {
+        "request": request,
+        "patient": p,
+        "hospitalisations": hospitalisations,
+        "user": get_user(request),
+        "open": open,
+    })
+
+
 @router.post("/{patient_id}/hospitalisations")
 async def add_hospitalisation(
     patient_id: int,
@@ -679,11 +702,13 @@ async def add_hospitalisation(
     db: Session = Depends(get_db),
     admission_date: str = Form(...),
     discharge_date: Optional[str] = Form(None),
-    primary_icd: str = Form(""),
-    primary_diagnosis: str = Form(""),
-    cause_category: str = Form(""),
+    los_days: Optional[int] = Form(None),
+    diagnosis: list[str] = Form([]),
+    icd_code: list[str] = Form([]),
+    icd_name: list[str] = Form([]),
     notes: str = Form(""),
 ):
+    import json as _json
     user = get_user(request)
     p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
@@ -695,13 +720,36 @@ async def add_hospitalisation(
         raise HTTPException(status_code=400, detail="Invalid admission_date")
 
     dis = None
-    los = None
+    los = los_days
     if discharge_date:
         try:
             dis = datetime.strptime(discharge_date, "%Y-%m-%d").date()
-            los = max((dis - adm).days, 0)
+            if los is None:
+                los = max((dis - adm).days, 0)
         except ValueError:
             pass
+
+    # Build structured diagnosis list — filter out blank rows
+    def _pad(lst, n): return lst + [''] * (n - len(lst))
+    n = max(len(diagnosis), len(icd_code), len(icd_name))
+    diag_list = []
+    for d, c, nm in zip(_pad(diagnosis, n), _pad(icd_code, n), _pad(icd_name, n)):
+        d = d.strip(); c = c.strip(); nm = nm.strip()
+        if d:
+            diag_list.append({"diagnosis": d, "icd_code": c, "icd_name": nm})
+
+    # primary fields from first entry for ML training path
+    primary_diag = diag_list[0]["diagnosis"] if diag_list else None
+    primary_icd  = diag_list[0]["icd_code"]  if diag_list else None
+
+    # Store all diagnoses as JSON in notes; append free-text notes after
+    notes_clean = notes.strip() if notes else ""
+    if diag_list:
+        notes_stored = _json.dumps(diag_list, ensure_ascii=False)
+        if notes_clean:
+            notes_stored = notes_stored + "\n" + notes_clean
+    else:
+        notes_stored = notes_clean or None
 
     from datetime import timedelta
     prior = (
@@ -722,10 +770,10 @@ async def add_hospitalisation(
         discharge_date=dis,
         los_days=los,
         primary_icd=primary_icd or None,
-        primary_diagnosis=primary_diagnosis or None,
-        cause_category=cause_category or None,
+        primary_diagnosis=primary_diag or None,
+        cause_category=None,
         readmission_within_30d=bool(prior),
-        notes=notes or None,
+        notes=notes_stored or None,
         entered_by=username,
     )
     db.add(ev)
@@ -735,13 +783,92 @@ async def add_hospitalisation(
         db=db,
         patient_id=patient_id,
         event_date=adm,
-        diagnosis=primary_diagnosis or "",
+        diagnosis=primary_diag or "",
         icd_code=primary_icd or "",
-        icd_diagnosis=cause_category or ""
+        icd_diagnosis=""
     )
 
     db.commit()
-    return RedirectResponse(url=f"/patients/{patient_id}?msg=Hospitalisation+event+saved", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/hospitalisations", status_code=303)
+
+
+@router.post("/{patient_id}/hospitalisations/{event_id}/edit")
+async def edit_hospitalisation(
+    patient_id: int,
+    event_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admission_date: str = Form(...),
+    discharge_date: Optional[str] = Form(None),
+    los_days: Optional[int] = Form(None),
+    diagnosis: list[str] = Form([]),
+    icd_code: list[str] = Form([]),
+    icd_name: list[str] = Form([]),
+    notes: str = Form(""),
+):
+    import json as _json
+    user = get_user(request)
+    role = (user.get("role") if isinstance(user, dict) else getattr(user, "role", "")) if user else ""
+    if role not in ("admin", "doctor"):
+        raise HTTPException(status_code=403)
+
+    ev = db.query(HospitalisationEvent).filter(
+        HospitalisationEvent.id == event_id,
+        HospitalisationEvent.patient_id == patient_id,
+    ).first()
+    if not ev:
+        raise HTTPException(status_code=404)
+
+    try:
+        adm = datetime.strptime(admission_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid admission_date")
+
+    dis = None
+    los = los_days
+    if discharge_date:
+        try:
+            dis = datetime.strptime(discharge_date, "%Y-%m-%d").date()
+            if los is None:
+                los = max((dis - adm).days, 0)
+        except ValueError:
+            pass
+
+    # Rebuild diagnosis list
+    def _pad(lst, n): return lst + [''] * (n - len(lst))
+    n = max(len(diagnosis), len(icd_code), len(icd_name), 1)
+    diag_list = []
+    for d, c, nm in zip(_pad(diagnosis, n), _pad(icd_code, n), _pad(icd_name, n)):
+        d = d.strip(); c = c.strip(); nm = nm.strip()
+        if d:
+            diag_list.append({"diagnosis": d, "icd_code": c, "icd_name": nm})
+
+    primary_diag = diag_list[0]["diagnosis"] if diag_list else None
+    primary_icd  = diag_list[0]["icd_code"]  if diag_list else None
+
+    notes_clean = notes.strip() if notes else ""
+    if diag_list:
+        notes_stored = _json.dumps(diag_list, ensure_ascii=False)
+        if notes_clean:
+            notes_stored = notes_stored + "\n" + notes_clean
+    else:
+        notes_stored = notes_clean or None
+
+    ev.admission_date     = adm
+    ev.discharge_date     = dis
+    ev.los_days           = los
+    ev.primary_diagnosis  = primary_diag or None
+    ev.primary_icd        = primary_icd or None
+    ev.notes              = notes_stored or None
+
+    from services.patient_service import sync_hospitalization_to_monthly_record
+    sync_hospitalization_to_monthly_record(
+        db=db, patient_id=patient_id, event_date=adm,
+        diagnosis=primary_diag or "", icd_code=primary_icd or "", icd_diagnosis=""
+    )
+
+    db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}/hospitalisations", status_code=303)
 
 
 @router.post("/{patient_id}/hospitalisations/{event_id}/delete")
@@ -763,7 +890,7 @@ async def delete_hospitalisation(
         raise HTTPException(status_code=404)
     db.delete(ev)
     db.commit()
-    return RedirectResponse(url=f"/patients/{patient_id}", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/hospitalisations", status_code=303)
 
 
 @router.post("/{patient_id}/clinical_background")

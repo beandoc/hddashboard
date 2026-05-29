@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ICD-10 Lookup — Nephrology | HD Dashboard</title>
+  <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+  <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
+  <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
+  <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
+  <link rel="stylesheet" href="/static/css/clinical.css"/>
+  <style>
+    body { background:#f8fafc; font-family:'Inter',sans-serif; }
+    .wrap { max-width:1000px; margin:0 auto; padding:24px 20px 60px; }
+
+    .ph { background:linear-gradient(135deg,#eff6ff,#fff); border:1px solid #bfdbfe; border-radius:16px; padding:22px 28px; margin-bottom:22px; }
+    .ph-row { display:flex; align-items:center; gap:14px; margin-bottom:4px; }
+    .ph-icon { width:46px; height:46px; border-radius:12px; background:#dbeafe; display:flex; align-items:center; justify-content:center; }
+    .ph-icon i { color:#1d4ed8; font-size:1.4rem; }
+    .ph-title { font-size:1.2rem; font-weight:800; color:#0f172a; margin:0; }
+    .ph-sub { font-size:0.82rem; color:#3b82f6; margin:0; }
+    .ph-hint { font-size:0.8rem; color:#64748b; margin-top:8px; line-height:1.5; }
+
+    /* Search box */
+    .search-wrap { position:relative; margin-bottom:20px; }
+    .search-input {
+      width:100%; padding:14px 16px 14px 48px; border:2px solid #bfdbfe;
+      border-radius:12px; font-size:1rem; font-family:'Inter',sans-serif;
+      background:#fff; box-sizing:border-box; transition:border-color 0.15s;
+    }
+    .search-input:focus { border-color:#3b82f6; outline:none; box-shadow:0 0 0 4px rgba(59,130,246,0.1); }
+    .search-icon { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:1.2rem; }
+    .search-clear { position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#94a3b8; display:none; font-size:1.2rem; }
+
+    /* Filter chips */
+    .filter-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+    .chip {
+      padding:5px 14px; border-radius:20px; font-size:0.8rem; font-weight:600;
+      cursor:pointer; border:1px solid #e2e8f0; background:#f8fafc; color:#475569;
+      transition:all 0.12s;
+    }
+    .chip.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+    .chip:hover:not(.active) { background:#e0f2fe; border-color:#7dd3fc; color:#0369a1; }
+
+    /* Results */
+    .results-header { font-size:0.78rem; color:#6b7280; margin-bottom:12px; font-weight:600; }
+    .result-row {
+      background:#fff; border:1px solid #e2e8f0; border-radius:12px;
+      padding:14px 18px; margin-bottom:8px; display:flex; align-items:flex-start;
+      gap:16px; cursor:pointer; transition:all 0.12s;
+    }
+    .result-row:hover { border-color:#bfdbfe; background:#eff6ff; box-shadow:0 2px 8px rgba(59,130,246,0.08); }
+    .result-row.copied { border-color:#16a34a; background:#f0fdf4; }
+    .code-badge {
+      font-family:monospace; font-weight:800; font-size:0.95rem; color:#1d4ed8;
+      background:#dbeafe; border-radius:8px; padding:4px 10px; white-space:nowrap;
+      min-width:72px; text-align:center; flex-shrink:0;
+    }
+    .result-main { flex:1; min-width:0; }
+    .result-label { font-weight:700; color:#0f172a; font-size:0.95rem; margin-bottom:4px; }
+    .result-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .cat-badge {
+      font-size:0.72rem; font-weight:700; border-radius:6px; padding:2px 8px;
+    }
+    .chapter-tag { font-size:0.72rem; color:#94a3b8; }
+    .copy-hint { font-size:0.72rem; color:#94a3b8; margin-left:auto; white-space:nowrap; }
+    .copied-msg { font-size:0.72rem; color:#16a34a; font-weight:700; display:none; }
+
+    .no-results { text-align:center; padding:48px 20px; color:#94a3b8; }
+    .no-results i { font-size:2.5rem; display:block; margin-bottom:10px; color:#e2e8f0; }
+
+    /* Category colour map */
+    .cat-CKD               { background:#dbeafe; color:#1d4ed8; }
+    .cat-AKI               { background:#fee2e2; color:#dc2626; }
+    .cat-Glomerular        { background:#fce7f3; color:#be185d; }
+    .cat-Primary-Renal     { background:#ede9fe; color:#7c3aed; }
+    .cat-Dialysis-Encounter{ background:#d1fae5; color:#065f46; }
+    .cat-Fluid-Overload    { background:#dbeafe; color:#1e40af; }
+    .cat-Cardiac           { background:#fee2e2; color:#dc2626; }
+    .cat-Hypertension      { background:#fef3c7; color:#92400e; }
+    .cat-Electrolyte       { background:#fef9c3; color:#854d0e; }
+    .cat-Anaemia           { background:#ffe4e6; color:#be123c; }
+    .cat-Infection         { background:#fef3c7; color:#d97706; }
+    .cat-Vascular-Access   { background:#f3e8ff; color:#7c3aed; }
+    .cat-Neurological      { background:#e0f2fe; color:#0369a1; }
+    .cat-Diabetes          { background:#dcfce7; color:#15803d; }
+    .cat-Intradialytic     { background:#fef3c7; color:#b45309; }
+    .cat-Transplant        { background:#d1fae5; color:#065f46; }
+    .cat-GI                { background:#fff7ed; color:#c2410c; }
+    .cat-Autoimmune        { background:#fae8ff; color:#86198f; }
+    .cat-Respiratory       { background:#e0f2fe; color:#0284c7; }
+    .cat-Bone              { background:#f1f5f9; color:#475569; }
+    .cat-Nutrition         { background:#dcfce7; color:#166534; }
+    .cat-Status            { background:#f1f5f9; color:#374151; }
+
+    /* Toast */
+    #copyToast {
+      position:fixed; bottom:24px; right:24px; background:#0f172a; color:#fff;
+      border-radius:10px; padding:12px 18px; font-size:0.88rem; font-weight:600;
+      display:none; align-items:center; gap:8px; z-index:9999;
+      box-shadow:0 8px 24px rgba(0,0,0,0.2);
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="wrap">
+
+  <div class="ph">
+    <div class="ph-row">
+      <div class="ph-icon"><i class="material-icons">manage_search</i></div>
+      <div>
+        <h1 class="ph-title">ICD-10 Nephrology Lookup</h1>
+        <p class="ph-sub">Curated for HD units · 150+ codes · click any row to copy</p>
+      </div>
+    </div>
+    <p class="ph-hint">
+      Search by clinical term, abbreviation, or ICD code — e.g. "sepsis", "fluid overload", "avf clot", "N18.6", "idh", "hyperkalemia".
+      Click any result to copy the code to your clipboard.
+    </p>
+  </div>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <i class="material-icons search-icon">search</i>
+    <input type="text" id="searchInput" class="search-input"
+      placeholder="Type a diagnosis, abbreviation, or ICD code…"
+      autofocus autocomplete="off"
+      oninput="onSearch()" onkeydown="onKeyDown(event)">
+    <i class="material-icons search-clear" id="clearBtn" onclick="clearSearch()">close</i>
+  </div>
+
+  <!-- Category filters -->
+  <div class="filter-row" id="filterRow">
+    <span class="chip active" onclick="setFilter('', this)" data-filter="">All</span>
+    <span class="chip" onclick="setFilter('CKD', this)" data-filter="CKD">CKD</span>
+    <span class="chip" onclick="setFilter('AKI', this)" data-filter="AKI">AKI</span>
+    <span class="chip" onclick="setFilter('Glomerular', this)" data-filter="Glomerular">Glomerular</span>
+    <span class="chip" onclick="setFilter('Primary Renal', this)" data-filter="Primary Renal">Primary Renal</span>
+    <span class="chip" onclick="setFilter('Dialysis Encounter', this)" data-filter="Dialysis Encounter">Dialysis Encounter</span>
+    <span class="chip" onclick="setFilter('Fluid Overload', this)" data-filter="Fluid Overload">Fluid Overload</span>
+    <span class="chip" onclick="setFilter('Cardiac', this)" data-filter="Cardiac">Cardiac</span>
+    <span class="chip" onclick="setFilter('Electrolyte', this)" data-filter="Electrolyte">Electrolyte</span>
+    <span class="chip" onclick="setFilter('Anaemia', this)" data-filter="Anaemia">Anaemia</span>
+    <span class="chip" onclick="setFilter('Infection', this)" data-filter="Infection">Infection</span>
+    <span class="chip" onclick="setFilter('Vascular Access', this)" data-filter="Vascular Access">Vascular Access</span>
+    <span class="chip" onclick="setFilter('Intradialytic', this)" data-filter="Intradialytic">Intradialytic</span>
+    <span class="chip" onclick="setFilter('Diabetes', this)" data-filter="Diabetes">Diabetes</span>
+    <span class="chip" onclick="setFilter('Neurological', this)" data-filter="Neurological">Neurological</span>
+    <span class="chip" onclick="setFilter('Autoimmune', this)" data-filter="Autoimmune">Autoimmune</span>
+    <span class="chip" onclick="setFilter('Transplant', this)" data-filter="Transplant">Transplant</span>
+  </div>
+
+  <div id="resultsHeader" class="results-header"></div>
+  <div id="results"></div>
+
+</div>
+
+<div id="copyToast">
+  <i class="material-icons" style="font-size:1rem;">check_circle</i>
+  <span id="copyToastMsg">Copied to clipboard</span>
+</div>
+
+<script src="/static/js/icd10_nephrology.js"></script>
+<script>
+let _activeFilter = '';
+let _focusIdx = -1;
+let _rendered = [];
+
+function catClass(cat) {
+  return 'cat-' + (cat || 'Status').replace(/[\s\/]+/g, '-');
+}
+
+function render(entries) {
+  _rendered = entries;
+  _focusIdx = -1;
+  const container = document.getElementById('results');
+  const header    = document.getElementById('resultsHeader');
+
+  if (!entries.length) {
+    header.textContent = '';
+    container.innerHTML = `<div class="no-results">
+      <i class="material-icons">search_off</i>
+      <p>No matching codes found. Try a different term or abbreviation.</p>
+    </div>`;
+    return;
+  }
+
+  header.textContent = `${entries.length} result${entries.length !== 1 ? 's' : ''}`;
+  container.innerHTML = entries.map((e, i) => `
+    <div class="result-row" id="rrow-${i}" onclick="copyCode('${e.code}', '${e.label.replace(/'/g,"\\'")}', ${i})"
+      tabindex="0" onkeydown="if(event.key==='Enter')copyCode('${e.code}','${e.label.replace(/'/g,"\\'")}',${i})">
+      <span class="code-badge">${e.code}</span>
+      <div class="result-main">
+        <div class="result-label">${e.label}</div>
+        <div class="result-meta">
+          <span class="cat-badge ${catClass(e.category)}">${e.category}</span>
+          <span class="chapter-tag">${e.chapter}</span>
+          <span class="copy-hint" id="hint-${i}">click to copy code</span>
+          <span class="copied-msg" id="copied-${i}">✓ copied!</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function showAll() {
+  const list = _activeFilter
+    ? ICD10_NEPHROLOGY.filter(e => e.category === _activeFilter)
+    : ICD10_NEPHROLOGY;
+  render(list);
+  document.getElementById('resultsHeader').textContent =
+    `Showing all ${list.length} codes${_activeFilter ? ' in ' + _activeFilter : ''}`;
+}
+
+function onSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  document.getElementById('clearBtn').style.display = q ? 'block' : 'none';
+  if (!q) { showAll(); return; }
+  let results = searchICD10(q, 40);
+  if (_activeFilter) results = results.filter(e => e.category === _activeFilter);
+  render(results);
+}
+
+function setFilter(cat, chipEl) {
+  _activeFilter = cat;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  chipEl.classList.add('active');
+  onSearch();
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('clearBtn').style.display = 'none';
+  showAll();
+  document.getElementById('searchInput').focus();
+}
+
+function copyCode(code, label, idx) {
+  const text = code;
+  navigator.clipboard.writeText(text).then(() => {
+    // Row flash
+    const row = document.getElementById('rrow-' + idx);
+    if (row) row.classList.add('copied');
+    const hint   = document.getElementById('hint-' + idx);
+    const copied = document.getElementById('copied-' + idx);
+    if (hint)   hint.style.display   = 'none';
+    if (copied) copied.style.display = 'inline';
+
+    // Toast
+    const toast = document.getElementById('copyToast');
+    document.getElementById('copyToastMsg').textContent = `${code} — ${label}`;
+    toast.style.display = 'flex';
+    setTimeout(() => {
+      toast.style.display = 'none';
+      if (row)    row.classList.remove('copied');
+      if (hint)   hint.style.display   = 'inline';
+      if (copied) copied.style.display = 'none';
+    }, 2200);
+  }).catch(() => {
+    // Fallback for older browsers
+    const el = document.createElement('textarea');
+    el.value = code; document.body.appendChild(el);
+    el.select(); document.execCommand('copy'); document.body.removeChild(el);
+  });
+}
+
+function onKeyDown(e) {
+  const rows = document.querySelectorAll('.result-row');
+  if (!rows.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _focusIdx = Math.min(_focusIdx + 1, rows.length - 1);
+    rows[_focusIdx].focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _focusIdx = Math.max(_focusIdx - 1, 0);
+    rows[_focusIdx].focus();
+  }
+}
+
+// Init
+showAll();
+</script>
+</body>
+</html>

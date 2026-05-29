@@ -380,6 +380,50 @@ app.include_router(ocr.router)
 app.include_router(api_next.router)
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ICD-10 LOOKUP
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/icd", response_class=HTMLResponse)
+async def icd_lookup(request: Request):
+    return templates.TemplateResponse("icd_lookup.html", {
+        "request": request,
+        "user": get_user(request),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HOSPITALISATIONS — unit-wide view (all patients)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/hospitalisations", response_class=HTMLResponse)
+async def hospitalisations_index(
+    request: Request,
+    db: Session = Depends(get_db),
+    patient_id: Optional[int] = None,
+):
+    from database import HospitalisationEvent, Patient as Pt
+    user = get_user(request)
+    # Build query — optionally filtered to one patient
+    q = (
+        db.query(HospitalisationEvent)
+        .join(Pt, Pt.id == HospitalisationEvent.patient_id)
+        .filter(Pt.is_active == True)
+        .order_by(HospitalisationEvent.admission_date.desc())
+    )
+    if patient_id:
+        q = q.filter(HospitalisationEvent.patient_id == patient_id)
+    events_all = q.limit(200).all()
+    patients_all = db.query(Pt).filter(Pt.is_active == True).order_by(Pt.name).all()
+    return templates.TemplateResponse("hospitalisations_index.html", {
+        "request": request,
+        "user": user,
+        "events": events_all,
+        "patients": patients_all,
+        "filter_patient_id": patient_id,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # CORE ROUTES (Dashboard)
 # ─────────────────────────────────────────────────────────────────────────────
 

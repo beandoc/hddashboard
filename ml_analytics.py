@@ -566,7 +566,14 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
     if not thresh:
         return {"patients": []}
 
-    curr_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month).all()
+    active_patient_ids = {
+        p.id for p in db.query(Patient).filter(Patient.is_active == True).all()
+    }
+
+    curr_records = db.query(MonthlyRecord).filter(
+        MonthlyRecord.record_month == month,
+        MonthlyRecord.patient_id.in_(active_patient_ids),
+    ).all()
     at_risk_patient_ids = []
 
     for r in curr_records:

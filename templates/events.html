@@ -321,10 +321,13 @@
       <button class="btn btn-primary" onclick="openAdmitModalOnTimeline()" style="background:#7c3aed;">
         <i class="material-icons" style="vertical-align:middle;font-size:1rem;">local_hospital</i> Log Admission
       </button>
-      <button class="btn btn-primary" onclick="openDischargeModalOnTimeline()" 
+      <button class="btn btn-primary" onclick="openDischargeModalOnTimeline()"
               style="background:#0369a1; {{ 'opacity:0.5; cursor:not-allowed;' if not admitted_patients else '' }}"
               {{ 'disabled' if not admitted_patients else '' }}>
         <i class="material-icons" style="vertical-align:middle;font-size:1rem;">exit_to_app</i> Log Discharge
+      </button>
+      <button class="btn btn-primary" onclick="openProcedureModal()" style="background:#059669;">
+        <i class="material-icons" style="vertical-align:middle;font-size:1rem;">medical_services</i> Log Procedure
       </button>
     </div>
   </div>
@@ -484,61 +487,81 @@
 </style>
 
 <div id="admitModal" class="modal-overlay" onclick="if(event.target===this)closeAdmitModal()">
-    <div class="modal-box" style="border-top: 4px solid #7c3aed;">
+    <div class="modal-box" style="border-top:4px solid #7c3aed; max-width:680px; width:95vw;">
         <div class="modal-header">
-            <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Hospital Admission</h3>
+            <h3><i class="material-icons" style="color:#7c3aed;font-size:1.1rem;">local_hospital</i> Log Hospital Admission</h3>
             <button type="button" class="modal-close" onclick="closeAdmitModal()"><i class="material-icons">close</i></button>
         </div>
         <form action="/events/new" method="POST" id="admitForm" onsubmit="prepareAdmitDescription(this)">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="form-field">
-                <label>Patient *</label>
-                <select name="patient_id" id="admit_patient_id" required>
-                    <option value="">— Select Patient —</option>
-                    {% for p in patients %}
-                    <option value="{{ p.id }}">{{ p.name }} ({{ p.hid_no }})</option>
-                    {% endfor %}
-                </select>
-            </div>
             <input type="hidden" name="event_type" value="Hospitalization">
             <input type="hidden" name="severity" value="High">
             <input type="hidden" name="notes" id="admit_description">
 
-            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-                <div class="form-field">
-                    <label>Admission Date</label>
-                    <input type="date" name="event_date" id="admit_date" required>
+            <!-- Row 1: Patient + Hospital -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div class="form-field" style="margin:0;">
+                    <label>Patient *</label>
+                    <select name="patient_id" id="admit_patient_id" required>
+                        <option value="">— Select Patient —</option>
+                        {% for p in patients %}
+                        <option value="{{ p.id }}">{{ p.name }} ({{ p.hid_no }})</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <div class="form-field">
-                    <label>Hospital Name</label>
-                    <input type="text" name="hospital_name" id="admit_hospital" value="CHSC" required>
-                </div>
-            </div>
-
-            <div id="admitDiagnosesWrapper">
-                <div class="diagnosis-block" style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px; position:relative;">
-                    <div class="form-field" style="margin-bottom:10px;">
-                        <label>Clinical Diagnosis</label>
-                        <input type="text" name="hosp_diagnosis" placeholder="e.g. Fluid Overload" required class="admit-diag">
-                    </div>
-                    <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                        <div class="form-field">
-                            <label>ICD-10 Code</label>
-                            <input type="text" name="hosp_icd_code" placeholder="e.g. J44.1" class="admit-code">
-                        </div>
-                        <div class="form-field">
-                            <label>ICD-10 Diagnosis</label>
-                            <input type="text" name="hosp_icd_diag" placeholder="e.g. Heart Failure" class="admit-icd-diag">
-                        </div>
-                    </div>
+                <div class="form-field" style="margin:0;">
+                    <label>Hospital / Facility</label>
+                    <input type="text" name="hospital_name" id="admit_hospital" value="CHSC">
                 </div>
             </div>
 
-            <button type="button" onclick="addAdmitDiagnosisRow()" style="background:none; border:none; color:#0ea5e9; font-size:0.85rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px; margin-bottom:20px;">
-                <i class="material-icons" style="font-size:1.1rem;">add_circle</i> Add Another Admission Diagnosis
+            <!-- Row 2: Admission date + Discharge date + LOS -->
+            <div style="display:grid; grid-template-columns:1fr 1fr 100px; gap:12px; margin-bottom:14px;">
+                <div class="form-field" style="margin:0;">
+                    <label>Admission Date *</label>
+                    <input type="date" name="event_date" id="admit_date" required oninput="admitCalcLOS()">
+                </div>
+                <div class="form-field" style="margin:0;">
+                    <label>Discharge Date <span style="font-weight:400;color:#94a3b8;">(if known)</span></label>
+                    <input type="date" name="discharge_date" id="admit_discharge_date" oninput="admitCalcLOS()">
+                </div>
+                <div class="form-field" style="margin:0;">
+                    <label>LOS (days)</label>
+                    <input type="number" id="admit_los" name="los_days" min="0" placeholder="Auto"
+                        style="background:#f8fafc; color:#64748b;" readonly>
+                </div>
+            </div>
+
+            <!-- Primary Cause — ICD search -->
+            <div class="form-field" style="margin-bottom:14px;">
+                <label>Primary Cause * <span style="font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;">— type to search</span></label>
+                <div style="position:relative;">
+                    <input type="text" id="admit_icd_search"
+                        placeholder="fluid overload, sepsis, potassium, access infection…"
+                        autocomplete="off"
+                        oninput="admitSearchICD(this)" onfocus="admitSearchICD(this)"
+                        onblur="setTimeout(()=>document.getElementById('admit_icd_drop').style.display='none',180)"
+                        style="width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.95rem; background:#f8fafc; box-sizing:border-box;">
+                    <div id="admit_icd_drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #c4b5fd;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.10);z-index:1100;max-height:220px;overflow-y:auto;margin-top:2px;"></div>
+                    <input type="hidden" name="hosp_icd_code" id="admit_icd_code">
+                    <input type="hidden" name="hosp_diagnosis" id="admit_icd_diag">
+                    <input type="hidden" name="hosp_icd_diag" id="admit_icd_diag2">
+                </div>
+                <div id="admit_icd_pill" style="display:none;margin-top:6px;align-items:center;gap:6px;background:#ede9fe;border:1px solid #c4b5fd;border-radius:20px;padding:4px 12px;width:fit-content;font-size:0.82rem;font-weight:700;color:#6d28d9;">
+                    <span id="admit_icd_pill_text"></span>
+                    <span onclick="admitClearICD()" style="cursor:pointer;color:#dc2626;font-weight:700;font-size:1.1rem;line-height:1;margin-left:2px;">×</span>
+                </div>
+            </div>
+
+            <!-- Additional diagnoses -->
+            <div id="admitDiagnosesWrapper"></div>
+            <button type="button" onclick="addAdmitDiagnosisRow()" style="background:none;border:none;color:#7c3aed;font-size:0.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;margin-bottom:18px;">
+                <i class="material-icons" style="font-size:1.1rem;">add_circle</i> Add Secondary Diagnosis
             </button>
 
-            <button type="submit" class="btn btn-primary" style="background:#7c3aed; width:100%; border-radius:10px; padding:14px;">Record Admission</button>
+            <button type="submit" class="btn btn-primary" style="background:#7c3aed;width:100%;border-radius:10px;padding:14px;font-size:1rem;">
+                <i class="material-icons" style="vertical-align:middle;font-size:1.1rem;margin-right:6px;">save</i> Record Admission
+            </button>
         </form>
     </div>
 </div>
@@ -584,6 +607,135 @@
             </div>
 
             <button type="submit" class="btn btn-primary" style="background:#0369a1; width:100%; border-radius:10px; padding:14px;">Record Discharge</button>
+        </form>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PROCEDURE / INTERVENTION MODAL
+     ══════════════════════════════════════════════════════ -->
+<div id="procedureModal" class="modal-overlay" onclick="if(event.target===this)closeProcedureModal()">
+    <div class="modal-box" style="border-top:4px solid #059669; max-width:640px; width:95vw;">
+        <div class="modal-header">
+            <h3><i class="material-icons" style="color:#059669;font-size:1.1rem;">medical_services</i> Log Procedure / Intervention</h3>
+            <button type="button" class="modal-close" onclick="closeProcedureModal()"><i class="material-icons">close</i></button>
+        </div>
+        <p style="font-size:0.82rem;color:#6b7280;margin:-8px 0 16px;line-height:1.5;">
+            For OPD / in-unit procedures that don't result in hospital admission — AVF interventions, catheter changes, biopsies, etc.
+        </p>
+        <form action="/events/new" method="POST" id="procedureForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="event_type" id="proc_event_type_hidden" value="">
+
+            <!-- Row 1: Patient + Date -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div class="form-field" style="margin:0;">
+                    <label>Patient *</label>
+                    <select name="patient_id" id="proc_patient_id" required>
+                        <option value="">— Select Patient —</option>
+                        {% for p in patients %}
+                        <option value="{{ p.id }}">{{ p.name }} ({{ p.hid_no }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-field" style="margin:0;">
+                    <label>Procedure Date *</label>
+                    <input type="date" name="event_date" id="proc_date" required>
+                </div>
+            </div>
+
+            <!-- Procedure type — grouped tiles -->
+            <div class="form-field" style="margin-bottom:14px;">
+                <label>Procedure Type *</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;" id="proc_type_tiles">
+                    {% set proc_groups = [
+                        ("Vascular Access", ["AVF / Graft Declot","AVF / Graft Angioplasty","AVF / Graft Revision","Arteriovenous Fistula Creation","AV Graft Creation","Vascular Intervention"]),
+                        ("Catheter / PD", ["Tunnelled Catheter Insertion","Catheter Exchange","PICC / Midline Insertion","CAPD Catheter Insertion"]),
+                        ("Diagnostic", ["Kidney Biopsy","Bone Marrow Biopsy","Echocardiography","Coronary Angiography / PCI"]),
+                        ("Surgical", ["Parathyroidectomy","Other Procedure"]),
+                    ] %}
+                    {% for group_name, proc_list in proc_groups %}
+                    <div style="width:100%; font-size:0.7rem; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em; margin-top:4px;">{{ group_name }}</div>
+                    {% for pt in proc_list %}
+                    <button type="button" class="proc-tile" onclick="selectProcType(this,'{{ pt }}')"
+                        style="padding:6px 12px; border:1px solid #d1fae5; border-radius:20px; background:#f0fdf4; color:#065f46; font-size:0.8rem; font-weight:600; cursor:pointer; transition:all 0.12s;">
+                        {{ pt }}
+                    </button>
+                    {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- ICD Code — auto-filled for known procedures, editable -->
+            <div id="proc_icd_row" style="display:none; margin-bottom:14px;">
+                <div style="display:flex; align-items:center; gap:10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px 14px;">
+                    <i class="material-icons" style="color:#059669; font-size:1.1rem;">qr_code</i>
+                    <div style="flex:1;">
+                        <div style="font-size:0.72rem; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:3px;">ICD-10-CM Code</div>
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <input type="text" name="proc_icd" id="proc_icd_input"
+                                style="font-family:monospace; font-size:0.95rem; font-weight:700; color:#065f46; background:transparent; border:none; outline:none; width:90px; padding:0;"
+                                placeholder="e.g. Z49.02">
+                            <span id="proc_icd_desc" style="font-size:0.82rem; color:#374151;"></span>
+                        </div>
+                    </div>
+                    <span style="font-size:0.72rem; color:#6b7280; font-style:italic;">auto-filled · edit if needed</span>
+                </div>
+            </div>
+
+            <!-- Row 2: Setting + Operator -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div class="form-field" style="margin:0;">
+                    <label>Setting</label>
+                    <select name="proc_setting" id="proc_setting">
+                        <option value="In-unit (dialysis chair)">In-unit (dialysis chair)</option>
+                        <option value="OPD / Day procedure">OPD / Day procedure</option>
+                        <option value="Interventional radiology">Interventional radiology</option>
+                        <option value="Operation theatre">Operation theatre</option>
+                        <option value="Cath lab">Cath lab</option>
+                        <option value="External hospital">External hospital</option>
+                    </select>
+                </div>
+                <div class="form-field" style="margin:0;">
+                    <label>Severity / Urgency</label>
+                    <select name="severity">
+                        <option value="Low">Low — Elective</option>
+                        <option value="Medium" selected>Medium — Semi-urgent</option>
+                        <option value="High">High — Urgent</option>
+                        <option value="Critical">Critical — Emergency</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Row 3: Outcome + Operator -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div class="form-field" style="margin:0;">
+                    <label>Outcome</label>
+                    <select name="proc_outcome" id="proc_outcome">
+                        <option value="Successful">Successful</option>
+                        <option value="Partially successful">Partially successful</option>
+                        <option value="Failed — repeat planned">Failed — repeat planned</option>
+                        <option value="Complication occurred">Complication occurred</option>
+                        <option value="Pending result">Pending result</option>
+                    </select>
+                </div>
+                <div class="form-field" style="margin:0;">
+                    <label>Operator / Performed by</label>
+                    <input type="text" name="proc_operator" placeholder="e.g. Dr. Sharma, Radiologist">
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="form-field" style="margin-bottom:20px;">
+                <label>Clinical Notes</label>
+                <textarea name="notes" id="proc_notes" rows="3"
+                    placeholder="Technique used, findings, complications, follow-up plan…"
+                    style="width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; font-family:'Inter',sans-serif; resize:vertical; box-sizing:border-box;"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="background:#059669;width:100%;border-radius:10px;padding:14px;font-size:1rem;">
+                <i class="material-icons" style="vertical-align:middle;font-size:1.1rem;margin-right:6px;">save</i> Save Procedure
+            </button>
         </form>
     </div>
 </div>
@@ -661,6 +813,7 @@
   function openAdmitModalOnTimeline() {
     document.getElementById('admit_date').value = today;
     document.getElementById('admitModal').classList.add('open');
+    setTimeout(() => document.getElementById('admit_icd_search').focus(), 80);
   }
   function closeAdmitModal() {
     document.getElementById('admitModal').classList.remove('open');
@@ -672,52 +825,204 @@
   function closeDischargeModal() {
     document.getElementById('dischargeModal').classList.remove('open');
   }
+  function openProcedureModal() {
+    document.getElementById('proc_date').value = today;
+    document.getElementById('procedureModal').classList.add('open');
+  }
+  function closeProcedureModal() {
+    document.getElementById('procedureModal').classList.remove('open');
+  }
+
+  // ── Admission LOS auto-calc ─────────────────────────────────────────────────
+  function admitCalcLOS() {
+    const adm = document.getElementById('admit_date').value;
+    const dis = document.getElementById('admit_discharge_date').value;
+    const los = document.getElementById('admit_los');
+    if (adm && dis) {
+      const diff = Math.max(0, Math.round((new Date(dis) - new Date(adm)) / 86400000));
+      los.value = diff;
+    } else {
+      los.value = '';
+    }
+  }
+
+  // ── ICD-10 shortlist for admission modal ───────────────────────────────────
+  const ADMIT_ICD = [
+    {code:"J81",   label:"Pulmonary oedema",           keywords:["fluid","pulmonary","oedema","edema","apo","lvf","breathless","sob"],       category:"Fluid overload"},
+    {code:"I50.0", label:"Congestive cardiac failure",  keywords:["ccf","cardiac failure","heart failure","chf","congestive"],               category:"Cardiac"},
+    {code:"A41.9", label:"Sepsis",                      keywords:["sepsis","septicemia","bacteremia","blood infection"],                     category:"Infection"},
+    {code:"T82.7", label:"Vascular access infection",   keywords:["access","avf","graft","catheter","fistula","line","tcc"],                 category:"Access-related"},
+    {code:"I10",   label:"Hypertensive crisis",         keywords:["hypertension","bp","blood pressure","htn","hypertensive"],               category:"Cardiac"},
+    {code:"E87.5", label:"Hyperkalaemia",               keywords:["potassium","hyperkalemia","hyperkalaemia","high k","k+"],                category:"Metabolic"},
+    {code:"J18.9", label:"Pneumonia",                   keywords:["pneumonia","chest infection","lrti","lung"],                             category:"Infection"},
+    {code:"I21",   label:"Acute MI",                    keywords:["mi","heart attack","ami","troponin","acs","nstemi","stemi"],             category:"Cardiac"},
+    {code:"R55",   label:"Syncope / IDH collapse",      keywords:["syncope","collapse","idh","hypotension","dizzy","faint"],                category:"Cardiac"},
+    {code:"D64.9", label:"Severe anaemia",              keywords:["anaemia","anemia","transfusion","low hb","hemoglobin"],                  category:"Metabolic"},
+    {code:"T85.7", label:"Catheter complication",       keywords:["catheter","permcath","tcc","line","port"],                              category:"Access-related"},
+    {code:"N18.6", label:"ESRD — fluid overload",       keywords:["esrd","renal","fluid overload","volume"],                               category:"Renal"},
+    {code:"E83.5", label:"Hypocalcaemia",               keywords:["calcium","hypocalcaemia","low calcium","tetany"],                       category:"Metabolic"},
+    {code:"E83.3", label:"Hyperphosphataemia",          keywords:["phosphorus","phosphate","high phosphorus"],                             category:"Metabolic"},
+    {code:"I48",   label:"Atrial fibrillation",         keywords:["af","atrial fibrillation","afib","arrhythmia","palpitation"],           category:"Cardiac"},
+    {code:"K92.1", label:"GI bleeding",                 keywords:["bleeding","gi bleed","haematemesis","melena"],                         category:"GI"},
+    {code:"G40",   label:"Seizure",                     keywords:["seizure","convulsion","fit","epilepsy"],                               category:"Neurological"},
+    {code:"I63",   label:"Stroke / CVA",                keywords:["stroke","cva","cerebral","weakness","hemiplegia"],                     category:"Neurological"},
+    {code:"E11",   label:"Diabetic complication",       keywords:["diabetes","diabetic","sugar","hyperglycemia","dka"],                   category:"Metabolic"},
+    {code:"N28.9", label:"Renal complication",          keywords:["renal","kidney","ckd","dialysis complication"],                        category:"Renal"},
+  ];
+
+  function admitSearchICD(inp) {
+    const q = inp.value.toLowerCase().trim();
+    const drop = document.getElementById('admit_icd_drop');
+    if (!q) { drop.style.display='none'; return; }
+    const hits = ADMIT_ICD.filter(i =>
+      i.code.toLowerCase().includes(q) || i.label.toLowerCase().includes(q) ||
+      i.keywords.some(k => k.includes(q))
+    );
+    if (!hits.length) { drop.style.display='none'; return; }
+    drop.innerHTML = hits.map(i => `
+      <div onclick="admitSelectICD('${i.code}','${i.label}','${i.label}')"
+        style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #ede9fe;display:flex;align-items:center;gap:10px;"
+        onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background=''">
+        <span style="font-weight:700;color:#6d28d9;font-family:monospace;min-width:52px;">${i.code}</span>
+        <span style="color:#0f172a;font-size:0.9rem;">${i.label}</span>
+        <span style="margin-left:auto;font-size:0.72rem;color:#9ca3af;background:#f1f5f9;border-radius:8px;padding:2px 7px;white-space:nowrap;">${i.category}</span>
+      </div>`).join('');
+    drop.style.display = 'block';
+  }
+
+  function admitSelectICD(code, label, label2) {
+    document.getElementById('admit_icd_code').value  = code;
+    document.getElementById('admit_icd_diag').value  = label;
+    document.getElementById('admit_icd_diag2').value = label2;
+    document.getElementById('admit_icd_search').value = '';
+    document.getElementById('admit_icd_drop').style.display = 'none';
+    const pill = document.getElementById('admit_icd_pill');
+    document.getElementById('admit_icd_pill_text').textContent = `${code} · ${label}`;
+    pill.style.display = 'flex';
+  }
+
+  function admitClearICD() {
+    document.getElementById('admit_icd_code').value  = '';
+    document.getElementById('admit_icd_diag').value  = '';
+    document.getElementById('admit_icd_diag2').value = '';
+    document.getElementById('admit_icd_pill').style.display = 'none';
+    document.getElementById('admit_icd_pill_text').textContent = '';
+  }
 
   function addAdmitDiagnosisRow() {
-        const wrap = document.getElementById('admitDiagnosesWrapper');
-        const row = document.createElement('div');
-        row.className = 'diagnosis-block';
-        row.style.cssText = "background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; margin-bottom:12px; position:relative;";
-        row.innerHTML = `
-            <button type="button" onclick="this.parentElement.remove()" style="position:absolute; top:8px; right:8px; background:none; border:none; color:#94a3b8; cursor:pointer;"><i class="material-icons" style="font-size:1.1rem;">close</i></button>
-            <div class="form-field" style="margin-bottom:10px;">
-                <label>Clinical Diagnosis</label>
-                <input type="text" name="hosp_diagnosis" placeholder="e.g. Sepsis" required class="admit-diag">
-            </div>
-            <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                <div class="form-field">
-                    <label>ICD-10 Code</label>
-                    <input type="text" name="hosp_icd_code" placeholder="e.g. A41.9" class="admit-code">
-                </div>
-                <div class="form-field">
-                    <label>ICD-10 Diagnosis</label>
-                    <input type="text" name="hosp_icd_diag" placeholder="e.g. Septicemia" class="admit-icd-diag">
-                </div>
-            </div>
-        `;
-        wrap.appendChild(row);
-    }
+    const wrap = document.getElementById('admitDiagnosesWrapper');
+    const row  = document.createElement('div');
+    row.style.cssText = "background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:8px;margin-bottom:10px;position:relative;";
+    row.innerHTML = `
+      <button type="button" onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#94a3b8;cursor:pointer;">
+        <i class="material-icons" style="font-size:1.1rem;">close</i></button>
+      <div class="form-field" style="margin-bottom:8px;">
+        <label>Secondary Diagnosis</label>
+        <input type="text" name="hosp_diagnosis" placeholder="e.g. Sepsis" class="admit-diag"
+          style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;box-sizing:border-box;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-field" style="margin:0;">
+          <label>ICD-10 Code</label>
+          <input type="text" name="hosp_icd_code" placeholder="e.g. A41.9" class="admit-code"
+            style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;box-sizing:border-box;">
+        </div>
+        <div class="form-field" style="margin:0;">
+          <label>ICD-10 Diagnosis</label>
+          <input type="text" name="hosp_icd_diag" placeholder="e.g. Septicemia" class="admit-icd-diag"
+            style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem;box-sizing:border-box;">
+        </div>
+      </div>`;
+    wrap.appendChild(row);
+  }
 
-    function prepareAdmitDescription(form) {
-        const hospital = document.getElementById('admit_hospital').value;
-        const diags = Array.from(form.querySelectorAll('.admit-diag')).map(i => i.value);
-        const codes = Array.from(form.querySelectorAll('.admit-code')).map(i => i.value);
-        const icds  = Array.from(form.querySelectorAll('.admit-icd-diag')).map(i => i.value);
-        
-        let desc = `Hospital: ${hospital}`;
-        diags.forEach((d, idx) => {
-            desc += `\n— ${d}`;
-            if (codes[idx]) desc += ` (ICD: ${codes[idx]})`;
-            if (icds[idx])  desc += `: ${icds[idx]}`;
-        });
-        document.getElementById('admit_description').value = desc;
-    }
+  function prepareAdmitDescription(form) {
+    const hospital = document.getElementById('admit_hospital').value;
+    // Primary cause from ICD pill
+    const primaryCode = document.getElementById('admit_icd_code').value;
+    const primaryDiag = document.getElementById('admit_icd_diag').value;
+    // Secondary rows
+    const secDiags = Array.from(form.querySelectorAll('.admit-diag')).map(i => i.value).filter(Boolean);
+    const secCodes = Array.from(form.querySelectorAll('.admit-code')).map(i => i.value);
+    const secIcds  = Array.from(form.querySelectorAll('.admit-icd-diag')).map(i => i.value);
+    let desc = `Hospital: ${hospital}`;
+    if (primaryDiag) desc += `\n— ${primaryDiag}${primaryCode ? ' (ICD: ' + primaryCode + ')' : ''}`;
+    secDiags.forEach((d, i) => {
+      desc += `\n— ${d}`;
+      if (secCodes[i]) desc += ` (ICD: ${secCodes[i]})`;
+      if (secIcds[i])  desc += `: ${secIcds[i]}`;
+    });
+    document.getElementById('admit_description').value = desc;
+  }
 
-    function prepareDischargeDescription(form) {
-        const hospital = document.getElementById('discharge_hospital').value;
-        const diag = document.getElementById('discharge_diagnosis').value;
-        document.getElementById('discharge_description').value = `Hospital: ${hospital}\nDischarge Diagnosis: ${diag}`;
+  function prepareDischargeDescription(form) {
+    const hospital = document.getElementById('discharge_hospital').value;
+    const diag = document.getElementById('discharge_diagnosis').value;
+    document.getElementById('discharge_description').value = `Hospital: ${hospital}\nDischarge Diagnosis: ${diag}`;
+  }
+
+  // ── Procedure modal ─────────────────────────────────────────────────────────
+  // ICD-10-CM codes mapped to procedure types
+  const PROC_ICD = {
+    "CAPD Catheter Insertion":        { code: "Z49.02", desc: "Encounter for fitting and adjustment of peritoneal dialysis catheter" },
+    "Tunnelled Catheter Insertion":   { code: "Z49.01", desc: "Encounter for fitting and adjustment of extracorporeal dialysis catheter" },
+    "Arteriovenous Fistula Creation": { code: "Z49.01", desc: "Encounter for fitting and adjustment of extracorporeal dialysis catheter" },
+    "AV Graft Creation":              { code: "Z49.01", desc: "Encounter for fitting and adjustment of extracorporeal dialysis catheter" },
+    "AVF / Graft Angioplasty":        { code: "T82.898A", desc: "Other specified complication of vascular prosthetic devices, initial encounter" },
+    "Kidney Biopsy":                  { code: "Z01.6",  desc: "Encounter for examination of blood pressure" },
+    "Parathyroidectomy":              { code: "E21.0",  desc: "Primary hyperparathyroidism" },
+    "Coronary Angiography / PCI":     { code: "Z03.89", desc: "Encounter for observation for other suspected diseases and conditions ruled out" },
+  };
+
+  let _selectedProcType = '';
+  function selectProcType(btn, type) {
+    _selectedProcType = type;
+    document.getElementById('proc_event_type_hidden').value = type;
+    document.querySelectorAll('.proc-tile').forEach(b => {
+      b.style.background  = '#f0fdf4';
+      b.style.borderColor = '#d1fae5';
+      b.style.color       = '#065f46';
+      b.style.fontWeight  = '600';
+    });
+    btn.style.background  = '#059669';
+    btn.style.borderColor = '#059669';
+    btn.style.color       = '#fff';
+
+    // Auto-fill ICD code if known
+    const icdRow   = document.getElementById('proc_icd_row');
+    const icdInput = document.getElementById('proc_icd_input');
+    const icdDesc  = document.getElementById('proc_icd_desc');
+    const entry    = PROC_ICD[type];
+    if (entry) {
+      icdInput.value    = entry.code;
+      icdDesc.textContent = entry.desc;
+      icdRow.style.display = 'block';
+    } else {
+      icdInput.value    = '';
+      icdDesc.textContent = '';
+      icdRow.style.display = 'none';
     }
+  }
+
+  // Build notes from procedure fields before submit
+  document.getElementById('procedureForm').addEventListener('submit', function(e) {
+    if (!document.getElementById('proc_event_type_hidden').value) {
+      e.preventDefault();
+      alert('Please select a procedure type.');
+      return;
+    }
+    const setting  = document.getElementById('proc_setting').value;
+    const outcome  = document.getElementById('proc_outcome').value;
+    const operator = this.querySelector('[name="proc_operator"]').value;
+    const icd      = document.getElementById('proc_icd_input').value.trim();
+    const icdDesc  = document.getElementById('proc_icd_desc').textContent.trim();
+    const base     = document.getElementById('proc_notes').value.trim();
+    const parts    = [`Setting: ${setting}`, `Outcome: ${outcome}`];
+    if (icd) parts.push(`ICD-10: ${icd}${icdDesc ? ' — ' + icdDesc : ''}`);
+    if (operator) parts.push(`Operator: ${operator}`);
+    if (base) parts.push(base);
+    document.getElementById('proc_notes').value = parts.join('\n');
+  });
 </script>
 
 {% include "_confirm_modal.html" %}

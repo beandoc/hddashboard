@@ -35,6 +35,24 @@ EVENT_TYPE_GROUPS = [
         "Cardiac Event",
         "EPO Hyporesponse",
     ]),
+    ("Procedures & Interventions", [
+        "AVF / Graft Declot",
+        "AVF / Graft Angioplasty",
+        "AVF / Graft Revision",
+        "Tunnelled Catheter Insertion",
+        "Catheter Exchange",
+        "CAPD Catheter Insertion",
+        "Kidney Biopsy",
+        "Bone Marrow Biopsy",
+        "PICC / Midline Insertion",
+        "Arteriovenous Fistula Creation",
+        "AV Graft Creation",
+        "Vascular Intervention",
+        "Parathyroidectomy",
+        "Echocardiography",
+        "Coronary Angiography / PCI",
+        "Other Procedure",
+    ]),
     ("Administrative", [
         "Missed Sessions",
         "Transfer",
@@ -44,6 +62,26 @@ EVENT_TYPE_GROUPS = [
         "Other",
     ]),
 ]
+
+# Procedure types that do NOT create a HospitalisationEvent (OPD / in-unit)
+PROCEDURE_EVENT_TYPES = {
+    "AVF / Graft Declot",
+    "AVF / Graft Angioplasty",
+    "AVF / Graft Revision",
+    "Tunnelled Catheter Insertion",
+    "Catheter Exchange",
+    "CAPD Catheter Insertion",
+    "Kidney Biopsy",
+    "Bone Marrow Biopsy",
+    "PICC / Midline Insertion",
+    "Arteriovenous Fistula Creation",
+    "AV Graft Creation",
+    "Vascular Intervention",
+    "Parathyroidectomy",
+    "Echocardiography",
+    "Coronary Angiography / PCI",
+    "Other Procedure",
+}
 
 # Variable Manager Mappings
 VAR_TO_MONTHLY = {

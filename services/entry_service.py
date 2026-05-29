@@ -368,26 +368,58 @@ def save_monthly_record(
                 })
         antihypertensive_details_json = json.dumps(meds_list) if meds_list else ""
 
-        # Handle multiple hospitalizations
+        # Handle multiple hospitalizations — build structured list from parallel form arrays
+        def _as_list(key):
+            v = data.get(key, [])
+            return [v] if isinstance(v, str) else list(v)
+
+        h_dates     = _as_list("hospitalization_date")
+        h_dis_dates = _as_list("hospitalization_discharge_date")
+        h_los       = _as_list("hospitalization_los")
+        h_diags     = _as_list("hospitalization_diagnosis")
+        h_codes     = _as_list("hospitalization_icd_code")
+        h_icds      = _as_list("hospitalization_icd_diagnosis")
+        h_cats      = _as_list("hospitalization_cause_category")
+
+        # Pad shorter lists so zip doesn't drop items
+        max_len = max(len(h_dates), len(h_diags), len(h_codes), 1)
+        def _pad(lst): return lst + [''] * (max_len - len(lst))
+        h_dates, h_dis_dates, h_los, h_diags, h_codes, h_icds, h_cats = (
+            _pad(h_dates), _pad(h_dis_dates), _pad(h_los),
+            _pad(h_diags), _pad(h_codes), _pad(h_icds), _pad(h_cats)
+        )
+
         hosp_list = []
-        h_dates = data.get("hospitalization_date", [])
-        if isinstance(h_dates, str): h_dates = [h_dates]
-        h_diags = data.get("hospitalization_diagnosis", [])
-        if isinstance(h_diags, str): h_diags = [h_diags]
-        h_codes = data.get("hospitalization_icd_code", [])
-        if isinstance(h_codes, str): h_codes = [h_codes]
-        h_icds  = data.get("hospitalization_icd_diagnosis", [])
-        if isinstance(h_icds, str): h_icds = [h_icds]
-        
-        for dt, dg, cd, ic in zip(h_dates, h_diags, h_codes, h_icds):
-            if (dg and str(dg).strip()) or (cd and str(cd).strip()):
-                hosp_list.append({
-                    "date": str(dt) if dt else "",
-                    "diagnosis": str(dg).strip() if dg else "",
-                    "icd_code": str(cd).strip() if cd else "",
-                    "icd_diagnosis": str(ic).strip() if ic else ""
-                })
+        for dt, dd, los, dg, cd, ic, cat in zip(h_dates, h_dis_dates, h_los, h_diags, h_codes, h_icds, h_cats):
+            if not dt.strip():
+                continue  # admission date required
+            los_val = None
+            if los and str(los).strip().isdigit():
+                los_val = int(los)
+            elif dt.strip() and dd.strip():
+                try:
+                    from datetime import date as _date
+                    los_val = max(0, (_date.fromisoformat(dd) - _date.fromisoformat(dt)).days)
+                except Exception:
+                    pass
+            hosp_list.append({
+                "date":          dt.strip(),
+                "discharge_date": dd.strip() if dd.strip() else None,
+                "los_days":      los_val,
+                "diagnosis":     dg.strip() if dg else "",
+                "icd_code":      cd.strip() if cd else "",
+                "icd_diagnosis": ic.strip() if ic else "",
+                "cause_category": cat.strip() if cat else "",
+            })
+
         hosp_details_json = json.dumps(hosp_list) if hosp_list else ""
+
+        # Populate flat columns from first event so ML training can read them directly
+        hosp_this_month    = bool(hosp_list)
+        hosp_date_flat     = _d(hosp_list[0]["date"])          if hosp_list else None
+        hosp_diag_flat     = hosp_list[0]["diagnosis"]         if hosp_list else None
+        hosp_icd_flat      = hosp_list[0]["icd_code"]          if hosp_list else None
+        hosp_icd_diag_flat = hosp_list[0]["icd_diagnosis"]     if hosp_list else None
 
         rec = db.query(MonthlyRecord).filter(
             MonthlyRecord.patient_id == patient_id,
@@ -467,6 +499,11 @@ def save_monthly_record(
             phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
             antihypertensive_count=len(meds_list) if meds_list else data.get("antihypertensive_count"),
             antihypertensive_details=antihypertensive_details_json,
+            hospitalization_this_month=hosp_this_month if hosp_list else (rec.hospitalization_this_month if rec else False),
+            hospitalization_date=hosp_date_flat if hosp_list else (rec.hospitalization_date if rec else None),
+            hospitalization_diagnosis=hosp_diag_flat if hosp_list else (rec.hospitalization_diagnosis if rec else None),
+            hospitalization_icd_code=hosp_icd_flat if hosp_list else (rec.hospitalization_icd_code if rec else None),
+            hospitalization_icd_diagnosis=hosp_icd_diag_flat if hosp_list else (rec.hospitalization_icd_diagnosis if rec else None),
             hospitalization_details=hosp_details_json if hosp_details_json else (rec.hospitalization_details if rec else ""),
             blood_transfusion_units=data.get("blood_transfusion_units"),
             transfusion_date=data.get("transfusion_date") or None,
@@ -506,6 +543,56 @@ def save_monthly_record(
             actor=actor,
             changes={"patient_id": patient_id, "record_month": month_str},
         )
+
+        # Sync each admission into hospitalisation_events (structured ML table)
+        if hosp_list:
+            from database import HospitalisationEvent
+            from datetime import date as _date, timedelta
+            for h in hosp_list:
+                try:
+                    adm = _date.fromisoformat(h["date"])
+                except (ValueError, TypeError):
+                    continue
+                dis = None
+                if h.get("discharge_date"):
+                    try:
+                        dis = _date.fromisoformat(h["discharge_date"])
+                    except (ValueError, TypeError):
+                        pass
+                # Detect readmission: prior discharge within 30 days
+                prior = db.query(HospitalisationEvent).filter(
+                    HospitalisationEvent.patient_id == patient_id,
+                    HospitalisationEvent.discharge_date != None,
+                    HospitalisationEvent.discharge_date >= adm - timedelta(days=30),
+                    HospitalisationEvent.discharge_date < adm,
+                ).first()
+                existing = db.query(HospitalisationEvent).filter(
+                    HospitalisationEvent.patient_id == patient_id,
+                    HospitalisationEvent.admission_date == adm,
+                ).first()
+                if existing:
+                    # Update discharge, LOS, diagnosis if now available
+                    if dis and not existing.discharge_date:
+                        existing.discharge_date = dis
+                        existing.los_days = max(0, (dis - adm).days)
+                    if h.get("icd_code") and not existing.primary_icd:
+                        existing.primary_icd = h["icd_code"]
+                    if h.get("diagnosis") and not existing.primary_diagnosis:
+                        existing.primary_diagnosis = h["diagnosis"]
+                    if h.get("cause_category") and not existing.cause_category:
+                        existing.cause_category = h["cause_category"]
+                else:
+                    db.add(HospitalisationEvent(
+                        patient_id=patient_id,
+                        admission_date=adm,
+                        discharge_date=dis,
+                        los_days=h.get("los_days") or (max(0, (dis - adm).days) if dis else None),
+                        primary_icd=h.get("icd_code") or None,
+                        primary_diagnosis=h.get("diagnosis") or None,
+                        cause_category=h.get("cause_category") or None,
+                        readmission_within_30d=bool(prior),
+                        entered_by=actor,
+                    ))
 
         # Save total_protein, triglycerides, hdl_cholesterol into dynamic_data
         _dd = dict(rec.dynamic_data) if rec.dynamic_data else {}

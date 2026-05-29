@@ -40,3 +40,12 @@ limiter = Limiter(key_func=get_remote_address)
 
 # Templates
 templates = Jinja2Templates(directory="templates")
+
+import json as _json
+def _from_json(value):
+    try:
+        return _json.loads(value)
+    except Exception:
+        return []
+
+templates.env.filters["from_json"] = _from_json

@@ -1682,11 +1682,19 @@ async def _legacy_cohort_trends():
 async def _legacy_at_risk_trends(parameter: str = "", month: Optional[str] = None):
     from fastapi.encoders import jsonable_encoder
     from ml_analytics import get_at_risk_trends
+    from dashboard_logic import get_effective_month
 
     def _compute():
         db = SessionLocal()
         try:
-            return get_at_risk_trends(db, parameter, month)
+            # Always run the fallback check — never trust the JS-passed month directly,
+            # because the current month is incomplete until >50% of patients have records.
+            effective_month, _ = get_effective_month(db, None)
+            # But if caller explicitly asked for a historical month (not current), honour it
+            from dashboard_logic import get_current_month_str
+            if month and month < get_current_month_str():
+                effective_month = month
+            return get_at_risk_trends(db, parameter, effective_month)
         finally:
             db.close()
 
