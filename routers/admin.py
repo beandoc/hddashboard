@@ -183,7 +183,7 @@ async def reactivate_patient(patient_id: int, request: Request, db: Session = De
     if p:
         p.is_active = True
         db.commit()
-    return RedirectResponse(url="/admin/db", status_code=303)
+    return RedirectResponse(url="/admin/backup", status_code=303)
 
 @router.post("/users/{user_id}/toggle")
 async def toggle_user(user_id: int, request: Request, db: Session = Depends(get_db)):
