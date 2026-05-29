@@ -259,11 +259,20 @@ input, select, textarea { min-height: 40px; }
   cursor: pointer;
   line-height: 0;
   flex-shrink: 0;
+  min-width: 38px;
+  min-height: 38px;
   transition: background 0.18s;
+  -webkit-tap-highlight-color: transparent;
 }
+.mobile-menu-btn:active,
 .mobile-menu-btn:hover { background: rgba(255, 255, 255, 0.18); }
 
 /* ═══════════════════ MOBILE FULL-SCREEN DRAWER ════════════════════════════ */
+
+@keyframes drawer-slide-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 
 .mobile-drawer {
   position: fixed;
@@ -274,11 +283,17 @@ input, select, textarea { min-height: 40px; }
   z-index: 2000;
   display: none;
   flex-direction: column;
-  padding: 20px;
+  /* Safe-area padding: clears notch (top) and home indicator (bottom) */
+  padding: max(20px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   gap: 5px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
-.mobile-drawer.open { display: flex; }
+.mobile-drawer.open {
+  display: flex;
+  animation: drawer-slide-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 .mobile-drawer .drawer-header {
   display: flex;
   justify-content: space-between;
@@ -288,7 +303,7 @@ input, select, textarea { min-height: 40px; }
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .mobile-drawer .drawer-brand {
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.72);
   font-family: var(--font-display);
   font-size: 0.88rem;
   font-weight: 700;
@@ -305,23 +320,26 @@ input, select, textarea { min-height: 40px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* min-height 44px ensures iOS tappability */
+  min-height: 44px;
   padding: 11px 14px;
   background: rgba(255, 255, 255, 0.04);
   border: none;
   cursor: pointer;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.38);
+  letter-spacing: 0.09em;
+  color: rgba(255, 255, 255, 0.45);
   font-family: var(--font-sans);
   font-weight: 600;
   transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
-.drawer-section-toggle:hover { background: rgba(255, 255, 255, 0.07); color: rgba(255, 255, 255, 0.55); }
+.drawer-section-toggle:hover { background: rgba(255, 255, 255, 0.07); color: rgba(255, 255, 255, 0.62); }
 .drawer-section-toggle.active-section { color: #7dd3fc; }
-.drawer-section-toggle.admin-section  { color: rgba(196, 181, 253, 0.5); }
+.drawer-section-toggle.admin-section  { color: rgba(196, 181, 253, 0.55); }
 .drawer-section-toggle.admin-section.active-section { color: #c4b5fd; }
-.drawer-section-toggle i.chevron { font-size: 16px; opacity: 0.5; transition: transform 0.2s; }
+.drawer-section-toggle i.chevron { font-size: 18px; opacity: 0.55; transition: transform 0.22s; }
 .drawer-section.open .drawer-section-toggle i.chevron { transform: rotate(180deg); }
 .drawer-section-body {
   display: none;
@@ -334,38 +352,53 @@ input, select, textarea { min-height: 40px; }
 
 .mobile-drawer a {
   color: rgba(255, 255, 255, 0.82);
-  font-size: 0.92rem;
+  font-size: 0.93rem;
   text-decoration: none;
   padding: 12px 14px;
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.035);
   font-weight: 500;
   font-family: var(--font-sans);
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
   border: 1px solid rgba(255, 255, 255, 0.04);
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
+  min-height: 52px;
+  -webkit-tap-highlight-color: transparent;
 }
-.mobile-drawer a:hover,
+.mobile-drawer a:active,
 .mobile-drawer a.active {
   background: rgba(14, 165, 233, 0.14);
   color: #7dd3fc;
   border-color: rgba(14, 165, 233, 0.18);
 }
-.mobile-drawer a i.material-icons { font-size: 1.2rem; opacity: 0.7; }
+@media (hover: hover) {
+  .mobile-drawer a:hover {
+    background: rgba(14, 165, 233, 0.14);
+    color: #7dd3fc;
+    border-color: rgba(14, 165, 233, 0.18);
+  }
+}
+.mobile-drawer a i.material-icons { font-size: 1.25rem; opacity: 0.72; flex-shrink: 0; }
 .mobile-drawer > a { margin-bottom: 2px; }
 
 .mobile-drawer .drawer-admin-link   { color: rgba(196, 181, 253, 0.75) !important; background: rgba(167, 139, 250, 0.05) !important; border-color: rgba(167, 139, 250, 0.08) !important; }
-.mobile-drawer .drawer-admin-link:hover,
+.mobile-drawer .drawer-admin-link:active,
 .mobile-drawer .drawer-admin-link.active { background: rgba(167, 139, 250, 0.14) !important; color: #c4b5fd !important; border-color: rgba(167, 139, 250, 0.2) !important; }
+@media (hover: hover) {
+  .mobile-drawer .drawer-admin-link:hover { background: rgba(167, 139, 250, 0.14) !important; color: #c4b5fd !important; border-color: rgba(167, 139, 250, 0.2) !important; }
+}
 
 .mobile-drawer .drawer-highlight-link { color: #c4b5fd !important; }
-.mobile-drawer .drawer-highlight-link:hover,
+.mobile-drawer .drawer-highlight-link:active,
 .mobile-drawer .drawer-highlight-link.active { background: rgba(196, 181, 253, 0.12) !important; border-color: rgba(196, 181, 253, 0.18) !important; }
+@media (hover: hover) {
+  .mobile-drawer .drawer-highlight-link:hover { background: rgba(196, 181, 253, 0.12) !important; border-color: rgba(196, 181, 253, 0.18) !important; }
+}
 
-.mobile-drawer .drawer-logout { color: rgba(255, 255, 255, 0.32) !important; background: transparent !important; border-color: rgba(255, 255, 255, 0.06) !important; font-size: 0.88rem; margin-top: 6px; min-height: 44px; }
+.mobile-drawer .drawer-logout { color: rgba(255, 255, 255, 0.35) !important; background: transparent !important; border-color: rgba(255, 255, 255, 0.06) !important; font-size: 0.88rem; margin-top: 6px; min-height: 52px; }
+.mobile-drawer .drawer-logout:active,
 .mobile-drawer .drawer-logout:hover { color: rgba(255, 255, 255, 0.7) !important; background: rgba(255, 255, 255, 0.04) !important; }
 
 /* ══════════════════════════ BREADCRUMB ════════════════════════════════════ */

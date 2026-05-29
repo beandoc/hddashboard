@@ -90,8 +90,11 @@ class HospitalisationEvent(Base):
     notes           = Column(Text)
     entered_by      = Column(String)
     created_at      = Column(DateTime, default=datetime.utcnow)
+    # Optional link to a matching ClinicalEvent (avoids duplicate data entry)
+    clinical_event_id = Column(Integer, ForeignKey("clinical_events.id"), nullable=True, index=True)
 
-    patient = relationship("Patient", back_populates="hospitalisations")
+    patient        = relationship("Patient", back_populates="hospitalisations")
+    clinical_event = relationship("ClinicalEvent", foreign_keys=[clinical_event_id])
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -672,6 +672,44 @@ async def deactivate_patient(
 
 # ── Hospitalisation Event Log ─────────────────────────────────────────────────
 
+@router.get("/{patient_id}/clinical-events-json")
+async def patient_clinical_events_json(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return ClinicalEvents for a patient as JSON for the hospitalisation link picker.
+    Only includes event types that are plausibly associated with an admission."""
+    from fastapi.responses import JSONResponse
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=401)
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not p:
+        raise HTTPException(status_code=404)
+
+    events = (
+        db.query(ClinicalEvent)
+        .filter(ClinicalEvent.patient_id == patient_id)
+        .order_by(ClinicalEvent.event_date.desc())
+        .limit(120)
+        .all()
+    )
+
+    result = []
+    for ev in events:
+        result.append({
+            "id": ev.id,
+            "event_date": ev.event_date.strftime("%Y-%m-%d"),
+            "event_date_display": ev.event_date.strftime("%d %b %Y"),
+            "event_type": ev.event_type,
+            "severity": ev.severity or "",
+            "notes": (ev.notes or "")[:120],
+        })
+
+    return JSONResponse(content=result)
+
+
 @router.get("/{patient_id}/hospitalisations", response_class=HTMLResponse)
 async def patient_hospitalisations_page(
     patient_id: int, request: Request, db: Session = Depends(get_db),
@@ -686,10 +724,18 @@ async def patient_hospitalisations_page(
         .order_by(HospitalisationEvent.admission_date.desc())
         .all()
     )
+    clinical_events = (
+        db.query(ClinicalEvent)
+        .filter(ClinicalEvent.patient_id == patient_id)
+        .order_by(ClinicalEvent.event_date.desc())
+        .limit(120)
+        .all()
+    )
     return templates.TemplateResponse("patient_hospitalisations.html", {
         "request": request,
         "patient": p,
         "hospitalisations": hospitalisations,
+        "clinical_events": clinical_events,
         "user": get_user(request),
         "open": open,
     })
@@ -707,6 +753,11 @@ async def add_hospitalisation(
     icd_code: list[str] = Form([]),
     icd_name: list[str] = Form([]),
     notes: str = Form(""),
+    clinical_event_id: Optional[str] = Form(None),
+    new_event_type: Optional[str] = Form(None),
+    new_event_date: Optional[str] = Form(None),
+    new_event_severity: Optional[str] = Form(None),
+    new_event_notes: Optional[str] = Form(None),
 ):
     import json as _json
     user = get_user(request)
@@ -764,6 +815,36 @@ async def add_hospitalisation(
     )
 
     username = (user.get("username") if isinstance(user, dict) else getattr(user, "username", "")) if user else ""
+
+    # Resolve linked clinical event — either an existing one or create inline
+    linked_event_id = None
+    if clinical_event_id == "__new__" and new_event_type and new_event_type.strip():
+        try:
+            ev_date = datetime.strptime(new_event_date, "%Y-%m-%d").date() if new_event_date else adm
+        except ValueError:
+            ev_date = adm
+        new_ce = ClinicalEvent(
+            patient_id=patient_id,
+            event_date=ev_date,
+            event_type=new_event_type.strip(),
+            severity=new_event_severity or "Medium",
+            notes=new_event_notes.strip() if new_event_notes else None,
+            created_by=username,
+        )
+        db.add(new_ce)
+        db.flush()  # get new_ce.id without committing
+        linked_event_id = new_ce.id
+    elif clinical_event_id and clinical_event_id != "__new__":
+        try:
+            ce_id = int(clinical_event_id)
+            ce = db.query(ClinicalEvent).filter(
+                ClinicalEvent.id == ce_id,
+                ClinicalEvent.patient_id == patient_id,
+            ).first()
+            if ce:
+                linked_event_id = ce.id
+        except (ValueError, TypeError):
+            pass
     ev = HospitalisationEvent(
         patient_id=patient_id,
         admission_date=adm,
@@ -775,6 +856,7 @@ async def add_hospitalisation(
         readmission_within_30d=bool(prior),
         notes=notes_stored or None,
         entered_by=username,
+        clinical_event_id=linked_event_id,
     )
     db.add(ev)
 
@@ -805,6 +887,7 @@ async def edit_hospitalisation(
     icd_code: list[str] = Form([]),
     icd_name: list[str] = Form([]),
     notes: str = Form(""),
+    clinical_event_id: Optional[int] = Form(None),
 ):
     import json as _json
     user = get_user(request)
@@ -853,6 +936,16 @@ async def edit_hospitalisation(
             notes_stored = notes_stored + "\n" + notes_clean
     else:
         notes_stored = notes_clean or None
+
+    # Validate the linked clinical event belongs to this patient
+    if clinical_event_id:
+        ce = db.query(ClinicalEvent).filter(
+            ClinicalEvent.id == clinical_event_id,
+            ClinicalEvent.patient_id == patient_id,
+        ).first()
+        ev.clinical_event_id = ce.id if ce else None
+    else:
+        ev.clinical_event_id = None
 
     ev.admission_date     = adm
     ev.discharge_date     = dis

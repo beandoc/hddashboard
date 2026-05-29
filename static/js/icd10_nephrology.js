@@ -277,6 +277,59 @@ window.ICD10_NEPHROLOGY = [
   { code:"E05.90", label:"Hyperthyroidism, unspecified",                    synonyms:["hyperthyroidism","overactive thyroid","thyrotoxicosis","tsh low"],                       category:"Nutrition", chapter:"Metabolic" },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // ACUTE GLOMERULAR DISEASE (from ICD master list — N00, N01)
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"N00.9",  label:"Acute nephritic syndrome, unspecified",           synonyms:["acute nephritic","acute gn","post-infectious gn","acute glomerulonephritis","haematuria proteinuria hypertension"], category:"Glomerular", chapter:"Renal" },
+  { code:"N00.7",  label:"Acute nephritic syndrome — crescentic GN",        synonyms:["crescentic gn","diffuse crescentic glomerulonephritis","anti-gbm","anca crescentic"],   category:"Glomerular", chapter:"Renal" },
+  { code:"N01.9",  label:"Rapidly progressive nephritic syndrome (RPGN)",   synonyms:["rpgn","rapidly progressive gn","crescentic gn","rapidly progressive glomerulonephritis","crescentic nephritis"], category:"Glomerular", chapter:"Renal" },
+  { code:"N01.7",  label:"RPGN — diffuse crescentic glomerulonephritis",    synonyms:["rpgn crescentic","crescentic rpgn","anca rpgn","anti-gbm rpgn"],                        category:"Glomerular", chapter:"Renal" },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TUBULO-INTERSTITIAL NEPHRITIS — SPECIFIC SUBTYPES
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"N11.0",  label:"Reflux nephropathy (chronic pyelonephritis)",     synonyms:["reflux nephropathy","vesicoureteral reflux","vur nephropathy","reflux associated nephropathy","chronic pyelonephritis reflux"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N11.1",  label:"Chronic obstructive pyelonephritis",              synonyms:["obstructive pyelonephritis","obstructive nephropathy","chronic obstruction kidney"],    category:"Primary Renal", chapter:"Renal" },
+  { code:"N12",    label:"Tubulo-interstitial nephritis, unspecified",      synonyms:["interstitial nephritis","tubulointerstitial nephritis","tin","acute interstitial nephritis"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N14.0",  label:"Analgesic nephropathy",                           synonyms:["analgesic nephropathy","paracetamol nephropathy","phenacetin kidney","nsaid analgesic nephropathy"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N14.4",  label:"Toxic nephropathy (non-drug)",                    synonyms:["toxic nephropathy","environmental toxin kidney","heavy metal kidney","industrial nephropathy"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N15.0",  label:"Balkan nephropathy",                              synonyms:["balkan nephropathy","endemic nephropathy","aristolochic acid nephropathy"],              category:"Primary Renal", chapter:"Renal" },
+  { code:"N16.5",  label:"Tubulo-interstitial nephritis in transplant rejection", synonyms:["rejection nephritis","transplant nephritis","acute rejection interstitial","chronic rejection tubulo-interstitial"], category:"Primary Renal", chapter:"Renal" },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // OBSTRUCTIVE / STRUCTURAL RENAL CONDITIONS
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"N13.6",  label:"Pyonephrosis",                                    synonyms:["pyonephrosis","infected hydronephrosis","infected kidney","suppurative hydronephrosis"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N13.0",  label:"Hydronephrosis — PUJ obstruction",               synonyms:["hydronephrosis","puj obstruction","pelviureteric junction","ureteropelvic obstruction"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N25.1",  label:"Nephrogenic diabetes insipidus",                  synonyms:["nephrogenic di","ndi","polyuria polydipsia","nephrogenic diabetes insipidus"],           category:"Primary Renal", chapter:"Renal" },
+  { code:"N28.1",  label:"Simple renal cyst",                               synonyms:["renal cyst","kidney cyst","simple cyst kidney","bosniak 1"],                             category:"Primary Renal", chapter:"Renal" },
+  { code:"N23",    label:"Renal colic",                                     synonyms:["renal colic","ureteric colic","kidney stone pain","flank pain calculus","ureteric stone pain"], category:"Primary Renal", chapter:"Renal" },
+  { code:"N99.0",  label:"Postprocedural renal failure",                    synonyms:["postprocedural renal failure","post-op arf","post-operative kidney failure","aci post procedure","surgery related aki"], category:"AKI", chapter:"Renal" },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SECONDARY HYPERTENSION (renovascular / renal)
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"I15.0",  label:"Renovascular hypertension",                       synonyms:["renovascular hypertension","renal artery stenosis hypertension","ras hypertension","fibromuscular dysplasia hypertension"], category:"Hypertension", chapter:"Cardiorespiratory" },
+  { code:"I15.1",  label:"Hypertension secondary to renal disorders",       synonyms:["renal hypertension","secondary hypertension renal","hypertension ckd secondary","hypertension kidney disease"], category:"Hypertension", chapter:"Cardiorespiratory" },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // URAEMIC PERICARDITIS (dialysis-specific cardiac complication)
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"I30.9",  label:"Acute pericarditis, unspecified",                 synonyms:["pericarditis","acute pericarditis","uraemic pericarditis","dialysis pericarditis","pericardial inflammation"], category:"Cardiac", chapter:"Cardiorespiratory" },
+  { code:"I30.0",  label:"Acute nonspecific idiopathic pericarditis",       synonyms:["idiopathic pericarditis","viral pericarditis","nonspecific pericarditis"],               category:"Cardiac", chapter:"Cardiorespiratory" },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // BONE MINERAL — DIALYSIS-SPECIFIC
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"M83.4",  label:"Aluminium bone disease (dialysate aluminium)",    synonyms:["aluminium bone disease","dialysis aluminium toxicity","adynamic bone disease","aluminium related bone disease"], category:"Bone", chapter:"Musculoskeletal" },
+  { code:"M83.3",  label:"Adult osteomalacia due to malnutrition",          synonyms:["osteomalacia malnutrition","nutritional osteomalacia","renal osteomalacia","low vitamin d osteomalacia"], category:"Bone", chapter:"Musculoskeletal" },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ANAEMIA — ADDITIONAL
+  // ─────────────────────────────────────────────────────────────────────────
+  { code:"D63.8",  label:"Anaemia in other chronic diseases",               synonyms:["anaemia chronic disease","anaemia of inflammation","acd","chronic disease anaemia"],     category:"Anaemia", chapter:"Haematology" },
+  { code:"D60.0",  label:"Chronic pure red cell aplasia (EPO-related)",     synonyms:["pure red cell aplasia","prca","epo related prca","anti-epo antibodies","epoetin aplasia"], category:"Anaemia", chapter:"Haematology" },
+
+  // ─────────────────────────────────────────────────────────────────────────
   // ADMINISTRATIVE / STATUS CODES
   // ─────────────────────────────────────────────────────────────────────────
   { code:"Z99.2",  label:"Dependence on renal dialysis",                    synonyms:["maintenance dialysis","haemodialysis status","on haemodialysis"],                        category:"Status", chapter:"Administrative" },

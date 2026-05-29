@@ -170,6 +170,28 @@
     .stat-tile-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
     .stat-tile-val { font-size:1.5rem; font-weight:800; color:#0f172a; line-height:1; }
     .stat-tile-lbl { font-size:0.72rem; color:#6b7280; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; margin-top:2px; }
+
+    /* ── Clinical event link picker ── */
+    .ev-link-section {
+      background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px;
+      padding:16px 18px; margin-bottom:18px;
+    }
+    .ev-link-label {
+      display:flex; align-items:center; gap:7px;
+      font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:10px;
+    }
+    .ev-link-label i { font-size:1rem; }
+    .ev-link-select {
+      width:100%; padding:10px 13px; border:1px solid #bae6fd; border-radius:9px;
+      font-size:0.88rem; font-family:'Inter',sans-serif; background:#fff;
+      box-sizing:border-box; transition:border-color 0.15s; color:#0f172a;
+    }
+    .ev-link-select:focus { border-color:#0ea5e9; outline:none; box-shadow:0 0 0 3px rgba(14,165,233,0.1); }
+    /* linked chip shown in table */
+    .badge-linked { background:#dbeafe; color:#1e40af; border:1px solid #93c5fd;
+      display:inline-flex; align-items:center; gap:5px; border-radius:7px;
+      padding:3px 9px; font-size:0.75rem; font-weight:700; white-space:nowrap; margin-top:4px; }
+    .badge-linked i { font-size:0.85rem; }
   </style>
 </head>
 <body>
@@ -302,6 +324,50 @@
             placeholder="Antibiotics used, complications, follow-up plan, referring unit…">
         </div>
 
+        <!-- Link to Clinical Event -->
+        <div class="ev-link-section">
+          <div class="ev-link-label">
+            <i class="material-icons">link</i>
+            Link to Clinical Event <span style="font-weight:400;color:#64748b;margin-left:4px;">(optional)</span>
+          </div>
+          <select name="clinical_event_id" id="add_ce_select" class="ev-link-select" onchange="toggleNewEventForm('add', this.value)">
+            <option value="">— None —</option>
+            {% for ce in clinical_events %}
+            <option value="{{ ce.id }}">{{ ce.event_date.strftime('%d %b %Y') }} — {{ ce.event_type }}{% if ce.notes %} ({{ (ce.notes or '') | truncate(50, True, '…') }}){% endif %}</option>
+            {% endfor %}
+            <option value="__new__">+ Create &amp; link a new event…</option>
+          </select>
+          <!-- Inline new-event mini-form (shown only when __new__ selected) -->
+          <div id="add_new_event_form" style="display:none;margin-top:12px;background:#fff;border:1px solid #bae6fd;border-radius:9px;padding:14px 16px;display:none;">
+            <div style="font-size:0.78rem;font-weight:700;color:#0369a1;margin-bottom:10px;">New Clinical Event</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <label style="display:block;font-size:0.75rem;font-weight:700;color:#374151;margin-bottom:3px;">Event Type <span style="color:#ef4444;">*</span></label>
+                <input type="text" name="new_event_type" id="add_new_event_type" class="field-input" placeholder="e.g. TCC insertion" style="margin-bottom:0;">
+              </div>
+              <div>
+                <label style="display:block;font-size:0.75rem;font-weight:700;color:#374151;margin-bottom:3px;">Event Date <span style="color:#ef4444;">*</span></label>
+                <input type="date" name="new_event_date" id="add_new_event_date" class="field-input" style="margin-bottom:0;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;">
+              <div>
+                <label style="display:block;font-size:0.75rem;font-weight:700;color:#374151;margin-bottom:3px;">Severity</label>
+                <select name="new_event_severity" class="ev-link-select" style="padding:8px 10px;">
+                  <option value="Low">Low</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="High">High</option>
+                  <option value="Critical">Critical</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:0.75rem;font-weight:700;color:#374151;margin-bottom:3px;">Notes</label>
+                <input type="text" name="new_event_notes" class="field-input" placeholder="Optional notes…" style="margin-bottom:0;">
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button type="submit" class="btn-save">
             <i class="material-icons" style="font-size:1.1rem;">save</i> Save Admission
@@ -334,6 +400,7 @@
             <th>Category</th>
             <th class="center">30d</th>
             <th>Notes</th>
+            <th>Linked Event</th>
             <th></th>
           </tr>
         </thead>
@@ -401,6 +468,17 @@
               {# If notes is a JSON list (diagnoses), don't re-display it as raw text #}
               {% if h.notes and not h.notes.startswith('[') %}{{ h.notes }}{% else %}—{% endif %}
             </td>
+            <td>
+              {% if h.clinical_event %}
+                <span class="badge-linked" title="{{ h.clinical_event.event_type }} · {{ h.clinical_event.event_date.strftime('%d %b %Y') }}">
+                  <i class="material-icons">link</i>
+                  {{ h.clinical_event.event_date.strftime('%d %b %Y') }}
+                </span>
+                <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">{{ h.clinical_event.event_type }}</div>
+              {% else %}
+                <span style="color:#cbd5e1;font-size:0.82rem;">—</span>
+              {% endif %}
+            </td>
             <td style="white-space:nowrap;">
               {% if user and user.role in ['admin','doctor'] %}
               <div style="display:flex;gap:6px;align-items:center;">
@@ -432,7 +510,7 @@
             {% set edit_diags = h.notes | from_json %}
           {% endif %}
           <tr id="edit-row-{{ h.id }}" style="display:none;">
-            <td colspan="9" style="padding:0;border-bottom:2px solid #bfdbfe;">
+            <td colspan="10" style="padding:0;border-bottom:2px solid #bfdbfe;">
               <div style="background:#eff6ff;padding:20px 24px;">
                 <div style="font-weight:700;color:#1d4ed8;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:16px;">
                   Edit Admission #{{ loop.index }}
@@ -548,6 +626,20 @@
                       value="{% if h.notes and not h.notes.startswith('[') %}{{ h.notes }}{% endif %}"
                       placeholder="Antibiotics, complications, follow-up…"
                       style="width:100%;padding:10px 12px;border:1px solid #bfdbfe;border-radius:9px;font-size:0.9rem;font-family:'Inter',sans-serif;background:#fff;box-sizing:border-box;">
+                  </div>
+
+                  <!-- Link to Clinical Event -->
+                  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;color:#0369a1;margin-bottom:8px;">
+                      <i class="material-icons" style="font-size:0.95rem;">link</i>
+                      Link to Clinical Event <span style="font-weight:400;color:#64748b;margin-left:4px;">(optional)</span>
+                    </div>
+                    <select name="clinical_event_id" class="ev-link-select">
+                      <option value="">— None —</option>
+                      {% for ce in clinical_events %}
+                      <option value="{{ ce.id }}"{% if h.clinical_event_id == ce.id %} selected{% endif %}>{{ ce.event_date.strftime('%d %b %Y') }} — {{ ce.event_type }}{% if ce.notes %} ({{ (ce.notes or '') | truncate(50, True, '…') }}){% endif %}</option>
+                      {% endfor %}
+                    </select>
                   </div>
 
                   <div style="display:flex;gap:10px;">
@@ -767,10 +859,41 @@ function removeEditDiagRow(btn) {
   btn.closest('.edit-diag-row').remove();
 }
 
+// ── Inline new-event form toggle ─────────────────────────────────────────────
+function toggleNewEventForm(prefix, val) {
+  const form = document.getElementById(prefix + '_new_event_form');
+  if (!form) return;
+  form.style.display = (val === '__new__') ? 'block' : 'none';
+  if (val === '__new__') {
+    // Default event date to the admission date
+    const admInput = document.getElementById('f_adm');
+    const evDateInput = document.getElementById(prefix + '_new_event_date');
+    if (admInput && evDateInput && admInput.value && !evDateInput.value) {
+      evDateInput.value = admInput.value;
+    }
+    const typeInput = document.getElementById(prefix + '_new_event_type');
+    if (typeInput) setTimeout(() => typeInput.focus(), 50);
+  }
+}
+
+// Keep event date in sync when admission date changes (only if new-event form is open)
+document.addEventListener('DOMContentLoaded', function() {
+  const admInput = document.getElementById('f_adm');
+  if (!admInput) return;
+  admInput.addEventListener('input', function() {
+    const sel = document.getElementById('add_ce_select');
+    if (sel && sel.value === '__new__') {
+      const evDate = document.getElementById('add_new_event_date');
+      if (evDate) evDate.value = admInput.value;
+    }
+  });
+});
+
 // ── Auto-open if ?open=1 ──────────────────────────────────────────────────────
 (function() {
   if (new URLSearchParams(window.location.search).get('open') === '1') toggleAddForm();
 })();
+
 </script>
 <script src="/static/js/icd10_nephrology.js"></script>
 
