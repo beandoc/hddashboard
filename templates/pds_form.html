@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Post-Dialysis Syndrome (PDS) Assessment</title>
+  <style>
+    :root {
+      --primary: #0f172a; --accent: #0ea5e9; --success: #16a34a;
+      --warning: #d97706; --danger: #dc2626;
+      --border: #e2e8f0; --bg: #f1f5f9; --card: #ffffff;
+      --text: #0f172a; --muted: #64748b; --radius: 14px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+    .page-header {
+      background: white; border-bottom: 1px solid var(--border);
+      padding: 18px 24px; display: flex; align-items: center; gap: 14px;
+    }
+    .page-header h1 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--primary); }
+    .page-header .sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+    .back-btn {
+      padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.82rem; color: var(--muted); text-decoration: none;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .container { max-width: 900px; margin: 28px auto; padding: 0 16px 60px; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      padding: 22px 24px; margin-bottom: 18px;
+    }
+    .card-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.82rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); margin-bottom: 18px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    }
+    .card-title i { color: var(--accent); font-size: 1.1rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .full { grid-column: 1 / -1; }
+
+    label {
+      display: block; font-size: 0.72rem; font-weight: 600;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+      margin-bottom: 5px;
+    }
+    input, select, textarea {
+      width: 100%; padding: 12px; border: 1.5px solid var(--border);
+      border-radius: 9px; font-size: 0.95rem; font-family: 'Inter', sans-serif;
+      background: #f8fafc; color: var(--text); transition: border-color 0.15s;
+      min-height: 44px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+      background: white; box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+    }
+    textarea { resize: vertical; min-height: 72px; }
+
+    .range-group { margin-bottom: 16px; background: #f8fafc; border: 1.5px solid var(--border); padding: 12px; border-radius: 8px; }
+    .range-group label { margin-bottom: 8px; color: var(--text); font-weight: 700; font-size: 0.85rem; text-transform: none; letter-spacing: normal; display: flex; justify-content: space-between;}
+    .range-group input[type="range"] { padding: 0; min-height: auto; width: 100%; cursor: pointer; }
+    
+    .btn-save {
+      width: 100%; padding: 14px; background: var(--accent); color: white;
+      border: none; border-radius: 10px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; font-family: 'Outfit', sans-serif; letter-spacing: 0.02em;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: #0284c7; }
+    
+    .score-val { background: var(--accent); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 800; }
+  </style>
+  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+</head>
+<body>
+
+{% include "_nav.html" %}
+<div class="page-header">
+  <a href="/patients/{{ patient.id }}/profile" class="back-btn">
+    <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back
+  </a>
+  <div>
+    <h1>Post-Dialysis Syndrome (PDS) Assessment</h1>
+    <div class="sub">Patient: {{ patient.name }} (HID {{ patient.hid_no }}) · Session Date: {{ session.session_date.strftime('%Y-%m-%d') }}</div>
+  </div>
+</div>
+
+<div class="container">
+  <form method="POST">
+    
+    <div class="card">
+      <div class="card-title"><i class="material-icons">schedule</i> Dialysis Recovery Time (DRT)</div>
+      <div>
+        <label>How long does it take you to recover from a dialysis session?</label>
+        <select name="dialysis_recovery_time" required>
+          <option value="">— Select —</option>
+          {% for opt in ["<1 hour", "1-2 hours", "2-6 hours", "6-12 hours", ">12 hours", "Whole day", "Never fully recover before next dialysis"] %}
+          <option value="{{ opt }}" {{ 'selected' if report and report.dialysis_recovery_time == opt }}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Domain A -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">battery_alert</i> A. Fatigue & Energy Domain (0=None, 10=Worst)</div>
+      <div class="grid">
+        {% for field, label_str in [
+          ('fatigue_physical_exhaustion', 'Physical exhaustion'),
+          ('fatigue_lack_of_energy', 'Lack of energy'),
+          ('fatigue_sleepiness', 'Sleepiness'),
+          ('fatigue_reduced_stamina', 'Reduced stamina'),
+          ('fatigue_prolonged_rest', 'Need for prolonged rest'),
+          ('fatigue_washed_out', 'Feeling "washed out"'),
+          ('fatigue_motivation_loss', 'Motivation loss')
+        ] %}
+        <div class="range-group">
+          <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
+          <input type="range" name="{{ field }}" min="0" max="10" value="{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}" oninput="document.getElementById('lbl_{{ field }}').textContent=this.value">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Domain B -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">psychology</i> B. Cognitive Domain (0=None, 10=Worst)</div>
+      <div class="grid">
+        {% for field, label_str in [
+          ('cog_brain_fog', 'Brain fog'),
+          ('cog_poor_concentration', 'Poor concentration'),
+          ('cog_slowed_thinking', 'Slowed thinking'),
+          ('cog_memory_difficulty', 'Memory difficulty'),
+          ('cog_reduced_alertness', 'Reduced alertness'),
+          ('cog_decision_difficulty', 'Difficulty making decisions')
+        ] %}
+        <div class="range-group">
+          <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
+          <input type="range" name="{{ field }}" min="0" max="10" value="{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}" oninput="document.getElementById('lbl_{{ field }}').textContent=this.value">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Domain C -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">mood_bad</i> C. Psychological Domain (0=None, 10=Worst)</div>
+      <div class="grid">
+        {% for field, label_str in [
+          ('psych_low_mood', 'Low mood'),
+          ('psych_anxiety', 'Anxiety'),
+          ('psych_irritability', 'Irritability'),
+          ('psych_emotional_exhaustion', 'Emotional exhaustion'),
+          ('psych_overwhelmed', 'Feeling overwhelmed'),
+          ('psych_reduced_purpose', 'Reduced sense of purpose')
+        ] %}
+        <div class="range-group">
+          <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
+          <input type="range" name="{{ field }}" min="0" max="10" value="{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}" oninput="document.getElementById('lbl_{{ field }}').textContent=this.value">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Domain D -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">sick</i> D. Physical Symptom Domain (0=None, 10=Worst)</div>
+      <div class="grid">
+        {% for field, label_str in [
+          ('phys_muscle_weakness', 'Muscle weakness'),
+          ('phys_dizziness', 'Dizziness / Lightheadedness'),
+          ('phys_headache', 'Headache'),
+          ('phys_body_pain', 'Muscle/Body pain'),
+          ('phys_sob', 'Shortness of breath'),
+          ('phys_palpitations', 'Palpitations'),
+          ('phys_gait_instability', 'Unsteadiness / Gait instability'),
+          ('phys_cramps', 'Post-HD cramps')
+        ] %}
+        <div class="range-group">
+          <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
+          <input type="range" name="{{ field }}" min="0" max="10" value="{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}" oninput="document.getElementById('lbl_{{ field }}').textContent=this.value">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Domain E -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">bedtime</i> E. Sleep Domain (0=None, 10=Worst)</div>
+      <div class="grid">
+        {% for field, label_str in [
+          ('sleep_daytime_sleepiness', 'Excessive daytime sleepiness'),
+          ('sleep_poor_sleep_post_hd', 'Poor sleep night after HD'),
+          ('sleep_unrefreshing', 'Unrefreshing sleep'),
+          ('sleep_disturbance', 'Night-time disturbances')
+        ] %}
+        <div class="range-group">
+          <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
+          <input type="range" name="{{ field }}" min="0" max="10" value="{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}" oninput="document.getElementById('lbl_{{ field }}').textContent=this.value">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Functional Impact -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">directions_run</i> Functional Impact Assessment (0=None, 10=Total)</div>
+      <div class="grid">
+        {% for field, label_str in [
+          ('func_mobility', 'Mobility & Walking'),
+          ('func_household', 'Household chores'),
+          ('func_work', 'Work / Study'),
+          ('func_social', 'Socializing'),
+          ('func_exercise', 'Exercise'),
+          ('func_family', 'Family activities'),
+          ('func_independence', 'Loss of independence'),
+          ('func_life_participation', 'Overall life participation')
+        ] %}
+        <div class="range-group">
+          <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
+          <input type="range" name="{{ field }}" min="0" max="10" value="{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}" oninput="document.getElementById('lbl_{{ field }}').textContent=this.value">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Context & Clinician -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">assessment</i> Additional Context & Global Impression</div>
+      <div class="grid">
+        <div class="full">
+          <label>When are symptoms worst?</label>
+          <input type="text" name="symptoms_worse_time" value="{{ report.symptoms_worse_time if report else '' }}" placeholder="e.g. 2 hours after HD">
+        </div>
+        <div class="full">
+          <label>Compare to non-dialysis days</label>
+          <input type="text" name="symptoms_compare_nondialysis" value="{{ report.symptoms_compare_nondialysis if report else '' }}">
+        </div>
+        <div class="full">
+          <label>Associated Contributors (Comma-separated)</label>
+          <input type="text" name="associated_contributors" value="{{ report.associated_contributors if report else '' }}" placeholder="e.g. Ultrafiltration volume, Hypotension">
+        </div>
+        
+        <div class="full"><hr style="border:0; border-top:1px solid #e2e8f0; margin:10px 0;"></div>
+        
+        <div>
+          <label>CGI-Severity</label>
+          <select name="cgi_severity">
+            <option value="">— Select —</option>
+            {% for opt in ["Normal", "Borderline", "Mild", "Moderate", "Marked", "Severe", "Extreme"] %}
+            <option value="{{ opt }}" {{ 'selected' if report and report.cgi_severity == opt }}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>CGI Dominant Phenotype</label>
+          <select name="cgi_dominant_phenotype">
+            <option value="">— Select —</option>
+            {% for opt in ["Fatigue-dominant", "Cognitive-dominant", "Physical-dominant", "Psychological-dominant", "Mixed"] %}
+            <option value="{{ opt }}" {{ 'selected' if report and report.cgi_dominant_phenotype == opt }}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="full">
+          <label>Suggested Interventions</label>
+          <input type="text" name="suggested_interventions" value="{{ report.suggested_interventions if report else '' }}" placeholder="e.g. Cool dialysate, modify UF goal">
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-save">Save PDS Assessment</button>
+  </form>
+</div>
+</body>
+</html>

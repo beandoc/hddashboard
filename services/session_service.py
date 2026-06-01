@@ -5,10 +5,24 @@ from typing import Optional
 from database import Patient, SessionRecord, InterimLabRecord, PatientSymptomReport
 
 _SONG_HD_KEYS = [
-    'dialysis_recovery_time_mins', 'tiredness_score', 'energy_level_score',
-    'sleepiness_severity', 'daily_activity_impact', 'cognitive_alertness',
-    'post_hd_mood', 'symptoms', 'symptom_notes', 'severity',
-    'missed_social_or_work_event',
+    'dialysis_recovery_time', 'fatigue_physical_exhaustion', 'fatigue_lack_of_energy',
+    'fatigue_sleepiness', 'fatigue_reduced_stamina', 'fatigue_prolonged_rest',
+    'fatigue_washed_out', 'fatigue_motivation_loss', 'cog_brain_fog',
+    'cog_poor_concentration', 'cog_slowed_thinking', 'cog_memory_difficulty',
+    'cog_reduced_alertness', 'cog_decision_difficulty', 'psych_low_mood',
+    'psych_anxiety', 'psych_irritability', 'psych_emotional_exhaustion',
+    'psych_overwhelmed', 'psych_reduced_purpose', 'phys_muscle_weakness',
+    'phys_dizziness', 'phys_headache', 'phys_body_pain', 'phys_sob',
+    'phys_palpitations', 'phys_gait_instability', 'phys_cramps',
+    'sleep_daytime_sleepiness', 'sleep_poor_sleep_post_hd', 'sleep_unrefreshing',
+    'sleep_disturbance', 'func_mobility', 'func_household', 'func_work',
+    'func_social', 'func_exercise', 'func_family', 'func_independence',
+    'func_life_participation', 'symptoms_worse_time', 'symptoms_compare_nondialysis',
+    'associated_contributors', 'activity_average_daily', 'activity_posthd_reduction',
+    'activity_exercise_tolerance', 'narrative_most_disabling',
+    'narrative_activities_affected', 'narrative_helps_recovery',
+    'narrative_makes_worse', 'cgi_severity', 'cgi_dominant_phenotype',
+    'suggested_interventions'
 ]
 
 def promote_session_labs(db: Session, sess: SessionRecord):
@@ -147,29 +161,40 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
     db.commit()
     db.refresh(rec)
     
-    # Process symptom report if any symptom data is provided
-    if any(data.get(k) is not None and data.get(k) != "" for k in _SONG_HD_KEYS):
-        symptom_report = PatientSymptomReport(
-            patient_id=patient_id,
-            session_date=rec.session_date,
-            session_id=rec.id,
-            dialysis_recovery_time_mins=data.get("dialysis_recovery_time_mins"),
-            tiredness_score=data.get("tiredness_score"),
-            energy_level_score=data.get("energy_level_score"),
-            sleepiness_severity=data.get("sleepiness_severity"),
-            daily_activity_impact=data.get("daily_activity_impact"),
-            cognitive_alertness=data.get("cognitive_alertness"),
-            post_hd_mood=data.get("post_hd_mood"),
-            symptoms=data.get("symptoms", ""),
-            severity=data.get("severity"),
-            missed_social_or_work_event=data.get("missed_social_or_work_event", False),
-            notes=data.get("symptom_notes")
-        )
-        db.add(symptom_report)
-        db.commit()
+    # Process symptom report if any symptom data is provided (legacy handling removed)
+
 
     promote_session_labs(db, rec)
     return rec
+
+def get_pds_report(db: Session, session_id: int):
+    return db.query(PatientSymptomReport).filter(PatientSymptomReport.session_id == session_id).first()
+
+def save_pds_report(db: Session, session_id: int, data: dict):
+    sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
+    if not sess:
+        return None
+
+    report = db.query(PatientSymptomReport).filter(PatientSymptomReport.session_id == session_id).first()
+    if not report:
+        report = PatientSymptomReport(
+            patient_id=sess.patient_id,
+            session_id=session_id,
+            session_date=sess.session_date
+        )
+        db.add(report)
+
+    for key in _SONG_HD_KEYS:
+        if key in data:
+            # Handle empty strings as None for integers
+            val = data[key]
+            if val == "":
+                val = None
+            setattr(report, key, val)
+
+    db.commit()
+    db.refresh(report)
+    return report
 
 def update_session_record(db: Session, session_id: int, data: dict) -> SessionRecord:
     sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
@@ -265,30 +290,8 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     else:
         sess.uf_rate = None
 
-    # Process symptom report
-    symptom_report = db.query(PatientSymptomReport).filter(PatientSymptomReport.session_id == session_id).first()
-    if any(data.get(k) is not None and data.get(k) != "" for k in _SONG_HD_KEYS):
-        if not symptom_report:
-            symptom_report = PatientSymptomReport(
-                patient_id=sess.patient_id,
-                session_date=sess.session_date,
-                session_id=session_id
-            )
-            db.add(symptom_report)
-            
-        symptom_report.dialysis_recovery_time_mins = data.get("dialysis_recovery_time_mins")
-        symptom_report.tiredness_score = data.get("tiredness_score")
-        symptom_report.energy_level_score = data.get("energy_level_score")
-        symptom_report.sleepiness_severity = data.get("sleepiness_severity")
-        symptom_report.daily_activity_impact = data.get("daily_activity_impact")
-        symptom_report.cognitive_alertness = data.get("cognitive_alertness")
-        symptom_report.post_hd_mood = data.get("post_hd_mood")
-        symptom_report.symptoms = data.get("symptoms", "")
-        symptom_report.severity = data.get("severity")
-        symptom_report.missed_social_or_work_event = data.get("missed_social_or_work_event", False)
-        symptom_report.notes = data.get("symptom_notes")
-    elif symptom_report:
-        db.delete(symptom_report)
+    # PDS Logic removed from here since it's a dedicated form now
+
 
     db.commit()
     db.refresh(sess)

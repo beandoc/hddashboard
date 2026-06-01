@@ -95,23 +95,13 @@ async def create_session(
     steal_signs_flag: bool = Form(False),
     cannulation_difficulty: Optional[str] = Form(None),
     cannulation_attempts: Optional[int] = Form(None),
-    needle_infiltration: bool = Form(False),
-    dialysis_recovery_time_mins: Optional[int] = Form(None),
-    tiredness_score: Optional[int] = Form(None),
-    energy_level_score: Optional[int] = Form(None),
-    sleepiness_severity: Optional[int] = Form(None),
-    daily_activity_impact: Optional[int] = Form(None),
-    cognitive_alertness: Optional[str] = Form(None),
-    post_hd_mood: Optional[str] = Form(None),
-    severity: Optional[int] = Form(None),
-    missed_social_or_work_event: bool = Form(False),
-    symptom_notes: Optional[str] = Form(None),
-    symptoms: List[str] = Form([])
+    needle_infiltration: bool = Form(False)
 ):
     try:
-        # FastAPI passes a list for 'symptoms', convert it to comma-separated string for DB
         kwargs = locals().copy()
-        kwargs['symptoms'] = ",".join(symptoms) if symptoms else ""
+        # Remove dependencies
+        kwargs.pop("request", None)
+        kwargs.pop("db", None)
         rec = session_service.create_session_record(db, patient_id, kwargs)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -183,22 +173,10 @@ async def update_session(
     steal_signs_flag: bool = Form(False),
     cannulation_difficulty: Optional[str] = Form(None),
     cannulation_attempts: Optional[int] = Form(None),
-    needle_infiltration: bool = Form(False),
-    dialysis_recovery_time_mins: Optional[int] = Form(None),
-    tiredness_score: Optional[int] = Form(None),
-    energy_level_score: Optional[int] = Form(None),
-    sleepiness_severity: Optional[int] = Form(None),
-    daily_activity_impact: Optional[int] = Form(None),
-    cognitive_alertness: Optional[str] = Form(None),
-    post_hd_mood: Optional[str] = Form(None),
-    severity: Optional[int] = Form(None),
-    missed_social_or_work_event: bool = Form(False),
-    symptom_notes: Optional[str] = Form(None),
-    symptoms: List[str] = Form([])
+    needle_infiltration: bool = Form(False)
 ):
     try:
         kwargs = locals().copy()
-        kwargs['symptoms'] = ",".join(symptoms) if symptoms else ""
         # Remove request and db from kwargs so they aren't parsed as session field data
         kwargs.pop("request", None)
         kwargs.pop("db", None)
@@ -228,3 +206,36 @@ async def delete_session(session_id: int, request: Request, db: Session = Depend
         else:
             return RedirectResponse(url=f"/analytics/patients/{pid}", status_code=303)
     return RedirectResponse(url="/patients", status_code=303)
+
+@session_router.get("/{session_id}/pds/edit", response_class=HTMLResponse)
+async def edit_pds_form(session_id: int, request: Request, db: Session = Depends(get_db)):
+    sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
+    if not sess: raise HTTPException(status_code=404)
+    patient = db.query(Patient).filter(Patient.id == sess.patient_id).first()
+    report = session_service.get_pds_report(db, session_id)
+    return templates.TemplateResponse("pds_form.html", {
+        "request": request, "patient": patient, "session": sess, "report": report,
+        "user": get_user(request),
+    })
+
+@session_router.post("/{session_id}/pds/edit")
+async def update_pds(
+    session_id: int, request: Request, db: Session = Depends(get_db)
+):
+    try:
+        form_data = await request.form()
+        data_dict = dict(form_data)
+        # Handle checkboxes or missing fields here if needed, but strings/ints are fine
+        session_service.save_pds_report(db, session_id, data_dict)
+    except Exception as e:
+        logger.error(f"Error saving PDS: {e}")
+        raise HTTPException(status_code=500, detail="Error saving PDS report")
+    
+    sess = db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
+    user = get_user(request)
+    role = getattr(user, "role", None) if not isinstance(user, dict) else user.get("role", "")
+    if role == "staff":
+        return RedirectResponse(url=f"/patients/{sess.patient_id}/profile", status_code=303)
+    else:
+        return RedirectResponse(url=f"/analytics/patients/{sess.patient_id}", status_code=303)
+

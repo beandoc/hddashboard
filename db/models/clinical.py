@@ -55,20 +55,83 @@ class PatientSymptomReport(Base):
     notes = Column(Text)
 
     # ── Post-Dialysis Syndrome (PDS) Specifics ───────────────────────────────
-    dialysis_recovery_time_mins = Column(Integer)
+    dialysis_recovery_time = Column(String)  # <1 hour, 1-2 hours, 2-6 hours, etc.
 
-    # SONG-HD Fatigue Scale
-    tiredness_score = Column(Integer)
-    energy_level_score = Column(Integer)
-    daily_activity_impact = Column(Integer)
+    # A. Fatigue & Energy Domain (0-10)
+    fatigue_physical_exhaustion = Column(Integer)
+    fatigue_lack_of_energy = Column(Integer)
+    fatigue_sleepiness = Column(Integer)
+    fatigue_reduced_stamina = Column(Integer)
+    fatigue_prolonged_rest = Column(Integer)
+    fatigue_washed_out = Column(Integer)
+    fatigue_motivation_loss = Column(Integer)
 
-    # Mood & Cognition (EMA)
-    cognitive_alertness = Column(String)
-    post_hd_mood = Column(String)
-    sleepiness_severity = Column(Integer)
+    # B. Cognitive Domain (0-10)
+    cog_brain_fog = Column(Integer)
+    cog_poor_concentration = Column(Integer)
+    cog_slowed_thinking = Column(Integer)
+    cog_memory_difficulty = Column(Integer)
+    cog_reduced_alertness = Column(Integer)
+    cog_decision_difficulty = Column(Integer)
 
-    # Impact Dimensions
-    missed_social_or_work_event = Column(Boolean)
+    # C. Psychological Domain (0-10)
+    psych_low_mood = Column(Integer)
+    psych_anxiety = Column(Integer)
+    psych_irritability = Column(Integer)
+    psych_emotional_exhaustion = Column(Integer)
+    psych_overwhelmed = Column(Integer)
+    psych_reduced_purpose = Column(Integer)
+
+    # D. Physical Symptom Domain (0-10)
+    phys_muscle_weakness = Column(Integer)
+    phys_dizziness = Column(Integer)
+    phys_headache = Column(Integer)
+    phys_body_pain = Column(Integer)
+    phys_sob = Column(Integer)
+    phys_palpitations = Column(Integer)
+    phys_gait_instability = Column(Integer)
+    phys_cramps = Column(Integer)
+
+    # E. Sleep Domain (0-10)
+    sleep_daytime_sleepiness = Column(Integer)
+    sleep_poor_sleep_post_hd = Column(Integer)
+    sleep_unrefreshing = Column(Integer)
+    sleep_disturbance = Column(Integer)
+
+    # Functional Impact Assessment (0-10)
+    func_mobility = Column(Integer)
+    func_household = Column(Integer)
+    func_work = Column(Integer)
+    func_social = Column(Integer)
+    func_exercise = Column(Integer)
+    func_family = Column(Integer)
+    func_independence = Column(Integer)
+    func_life_participation = Column(Integer)
+
+    # Day-to-Day Symptom Variability
+    symptoms_worse_time = Column(String)
+    symptoms_compare_nondialysis = Column(String)
+
+    # Associated Contributors
+    associated_contributors = Column(Text)  # comma-separated string
+
+    # Physical Activity Assessment
+    activity_average_daily = Column(String)
+    activity_posthd_reduction = Column(String)
+    activity_exercise_tolerance = Column(String)
+
+    # Patient Narrative Section
+    narrative_most_disabling = Column(Text)
+    narrative_activities_affected = Column(Text)
+    narrative_helps_recovery = Column(Text)
+    narrative_makes_worse = Column(Text)
+
+    # Clinician Global Impression
+    cgi_severity = Column(String)
+    cgi_dominant_phenotype = Column(String)
+
+    # Suggested Follow-up Interventions
+    suggested_interventions = Column(Text)  # comma-separated string
 
     patient = relationship("Patient", back_populates="symptom_reports")
     session = relationship("SessionRecord", back_populates="symptom_report")
