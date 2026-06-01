@@ -1857,11 +1857,19 @@
                 <label style="font-weight:700; font-size:0.8rem; color:#475569; text-transform:uppercase; letter-spacing:0.4px;">Recovery duration</label>
                 <div style="font-size:0.82rem; color:var(--muted); margin-bottom:4px; font-weight:500;">How long did it take to regain your normal energy levels after your last session?</div>
                 <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
-                    <div style="position:relative; width:130px;">
+                    <div style="position:relative; width:100%;">
                         <span class="material-icons" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--primary);">schedule</span>
-                        <input type="number" name="dialysis_recovery_time_mins" placeholder="Mins" min="0" max="1440" style="width:100%; padding-left:38px; border-radius:10px; font-weight:700; border:1.5px solid #cbd5e1; height:42px; font-size:0.9rem; outline:none; transition:border-color 0.2s;">
+                        <select name="dialysis_recovery_time" style="width:100%; padding-left:38px; border-radius:10px; font-weight:700; border:1.5px solid #cbd5e1; height:42px; font-size:0.9rem; outline:none; transition:border-color 0.2s; background:white; color:var(--text);">
+                            <option value="">— Select / चुनें —</option>
+                            <option value="<1 hour"><1 hour / <1 घंटा</option>
+                            <option value="1-2 hours">1-2 hours / 1-2 घंटे</option>
+                            <option value="2-6 hours">2-6 hours / 2-6 घंटे</option>
+                            <option value="6-12 hours">6-12 hours / 6-12 घंटे</option>
+                            <option value=">12 hours">>12 hours / >12 घंटे</option>
+                            <option value="Whole day">Whole day / पूरा दिन</option>
+                            <option value="Never fully recover before next dialysis">Never fully recover before next dialysis</option>
+                        </select>
                     </div>
-                    <span style="font-size:0.82rem; color:var(--muted); font-weight:600;">minutes <span style="font-weight:400; color:#94a3b8;">(e.g., 120 mins = 2 hours)</span></span>
                 </div>
             </div>
 
@@ -1870,8 +1878,8 @@
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:12px;">
                 <!-- Tiredness Slider -->
                 <div class="pds-metric-card">
-                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Tiredness <span style="font-weight:400; color:#94a3b8;">(1-10)</span></label>
-                    <input type="range" name="tiredness_score" min="1" max="10" value="5" style="accent-color:#0ea5e9; cursor:pointer;" oninput="document.getElementById('tiredLabel').textContent=this.value">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Tiredness <span style="font-weight:400; color:#94a3b8;">(0-10)</span></label>
+                    <input type="range" name="fatigue_physical_exhaustion" min="0" max="10" value="5" style="accent-color:#0ea5e9; cursor:pointer;" oninput="document.getElementById('tiredLabel').textContent=this.value">
                     <div class="range-display">
                         <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Exhaustion:</span>
                         <span id="tiredLabel" style="background:#0ea5e9; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">5</span>
@@ -1879,20 +1887,20 @@
                 </div>
                 <!-- Energy Level Slider -->
                 <div class="pds-metric-card">
-                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Energy Level <span style="font-weight:400; color:#94a3b8;">(1-10)</span></label>
-                    <input type="range" name="energy_level_score" min="1" max="10" value="5" style="accent-color:#10b981; cursor:pointer;" oninput="document.getElementById('energyLabel').textContent=this.value">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Energy Loss <span style="font-weight:400; color:#94a3b8;">(0-10)</span></label>
+                    <input type="range" name="fatigue_lack_of_energy" min="0" max="10" value="5" style="accent-color:#10b981; cursor:pointer;" oninput="document.getElementById('energyLabel').textContent=this.value">
                     <div class="range-display">
-                        <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Vitality:</span>
+                        <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Lack of Energy:</span>
                         <span id="energyLabel" style="background:#10b981; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">5</span>
                     </div>
                 </div>
                 <!-- Sleepiness Slider -->
                 <div class="pds-metric-card">
-                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Sleepiness <span style="font-weight:400; color:#94a3b8;">(1-10)</span></label>
-                    <input type="range" name="sleepiness_severity" min="1" max="10" value="1" style="accent-color:#8b5cf6; cursor:pointer;" oninput="document.getElementById('sleepLabel').textContent=this.value">
+                    <label style="font-weight:700; font-size:0.8rem; color:#475569;">Sleepiness <span style="font-weight:400; color:#94a3b8;">(0-10)</span></label>
+                    <input type="range" name="fatigue_sleepiness" min="0" max="10" value="0" style="accent-color:#8b5cf6; cursor:pointer;" oninput="document.getElementById('sleepLabel').textContent=this.value">
                     <div class="range-display">
                         <span style="font-size:0.72rem; color:var(--muted); font-weight:600;">Severity:</span>
-                        <span id="sleepLabel" style="background:#8b5cf6; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">1</span>
+                        <span id="sleepLabel" style="background:#8b5cf6; color:white; font-size:0.75rem; padding:2px 8px; border-radius:20px; font-weight:800; margin-left:4px;">0</span>
                     </div>
                 </div>
             </div>
@@ -1900,18 +1908,18 @@
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:12px; align-items:center;">
                 <div class="pds-metric-card">
                     <label style="font-weight:700; font-size:0.8rem; color:#475569; margin-bottom:2px;">Daily Activity Impact</label>
-                    <select name="daily_activity_impact" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
+                    <select name="func_life_participation" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
                         <option value="">Select impact level...</option>
-                        <option value="1">1 — No limitation at all</option>
+                        <option value="0">0 — No limitation at all</option>
                         <option value="2">2 — Mildly limited</option>
-                        <option value="3">3 — Moderately limited</option>
-                        <option value="4">4 — Severely limited</option>
-                        <option value="5">5 — Unable to do any activities</option>
+                        <option value="5">5 — Moderately limited</option>
+                        <option value="8">8 — Severely limited</option>
+                        <option value="10">10 — Unable to do any activities</option>
                     </select>
                 </div>
                 <div class="pds-metric-card" style="padding:18px 14px; display:flex; justify-content:center;">
                     <label style="display:inline-flex; align-items:center; gap:10px; font-size:0.82rem; color:var(--text); cursor:pointer; font-weight:700; user-select:none; width:100%;">
-                        <input type="checkbox" name="missed_social_or_work_event" value="true" style="width:20px; height:20px; cursor:pointer; accent-color:var(--primary); border-radius:6px; border:1.5px solid #cbd5e1;">
+                        <input type="checkbox" name="func_social" value="10" style="width:20px; height:20px; cursor:pointer; accent-color:var(--primary); border-radius:6px; border:1.5px solid #cbd5e1;">
                         <span>Missed work or social event due to fatigue</span>
                     </label>
                 </div>
@@ -1922,20 +1930,20 @@
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:12px;">
                 <div class="pds-metric-card">
                     <label style="font-weight:700; font-size:0.8rem; color:#475569; margin-bottom:2px;">Cognitive Alertness</label>
-                    <select name="cognitive_alertness" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
+                    <select name="cog_brain_fog" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
                         <option value="">Select alertness status...</option>
-                        <option value="Sharp">Sharp / Clear / Focused</option>
-                        <option value="Slight Brain Fog">Slight Brain Fog</option>
-                        <option value="Severe Brain Fog">Severe Brain Fog</option>
+                        <option value="0">Sharp / Clear / Focused</option>
+                        <option value="5">Slight Brain Fog</option>
+                        <option value="10">Severe Brain Fog</option>
                     </select>
                 </div>
                 <div class="pds-metric-card">
                     <label style="font-weight:700; font-size:0.8rem; color:#475569; margin-bottom:2px;">Post-Session Mood</label>
-                    <select name="post_hd_mood" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
+                    <select name="psych_low_mood" style="width:100%; border-radius:8px; border:1.5px solid #cbd5e1; height:38px; font-weight:600; color:var(--text); padding:0 8px; background:white; outline:none;">
                         <option value="">Select mood status...</option>
-                        <option value="Positive">Positive / Calm</option>
-                        <option value="Neutral">Neutral / Fine</option>
-                        <option value="Negative">Negative / Depressed / Anxious</option>
+                        <option value="0">Positive / Calm</option>
+                        <option value="4">Neutral / Fine</option>
+                        <option value="8">Negative / Depressed / Anxious</option>
                     </select>
                 </div>
             </div>
@@ -2009,40 +2017,40 @@
                     </span>
                 </div>
                 <div class="sh-grid">
-                    {% if s.dialysis_recovery_time_mins is not none %}
+                    {% if s.dialysis_recovery_time %}
                     <div class="sh-metric">
                         <div class="sh-metric-label">Recovery Time</div>
-                        <div class="sh-metric-value">{{ s.dialysis_recovery_time_mins }} min</div>
+                        <div class="sh-metric-value">{{ s.dialysis_recovery_time }}</div>
                     </div>
                     {% endif %}
-                    {% if s.tiredness_score is not none %}
+                    {% if s.fatigue_physical_exhaustion is not none %}
                     <div class="sh-metric">
-                        <div class="sh-metric-label">Tiredness</div>
-                        <div class="sh-metric-value">{{ s.tiredness_score }}/10</div>
+                        <div class="sh-metric-label">Exhaustion</div>
+                        <div class="sh-metric-value">{{ s.fatigue_physical_exhaustion }}/10</div>
                     </div>
                     {% endif %}
-                    {% if s.energy_level_score is not none %}
+                    {% if s.fatigue_lack_of_energy is not none %}
                     <div class="sh-metric">
-                        <div class="sh-metric-label">Energy Level</div>
-                        <div class="sh-metric-value">{{ s.energy_level_score }}/10</div>
+                        <div class="sh-metric-label">Energy Loss</div>
+                        <div class="sh-metric-value">{{ s.fatigue_lack_of_energy }}/10</div>
                     </div>
                     {% endif %}
-                    {% if s.sleepiness_severity is not none %}
+                    {% if s.fatigue_sleepiness is not none %}
                     <div class="sh-metric">
                         <div class="sh-metric-label">Sleepiness</div>
-                        <div class="sh-metric-value">{{ s.sleepiness_severity }}/10</div>
+                        <div class="sh-metric-value">{{ s.fatigue_sleepiness }}/10</div>
                     </div>
                     {% endif %}
-                    {% if s.post_hd_mood %}
+                    {% if s.psych_low_mood is not none %}
                     <div class="sh-metric">
-                        <div class="sh-metric-label">Mood</div>
-                        <div class="sh-metric-value">{{ s.post_hd_mood }}</div>
+                        <div class="sh-metric-label">Low Mood</div>
+                        <div class="sh-metric-value">{{ s.psych_low_mood }}/10</div>
                     </div>
                     {% endif %}
-                    {% if s.cognitive_alertness %}
+                    {% if s.cog_brain_fog is not none %}
                     <div class="sh-metric">
-                        <div class="sh-metric-label">Alertness</div>
-                        <div class="sh-metric-value">{{ s.cognitive_alertness }}</div>
+                        <div class="sh-metric-label">Brain Fog</div>
+                        <div class="sh-metric-value">{{ s.cog_brain_fog }}/10</div>
                     </div>
                     {% endif %}
                 </div>

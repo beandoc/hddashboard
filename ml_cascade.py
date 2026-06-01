@@ -838,6 +838,59 @@ def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessi
     }
 
 
+_FATIGUE_FIELDS = [
+    'fatigue_physical_exhaustion', 'fatigue_lack_of_energy', 'fatigue_sleepiness',
+    'fatigue_reduced_stamina', 'fatigue_prolonged_rest', 'fatigue_washed_out',
+    'fatigue_motivation_loss',
+]
+_COG_FIELDS = [
+    'cog_brain_fog', 'cog_poor_concentration', 'cog_slowed_thinking',
+    'cog_memory_difficulty', 'cog_reduced_alertness', 'cog_decision_difficulty',
+]
+_PSYCH_FIELDS = [
+    'psych_low_mood', 'psych_anxiety', 'psych_irritability',
+    'psych_emotional_exhaustion', 'psych_overwhelmed', 'psych_reduced_purpose',
+]
+_PHYS_FIELDS = [
+    'phys_muscle_weakness', 'phys_dizziness', 'phys_headache', 'phys_body_pain',
+    'phys_sob', 'phys_palpitations', 'phys_gait_instability', 'phys_cramps',
+]
+_SLEEP_FIELDS = [
+    'sleep_daytime_sleepiness', 'sleep_poor_sleep_post_hd',
+    'sleep_unrefreshing', 'sleep_disturbance',
+]
+_FUNC_FIELDS = [
+    'func_mobility', 'func_household', 'func_work', 'func_social',
+    'func_exercise', 'func_family', 'func_independence', 'func_life_participation',
+]
+_DRT_MINS_MAP = {
+    '<1h': 30, '<1 hour': 30, '< 1 hour': 30,
+    '1-2h': 90, '1-2 hours': 90,
+    '2-6h': 240, '2-6 hours': 240,
+    '6-12h': 540, '6-12 hours': 540,
+    '>12h': 720, '>12 hours': 720, '> 12 hours': 720,
+    'Whole day': 960, 'whole day': 960,
+    'Never fully recover': 1440, 'never fully recover': 1440,
+}
+
+
+def _domain_avg(rep, fields):
+    vals = [getattr(rep, f, None) for f in fields]
+    valid = [v for v in vals if v is not None]
+    return round(sum(valid) / len(valid), 1) if valid else None
+
+
+def _drt_mins_from_rep(rep):
+    """Return DRT in minutes from either legacy integer field or new string field."""
+    legacy = getattr(rep, 'dialysis_recovery_time_mins', None)
+    if legacy is not None:
+        return legacy
+    new_str = getattr(rep, 'dialysis_recovery_time', None)
+    if new_str:
+        return _DRT_MINS_MAP.get(new_str.strip())
+    return None
+
+
 def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_sessions = None) -> Dict:
     """
     Correlates PatientSymptomReports with recent SessionRecords to identify
@@ -897,6 +950,21 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
                 return match
         return None
 
+    def _parse_drt(val):
+        if not val:
+            return None
+        # Convert the categorical string to an approximate minutes value for charting
+        mapping = {
+            "<1 hour": 30,
+            "1-2 hours": 90,
+            "2-6 hours": 240,
+            "6-12 hours": 540,
+            ">12 hours": 720,
+            "Whole day": 1440,
+            "Never fully recover before next dialysis": 2880,
+        }
+        return mapping.get(val, None)
+
     # Build per-report dicts; include unmatched reports with sess=None
     all_reports = []
     correlated_events = []
@@ -913,14 +981,15 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
         report_dict = {
             "date": str(rep.session_date or rep.reported_at.date()),
             "reported_at": str(rep.reported_at.date()),
-            "drt_mins": rep.dialysis_recovery_time_mins,
-            "tiredness": rep.tiredness_score,
-            "energy": rep.energy_level_score,
-            "activity_impact": rep.daily_activity_impact,
-            "mood": rep.post_hd_mood,
-            "alertness": rep.cognitive_alertness,
-            "sleepiness": rep.sleepiness_severity,
-            "missed_event": rep.missed_social_or_work_event,
+            "drt_mins": _parse_drt(rep.dialysis_recovery_time),
+            "drt_str": rep.dialysis_recovery_time,
+            "tiredness": rep.fatigue_physical_exhaustion,
+            "energy": rep.fatigue_lack_of_energy,
+            "activity_impact": rep.func_life_participation,
+            "mood": rep.psych_low_mood,
+            "alertness": rep.cog_brain_fog,
+            "sleepiness": rep.fatigue_sleepiness,
+            "missed_event": True if rep.func_social == 10 else False,
             "symptoms": rep.symptoms,
             "notes": rep.notes,
             "session_matched": sess is not None,
@@ -928,11 +997,30 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
             "idh": sess.idh_episode if sess else None,
             "temp": sess.dialysate_temperature if sess else None,
             "exercise": sess.intradialytic_exercise_mins if sess else None,
+            # Multidimensional domain scores (0-10 averages)
+            "fatigue":       _domain_avg(rep, _FATIGUE_FIELDS),
+            "cognitive":     _domain_avg(rep, _COG_FIELDS),
+            "psychological": _domain_avg(rep, _PSYCH_FIELDS),
+            "physical":      _domain_avg(rep, _PHYS_FIELDS),
+            "sleep":         _domain_avg(rep, _SLEEP_FIELDS),
+            "functional":    _domain_avg(rep, _FUNC_FIELDS),
+            "cgi_severity":  getattr(rep, 'cgi_severity', None),
+            "cgi_phenotype": getattr(rep, 'cgi_dominant_phenotype', None),
+            "func_items": {
+                "Mobility":          getattr(rep, 'func_mobility', None),
+                "Household":         getattr(rep, 'func_household', None),
+                "Work":              getattr(rep, 'func_work', None),
+                "Social":            getattr(rep, 'func_social', None),
+                "Exercise":          getattr(rep, 'func_exercise', None),
+                "Family":            getattr(rep, 'func_family', None),
+                "Independence":      getattr(rep, 'func_independence', None),
+                "Life Participation": getattr(rep, 'func_life_participation', None),
+            },
         }
         all_reports.append(report_dict)
 
         # correlated_events: matched + DRT (used for clinical flag checks against session data)
-        if rep.dialysis_recovery_time_mins is not None and sess:
+        if rep.dialysis_recovery_time is not None and sess:
             correlated_events.append(report_dict)
 
     # DRT-based analytics — avg uses ALL reports with a DRT value (matched or not)
@@ -970,6 +1058,16 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
 
     unmatched_count = sum(1 for r in all_reports if not r["session_matched"])
 
+    # Domain analytics: reports that have at least one domain score filled
+    _domain_keys = ('fatigue', 'cognitive', 'psychological', 'physical', 'sleep')
+    domain_reports = [
+        r for r in all_reports
+        if any(r.get(d) is not None for d in _domain_keys)
+    ]
+    # Oldest-first for trend charts; latest first for radar
+    domain_history = list(reversed(domain_reports[-8:]))  # up to 8 assessments, oldest→newest
+    latest_domains = domain_reports[0] if domain_reports else None  # all_reports is desc
+
     return {
         "available": True,
         "avg_drt_mins": round(avg_drt) if avg_drt is not None else None,
@@ -978,9 +1076,12 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
         "css_class": "danger" if risk_level == "high" else ("warning" if risk_level == "medium" else "success"),
         "flags": flags,
         "interventions": interventions,
-        "events": correlated_events,       # DRT-correlated events for the chart
-        "all_reports": all_reports,        # all reports including unmatched
+        "events": correlated_events,        # DRT-correlated events for the DRT/UFR chart
+        "all_reports": all_reports,         # all reports including unmatched (for the table)
         "unmatched_count": unmatched_count,
+        "has_domain_data": bool(domain_reports),
+        "domain_history": domain_history,   # oldest→newest, for trend line chart
+        "latest_domains": latest_domains,   # most recent with domain scores (for radar)
     }
 
 

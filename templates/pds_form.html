@@ -88,7 +88,7 @@
     <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back
   </a>
   <div>
-    <h1>Post-Dialysis Syndrome (PDS) Assessment</h1>
+    <h1>Post-Dialysis Syndrome (PDS) Assessment / डायलिसिस के बाद सिंड्रोम (PDS) मूल्यांकन</h1>
     <div class="sub">Patient: {{ patient.name }} (HID {{ patient.hid_no }}) · Session Date: {{ session.session_date.strftime('%Y-%m-%d') }}</div>
   </div>
 </div>
@@ -97,13 +97,21 @@
   <form method="POST">
     
     <div class="card">
-      <div class="card-title"><i class="material-icons">schedule</i> Dialysis Recovery Time (DRT)</div>
+      <div class="card-title"><i class="material-icons">schedule</i> Dialysis Recovery Time (DRT) / डायलिसिस रिकवरी का समय</div>
       <div>
-        <label>How long does it take you to recover from a dialysis session?</label>
+        <label>How long does it take you to recover from a dialysis session? / डायलिसिस सत्र के बाद आपको ठीक होने में कितना समय लगता है?</label>
         <select name="dialysis_recovery_time" required>
-          <option value="">— Select —</option>
-          {% for opt in ["<1 hour", "1-2 hours", "2-6 hours", "6-12 hours", ">12 hours", "Whole day", "Never fully recover before next dialysis"] %}
-          <option value="{{ opt }}" {{ 'selected' if report and report.dialysis_recovery_time == opt }}>{{ opt }}</option>
+          <option value="">— Select / चुनें —</option>
+          {% for opt, display in [
+            ("<1 hour", "<1 hour / <1 घंटा"),
+            ("1-2 hours", "1-2 hours / 1-2 घंटे"),
+            ("2-6 hours", "2-6 hours / 2-6 घंटे"),
+            ("6-12 hours", "6-12 hours / 6-12 घंटे"),
+            (">12 hours", ">12 hours / >12 घंटे"),
+            ("Whole day", "Whole day / पूरा दिन"),
+            ("Never fully recover before next dialysis", "Never fully recover before next dialysis / अगले डायलिसिस से पहले पूरी तरह से कभी ठीक नहीं होना")
+          ] %}
+          <option value="{{ opt }}" {{ 'selected' if report and report.dialysis_recovery_time == opt }}>{{ display }}</option>
           {% endfor %}
         </select>
       </div>
@@ -111,16 +119,16 @@
 
     <!-- Domain A -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">battery_alert</i> A. Fatigue & Energy Domain (0=None, 10=Worst)</div>
+      <div class="card-title"><i class="material-icons">battery_alert</i> A. Fatigue & Energy Domain / थकान और ऊर्जा (0=None/कोई नहीं, 10=Worst/सबसे खराब)</div>
       <div class="grid">
         {% for field, label_str in [
-          ('fatigue_physical_exhaustion', 'Physical exhaustion'),
-          ('fatigue_lack_of_energy', 'Lack of energy'),
-          ('fatigue_sleepiness', 'Sleepiness'),
-          ('fatigue_reduced_stamina', 'Reduced stamina'),
-          ('fatigue_prolonged_rest', 'Need for prolonged rest'),
-          ('fatigue_washed_out', 'Feeling "washed out"'),
-          ('fatigue_motivation_loss', 'Motivation loss')
+          ('fatigue_physical_exhaustion', 'Physical exhaustion / शारीरिक थकावट'),
+          ('fatigue_lack_of_energy', 'Lack of energy / ऊर्जा की कमी'),
+          ('fatigue_sleepiness', 'Sleepiness / नींद आना'),
+          ('fatigue_reduced_stamina', 'Reduced stamina / कम स्टैमिना'),
+          ('fatigue_prolonged_rest', 'Need for prolonged rest / लंबे आराम की आवश्यकता'),
+          ('fatigue_washed_out', 'Feeling "washed out" / "पूरी तरह थका हुआ" महसूस करना'),
+          ('fatigue_motivation_loss', 'Motivation loss / प्रेरणा की कमी')
         ] %}
         <div class="range-group">
           <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
@@ -132,15 +140,15 @@
 
     <!-- Domain B -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">psychology</i> B. Cognitive Domain (0=None, 10=Worst)</div>
+      <div class="card-title"><i class="material-icons">psychology</i> B. Cognitive Domain / संज्ञानात्मक क्षमता (0=None/कोई नहीं, 10=Worst/सबसे खराब)</div>
       <div class="grid">
         {% for field, label_str in [
-          ('cog_brain_fog', 'Brain fog'),
-          ('cog_poor_concentration', 'Poor concentration'),
-          ('cog_slowed_thinking', 'Slowed thinking'),
-          ('cog_memory_difficulty', 'Memory difficulty'),
-          ('cog_reduced_alertness', 'Reduced alertness'),
-          ('cog_decision_difficulty', 'Difficulty making decisions')
+          ('cog_brain_fog', 'Brain fog / दिमागी धुंध'),
+          ('cog_poor_concentration', 'Poor concentration / एकाग्रता की कमी'),
+          ('cog_slowed_thinking', 'Slowed thinking / सोचने में धीमापन'),
+          ('cog_memory_difficulty', 'Memory difficulty / याददाश्त में कठिनाई'),
+          ('cog_reduced_alertness', 'Reduced alertness / कम सतर्कता'),
+          ('cog_decision_difficulty', 'Difficulty making decisions / निर्णय लेने में कठिनाई')
         ] %}
         <div class="range-group">
           <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
@@ -152,15 +160,15 @@
 
     <!-- Domain C -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">mood_bad</i> C. Psychological Domain (0=None, 10=Worst)</div>
+      <div class="card-title"><i class="material-icons">mood_bad</i> C. Psychological Domain / मनोवैज्ञानिक स्थिति (0=None/कोई नहीं, 10=Worst/सबसे खराब)</div>
       <div class="grid">
         {% for field, label_str in [
-          ('psych_low_mood', 'Low mood'),
-          ('psych_anxiety', 'Anxiety'),
-          ('psych_irritability', 'Irritability'),
-          ('psych_emotional_exhaustion', 'Emotional exhaustion'),
-          ('psych_overwhelmed', 'Feeling overwhelmed'),
-          ('psych_reduced_purpose', 'Reduced sense of purpose')
+          ('psych_low_mood', 'Low mood / उदासी'),
+          ('psych_anxiety', 'Anxiety / चिंता या घबराहट'),
+          ('psych_irritability', 'Irritability / चिड़चिड़ापन'),
+          ('psych_emotional_exhaustion', 'Emotional exhaustion / भावनात्मक थकावट'),
+          ('psych_overwhelmed', 'Feeling overwhelmed / बहुत अधिक बोझ महसूस करना'),
+          ('psych_reduced_purpose', 'Reduced sense of purpose / उद्देश्य की भावना में कमी')
         ] %}
         <div class="range-group">
           <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
@@ -172,17 +180,17 @@
 
     <!-- Domain D -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">sick</i> D. Physical Symptom Domain (0=None, 10=Worst)</div>
+      <div class="card-title"><i class="material-icons">sick</i> D. Physical Symptom Domain / शारीरिक लक्षण (0=None/कोई नहीं, 10=Worst/सबसे खराब)</div>
       <div class="grid">
         {% for field, label_str in [
-          ('phys_muscle_weakness', 'Muscle weakness'),
-          ('phys_dizziness', 'Dizziness / Lightheadedness'),
-          ('phys_headache', 'Headache'),
-          ('phys_body_pain', 'Muscle/Body pain'),
-          ('phys_sob', 'Shortness of breath'),
-          ('phys_palpitations', 'Palpitations'),
-          ('phys_gait_instability', 'Unsteadiness / Gait instability'),
-          ('phys_cramps', 'Post-HD cramps')
+          ('phys_muscle_weakness', 'Muscle weakness / मांसपेशियों में कमजोरी'),
+          ('phys_dizziness', 'Dizziness / चक्कर आना'),
+          ('phys_headache', 'Headache / सिरदर्द'),
+          ('phys_body_pain', 'Muscle/Body pain / मांसपेशियों/शरीर में दर्द'),
+          ('phys_sob', 'Shortness of breath / सांस फूलना'),
+          ('phys_palpitations', 'Palpitations / धड़कन तेज होना'),
+          ('phys_gait_instability', 'Unsteadiness / चलने में लड़खड़ाहट'),
+          ('phys_cramps', 'Post-HD cramps / डायलिसिस के बाद ऐंठन')
         ] %}
         <div class="range-group">
           <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
@@ -194,13 +202,13 @@
 
     <!-- Domain E -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">bedtime</i> E. Sleep Domain (0=None, 10=Worst)</div>
+      <div class="card-title"><i class="material-icons">bedtime</i> E. Sleep Domain / नींद की स्थिति (0=None/कोई नहीं, 10=Worst/सबसे खराब)</div>
       <div class="grid">
         {% for field, label_str in [
-          ('sleep_daytime_sleepiness', 'Excessive daytime sleepiness'),
-          ('sleep_poor_sleep_post_hd', 'Poor sleep night after HD'),
-          ('sleep_unrefreshing', 'Unrefreshing sleep'),
-          ('sleep_disturbance', 'Night-time disturbances')
+          ('sleep_daytime_sleepiness', 'Excessive daytime sleepiness / दिन में बहुत अधिक नींद आना'),
+          ('sleep_poor_sleep_post_hd', 'Poor sleep night after HD / डायलिसिस के बाद रात में खराब नींद'),
+          ('sleep_unrefreshing', 'Unrefreshing sleep / ताज़गी न देने वाली नींद'),
+          ('sleep_disturbance', 'Night-time disturbances / रात में बार-बार नींद टूटना')
         ] %}
         <div class="range-group">
           <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
@@ -212,17 +220,17 @@
 
     <!-- Functional Impact -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">directions_run</i> Functional Impact Assessment (0=None, 10=Total)</div>
+      <div class="card-title"><i class="material-icons">directions_run</i> Functional Impact Assessment / कार्यात्मक प्रभाव (0=None/कोई नहीं, 10=Total/पूर्ण)</div>
       <div class="grid">
         {% for field, label_str in [
-          ('func_mobility', 'Mobility & Walking'),
-          ('func_household', 'Household chores'),
-          ('func_work', 'Work / Study'),
-          ('func_social', 'Socializing'),
-          ('func_exercise', 'Exercise'),
-          ('func_family', 'Family activities'),
-          ('func_independence', 'Loss of independence'),
-          ('func_life_participation', 'Overall life participation')
+          ('func_mobility', 'Mobility & Walking / चलने-फिरने की क्षमता'),
+          ('func_household', 'Household chores / घर के काम-काज'),
+          ('func_work', 'Work / Study / काम / पढ़ाई'),
+          ('func_social', 'Socializing / सामाजिक मेलजोल'),
+          ('func_exercise', 'Exercise / व्यायाम'),
+          ('func_family', 'Family activities / पारिवारिक गतिविधियाँ'),
+          ('func_independence', 'Loss of independence / स्वतंत्रता की कमी'),
+          ('func_life_participation', 'Overall life participation / समग्र जीवन में भागीदारी')
         ] %}
         <div class="range-group">
           <label><span>{{ label_str }}</span> <span class="score-val" id="lbl_{{ field }}">{{ getattr(report, field) if report and getattr(report, field) is not none else '0' }}</span></label>
@@ -234,49 +242,63 @@
 
     <!-- Context & Clinician -->
     <div class="card">
-      <div class="card-title"><i class="material-icons">assessment</i> Additional Context & Global Impression</div>
+      <div class="card-title"><i class="material-icons">assessment</i> Additional Context & Global Impression / अतिरिक्त संदर्भ और समग्र प्रभाव</div>
       <div class="grid">
         <div class="full">
-          <label>When are symptoms worst?</label>
+          <label>When are symptoms worst? / लक्षण सबसे ज्यादा कब होते हैं?</label>
           <input type="text" name="symptoms_worse_time" value="{{ report.symptoms_worse_time if report else '' }}" placeholder="e.g. 2 hours after HD">
         </div>
         <div class="full">
-          <label>Compare to non-dialysis days</label>
+          <label>Compare to non-dialysis days / गैर-डायलिसिस दिनों से तुलना</label>
           <input type="text" name="symptoms_compare_nondialysis" value="{{ report.symptoms_compare_nondialysis if report else '' }}">
         </div>
         <div class="full">
-          <label>Associated Contributors (Comma-separated)</label>
+          <label>Associated Contributors (Comma-separated) / संबंधित कारण</label>
           <input type="text" name="associated_contributors" value="{{ report.associated_contributors if report else '' }}" placeholder="e.g. Ultrafiltration volume, Hypotension">
         </div>
         
         <div class="full"><hr style="border:0; border-top:1px solid #e2e8f0; margin:10px 0;"></div>
         
         <div>
-          <label>CGI-Severity</label>
+          <label>CGI-Severity / गंभीरता का मूल्यांकन</label>
           <select name="cgi_severity">
-            <option value="">— Select —</option>
-            {% for opt in ["Normal", "Borderline", "Mild", "Moderate", "Marked", "Severe", "Extreme"] %}
-            <option value="{{ opt }}" {{ 'selected' if report and report.cgi_severity == opt }}>{{ opt }}</option>
+            <option value="">— Select / चुनें —</option>
+            {% for opt, display in [
+              ("Normal", "Normal / सामान्य"), 
+              ("Borderline", "Borderline / सीमांत"), 
+              ("Mild", "Mild / हल्का"), 
+              ("Moderate", "Moderate / मध्यम"), 
+              ("Marked", "Marked / स्पष्ट"), 
+              ("Severe", "Severe / गंभीर"), 
+              ("Extreme", "Extreme / अत्यधिक")
+            ] %}
+            <option value="{{ opt }}" {{ 'selected' if report and report.cgi_severity == opt }}>{{ display }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label>CGI Dominant Phenotype</label>
+          <label>CGI Dominant Phenotype / मुख्य लक्षण</label>
           <select name="cgi_dominant_phenotype">
-            <option value="">— Select —</option>
-            {% for opt in ["Fatigue-dominant", "Cognitive-dominant", "Physical-dominant", "Psychological-dominant", "Mixed"] %}
-            <option value="{{ opt }}" {{ 'selected' if report and report.cgi_dominant_phenotype == opt }}>{{ opt }}</option>
+            <option value="">— Select / चुनें —</option>
+            {% for opt, display in [
+              ("Fatigue-dominant", "Fatigue-dominant / मुख्य रूप से थकान"), 
+              ("Cognitive-dominant", "Cognitive-dominant / मुख्य रूप से संज्ञानात्मक"), 
+              ("Physical-dominant", "Physical-dominant / मुख्य रूप से शारीरिक"), 
+              ("Psychological-dominant", "Psychological-dominant / मुख्य रूप से मनोवैज्ञानिक"), 
+              ("Mixed", "Mixed / मिश्रित")
+            ] %}
+            <option value="{{ opt }}" {{ 'selected' if report and report.cgi_dominant_phenotype == opt }}>{{ display }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="full">
-          <label>Suggested Interventions</label>
+          <label>Suggested Interventions / सुझाए गए उपाय</label>
           <input type="text" name="suggested_interventions" value="{{ report.suggested_interventions if report else '' }}" placeholder="e.g. Cool dialysate, modify UF goal">
         </div>
       </div>
     </div>
 
-    <button type="submit" class="btn-save">Save PDS Assessment</button>
+    <button type="submit" class="btn-save">Save PDS Assessment / मूल्यांकन सेव करें</button>
   </form>
 </div>
 </body>

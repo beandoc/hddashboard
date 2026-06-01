@@ -158,6 +158,20 @@
       0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
       50%       { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
     }
+
+    /* PDS domain badges */
+    .pds-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 700; border: 1px solid;
+    }
+    .pds-badge--high  { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .pds-badge--mid   { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .pds-badge--low   { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+
+    @media (max-width: 700px) {
+      .pds-charts-row { grid-template-columns: 1fr !important; }
+    }
   </style>
     <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
     <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
@@ -918,9 +932,73 @@
           </ul>
           {% endif %}
           
-          <div style="margin-top: 20px; height: 250px; margin-bottom: 24px;">
-            <canvas id="pdsChart"></canvas>
+          <!-- ── PDS Domain Visualization ─────────────────────────── -->
+          {% if pds.latest_domains %}
+          {% set ld = pds.latest_domains %}
+
+          <!-- CGI/DRT badges for latest assessment -->
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; margin-bottom:18px;">
+            {% if ld.cgi_severity %}
+            {% if ld.cgi_severity in ('Severe', 'Extreme', 'Marked') %}
+            <span class="pds-badge pds-badge--high">
+            {% elif ld.cgi_severity == 'Moderate' %}
+            <span class="pds-badge pds-badge--mid">
+            {% else %}
+            <span class="pds-badge pds-badge--low">
+            {% endif %}
+              <i class="material-icons" style="font-size:0.95rem;">psychology</i> CGI: {{ ld.cgi_severity }}
+            </span>
+            {% endif %}
+            {% if ld.cgi_phenotype %}
+            <span style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; font-size:0.78rem; font-weight:700; background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe;">
+              <i class="material-icons" style="font-size:0.95rem;">radar</i> {{ ld.cgi_phenotype }}
+            </span>
+            {% endif %}
+            {% if ld.drt_str %}
+            <span style="display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:20px; font-size:0.78rem; font-weight:700; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;">
+              <i class="material-icons" style="font-size:0.95rem;">schedule</i> Recovery: {{ ld.drt_str }}
+            </span>
+            {% endif %}
           </div>
+
+          <!-- Radar + Functional Impact side by side -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+            <div style="background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0; padding:18px;">
+              <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px; display:flex; align-items:center; gap:5px;">
+                <i class="material-icons" style="font-size:0.95rem; color:#7c3aed;">radar</i> Domain Symptom Profile (latest)
+              </div>
+              <div style="height:260px; position:relative;"><canvas id="pdsRadarChart"></canvas></div>
+            </div>
+            <div style="background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0; padding:18px;">
+              <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px; display:flex; align-items:center; gap:5px;">
+                <i class="material-icons" style="font-size:0.95rem; color:#0ea5e9;">bar_chart</i> Functional Impact (0=None, 10=Total)
+              </div>
+              <div style="height:260px; position:relative;"><canvas id="pdsFuncChart"></canvas></div>
+            </div>
+          </div>
+
+          <!-- Domain Trends Over Time -->
+          {% if pds.domain_history | length > 1 %}
+          <div style="background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0; padding:18px; margin-bottom:20px;">
+            <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px; display:flex; align-items:center; gap:5px;">
+              <i class="material-icons" style="font-size:0.95rem; color:#0ea5e9;">show_chart</i> Domain Scores Over Time
+              <span style="font-size:0.7rem; font-weight:400; color:#94a3b8; text-transform:none; margin-left:auto;">{{ pds.domain_history | length }} assessments</span>
+            </div>
+            <div style="height:200px; position:relative;"><canvas id="pdsTrendChart"></canvas></div>
+          </div>
+          {% endif %}
+          {% endif %}
+
+          <!-- DRT vs UFR Chart -->
+          {% if pds.events | length > 0 %}
+          <div style="background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0; padding:18px; margin-bottom:20px;">
+            <div style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px; display:flex; align-items:center; gap:5px;">
+              <i class="material-icons" style="font-size:0.95rem; color:#ef4444;">timer</i> Recovery Time vs Ultrafiltration Rate
+              <span style="font-size:0.7rem; font-weight:400; color:#94a3b8; text-transform:none; margin-left:auto;">{{ pds.events | length }} sessions</span>
+            </div>
+            <div style="height:220px; position:relative;"><canvas id="pdsChart"></canvas></div>
+          </div>
+          {% endif %}
 
           <div style="margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
             <h4 style="margin: 0 0 12px; font-family: 'Outfit', sans-serif; font-size: 0.95rem; color: #1e293b; display: flex; align-items: center; gap: 6px;">
@@ -958,9 +1036,8 @@
                       {% endif %}
                     </td>
                     <td style="padding: 10px 8px;">
-                      {% if rep.drt_mins is not none %}
-                        <strong style="color: #334155;">{{ (rep.drt_mins / 60) | round(1) }} hrs</strong>
-                        <span style="font-size: 0.75rem; color: #64748b;">({{ rep.drt_mins }} mins)</span>
+                      {% if rep.drt_str is not none %}
+                        <strong style="color: #334155;">{{ rep.drt_str }}</strong>
                       {% else %}
                         <span style="color: #94a3b8;">Not reported</span>
                       {% endif %}
@@ -1108,6 +1185,9 @@
   <style>
     .hidden { display: none !important; }
   </style>
+  {% if pds_analytics and pds_analytics.available %}
+  <script type="application/json" id="pds-json">{{ pds_analytics | tojson }}</script>
+  {% endif %}
   <script>
     // Pre-fill today's date on the patient timeline log form
     (function(){
@@ -1117,84 +1197,240 @@
 
     {% if pds_analytics and pds_analytics.available %}
     (function(){
-        const ctx = document.getElementById('pdsChart');
-        if (!ctx) return;
-        
-        const events = {{ pds_analytics.events | tojson }};
-        if (events.length === 0) return;
-        
-        // Reverse to show oldest to newest (since they are ordered by desc)
-        const sortedEvents = events.slice().reverse();
-        
-        const labels = sortedEvents.map(e => e.date);
-        const drtData = sortedEvents.map(e => e.drt_mins);
-        const ufrData = sortedEvents.map(e => e.ufr || null);
-        
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'DRT (mins)',
-                        data: drtData,
-                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 1,
-                        yAxisID: 'y'
-                    },
-                    {
-                        type: 'line',
-                        label: 'UFR (mL/h/kg)',
-                        data: ufrData,
-                        borderColor: 'rgb(14, 165, 233)',
-                        backgroundColor: 'rgba(14, 165, 233, 0.2)',
-                        borderWidth: 3,
+        const pds = JSON.parse(document.getElementById('pds-json').textContent);
+
+        // ── 1. Domain Radar Chart ──────────────────────────────────────────
+        const radarCtx = document.getElementById('pdsRadarChart');
+        if (radarCtx && pds.latest_domains) {
+            const ld = pds.latest_domains;
+            const domainLabels = ['Fatigue', 'Cognitive', 'Psychological', 'Physical', 'Sleep'];
+            const domainValues = [
+                ld.fatigue    ?? 0,
+                ld.cognitive  ?? 0,
+                ld.psychological ?? 0,
+                ld.physical   ?? 0,
+                ld.sleep      ?? 0,
+            ];
+
+            new Chart(radarCtx, {
+                type: 'radar',
+                data: {
+                    labels: domainLabels,
+                    datasets: [{
+                        label: 'Domain Score (0–10)',
+                        data: domainValues,
+                        backgroundColor: 'rgba(124,58,237,0.15)',
+                        borderColor: 'rgba(124,58,237,0.85)',
+                        borderWidth: 2,
+                        pointBackgroundColor: domainValues.map(v =>
+                            v >= 7 ? '#ef4444' : v >= 4 ? '#f59e0b' : '#10b981'
+                        ),
                         pointRadius: 5,
-                        tension: 0.3,
-                        yAxisID: 'y1'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: { display: true, text: 'Recovery Time (mins)' },
-                        grid: { color: '#f1f5f9' }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: { display: true, text: 'UFR (mL/h/kg)' },
-                        grid: { drawOnChartArea: false }
-                    },
-                    x: {
-                        grid: { display: false }
-                    }
+                        pointHoverRadius: 7,
+                    }]
                 },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            afterLabel: function(context) {
-                                const index = context.dataIndex;
-                                const ev = sortedEvents[index];
-                                let details = [];
-                                if (ev.temp) details.push(`Dialysate Temp: ${ev.temp}°C`);
-                                if (ev.idh) details.push('IDH Episode: Yes');
-                                if (ev.tiredness) details.push(`Tiredness: ${ev.tiredness}/10`);
-                                return details;
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            min: 0, max: 10,
+                            ticks: { stepSize: 2, font: { size: 10 }, color: '#94a3b8', backdropColor: 'transparent' },
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: { size: 11, weight: '600' },
+                                color: '#475569',
+                            },
+                            angleLines: { color: '#e2e8f0' },
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const v = ctx.raw;
+                                    const sev = v >= 7 ? 'Severe' : v >= 4 ? 'Moderate' : 'Mild/None';
+                                    return ` ${v.toFixed(1)} / 10  (${sev})`;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
+
+        // ── 2. Functional Impact Horizontal Bar Chart ─────────────────────
+        const funcCtx = document.getElementById('pdsFuncChart');
+        if (funcCtx && pds.latest_domains && pds.latest_domains.func_items) {
+            const fi = pds.latest_domains.func_items;
+            const funcLabels = Object.keys(fi).filter(k => fi[k] !== null);
+            const funcValues = funcLabels.map(k => fi[k]);
+
+            new Chart(funcCtx, {
+                type: 'bar',
+                data: {
+                    labels: funcLabels,
+                    datasets: [{
+                        label: 'Impairment (0–10)',
+                        data: funcValues,
+                        backgroundColor: funcValues.map(v =>
+                            v >= 7 ? 'rgba(239,68,68,0.75)' : v >= 4 ? 'rgba(245,158,11,0.75)' : 'rgba(16,185,129,0.75)'
+                        ),
+                        borderColor: funcValues.map(v =>
+                            v >= 7 ? '#dc2626' : v >= 4 ? '#d97706' : '#059669'
+                        ),
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            min: 0, max: 10,
+                            ticks: { stepSize: 2, font: { size: 10 }, color: '#94a3b8' },
+                            grid: { color: '#f1f5f9' },
+                        },
+                        y: {
+                            ticks: { font: { size: 11 }, color: '#475569' },
+                            grid: { display: false },
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const v = ctx.raw;
+                                    const sev = v >= 7 ? 'Severely impaired' : v >= 4 ? 'Moderately impaired' : 'Mildly/Not impaired';
+                                    return ` ${v} / 10 — ${sev}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ── 3. Domain Trends Over Time ────────────────────────────────────
+        const trendCtx = document.getElementById('pdsTrendChart');
+        if (trendCtx && pds.domain_history && pds.domain_history.length > 1) {
+            const hist = pds.domain_history;
+            const trendLabels = hist.map(r => r.date);
+            const domainDefs = [
+                { key: 'fatigue',       label: 'Fatigue',       color: '#f97316' },
+                { key: 'cognitive',     label: 'Cognitive',     color: '#8b5cf6' },
+                { key: 'psychological', label: 'Psychological', color: '#ec4899' },
+                { key: 'physical',      label: 'Physical',      color: '#ef4444' },
+                { key: 'sleep',         label: 'Sleep',         color: '#14b8a6' },
+            ];
+
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: trendLabels,
+                    datasets: domainDefs.map(d => ({
+                        label: d.label,
+                        data: hist.map(r => r[d.key] ?? null),
+                        borderColor: d.color,
+                        backgroundColor: d.color + '22',
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.3,
+                        spanGaps: true,
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0, max: 10,
+                            ticks: { stepSize: 2, font: { size: 10 }, color: '#94a3b8' },
+                            grid: { color: '#f1f5f9' },
+                            title: { display: true, text: 'Score (0–10)', font: { size: 10 }, color: '#94a3b8' },
+                        },
+                        x: {
+                            ticks: { font: { size: 10 }, color: '#94a3b8' },
+                            grid: { display: false },
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 12, font: { size: 11 }, padding: 12 }
+                        },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        }
+
+        // ── 4. DRT vs UFR Chart ───────────────────────────────────────────
+        const drtCtx = document.getElementById('pdsChart');
+        if (drtCtx && pds.events && pds.events.length > 0) {
+            const sortedEvents = pds.events.slice().reverse();
+            const labels = sortedEvents.map(e => e.date);
+            const drtData = sortedEvents.map(e => e.drt_mins);
+            const ufrData = sortedEvents.map(e => e.ufr || null);
+
+            new Chart(drtCtx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Recovery Time (mins)',
+                            data: drtData,
+                            backgroundColor: 'rgba(239,68,68,0.65)',
+                            borderColor: '#ef4444',
+                            borderWidth: 1,
+                            borderRadius: 3,
+                            yAxisID: 'y',
+                        },
+                        {
+                            type: 'line',
+                            label: 'UFR (mL/h/kg)',
+                            data: ufrData,
+                            borderColor: '#0ea5e9',
+                            backgroundColor: 'rgba(14,165,233,0.15)',
+                            borderWidth: 2.5,
+                            pointRadius: 4,
+                            tension: 0.3,
+                            yAxisID: 'y1',
+                            spanGaps: true,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Recovery Time (mins)', font: { size: 10 } }, grid: { color: '#f1f5f9' } },
+                        y1: { type: 'linear', position: 'right', title: { display: true, text: 'UFR (mL/h/kg)',        font: { size: 10 } }, grid: { drawOnChartArea: false } },
+                        x:  { grid: { display: false }, ticks: { font: { size: 10 } } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                afterLabel(context) {
+                                    const ev = sortedEvents[context.dataIndex];
+                                    const lines = [];
+                                    if (ev.temp)   lines.push(`Dialysate Temp: ${ev.temp}°C`);
+                                    if (ev.idh)    lines.push('IDH Episode: Yes');
+                                    if (ev.tiredness != null) lines.push(`Fatigue: ${ev.tiredness}/10`);
+                                    return lines;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
     })();
     {% endif %}
   </script>

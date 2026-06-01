@@ -263,14 +263,14 @@ async def log_symptoms(
     # Session date being reported on
     session_date: str = Form(None),
     # PDS Specific fields
-    dialysis_recovery_time_mins: str = Form(None),
-    tiredness_score: str = Form(None),
-    energy_level_score: str = Form(None),
-    daily_activity_impact: str = Form(None),
-    cognitive_alertness: str = Form(None),
-    post_hd_mood: str = Form(None),
-    sleepiness_severity: str = Form(None),
-    missed_social_or_work_event: str = Form(None)
+    dialysis_recovery_time: str = Form(None),
+    fatigue_physical_exhaustion: str = Form(None),
+    fatigue_lack_of_energy: str = Form(None),
+    func_life_participation: str = Form(None),
+    cog_brain_fog: str = Form(None),
+    psych_low_mood: str = Form(None),
+    fatigue_sleepiness: str = Form(None),
+    func_social: str = Form(None)
 ):
     u = get_user(request)
     if not u or not isinstance(u, dict) or u.get("role") != "patient":
@@ -314,17 +314,16 @@ async def log_symptoms(
 
     # Apply safe conversions
     conv_severity = parse_int(severity, 3)
-    conv_recovery = parse_int(dialysis_recovery_time_mins)
-    conv_tiredness = parse_int(tiredness_score)
-    conv_energy = parse_int(energy_level_score)
-    conv_activity = parse_int(daily_activity_impact)
-    conv_sleepiness = parse_int(sleepiness_severity)
+    conv_recovery = parse_str(dialysis_recovery_time)
+    conv_fatigue_physical_exhaustion = parse_int(fatigue_physical_exhaustion)
+    conv_fatigue_lack_of_energy = parse_int(fatigue_lack_of_energy)
+    conv_func_life_participation = parse_int(func_life_participation)
+    conv_fatigue_sleepiness = parse_int(fatigue_sleepiness)
 
-    conv_alertness = parse_str(cognitive_alertness)
-    conv_mood = parse_str(post_hd_mood)
+    conv_cog_brain_fog = parse_int(cog_brain_fog)
+    conv_psych_low_mood = parse_int(psych_low_mood)
+    conv_func_social = parse_int(func_social)
     conv_notes = parse_str(notes)
-
-    conv_missed = parse_bool(missed_social_or_work_event)
 
     try:
         # Guard against double-submit: reject if an identical report was saved in the last 60s
@@ -348,14 +347,14 @@ async def log_symptoms(
             symptoms=symptoms,
             severity=conv_severity,
             notes=conv_notes,
-            dialysis_recovery_time_mins=conv_recovery,
-            tiredness_score=conv_tiredness,
-            energy_level_score=conv_energy,
-            daily_activity_impact=conv_activity,
-            cognitive_alertness=conv_alertness,
-            post_hd_mood=conv_mood,
-            sleepiness_severity=conv_sleepiness,
-            missed_social_or_work_event=conv_missed,
+            dialysis_recovery_time=conv_recovery,
+            fatigue_physical_exhaustion=conv_fatigue_physical_exhaustion,
+            fatigue_lack_of_energy=conv_fatigue_lack_of_energy,
+            func_life_participation=conv_func_life_participation,
+            cog_brain_fog=conv_cog_brain_fog,
+            psych_low_mood=conv_psych_low_mood,
+            fatigue_sleepiness=conv_fatigue_sleepiness,
+            func_social=conv_func_social,
         )
         db.add(report)
         db.commit()
