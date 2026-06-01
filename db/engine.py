@@ -23,6 +23,10 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./hd_dashboard.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Ensure Supabase connections use the transaction pooler (port 6543) instead of session pooler (5432)
+if "pooler.supabase.com:5432" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
+
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
 if _is_sqlite:
