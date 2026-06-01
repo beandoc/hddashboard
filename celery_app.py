@@ -72,6 +72,11 @@ celery_app.conf.update(
             "schedule": crontab(hour=1, minute=0),
             "kwargs":   {},
         },
+        # Data integrity report: email record counts + last-24h saves at 06:00 UTC (11:30 IST).
+        "daily-data-integrity-report": {
+            "task":     "tasks.task_daily_data_integrity_report",
+            "schedule": crontab(hour=6, minute=0),
+        },
     },
 )
 

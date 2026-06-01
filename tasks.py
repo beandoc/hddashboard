@@ -4,7 +4,11 @@ from dashboard_logic import get_patients_needing_alerts, get_month_label, get_cu
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, build_schedule_message, send_whatsapp
 import logging
 import json
+import os
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timedelta
+from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
 
@@ -529,3 +533,124 @@ def task_compute_idh_model_metrics(lookback_days: int = 90):
     Delegates to the generic task_compute_model_metrics with model_name='idh_v1'.
     """
     return task_compute_model_metrics("idh_v1", lookback_days)
+
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_daily_data_integrity_report():
+    """Daily task: email a record-count summary so silent save failures are caught.
+
+    Runs at 06:00 UTC (11:30 IST). Reports:
+    - Total active patients
+    - Monthly records saved per month (last 3 months)
+    - Records saved in the last 24 hours (audit trail)
+    """
+    db = SessionLocal()
+    try:
+        smtp_user = os.getenv("SMTP_USER", "")
+        smtp_pass = os.getenv("SMTP_PASSWORD", "")
+        doctor_email = os.getenv("DOCTOR_EMAIL", "")
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+        if not smtp_user or not smtp_pass or not doctor_email:
+            logger.warning("task_daily_data_integrity_report: SMTP not configured, skipping")
+            return "SMTP not configured"
+
+        now = datetime.utcnow()
+        today_str = now.strftime("%Y-%m-%d")
+
+        # Active patient count
+        active_count = db.query(func.count(Patient.id)).filter(Patient.is_active == True).scalar() or 0
+
+        # Monthly record counts for last 3 months
+        current_month = get_current_month_str()
+        year, mon = map(int, current_month.split("-"))
+        months = []
+        for i in range(3):
+            m = mon - i
+            y = year
+            if m <= 0:
+                m += 12
+                y -= 1
+            months.append(f"{y}-{m:02d}")
+
+        month_rows = []
+        for m in months:
+            count = (
+                db.query(func.count(MonthlyRecord.id))
+                .filter(MonthlyRecord.record_month == m)
+                .scalar() or 0
+            )
+            month_rows.append(f"<tr><td>{get_month_label(m)}</td><td style='text-align:center;font-weight:700;color:#0284c7;'>{count}</td><td style='text-align:center;color:#64748b;'>{active_count}</td><td style='text-align:center;'><span style='color:{'#10b981' if count >= active_count * 0.8 else '#ef4444'};font-weight:700;'>{'✓ Good' if count >= active_count * 0.8 else '⚠ Low'}</span></td></tr>")
+
+        # Records saved in last 24 hours
+        cutoff = now - timedelta(hours=24)
+        recent = (
+            db.query(MonthlyRecord)
+            .filter(MonthlyRecord.timestamp >= cutoff)
+            .order_by(MonthlyRecord.timestamp.desc())
+            .limit(50)
+            .all()
+        )
+        recent_rows = ""
+        for r in recent:
+            p = db.query(Patient).filter(Patient.id == r.patient_id).first()
+            name = p.name if p else f"ID {r.patient_id}"
+            ts = r.timestamp.strftime("%H:%M UTC") if r.timestamp else "—"
+            recent_rows += f"<tr><td>{name}</td><td>{r.record_month}</td><td>{r.entered_by or '—'}</td><td>{ts}</td></tr>"
+
+        if not recent_rows:
+            recent_rows = "<tr><td colspan='4' style='text-align:center;color:#64748b;'>No records saved in last 24 hours</td></tr>"
+
+        html = f"""
+        <html><body style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px;">
+        <h2 style="color:#0284c7;">HD Dashboard — Daily Data Integrity Report</h2>
+        <p style="color:#64748b;">Generated {today_str} · Active patients: <strong>{active_count}</strong></p>
+
+        <h3 style="color:#334155;">Records Saved by Month</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:8px;text-align:left;">Month</th>
+            <th style="padding:8px;">Records Saved</th>
+            <th style="padding:8px;">Active Patients</th>
+            <th style="padding:8px;">Status</th>
+          </tr></thead>
+          <tbody>{''.join(month_rows)}</tbody>
+        </table>
+
+        <h3 style="color:#334155;">Records Saved in Last 24 Hours</h3>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:#f1f5f9;">
+            <th style="padding:8px;text-align:left;">Patient</th>
+            <th style="padding:8px;text-align:left;">Month</th>
+            <th style="padding:8px;text-align:left;">Entered By</th>
+            <th style="padding:8px;text-align:left;">Time</th>
+          </tr></thead>
+          <tbody>{recent_rows}</tbody>
+        </table>
+
+        <p style="margin-top:24px;font-size:0.85em;color:#94a3b8;">
+          To download a full backup, go to Admin → Database → Export JSON.<br>
+          This report is sent daily at 06:00 UTC (11:30 IST).
+        </p>
+        </body></html>
+        """
+
+        msg = MIMEText(html, "html")
+        msg["Subject"] = f"HD Dashboard — Data Integrity Report {today_str}"
+        msg["From"] = smtp_user
+        msg["To"] = doctor_email
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, doctor_email, msg.as_string())
+
+        logger.info("task_daily_data_integrity_report: sent to %s", doctor_email)
+        return f"Sent to {doctor_email}: {active_count} active patients, {len(recent)} records in last 24h"
+
+    except Exception as exc:
+        logger.exception("task_daily_data_integrity_report failed: %s", exc)
+        raise
+    finally:
+        db.close()

@@ -190,11 +190,11 @@
                     <div class="grid">
                         <div class="form-group">
                             <label>Hemoglobin (g/dL)</label>
-                            <input type="number" step="0.1" name="hb" inputmode="decimal" value="{{ record.hb or '' if record else '' }}" required>
+                            <input type="number" step="0.01" name="hb" inputmode="decimal" value="{{ record.hb or '' if record else '' }}" required>
                         </div>
                         <div class="form-group">
                             <label>Hematocrit (%)</label>
-                            <input type="number" step="0.1" name="hct" inputmode="decimal" value="{{ record.hct or '' if record else '' }}">
+                            <input type="number" step="0.01" name="hct" inputmode="decimal" value="{{ record.hct or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>TLC / WBC Count (/cmm)</label>
@@ -232,7 +232,7 @@
                         </div>
                         <div class="form-group">
                             <label>TSAT (%)</label>
-                            <input type="number" step="0.1" name="tsat" inputmode="decimal" value="{{ record.tsat or '' if record else '' }}">
+                            <input type="number" step="0.01" name="tsat" inputmode="decimal" value="{{ record.tsat or '' if record else '' }}">
                         </div>
                     </div>
                 </div>
@@ -251,31 +251,31 @@
                         </div>
                         <div class="form-group">
                             <label>Serum Creatinine (mg/dL)</label>
-                            <input type="number" step="0.1" name="serum_creatinine" inputmode="decimal" value="{{ record.serum_creatinine or '' if record else '' }}">
+                            <input type="number" step="0.01" name="serum_creatinine" inputmode="decimal" value="{{ record.serum_creatinine or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Post-Dialysis Creatinine (mg/dL)</label>
-                            <input type="number" step="0.1" name="post_dialysis_creatinine" inputmode="decimal" value="{{ record.post_dialysis_creatinine or '' if record else '' }}">
+                            <input type="number" step="0.01" name="post_dialysis_creatinine" inputmode="decimal" value="{{ record.post_dialysis_creatinine or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Serum Uric Acid (mg/dL)</label>
-                            <input type="number" step="0.1" name="serum_uric_acid" inputmode="decimal" value="{{ record.serum_uric_acid or '' if record else '' }}">
+                            <input type="number" step="0.01" name="serum_uric_acid" inputmode="decimal" value="{{ record.serum_uric_acid or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Serum Sodium (mmol/L)</label>
-                            <input type="number" step="0.1" name="serum_sodium" inputmode="decimal" value="{{ record.serum_sodium or '' if record else '' }}">
+                            <input type="number" step="0.01" name="serum_sodium" inputmode="decimal" value="{{ record.serum_sodium or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Serum Potassium (mmol/L)</label>
-                            <input type="number" step="0.1" name="serum_potassium" inputmode="decimal" value="{{ record.serum_potassium or '' if record else '' }}">
+                            <input type="number" step="0.01" name="serum_potassium" inputmode="decimal" value="{{ record.serum_potassium or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Calcium (mg/dL)</label>
-                            <input type="number" step="0.1" name="calcium" inputmode="decimal" value="{{ record.calcium or '' if record else '' }}">
+                            <input type="number" step="0.01" name="calcium" inputmode="decimal" value="{{ record.calcium or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Phosphorus (mg/dL)</label>
-                            <input type="number" step="0.1" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus or '' if record else '' }}">
+                            <input type="number" step="0.01" name="phosphorus" inputmode="decimal" value="{{ record.phosphorus or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Serum Bicarbonate (mmol/L)</label>
@@ -302,11 +302,11 @@
                         </div>
                         <div class="form-group">
                             <label>Total Protein (g/dL)</label>
-                            <input type="number" step="0.1" name="total_protein" inputmode="decimal" value="{{ record.dynamic_data.total_protein if record and record.dynamic_data else '' }}">
+                            <input type="number" step="0.01" name="total_protein" inputmode="decimal" value="{{ record.dynamic_data.total_protein if record and record.dynamic_data else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Albumin (g/dL)</label>
-                            <input type="number" step="0.1" name="albumin" inputmode="decimal" value="{{ record.albumin or '' if record else '' }}">
+                            <input type="number" step="0.01" name="albumin" inputmode="decimal" value="{{ record.albumin or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Total Cholesterol (mg/dL)</label>
@@ -326,7 +326,7 @@
                         </div>
                         <div class="form-group">
                             <label>CRP (mg/L)</label>
-                            <input type="number" step="0.1" name="crp" inputmode="decimal" value="{{ record.crp or '' if record else '' }}">
+                            <input type="number" step="0.01" name="crp" inputmode="decimal" value="{{ record.crp or '' if record else '' }}">
                         </div>
                     </div>
                 </div>
@@ -337,7 +337,7 @@
                     <div class="grid">
                         <div class="form-group">
                             <label>Vitamin D (ng/mL)</label>
-                            <input type="number" step="0.1" name="vit_d" inputmode="decimal" value="{{ record.vit_d or '' if record else '' }}">
+                            <input type="number" step="0.01" name="vit_d" inputmode="decimal" value="{{ record.vit_d or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>iPTH (pg/mL)</label>
@@ -360,7 +360,7 @@
                         </div>
                         <div class="form-group">
                             <label>HbA1c (%)</label>
-                            <input type="number" step="0.1" name="hba1c" inputmode="decimal" value="{{ record.hba1c or '' if record else '' }}">
+                            <input type="number" step="0.01" name="hba1c" inputmode="decimal" value="{{ record.hba1c or '' if record else '' }}">
                         </div>
                     </div>
                 </div>
@@ -385,7 +385,7 @@
                         </div>
                         <div class="form-group">
                             <label>URR — Urea Reduction Ratio (%) <span style="font-size:0.75rem;color:#8b5cf6;margin-left:6px;">(Auto-calculated)</span></label>
-                            <input type="number" step="0.1" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto from Urea values"
+                            <input type="number" step="0.01" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto from Urea values"
                                    value="{{ record.urr if record and record.urr else '' }}" readonly>
                         </div>
                     </div>
