@@ -25,7 +25,7 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "0016"
+REQUIRED_DB_VERSION = "e44246158d0d"
 
 
 def _check_schema_version() -> None:
