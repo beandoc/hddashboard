@@ -278,6 +278,18 @@
           </select>
         </div>
         <div>
+          <label>Dialysate Temp (°C)</label>
+          <input type="number" name="dialysate_temperature" min="34.0" max="39.0" step="0.1"
+            placeholder="e.g. 36.5"
+            value="{{ session.dialysate_temperature if session and session.dialysate_temperature is not none else '' }}">
+        </div>
+        <div>
+          <label>Dialysate Sodium (mEq/L)</label>
+          <input type="number" name="dialysate_sodium" min="130.0" max="150.0" step="0.1"
+            placeholder="e.g. 138"
+            value="{{ session.dialysate_sodium if session and session.dialysate_sodium is not none else '' }}">
+        </div>
+        <div>
           <label>Dialyzer Type</label>
           <input type="text" name="dialyzer_type" placeholder="e.g. FX80, Revaclear 400"
             value="{{ session.dialyzer_type if session and session.dialyzer_type else '' }}">

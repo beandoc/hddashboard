@@ -963,6 +963,11 @@ function renderAtRiskTable() {
            title="Open patient profile">
           <i class="material-icons" style="font-size:0.85rem;vertical-align:middle;">open_in_new</i>
         </a>
+        <a href="/twin/${p.id || '#'}" onclick="event.stopPropagation()"
+           style="font-size:0.75rem; color:#4338ca; text-decoration:none; font-weight:600; margin-left:6px;"
+           title="Open Digital Twin">
+          <i class="material-icons" style="font-size:0.85rem;vertical-align:middle;">science</i>
+        </a>
         <i class="material-icons" style="font-size:1rem;vertical-align:middle;color:#94a3b8;margin-left:6px;">
           ${isExpanded ? 'expand_less' : 'expand_more'}
         </i>

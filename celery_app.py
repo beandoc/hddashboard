@@ -77,6 +77,22 @@ celery_app.conf.update(
             "task":     "tasks.task_daily_data_integrity_report",
             "schedule": crontab(hour=6, minute=0),
         },
+        # ACM pipeline — runs every Monday:
+        #   03:00 back-fill observed Hb outcomes
+        #   03:30 compute calibration metrics (needs back-fill to have run first)
+        #   04:00 retrain hybrid ODE+MLP (needs calibration to flag drift)
+        "acm-backfill-outcomes": {
+            "task":     "tasks.task_backfill_acm_outcomes",
+            "schedule": crontab(hour=3, minute=0, day_of_week=1),
+        },
+        "acm-compute-calibration": {
+            "task":     "tasks.task_compute_acm_calibration",
+            "schedule": crontab(hour=3, minute=30, day_of_week=1),
+        },
+        "acm-train-model": {
+            "task":     "tasks.task_train_acm_model",
+            "schedule": crontab(hour=4, minute=0, day_of_week=1),
+        },
     },
 )
 

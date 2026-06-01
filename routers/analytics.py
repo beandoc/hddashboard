@@ -659,6 +659,79 @@ async def log_surveillance_record(patient_id: int, request: Request, db: Session
     return JSONResponse(content=jsonable_encoder(rec), status_code=201)
 
 
+@router.get("/vascular-access/surveillance/{patient_id}/new", response_class=HTMLResponse)
+async def new_surveillance_form(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    _require_analytics_access(request)
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    from db.models.clinical import AccessEpisode
+    current_ep = db.query(AccessEpisode).filter(
+        AccessEpisode.patient_id == patient_id,
+        AccessEpisode.is_current == True,
+    ).order_by(AccessEpisode.creation_date.desc()).first()
+    
+    return templates.TemplateResponse("access_surveillance_form.html", {
+        "request": request,
+        "patient": patient,
+        "current_ep": current_ep,
+        "user": get_user(request),
+    })
+
+
+@router.post("/vascular-access/surveillance/{patient_id}/new")
+async def create_surveillance_record(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    surveillance_date: str = Form(...),
+    clinical_trigger: str = Form(...),
+    modality: Optional[str] = Form(None),
+    qa_by_imaging: Optional[float] = Form(None),
+    qa_baseline_at_test: Optional[float] = Form(None),
+    psv_at_stenosis: Optional[float] = Form(None),
+    stenosis_pct: Optional[float] = Form(None),
+    finding: Optional[str] = Form(None),
+    recommendation: Optional[str] = Form(None),
+    next_due_date: Optional[str] = Form(None),
+    performed_by: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+):
+    _require_analytics_access(request)
+    from db.models.clinical import AccessEpisode, AccessSurveillanceRecord
+    user = get_user(request)
+    
+    current_ep = db.query(AccessEpisode).filter(
+        AccessEpisode.patient_id == patient_id,
+        AccessEpisode.is_current == True,
+    ).order_by(AccessEpisode.creation_date.desc()).first()
+    if not current_ep:
+        raise HTTPException(status_code=400, detail="No current access episode found. Create one first.")
+        
+    rec = AccessSurveillanceRecord(
+        patient_id=patient_id,
+        episode_id=current_ep.id,
+        surveillance_date=date.fromisoformat(surveillance_date),
+        clinical_trigger=clinical_trigger,
+        modality=modality,
+        qa_by_imaging=qa_by_imaging,
+        qa_baseline_at_test=qa_baseline_at_test,
+        psv_at_stenosis=psv_at_stenosis,
+        stenosis_pct=stenosis_pct,
+        finding=finding,
+        recommendation=recommendation,
+        next_due_date=date.fromisoformat(next_due_date) if next_due_date else None,
+        performed_by=performed_by,
+        status="pending_review",
+        notes=notes,
+        entered_by=getattr(user, "username", "clinician"),
+    )
+    db.add(rec)
+    db.commit()
+    return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
+
+
 @router.patch("/vascular-access/events/{event_id}/status", response_class=JSONResponse)
 async def update_access_event_status(event_id: int, request: Request, db: Session = Depends(get_db)):
     """Confirm or rule out an access event (governance workflow)."""

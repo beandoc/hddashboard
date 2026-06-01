@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-06-01T22:28:29.900694",
+  "n_validation_steps": 229,
+  "n_patients_eligible": 28,
+  "metrics": {
+    "ode": {
+      "label": "ODE (patient-specific)",
+      "n": 229,
+      "mae": 1.759,
+      "rmse": 2.372,
+      "r2": -2.0401,
+      "bias": 0.066,
+      "slope": 0.152,
+      "intercept": 8.6714,
+      "within_05_pct": 23.1,
+      "within_10_pct": 37.6
+    },
+    "hybrid": {
+      "label": "Hybrid ODE + MLP",
+      "n": 229,
+      "mae": 1.627,
+      "rmse": 2.209,
+      "r2": -1.6376,
+      "bias": -0.05,
+      "slope": 0.1506,
+      "intercept": 8.7025,
+      "within_05_pct": 21.8,
+      "within_10_pct": 40.6
+    },
+    "confidence_breakdown": {
+      "population-prior": 54,
+      "high": 132,
+      "moderate": 7,
+      "low": 36
+    },
+    "per_patient_mae_hybrid": {
+      "Siyaram Verma": 0.738,
+      "P J SHAJI": 0.81,
+      "Sahebrao Ubale": 0.828,
+      "Soni Johnson": 1.058,
+      "Vinit Mahadik": 1.095,
+      "Siya Ram Razak": 1.106,
+      "R N Barik ": 1.121,
+      "Shivshankar B M": 1.166,
+      "Jyoti Balgude": 1.192,
+      "Sunder Singh Byas": 1.195,
+      "Satish Barki": 1.27,
+      "Chandrakala Deshmukh": 1.291,
+      "Binda Devi": 1.31,
+      "Dhara Khalash": 1.337,
+      "Arun Raghunath Chougale ": 1.609,
+      "Suresh Devi": 1.641,
+      "Priti Uttam": 1.653,
+      "Gourava": 1.72,
+      "Pravesh Kumar Tiwari ": 1.823,
+      "Dilip Dhormale": 1.825,
+      "Sangita Sapkal": 1.853,
+      "Ajit Shinde": 2.031,
+      "D B Jadhav": 2.284,
+      "Ramesh Singh ": 2.514,
+      "Mijanur Rahman ": 2.67,
+      "Maruti Chavan": 2.672,
+      "Rajgouda Patil": 2.942,
+      "Abhilasha Pathak": 3.356
+    }
+  }
+}

@@ -44,6 +44,11 @@
       <i class="material-icons">query_stats</i><span>Analytics</span>
     </a>
     {% endif %}
+    <a href="/twin/{{ _pid }}"
+       class="pcn-tab {{ 'active' if '/twin/' ~ _pid in _pcpath }}"
+       role="tab">
+      <i class="material-icons">science</i><span>Digital Twin</span>
+    </a>
   </div>
 </nav>
 

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vascular Access Surveillance — {{ patient.name }}</title>
+  <style>
+    :root {
+      --primary: #0f172a; --accent: #0ea5e9; --success: #16a34a;
+      --warning: #d97706; --danger: #dc2626;
+      --border: #e2e8f0; --bg: #f1f5f9; --card: #ffffff;
+      --text: #0f172a; --muted: #64748b; --radius: 14px;
+      --shadow: 0 4px 20px rgba(0,0,0,0.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+    .page-header {
+      background: white; border-bottom: 1px solid var(--border);
+      padding: 18px 24px; display: flex; align-items: center; gap: 14px;
+    }
+    .page-header h1 { font-family: 'Outfit', sans-serif; font-size: 1.25rem; color: var(--primary); }
+    .page-header .sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+    .back-btn {
+      padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.82rem; color: var(--muted); text-decoration: none;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .container { max-width: 900px; margin: 28px auto; padding: 0 16px 60px; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      padding: 24px; margin-bottom: 18px;
+    }
+    .card-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); margin-bottom: 18px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    }
+    .card-title i { color: var(--accent); font-size: 1.1rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .full { grid-column: 1 / -1; }
+
+    label {
+      display: block; font-size: 0.72rem; font-weight: 600;
+      color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+    input, select, textarea {
+      width: 100%; padding: 12px; border: 1.5px solid var(--border);
+      border-radius: 9px; font-size: 0.95rem; font-family: 'Inter', sans-serif;
+      background: #f8fafc; color: var(--text); transition: border-color 0.15s;
+      min-height: 44px;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+      background: white; box-shadow: 0 0 0 3px rgba(14,165,233,0.1);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .btn-submit {
+      width: 100%; padding: 14px; background: var(--accent); color: white;
+      border: none; border-radius: 10px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; font-family: 'Outfit', sans-serif; letter-spacing: 0.02em;
+      transition: background 0.15s;
+    }
+    .btn-submit:hover { background: #0284c7; }
+    .btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+    .alert-banner {
+      background: #fff7ed; border: 1.5px solid #ffedd5; border-radius: 10px;
+      padding: 16px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .alert-banner i { color: #ea580c; }
+    .alert-banner-text { font-size: 0.88rem; color: #7c2d12; line-height: 1.4; }
+
+    .kdoqi-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #f0f9ff; color: #0369a1; padding: 2px 8px;
+      border-radius: 6px; font-size: 0.68rem; font-weight: 700;
+      margin-top: 4px; text-transform: uppercase;
+    }
+  </style>
+  <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+  <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+</head>
+<body>
+
+{% include "_nav.html" %}
+<div class="page-header">
+  <a href="/patients/{{ patient.id }}/profile" class="back-btn">
+    <i class="material-icons" style="font-size:1rem;">arrow_back</i> Back
+  </a>
+  <div>
+    <h1>Vascular Access Imaging & Doppler Surveillance</h1>
+    <div class="sub">Patient: {{ patient.name }} (HID {{ patient.hid_no }})</div>
+  </div>
+</div>
+
+<div class="container">
+  {% if not current_ep %}
+  <div class="alert-banner">
+    <i class="material-icons">warning</i>
+    <div class="alert-banner-text">
+      <strong>No Active Access Episode Found:</strong> This patient does not have an active vascular access episode registered. 
+      Vascular surveillance must be associated with an active access. Please configure an access placement record on the 
+      <a href="/patients/{{ patient.id }}/profile" style="color: #ea580c; font-weight: bold; text-decoration: underline;">Patient Profile</a> first.
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="POST" action="/analytics/vascular-access/surveillance/{{ patient.id }}/new">
+    
+    <!-- Core Details -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">info</i> Surveillance Context</div>
+      <div class="grid">
+        <div>
+          <label>Surveillance Date <span style="color:var(--danger)">*</span></label>
+          <input type="date" name="surveillance_date" required value="{{ today_str or '' }}" id="surveillance_date">
+        </div>
+        <div>
+          <label>Modality <span style="color:var(--danger)">*</span></label>
+          <select name="modality" required>
+            <option value="duplex_doppler" selected>Duplex Ultrasound/Doppler</option>
+            <option value="fistulogram">Fistulogram</option>
+            <option value="angiogram">Angiogram</option>
+            <option value="physical_exam_only">Physical Exam Only</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Clinical Trigger (KDOQI Guideline Indicator) <span style="color:var(--danger)">*</span></label>
+          <select name="clinical_trigger" required>
+            <option value="">— Select Trigger —</option>
+            <option value="thrill_bruit_change">Abnormal Physical Exam (Thrill / Bruit Change)</option>
+            <option value="qa_decline_gt_25">Qa Decline (>25% from baseline or <600 mL/min)</option>
+            <option value="cannulation_difficulty">Persistent Cannulation Difficulty / Needle Infiltration</option>
+            <option value="prolonged_bleeding">Prolonged Bleeding Post-Dialysis (>20 mins)</option>
+            <option value="elevated_pressures">Elevated Venous / Arterial Line Pressures</option>
+            <option value="recirculation_alert">Recirculation > 10% (Urea-based)</option>
+            <option value="established_protocol">Established Protocol / High-Risk Surveillance</option>
+            <option value="other">Other Clinical Indicator</option>
+          </select>
+          <div class="kdoqi-badge">
+            <i class="material-icons" style="font-size:0.8rem;">verified</i> KDOQI Guideline 13.4: Surveillance is clinically triggered, not routine
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Imaging/Doppler Hemodynamics -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">speed</i> Doppler Hemodynamics & Stenosis</div>
+      <div class="grid">
+        <div>
+          <label>Doppler Access Flow (Qa) (mL/min)</label>
+          <input type="number" name="qa_by_imaging" step="10" min="100" max="3000" placeholder="e.g. 850">
+        </div>
+        <div>
+          <label>Rolling Baseline Qa (mL/min)</label>
+          <input type="number" name="qa_baseline_at_test" step="10" min="100" max="3000" placeholder="e.g. 1000">
+        </div>
+        <div>
+          <label>Peak Systolic Velocity (PSV) (cm/s)</label>
+          <input type="number" name="psv_at_stenosis" step="1" min="10" max="800" placeholder="e.g. 350">
+        </div>
+        <div>
+          <label>Luminal Stenosis (%)</label>
+          <input type="number" name="stenosis_pct" step="1" min="0" max="100" placeholder="e.g. 45">
+        </div>
+      </div>
+    </div>
+
+    <!-- Findings & Recommendations -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">analytics</i> Clinical Assessment & Action Plan</div>
+      <div class="grid">
+        <div>
+          <label>Finding <span style="color:var(--danger)">*</span></label>
+          <select name="finding" required>
+            <option value="">— Select Finding —</option>
+            <option value="normal">Normal / Patent Access</option>
+            <option value="mild_stenosis">Mild Stenosis (< 30% reduction)</option>
+            <option value="moderate_stenosis">Moderate Stenosis (30% - 50% reduction)</option>
+            <option value="severe_stenosis">Severe Stenosis (> 50% reduction)</option>
+            <option value="thrombosis">Thrombosis / Clotted Access</option>
+            <option value="aneurysm">Aneurysm / Pseudoaneurysm</option>
+            <option value="other">Other / Complex Findings</option>
+          </select>
+        </div>
+        <div>
+          <label>Recommendation <span style="color:var(--danger)">*</span></label>
+          <select name="recommendation" required>
+            <option value="">— Select Action —</option>
+            <option value="routine_followup">Routine Follow-up</option>
+            <option value="repeat_imaging">Repeat Surveillance (Short Interval)</option>
+            <option value="angioplasty">Refer for PTA / Angioplasty (Fistuloplasty)</option>
+            <option value="surgical_referral">Surgical Revision / Consultation</option>
+            <option value="urgent_referral">Urgent Intervention (Access Clotted / Steal Syndrome)</option>
+          </select>
+        </div>
+        <div>
+          <label>Next Due Date</label>
+          <input type="date" name="next_due_date">
+        </div>
+        <div>
+          <label>Performed By</label>
+          <input type="text" name="performed_by" placeholder="e.g. Dr. Verma (Radiologist)">
+        </div>
+        <div class="full">
+          <label>Clinical Notes</label>
+          <textarea name="notes" placeholder="e.g. Localized stenosis noted at juxta-anastomotic segment..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-submit" {% if not current_ep %}disabled{% endif %}>Log Surveillance Report</button>
+  </form>
+</div>
+
+<script>
+  // Set default surveillance date to today
+  document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('surveillance_date');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = today;
+    }
+  });
+</script>
+</body>
+</html>

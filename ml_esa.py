@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 #   < 8 000 IU/week epoetin  ↔  < 40 mcg/week darbepoetin  →  120 mcg/month Mircera
 #   8 000–16 000 IU/week     ↔  40–80 mcg/week darbepoetin  →  180 mcg/month Mircera
 
-_MIRCERA_SYNONYMS   = {"mircera", "peginesatide", "cera", "methoxy peg", "mpg-epo", "erypeg", "peg epo", "peg-epo"}
+_MIRCERA_SYNONYMS   = {"mircera", "peginesatide", "cera", "methoxy peg", "mpg-epo", "erypeg", "peg epo", "peg-epo", "ery peg", "eripack"}
 _DARBE_SYNONYMS     = {"darbepoetin", "aranesp", "darb", "darbp", "darbe"}
 _EPOETIN_SYNONYMS   = {"epoetin", "epo", "erythropoietin", "procrit", "epogen", "neorecormon"}
 
@@ -67,17 +67,17 @@ def normalize_epo_dose(dose_str: str) -> dict:
     weekly_iu  = None
 
     # ── Detect drug type ──────────────────────────────────────────────────────
-    if any(k in s for k in _MIRCERA_SYNONYMS) or s.startswith("m-"):
-        drug_type = "mircera"
-    elif any(k in s for k in _DARBE_SYNONYMS):
+    if any(k in s for k in _DARBE_SYNONYMS):
         drug_type = "darbepoetin"
+    elif any(k in s for k in _MIRCERA_SYNONYMS) or s.startswith("m-") or "mcg" in s:
+        drug_type = "mircera"
     elif any(k in s for k in _EPOETIN_SYNONYMS):
         drug_type = "epoetin"
 
     # ── Detect administration frequency ──────────────────────────────────────
     if "monthly" in s or "/month" in s or "qmonth" in s or "q4w" in s:
         frequency = "monthly"
-    elif "biweekly" in s or "fortnight" in s or "/2w" in s or "q2w" in s or "eow" in s:
+    elif "biweekly" in s or "fortnight" in s or "/2w" in s or "q2w" in s or "eow" in s or "2 weeks" in s or "every 2 weeks" in s:
         frequency = "biweekly"
     elif "10 days" in s or "every 10 days" in s or "q10d" in s:
         frequency = "every_10_days"
@@ -99,6 +99,8 @@ def normalize_epo_dose(dose_str: str) -> dict:
             weekly_iu = dose_value * 100.0       # biweekly_mcg / 2 × 200
         elif frequency == "every_10_days":
             weekly_iu = (dose_value / 10.0) * 7.0 * 200.0
+        elif frequency == "weekly":
+            weekly_iu = dose_value * 200.0
 
     elif drug_type == "darbepoetin":
         # Darbepoetin SC: 1 mcg = 200 SC IU/week epoetin equivalent
@@ -111,26 +113,18 @@ def normalize_epo_dose(dose_str: str) -> dict:
 
     elif drug_type == "epoetin":
         # Epoetin SC: dose is already in IU; multiply by weekly frequency.
-        # Only infer frequency from explicit keywords — dose magnitude alone is
-        # not a reliable proxy (10,000 IU once-weekly is as common as TIW).
         if frequency == "tiw":
             weekly_iu = dose_value * 3
         elif frequency == "biw":
             weekly_iu = dose_value * 2
         elif frequency == "weekly":
             weekly_iu = dose_value
+        elif frequency == "biweekly":
+            weekly_iu = dose_value / 2.0
         else:
-            # Frequency is truly ambiguous — return low confidence with no result
-            # so the caller excludes this record rather than guessing.
-            return {
-                "weekly_iu_sc": None,
-                "drug_type":    drug_type,
-                "frequency":    "unknown",
-                "dose_value":   dose_value,
-                "original":     dose_str,
-                "route":        "sc",
-                "confidence":   "low",
-            }
+            # Default to weekly for epoetin if frequency is not specified
+            frequency = "weekly"
+            weekly_iu = dose_value
 
     if weekly_iu is not None:
         weekly_iu = round(weekly_iu, 2)
@@ -180,7 +174,7 @@ def _resolve_weekly_iu_sc(record: dict) -> Optional[float]:
     dose_str = record.get("epo_mircera_dose")
     if dose_str:
         parsed = normalize_epo_dose(dose_str)
-        if parsed.get("confidence") == "high":
+        if parsed.get("confidence") == "high" and parsed.get("weekly_iu_sc") is not None:
             return parsed.get("weekly_iu_sc")
 
     stored = record.get("epo_weekly_units")

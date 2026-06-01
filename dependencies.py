@@ -58,3 +58,12 @@ def _require_researcher_role(request: Request):
         raise HTTPException(status_code=303, detail="Not authenticated", headers={"Location": "/login"})
     if _get_role(user) not in ("admin", "doctor", "staff"):
         raise HTTPException(status_code=403, detail="Access denied.")
+
+def _require_staff_role(request: Request):
+    """Allow admins, doctors, and staff to access general operational modules."""
+    user = get_user(request)
+    if not user:
+        raise HTTPException(status_code=303, detail="Not authenticated", headers={"Location": "/login"})
+    if _get_role(user) not in ("admin", "doctor", "staff"):
+        raise HTTPException(status_code=403, detail="Access denied. Staff role required.")
+

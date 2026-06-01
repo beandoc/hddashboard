@@ -134,6 +134,96 @@ class ClinicalOverrideLog(Base):
     ml_prediction  = relationship("MLPrediction", foreign_keys=[ml_prediction_id])
 
 
+class ACMRecommendation(Base):
+    """One row per patient per month containing the ACM's recommendation.
+
+    clinician_decision: 'accept' | 'modify' | 'reject' | None (pending)
+    observed_hb_*: back-filled when subsequent monthly records arrive,
+    enabling Feedback & Learning (accuracy tracking per Fig. 4, CKJ 2026).
+    """
+    __tablename__ = "acm_recommendations"
+
+    id                     = Column(Integer, primary_key=True, index=True)
+    patient_id             = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    recommendation_month   = Column(String(7), nullable=False, index=True)
+    generated_at           = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # ML outputs
+    current_hb             = Column(Float, nullable=True)
+    predicted_hb_1mo       = Column(Float, nullable=True)
+    predicted_hb_2mo       = Column(Float, nullable=True)
+    predicted_hb_3mo       = Column(Float, nullable=True)
+    hb_status              = Column(String(20), nullable=True)    # on_target | low | high | ...
+    confidence             = Column(String(20), nullable=True)    # model | heuristic
+
+    # ESA recommendation
+    esa_action             = Column(String(20), nullable=True)    # increase | decrease | hold | maintain
+    esa_change_pct         = Column(Float, nullable=True)
+    recommended_iu_sc      = Column(Float, nullable=True)
+    esa_rationale          = Column(Text, nullable=True)
+
+    # Iron recommendation
+    iron_action            = Column(String(20), nullable=True)    # supplement | hold | maintain | check
+    iron_rationale         = Column(Text, nullable=True)
+
+    # Safety
+    safety_flags_json      = Column(Text, nullable=True)          # JSON array
+
+    # Clinician decision (filled by review workflow)
+    clinician_decision     = Column(String(20), nullable=True, index=True)   # accept | modify | reject
+    clinician_notes        = Column(Text, nullable=True)
+    clinician_id           = Column(String(100), nullable=True)
+    decided_at             = Column(DateTime, nullable=True)
+    modified_iu_sc         = Column(Float, nullable=True)         # clinician override dose
+    modified_iron_action   = Column(String(20), nullable=True)
+
+    # Feedback — back-filled by weekly Celery task
+    observed_hb_1mo        = Column(Float, nullable=True)
+    observed_hb_3mo        = Column(Float, nullable=True)
+    hb_prediction_mae_1mo  = Column(Float, nullable=True)         # |predicted - observed|
+
+    patient = relationship("Patient", foreign_keys=[patient_id])
+
+    __table_args__ = (
+        UniqueConstraint("patient_id", "recommendation_month", name="uq_acm_patient_month"),
+    )
+
+
+class TwinSimulation(Base):
+    """One row per Digital Twin scenario simulation run.
+
+    stores the full scenario parameters and all three module outputs
+    (Hb kinetics, Kt/V, IDH risk) as JSON blobs for rendering + audit.
+    actual_outcomes_json is back-filled when the next session/monthly record
+    arrives, enabling outcome-driven feedback loop (Fig. 6, CKJ 2026).
+    """
+    __tablename__ = "twin_simulations"
+
+    id                  = Column(Integer, primary_key=True, index=True)
+    patient_id          = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    created_at          = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_by          = Column(String(100), nullable=True)
+
+    # Input scenario (JSON)
+    scenario_json       = Column(Text, nullable=False)            # the parameter set simulated
+    baseline_session_json = Column(Text, nullable=True)           # session plan at time of sim
+
+    # Simulation outputs (JSON)
+    hb_sim_json         = Column(Text, nullable=True)             # Hb trajectory
+    ktv_sim_json        = Column(Text, nullable=True)             # Kt/V comparison
+    idh_sim_json        = Column(Text, nullable=True)             # IDH risk comparison
+    uf_curve_json       = Column(Text, nullable=True)             # UF rate sweep
+
+    # Clinician notes / decision to adopt scenario
+    adopted             = Column(Boolean, nullable=True, default=False)
+    clinician_notes     = Column(Text, nullable=True)
+
+    # Outcome tracking (back-filled)
+    actual_outcomes_json = Column(Text, nullable=True)
+
+    patient = relationship("Patient", foreign_keys=[patient_id])
+
+
 class PatientFeatureSnapshot(Base):
     """Materialized feature store — one row per (patient, month).
 

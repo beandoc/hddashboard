@@ -1,0 +1,1 @@
+{"k_epo": 0.0, "k_prod": 0.913, "k_loss": 0.1, "calibrated": true, "k_epo_near_zero": true, "param_spread": 0.0097, "param_confidence": "low", "n_points": 8, "mse": 1.057, "mae": 0.8664, "patient_id": 31, "saved_at": "2026-06-01T16:58:19.550675"}

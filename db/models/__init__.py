@@ -25,6 +25,8 @@ from db.models.ml import (
     ModelArtifact,
     ClinicalOverrideLog,
     PatientFeatureSnapshot,
+    ACMRecommendation,
+    TwinSimulation,
 )
 
 __all__ = [
@@ -58,4 +60,6 @@ __all__ = [
     "ModelArtifact",
     "ClinicalOverrideLog",
     "PatientFeatureSnapshot",
+    "ACMRecommendation",
+    "TwinSimulation",
 ]

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Anemia Control | {{ patient.name or patient.patient_id }}</title>
+  <link rel="stylesheet" href="/static/css/clinical.css"/>
+  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --primary: #7c3aed; --bg: #f8fafc; --card: #ffffff;
+      --border: #e2e8f0; --text: #1e293b; --muted: #64748b;
+      --radius: 12px; --shadow: 0 4px 12px rgba(0,0,0,0.05);
+      --green: #16a34a; --amber: #d97706; --red: #dc2626; --blue: #2563eb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+    .page-hero {
+      background: linear-gradient(135deg, #7c3aed 0%, #4338ca 100%);
+      color: white; padding: 20px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .page-hero h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+    .page-hero p  { opacity: 0.85; font-size: 0.85rem; margin-top: 2px; }
+    .page-hero .hero-actions { display: flex; gap: 10px; }
+
+    .content { max-width: 1280px; margin: 0 auto; padding: 24px 32px; }
+
+    /* Status badge */
+    .hb-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em;
+    }
+    .badge-on-target { background: #dcfce7; color: #166534; }
+    .badge-low       { background: #fef9c3; color: #854d0e; }
+    .badge-critical-low { background: #fee2e2; color: #991b1b; }
+    .badge-high      { background: #fed7aa; color: #9a3412; }
+    .badge-critical-high { background: #fee2e2; color: #7f1d1d; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted); margin-bottom: 14px;
+    }
+    .metric-large { font-size: 2.4rem; font-weight: 800; line-height: 1; }
+    .metric-unit  { font-size: 0.85rem; color: var(--muted); margin-left: 3px; }
+    .metric-row   { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; }
+
+    /* Recommendation panel */
+    .rec-action {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; border-radius: 10px; margin-bottom: 12px;
+    }
+    .rec-increase { background: #eff6ff; border-left: 4px solid #2563eb; }
+    .rec-decrease { background: #fff7ed; border-left: 4px solid #f97316; }
+    .rec-hold     { background: #fef2f2; border-left: 4px solid #dc2626; }
+    .rec-maintain { background: #f0fdf4; border-left: 4px solid #16a34a; }
+    .rec-check    { background: #fafafa; border-left: 4px solid #6b7280; }
+    .rec-supplement { background: #eff6ff; border-left: 4px solid #3b82f6; }
+    .rec-investigate { background: #fff7ed; border-left: 4px solid #f59e0b; }
+
+    .rec-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .rec-text .rec-label { font-weight: 700; font-size: 0.9rem; }
+    .rec-text .rec-detail { font-size: 0.82rem; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+
+    .safety-flag {
+      background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px;
+      padding: 8px 12px; font-size: 0.8rem; color: #92400e;
+      display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px;
+    }
+
+    /* Decision form */
+    .decision-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .btn {
+      padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer;
+      font-weight: 600; font-size: 0.85rem; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-accept  { background: #16a34a; color: white; }
+    .btn-modify  { background: #2563eb; color: white; }
+    .btn-reject  { background: #dc2626; color: white; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-generate { background: var(--primary); color: white; padding: 8px 16px; }
+
+    .prediction-chip {
+      display: inline-flex; flex-direction: column; align-items: center;
+      background: #ede9fe; border-radius: 10px; padding: 10px 16px;
+      min-width: 80px; text-align: center;
+    }
+    .prediction-chip .p-month { font-size: 0.7rem; color: #6d28d9; font-weight: 600; }
+    .prediction-chip .p-value { font-size: 1.3rem; font-weight: 800; color: #4c1d95; }
+    .prediction-chip .p-unit  { font-size: 0.65rem; color: #7c3aed; }
+
+    .predict-row { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
+    .decision-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+    }
+    .decision-accept  { background: #dcfce7; color: #166534; }
+    .decision-modify  { background: #dbeafe; color: #1d4ed8; }
+    .decision-reject  { background: #fee2e2; color: #991b1b; }
+    .decision-pending { background: #f3f4f6; color: #374151; }
+
+    select, textarea, input[type=number] {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 0.85rem; background: white; color: var(--text);
+    }
+    label { font-size: 0.8rem; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px; }
+    .form-group { margin-bottom: 12px; }
+    .modify-extra { display: none; margin-top: 10px; padding: 14px; background: #f8fafc; border-radius: 8px; }
+
+    #hb-chart, #predict-chart { width: 100%; height: 280px; }
+  </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="page-hero">
+  <div>
+    <h1>🩸 Anemia Control Model</h1>
+    <p>
+      {{ patient.name or patient.patient_id }}
+      {% if recommendation and recommendation.recommendation_month %}
+        &nbsp;·&nbsp; {{ recommendation.recommendation_month }}
+      {% endif %}
+    </p>
+  </div>
+  <div class="hero-actions">
+    <form method="post" action="/acm/{{ patient.id }}/generate">
+      <button type="submit" class="btn btn-generate">↻ Refresh Recommendation</button>
+    </form>
+    <a href="/patients/{{ patient.id }}" class="btn btn-outline" style="padding:8px 16px; text-decoration:none;">← Patient</a>
+  </div>
+</div>
+
+<div class="content">
+
+  {% if not recommendation %}
+  <div class="card" style="text-align:center; padding:40px; color:var(--muted);">
+    <p style="font-size:1.1rem;">No monthly records available yet.</p>
+    <p style="font-size:0.85rem; margin-top:6px;">Enter at least one monthly record with Hb to generate an ACM recommendation.</p>
+  </div>
+  {% else %}
+
+  <!-- ── Top KPI strip ────────────────────────────────────────────────────── -->
+  <div class="grid-3">
+    <!-- Current Hb -->
+    <div class="card">
+      <div class="card-title">Current Hemoglobin</div>
+      <div class="metric-row">
+        <span class="metric-large" style="color:
+          {% if recommendation.hb_status == 'on_target' %}#16a34a
+          {% elif recommendation.hb_status in ['low','high'] %}#d97706
+          {% else %}#dc2626{% endif %}">
+          {{ recommendation.current_hb or '—' }}
+        </span>
+        <span class="metric-unit">g/dL</span>
+      </div>
+      <div style="margin-top:8px;">
+        <span class="hb-badge badge-{{ recommendation.hb_status | replace('_','-') }}">
+          {{ recommendation.hb_status | replace('_',' ') | title }}
+        </span>
+      </div>
+      <div style="font-size:0.75rem; color:var(--muted); margin-top:8px;">Target: 10.0–11.5 g/dL (KDIGO 2012)</div>
+    </div>
+
+    <!-- Iron panel -->
+    <div class="card">
+      <div class="card-title">Iron Panel</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px;">
+        <div>
+          <div style="font-size:0.72rem; color:var(--muted); font-weight:600;">FERRITIN</div>
+          <div style="font-size:1.5rem; font-weight:800; color:
+            {% if recommendation.ferritin and recommendation.ferritin > 800 %}#dc2626
+            {% elif recommendation.ferritin and recommendation.ferritin < 100 %}#d97706
+            {% else %}#16a34a{% endif %}">
+            {{ recommendation.ferritin | round(0) | int if recommendation.ferritin else '—' }}
+          </div>
+          <div style="font-size:0.7rem; color:var(--muted);">µg/L</div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem; color:var(--muted); font-weight:600;">TSAT</div>
+          <div style="font-size:1.5rem; font-weight:800; color:
+            {% if recommendation.tsat and recommendation.tsat < 20 %}#dc2626
+            {% elif recommendation.tsat and recommendation.tsat < 30 %}#d97706
+            {% else %}#16a34a{% endif %}">
+            {{ recommendation.tsat | round(0) | int if recommendation.tsat else '—' }}
+          </div>
+          <div style="font-size:0.7rem; color:var(--muted);">% (target 20–30)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confidence + model info -->
+    <div class="card">
+      <div class="card-title">Model Confidence</div>
+      <div style="font-size:1.2rem; font-weight:700; margin-top:4px; text-transform:capitalize;">
+        {{ recommendation.confidence or 'heuristic' }}
+      </div>
+      {% if recommendation.recommendation_month %}
+      <div style="font-size:0.78rem; color:var(--muted); margin-top:6px;">
+        For month: {{ recommendation.recommendation_month }}
+      </div>
+      {% endif %}
+      {% if stored_rec and stored_rec.clinician_decision %}
+      <div style="margin-top:10px;">
+        <span class="decision-badge decision-{{ stored_rec.clinician_decision }}">
+          ✓ {{ stored_rec.clinician_decision | title }}
+          {% if stored_rec.decided_at %}· {{ stored_rec.decided_at.strftime('%d %b') }}{% endif %}
+        </span>
+      </div>
+      {% else %}
+      <div style="margin-top:10px;">
+        <span class="decision-badge decision-pending">⏳ Pending Review</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Hb history + prediction chart ────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title">Hb Trend &amp; 3-Month Prediction</div>
+    <div id="hb-chart"></div>
+    <div style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:6px; font-size:0.78rem;">
+        <div style="width:24px; height:3px; background:#6d28d9;"></div> Recorded Hb
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:0.78rem;">
+        <div style="width:24px; height:3px; background:#7c3aed; border-top:2px dashed #7c3aed; background:none;"></div> Predicted
+      </div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:0.78rem;">
+        <div style="width:24px; height:2px; background:#16a34a;"></div> Target Zone
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Recommendations ──────────────────────────────────────────────────── -->
+  <div class="grid-2">
+
+    <!-- ESA recommendation -->
+    <div class="card">
+      <div class="card-title">ESA Recommendation</div>
+
+      {% set esa = recommendation.esa_recommendation %}
+      {% if esa %}
+      <div class="rec-action rec-{{ esa.action or 'maintain' }}">
+        <div class="rec-icon">
+          {% if esa.action == 'increase' %}⬆️
+          {% elif esa.action == 'decrease' %}⬇️
+          {% elif esa.action == 'hold' %}🛑
+          {% else %}✅{% endif %}
+        </div>
+        <div class="rec-text">
+          <div class="rec-label">
+            {% if esa.action == 'increase' %}Increase ESA by {{ esa.esa_change_pct | int }}%
+            {% elif esa.action == 'decrease' %}Decrease ESA by {{ (esa.esa_change_pct | abs) | int }}%
+            {% elif esa.action == 'hold' %}Hold ESA
+            {% else %}Maintain Current Dose{% endif %}
+          </div>
+          {% if esa.recommended_iu_sc %}
+          <div class="rec-detail">
+            Recommended: <strong>{{ "{:,}".format(esa.recommended_iu_sc | int) }}</strong> IU/week SC
+          </div>
+          {% endif %}
+          <div class="rec-detail" style="margin-top:4px;">{{ esa.rationale or '' }}</div>
+        </div>
+      </div>
+
+      <!-- Predicted Hb chips -->
+      <div style="font-size:0.75rem; color:var(--muted); font-weight:600; margin-top:14px;">PROJECTED Hb (with recommendation)</div>
+      <div class="predict-row">
+        <div class="prediction-chip">
+          <span class="p-month">+1 mo</span>
+          <span class="p-value">{{ recommendation.predicted_hb_1mo or '—' }}</span>
+          <span class="p-unit">g/dL</span>
+        </div>
+        <div class="prediction-chip">
+          <span class="p-month">+2 mo</span>
+          <span class="p-value">{{ recommendation.predicted_hb_2mo or '—' }}</span>
+          <span class="p-unit">g/dL</span>
+        </div>
+        <div class="prediction-chip">
+          <span class="p-month">+3 mo</span>
+          <span class="p-value">{{ recommendation.predicted_hb_3mo or '—' }}</span>
+          <span class="p-unit">g/dL</span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Iron recommendation -->
+    <div class="card">
+      <div class="card-title">Iron Protocol Recommendation</div>
+      {% set iron = recommendation.iron_recommendation %}
+      {% if iron %}
+      <div class="rec-action rec-{{ iron.action or 'maintain' }}">
+        <div class="rec-icon">
+          {% if iron.action == 'supplement' %}💉
+          {% elif iron.action == 'hold' %}🛑
+          {% elif iron.action == 'investigate' %}🔬
+          {% elif iron.action == 'check' %}📋
+          {% else %}✅{% endif %}
+        </div>
+        <div class="rec-text">
+          <div class="rec-label">
+            {% if iron.action == 'supplement' %}IV Iron Supplementation Indicated
+            {% elif iron.action == 'hold' %}Hold IV Iron
+            {% elif iron.action == 'investigate' %}Investigate — Do Not Load Iron
+            {% elif iron.action == 'check' %}Check Iron Panel
+            {% else %}Maintain Current Protocol{% endif %}
+          </div>
+          <div class="rec-detail" style="margin-top:4px;">{{ iron.rationale or '' }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Safety flags -->
+      {% if recommendation.safety_flags %}
+      <div style="margin-top:14px;">
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#92400e; margin-bottom:8px;">⚠ Safety Flags</div>
+        {% for flag in recommendation.safety_flags %}
+        <div class="safety-flag">
+          <span>⚠</span>
+          <span>{{ flag }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Clinician decision panel ─────────────────────────────────────────── -->
+  {% if stored_rec and not stored_rec.clinician_decision %}
+  <div class="card" style="border: 2px solid #7c3aed;">
+    <div class="card-title" style="color:#7c3aed;">Clinical Review — Decision Required</div>
+    <p style="font-size:0.85rem; color:var(--muted); margin-bottom:14px;">
+      Review the ACM recommendation above and record your clinical decision.
+      Your decision and any overrides feed back into model retraining.
+    </p>
+
+    <form method="post" action="/acm/{{ patient.id }}/decide" id="decision-form">
+      <input type="hidden" name="rec_id" value="{{ stored_rec.id }}"/>
+
+      <div class="decision-form">
+        <button type="submit" name="decision" value="accept" class="btn btn-accept">
+          ✓ Accept Recommendation
+        </button>
+        <button type="button" class="btn btn-modify" onclick="toggleModify()">
+          ✎ Modify &amp; Accept
+        </button>
+        <button type="submit" name="decision" value="reject" class="btn btn-reject">
+          ✗ Reject
+        </button>
+      </div>
+
+      <div class="modify-extra" id="modify-extra">
+        <input type="hidden" name="decision" id="modify-decision-field" value=""/>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Modified ESA Dose (IU/week SC)</label>
+            <input type="number" name="modified_iu_sc" step="500"
+                   value="{{ stored_rec.recommended_iu_sc or '' }}" placeholder="e.g. 4000"/>
+          </div>
+          <div class="form-group">
+            <label>Modified Iron Action</label>
+            <select name="modified_iron">
+              <option value="">— keep recommendation —</option>
+              <option value="supplement">IV Iron — Supplement</option>
+              <option value="maintain">Maintain Current</option>
+              <option value="hold">Hold Iron</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Clinical Notes / Rationale</label>
+          <textarea name="notes" rows="2" placeholder="e.g. Patient had recent transfusion, deferring ESA increase…"></textarea>
+        </div>
+        <button type="button" onclick="submitModify()" class="btn btn-modify" style="width:100%;">
+          Submit Modified Decision
+        </button>
+      </div>
+    </form>
+  </div>
+  {% elif stored_rec and stored_rec.clinician_decision %}
+  <div class="card">
+    <div class="card-title">Clinician Decision</div>
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span class="decision-badge decision-{{ stored_rec.clinician_decision }}">
+        {{ stored_rec.clinician_decision | title }}
+      </span>
+      {% if stored_rec.clinician_id %}
+      <span style="font-size:0.82rem; color:var(--muted);">by {{ stored_rec.clinician_id }}</span>
+      {% endif %}
+      {% if stored_rec.decided_at %}
+      <span style="font-size:0.82rem; color:var(--muted);">on {{ stored_rec.decided_at.strftime('%d %b %Y %H:%M') }}</span>
+      {% endif %}
+    </div>
+    {% if stored_rec.clinician_notes %}
+    <div style="margin-top:10px; font-size:0.85rem; color:var(--text); background:#f8fafc; padding:10px; border-radius:8px;">
+      {{ stored_rec.clinician_notes }}
+    </div>
+    {% endif %}
+    {% if stored_rec.modified_iu_sc %}
+    <div style="margin-top:8px; font-size:0.82rem; color:var(--muted);">
+      Override dose: <strong>{{ stored_rec.modified_iu_sc | int }} IU/week SC</strong>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Digital Twin link -->
+  <div class="card" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color:white; margin-top:20px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+      <div>
+        <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; margin-bottom:4px;">Digital Dialysis Twin</div>
+        <div style="font-size:1rem; font-weight:700;">Simulate "what-if" prescription scenarios</div>
+        <div style="font-size:0.82rem; opacity:0.8; margin-top:3px;">
+          Predict Hb trajectory, Kt/V adequacy and IDH risk for proposed protocol changes before implementing.
+        </div>
+      </div>
+      <a href="/twin/{{ patient.id }}" style="
+        background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+        color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px;
+        font-weight: 600; font-size: 0.85rem; white-space: nowrap;
+        ">Open Twin Sandbox →</a>
+    </div>
+  </div>
+
+  {% endif %} {# end if recommendation #}
+</div><!-- /content -->
+
+<script>
+const chartData    = {{ chart_data | safe }};
+const predOverlay  = {{ prediction_overlay | safe }};
+const HB_LOW  = 10.0;
+const HB_HIGH = 11.5;
+
+function renderHbChart() {
+  const traces = [];
+  const months = chartData.months || [];
+  const hbVals = chartData.hb_vals || [];
+
+  if (months.length) {
+    traces.push({
+      x: months, y: hbVals,
+      name: 'Recorded Hb', mode: 'lines+markers',
+      line: { color: '#7c3aed', width: 2 },
+      marker: { size: 7, color: '#7c3aed' },
+    });
+  }
+
+  if (predOverlay) {
+    const lastMonth = months[months.length - 1] || '';
+    traces.push({
+      x: predOverlay.months,
+      y: predOverlay.hb_values,
+      name: 'Predicted', mode: 'lines+markers',
+      line: { color: '#7c3aed', dash: 'dot', width: 2 },
+      marker: { size: 8, symbol: 'diamond', color: '#c4b5fd' },
+    });
+  }
+
+  const allMonths = [...months, ...(predOverlay ? predOverlay.months : [])];
+
+  traces.push({
+    x: allMonths, y: Array(allMonths.length).fill(HB_LOW),
+    mode: 'lines', name: 'Target Low', line: { color: '#16a34a', dash: 'dash', width: 1 },
+    showlegend: false,
+  });
+  traces.push({
+    x: allMonths, y: Array(allMonths.length).fill(HB_HIGH),
+    mode: 'lines', name: 'Target High', line: { color: '#16a34a', dash: 'dash', width: 1 },
+    fill: 'tonexty', fillcolor: 'rgba(22,163,74,0.06)', showlegend: false,
+  });
+
+  Plotly.newPlot('hb-chart', traces, {
+    margin: { t: 10, l: 45, r: 10, b: 40 },
+    yaxis: { title: 'Hb (g/dL)', range: [7, 14], gridcolor: '#f0f0f0' },
+    xaxis: { gridcolor: '#f0f0f0' },
+    legend: { orientation: 'h', y: -0.15 },
+    plot_bgcolor: 'white', paper_bgcolor: 'white',
+  }, { responsive: true, displayModeBar: false });
+}
+
+renderHbChart();
+
+function toggleModify() {
+  const el = document.getElementById('modify-extra');
+  el.style.display = el.style.display === 'none' || !el.style.display ? 'block' : 'none';
+}
+
+function submitModify() {
+  document.getElementById('modify-decision-field').value = 'modify';
+  document.getElementById('decision-form').submit();
+}
+</script>
+</body>
+</html>

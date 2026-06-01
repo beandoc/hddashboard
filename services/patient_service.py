@@ -124,6 +124,11 @@ def create_patient_record(db: Session, data: dict) -> Patient:
         diastolic_dysfunction=data.get("diastolic_dysfunction", ""),
         echo_date=_d(data.get("echo_date")),
         echo_report=data.get("echo_report", ""),
+        lvot_diameter=data.get("lvot_diameter"),
+        lvot_vti=data.get("lvot_vti"),
+        heart_rate=data.get("heart_rate"),
+        stroke_volume=data.get("stroke_volume"),
+        cardiac_output=data.get("cardiac_output"),
         dry_weight=data.get("dry_weight"),
         hd_frequency=data.get("hd_frequency", 2),
         hd_day_1=data.get("hd_day_1", ""),
@@ -246,6 +251,11 @@ def update_patient_record(db: Session, patient_id: int, data: dict) -> Patient:
     p.diastolic_dysfunction = data.get("diastolic_dysfunction", "")
     p.echo_date = _d(data.get("echo_date"))
     p.echo_report = data.get("echo_report", "")
+    p.lvot_diameter = data.get("lvot_diameter")
+    p.lvot_vti = data.get("lvot_vti")
+    p.heart_rate = data.get("heart_rate")
+    p.stroke_volume = data.get("stroke_volume")
+    p.cardiac_output = data.get("cardiac_output")
     p.dry_weight = data.get("dry_weight")
     p.hd_frequency = data.get("hd_frequency", p.hd_frequency or 2)
     p.hd_day_1 = data.get("hd_day_1", p.hd_day_1)

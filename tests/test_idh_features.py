@@ -93,7 +93,7 @@ def test_extract_idh_features_training_and_inference(db):
         session_id=s1.id,
         session_date=s1.session_date,
         symptoms="Dizziness, Cramps",
-        dialysis_recovery_time_mins=180,
+        dialysis_recovery_time="2-6 hours",
     )
     db.add(sr1)
     db.commit()
@@ -129,7 +129,7 @@ def test_extract_idh_features_training_and_inference(db):
         session_id=s2.id,
         session_date=s2.session_date,
         symptoms="Nausea",
-        dialysis_recovery_time_mins=240,
+        dialysis_recovery_time="2-6 hours",
     )
     db.add(sr2)
     db.commit()
@@ -161,8 +161,8 @@ def test_extract_idh_features_training_and_inference(db):
     assert feats_train[32] == 0.0
     # Feature 33: prev_giddiness ("Dizziness" is in s1's symptom report -> 1.0)
     assert feats_train[33] == 1.0
-    # Feature 34: prev_recovery_time (s1 recovery time = 180 mins)
-    assert feats_train[34] == 180.0
+    # Feature 34: prev_recovery_time (s1 recovery time = 240 mins)
+    assert feats_train[34] == 240.0
     # Feature 35: prev_blood_flow_rate (s1.actual_blood_flow_rate = 250.0)
     assert feats_train[35] == 250.0
     # Feature 36: prev_arterial_pressure (s1.arterial_line_pressure = -120.0)
@@ -224,7 +224,7 @@ def test_extract_idh_features_training_and_inference(db):
     assert feats_inf_orm[27] == 351.0
     assert feats_inf_orm[28] == 10.8
     assert feats_inf_orm[33] == 1.0
-    assert feats_inf_orm[34] == 180.0
+    assert feats_inf_orm[34] == 240.0
     assert feats_inf_orm[35] == 250.0
 
     # Let's also check with serializable dict representation of s1
@@ -244,7 +244,7 @@ def test_extract_idh_features_training_and_inference(db):
         "venous_line_pressure": s1.venous_line_pressure,
         "symptom_report": {
             "symptoms": sr1.symptoms,
-            "dialysis_recovery_time_mins": sr1.dialysis_recovery_time_mins,
+            "dialysis_recovery_time": sr1.dialysis_recovery_time,
         }
     }
     feats_inf_dict = _extract_idh_features_for_inference(
@@ -259,7 +259,7 @@ def test_extract_idh_features_training_and_inference(db):
     assert feats_inf_dict[27] == 351.0
     assert feats_inf_dict[28] == 10.8
     assert feats_inf_dict[33] == 1.0
-    assert feats_inf_dict[34] == 180.0
+    assert feats_inf_dict[34] == 240.0
     assert feats_inf_dict[35] == 250.0
 
     # 6. Verify compute_idh_risk runs fallback successfully and returns correct response format

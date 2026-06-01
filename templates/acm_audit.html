@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Anemia Control Audit | HD Dashboard</title>
+  <link rel="stylesheet" href="/static/css/clinical.css"/>
+  <script src="/static/vendor/js/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --primary:#7c3aed; --bg:#f8fafc; --card:#fff;
+      --border:#e2e8f0; --text:#1e293b; --muted:#64748b;
+      --radius:12px; --shadow:0 4px 12px rgba(0,0,0,0.05);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);}
+
+    .page-hero{
+      background:linear-gradient(135deg,#7c3aed 0%,#4338ca 100%);
+      color:white;padding:20px 32px;
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+    }
+    .page-hero h1{font-size:1.5rem;font-weight:700;}
+    .page-hero p{opacity:.8;font-size:.82rem;margin-top:2px;}
+
+    .content{max-width:1280px;margin:0 auto;padding:24px 32px;}
+
+    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px;}
+    @media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,1fr);}}
+
+    .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+         padding:16px;box-shadow:var(--shadow);}
+    .kpi-label{font-size:.68rem;font-weight:700;text-transform:uppercase;
+               letter-spacing:.08em;color:var(--muted);margin-bottom:6px;}
+    .kpi-value{font-size:2rem;font-weight:900;line-height:1;}
+    .kpi-sub  {font-size:.72rem;color:var(--muted);margin-top:4px;}
+
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px;}
+    @media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+          padding:20px;box-shadow:var(--shadow);margin-bottom:18px;}
+    .card-title{font-size:.7rem;font-weight:700;text-transform:uppercase;
+                letter-spacing:.08em;color:var(--muted);margin-bottom:14px;
+                display:flex;align-items:center;justify-content:space-between;}
+
+    .badge{display:inline-flex;align-items:center;padding:3px 10px;
+           border-radius:20px;font-size:.75rem;font-weight:600;}
+    .badge-accept {background:#dcfce7;color:#166534;}
+    .badge-modify {background:#dbeafe;color:#1d4ed8;}
+    .badge-reject {background:#fee2e2;color:#991b1b;}
+    .badge-pending{background:#f3f4f6;color:#374151;}
+    .badge-on-target   {background:#dcfce7;color:#166534;}
+    .badge-low         {background:#fef9c3;color:#854d0e;}
+    .badge-high        {background:#fed7aa;color:#9a3412;}
+    .badge-critical-low{background:#fee2e2;color:#991b1b;}
+    .badge-ok  {background:#dcfce7;color:#166534;}
+    .badge-warn{background:#fef9c3;color:#854d0e;}
+    .badge-bad {background:#fee2e2;color:#991b1b;}
+
+    .calib-kv{display:flex;justify-content:space-between;padding:8px 0;
+              border-bottom:1px solid var(--border);font-size:.82rem;}
+    .calib-kv:last-child{border-bottom:none;}
+    .calib-kv .mk{color:var(--muted);font-weight:500;}
+    .calib-kv .mv{font-weight:700;}
+
+    /* Model architecture info panel */
+    .arch-panel{background:linear-gradient(135deg,#0f172a,#1e1b4b);
+                color:white;border-radius:var(--radius);padding:20px;
+                display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;
+                margin-bottom:18px;}
+    .arch-block .ab-label{font-size:.65rem;font-weight:700;text-transform:uppercase;
+                          letter-spacing:.08em;opacity:.6;margin-bottom:6px;}
+    .arch-block .ab-val  {font-size:.95rem;font-weight:700;margin-bottom:3px;}
+    .arch-block .ab-sub  {font-size:.75rem;opacity:.75;line-height:1.4;}
+
+    table{width:100%;border-collapse:collapse;}
+    th{font-size:.68rem;font-weight:700;text-transform:uppercase;
+       letter-spacing:.06em;color:var(--muted);padding:8px 10px;
+       text-align:left;border-bottom:2px solid var(--border);}
+    td{padding:9px 10px;font-size:.82rem;border-bottom:1px solid var(--border);vertical-align:middle;}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:#f8fafc;}
+    td a{color:var(--primary);text-decoration:none;font-weight:600;}
+
+    .info-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;
+              padding:14px 16px;font-size:.82rem;color:#1e40af;margin-bottom:18px;}
+    .drift-warn{background:#fef3c7;border:1px solid #fde68a;border-radius:10px;
+                padding:14px 16px;font-size:.82rem;color:#92400e;margin-bottom:18px;}
+  </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="page-hero">
+  <div>
+    <h1>🩸 Anemia Control Model — Fleet Audit</h1>
+    <p>Calibration tracking, Hb target attainment, and ESA dose-response analysis</p>
+  </div>
+  <a href="/" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);
+     color:white;text-decoration:none;padding:8px 16px;border-radius:8px;
+     font-size:.82rem;font-weight:600;">← Dashboard</a>
+</div>
+
+<div class="content">
+
+  {% if calib and calib.drift_flagged %}
+  <div class="drift-warn">
+    ⚠ <strong>Calibration drift detected</strong> — slope {{ calib.slope | round(3) }}
+    (ideal 1.0, Δ{{ (calib.slope - 1.0) | round(3) }}).
+    MAE {{ calib.mae | round(3) }} g/dL.
+    Consider retraining via Admin → Train ACM Model.
+  </div>
+  {% endif %}
+
+  {% if not summary or not summary.total_recommendations %}
+  <div class="info-box">
+    <strong>No ACM recommendations yet.</strong>
+    Open any patient profile → Anemia Control tab → click <em>Refresh Recommendation</em>.
+  </div>
+  {% endif %}
+
+  <!-- ── KPI strip ─────────────────────────────────────────────────────────── -->
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">Total Recommendations</div>
+      <div class="kpi-value" style="color:var(--primary);">{{ summary.total_recommendations or 0 }}</div>
+      <div class="kpi-sub">all time</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Hb On-Target</div>
+      <div class="kpi-value" style="color:{% if (summary.hb_on_target_pct or 0)>=50 %}#16a34a{% else %}#d97706{% endif %};">
+        {{ summary.hb_on_target_pct or '—' }}{% if summary.hb_on_target_pct is not none %}<span style="font-size:1.2rem;font-weight:600;">%</span>{% endif %}
+      </div>
+      <div class="kpi-sub">10.0–11.5 g/dL · {{ summary.n_patients_with_hb or 0 }} pts</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Acceptance Rate</div>
+      <div class="kpi-value" style="color:#2563eb;">{{ summary.acceptance_rate or '—' }}{% if summary.acceptance_rate is not none %}<span style="font-size:1.2rem;">%</span>{% endif %}</div>
+      <div class="kpi-sub">{{ summary.accepted or 0 }} accepted · {{ summary.rejected or 0 }} rejected</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Calib MAE</div>
+      <div class="kpi-value" style="color:{% if calib and calib.mae and calib.mae < 1.0 %}#16a34a{% elif calib and calib.mae %}#d97706{% else %}var(--muted){% endif %};">
+        {{ calib.mae | round(3) if calib and calib.mae else '—' }}
+      </div>
+      <div class="kpi-sub">g/dL · target &lt; 0.75</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Calib Slope</div>
+      <div class="kpi-value" style="color:{% if calib and calib.slope and (calib.slope - 1.0)|abs < 0.15 %}#16a34a{% elif calib and calib.slope %}#d97706{% else %}var(--muted){% endif %};">
+        {{ calib.slope | round(3) if calib and calib.slope else '—' }}
+      </div>
+      <div class="kpi-sub">ideal 1.0 · Δ{{ (calib.slope - 1.0) | round(3) if calib and calib.slope else '—' }}</div>
+    </div>
+  </div>
+
+  <!-- ── Model architecture panel ─────────────────────────────────────────── -->
+  <div class="arch-panel">
+    <div class="arch-block">
+      <div class="ab-label">Architecture</div>
+      <div class="ab-val">Hybrid ODE + Residual MLP</div>
+      <div class="ab-sub">Physiologic erythropoiesis ODE (patient-specific, scipy fitted) +
+        population residual MLP (64→32 ReLU). Matches Fresenius ACM structure
+        (Fuertinger et al. CJASN 2024).</div>
+    </div>
+    <div class="arch-block">
+      <div class="ab-label">ODE Layer</div>
+      <div class="ab-val">{{ ode_status.n_patients_calibrated or 0 }} patients calibrated</div>
+      <div class="ab-sub">3 parameters per patient: k_epo (ESA sensitivity),
+        k_prod (basal production), k_loss (RBC decay ≈ 1/120-day lifespan).
+        scipy L-BFGS-B, 5 restarts.
+        {% if not ode_status.scipy_available %}<span style="color:#fca5a5;">⚠ scipy unavailable</span>{% endif %}
+      </div>
+    </div>
+    <div class="arch-block">
+      <div class="ab-label">Residual MLP</div>
+      <div class="ab-val">
+        {% if ode_status.residual_mlp_loaded %}✓ Loaded{% else %}Not yet trained{% endif %}
+      </div>
+      <div class="ab-sub">Corrects for CRP spikes, transfusions, iron transitions.
+        Trained: {{ ode_status.residual_trained_at[:10] if ode_status.residual_trained_at else 'never' }}.
+        {% if ode_status.residual_metrics %}
+          CV MAE: {{ ode_status.residual_metrics.mae_cv }} g/dL · R²: {{ ode_status.residual_metrics.r2_cv }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Calibration scatter + ESA response ──────────────────────────────── -->
+  {% set has_scatter = scatter_data and scatter_data != '[]' %}
+  {% set has_esa     = esa_response_data and esa_response_data != '[]' %}
+
+  {% if has_scatter or has_esa %}
+  <div class="grid-2">
+
+    <!-- Reliability diagram -->
+    <div class="card">
+      <div class="card-title">
+        Reliability Diagram — Predicted vs Observed Hb (+1 month)
+        {% if calib and calib.slope %}
+        <span class="badge badge-{{ 'ok' if (calib.slope - 1.0)|abs < 0.15 else 'warn' }}">
+          slope {{ calib.slope | round(3) }}
+        </span>
+        {% endif %}
+      </div>
+      {% if has_scatter %}
+      <div id="reliability-chart" style="height:280px;"></div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:8px;">
+        Grey line = perfect calibration (y = x). Points above = model underpredicting; below = overpredicting.
+        {% if calib and calib.r2 %}R² = {{ calib.r2 | round(3) }}.{% endif %}
+      </div>
+      {% else %}
+      <div style="padding:32px;text-align:center;color:var(--muted);">
+        No calibration data yet — back-fill runs weekly once follow-up Hb is recorded.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ESA dose-response scatter -->
+    <div class="card">
+      <div class="card-title">
+        ESA Dose-Response — Accepted Recommendations
+        {% if calib and calib.esa_dose_response_coef %}
+        <span class="badge badge-{{ 'ok' if calib.esa_dose_response_coef > 0 else 'warn' }}">
+          β = {{ calib.esa_dose_response_coef | round(4) }}
+        </span>
+        {% endif %}
+      </div>
+      {% if has_esa %}
+      <div id="esa-response-chart" style="height:280px;"></div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:8px;">
+        Each point = one accepted recommendation. β &gt; 0 confirms dose increases move Hb up.
+        β ≈ 0 means the model's dose-change recommendations are not yet matching patient responses.
+        {% if calib and calib.n_esa_rows %}Based on {{ calib.n_esa_rows }} accepted recommendations.{% endif %}
+      </div>
+      {% else %}
+      <div style="padding:32px;text-align:center;color:var(--muted);">
+        No accepted recommendations with follow-up Hb yet.
+        Once clinicians accept recommendations and the next monthly record is entered,
+        this chart will populate automatically.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Calibration stats row -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">Calibration Statistics</div>
+      {% if calib %}
+      <div class="calib-kv"><span class="mk">Slope (observed ~ predicted)</span>
+        <span class="mv" style="color:{% if (calib.slope-1.0)|abs<0.15 %}#16a34a{% else %}#d97706{% endif %};">
+          {{ calib.slope | round(4) }}</span></div>
+      <div class="calib-kv"><span class="mk">Intercept</span>
+        <span class="mv">{{ calib.intercept | round(4) if calib.intercept else '—' }}</span></div>
+      <div class="calib-kv"><span class="mk">Mean Absolute Error</span>
+        <span class="mv" style="color:{% if calib.mae and calib.mae<0.75 %}#16a34a{% elif calib.mae and calib.mae<1.5 %}#d97706{% else %}#dc2626{% endif %};">
+          {{ calib.mae | round(3) if calib.mae else '—' }} g/dL</span></div>
+      <div class="calib-kv"><span class="mk">R²</span>
+        <span class="mv">{{ calib.r2 | round(3) if calib.r2 else '—' }}</span></div>
+      <div class="calib-kv"><span class="mk">Calibrated pairs (n)</span>
+        <span class="mv">{{ calib.n_rows or 0 }}</span></div>
+      <div class="calib-kv"><span class="mk">Last computed</span>
+        <span class="mv">{{ calib.week_start or '—' }}</span></div>
+      {% else %}
+      <div style="color:var(--muted);font-size:.82rem;">
+        Runs weekly (Monday 03:30 UTC) once ≥5 back-filled outcomes exist.
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-title">ESA Dose-Response</div>
+      {% if calib and calib.esa_dose_response_coef is not none %}
+      <div class="calib-kv"><span class="mk">β (ΔHb per 1% ESA change)</span>
+        <span class="mv" style="color:{% if calib.esa_dose_response_coef > 0 %}#16a34a{% else %}#dc2626{% endif %};">
+          {{ calib.esa_dose_response_coef | round(5) }} g/dL / %</span></div>
+      <div class="calib-kv"><span class="mk">Accepted recs with follow-up</span>
+        <span class="mv">{{ calib.n_esa_rows or 0 }}</span></div>
+      <div style="margin-top:10px;font-size:.78rem;color:var(--muted);line-height:1.5;">
+        {% if calib.esa_dose_response_coef > 0 %}
+        ✓ Positive β confirms ESA dose increases correlate with Hb rises.
+        ODE dose-response is directionally correct for this population.
+        {% else %}
+        ⚠ β ≤ 0: ESA dose changes are not yet moving Hb in the expected direction.
+        Possible causes: data sparsity, confounding by inflammation or iron deficiency,
+        or the ODE k_epo parameters need more patient history to calibrate.
+        {% endif %}
+      </div>
+      {% else %}
+      <div style="color:var(--muted);font-size:.82rem;">Requires ≥5 accepted recommendations with 1-month follow-up Hb.</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Interpretation Guide</div>
+      <div style="font-size:.78rem;line-height:1.7;color:var(--text);">
+        <div><strong>Slope = 1.0</strong> — perfect calibration</div>
+        <div><strong>Slope &gt; 1</strong> — model underpredicts Hb (conservative)</div>
+        <div><strong>Slope &lt; 1</strong> — model overpredicts Hb (aggressive)</div>
+        <div style="margin-top:8px;"><strong>MAE &lt; 0.75 g/dL</strong> — Fresenius ACM benchmark</div>
+        <div><strong>MAE 0.75–1.5</strong> — clinically acceptable, improving</div>
+        <div><strong>MAE &gt; 1.5 g/dL</strong> — ⚠ drift alert triggered</div>
+        <div style="margin-top:8px;color:var(--muted);">
+          Drift alert fires when |slope − 1| &gt; 0.15 OR MAE &gt; 1.5 g/dL.
+          Retraining runs automatically every Monday at 04:00 UTC.
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:36px;color:var(--muted);">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;">No calibration data yet</div>
+    <div style="font-size:.85rem;max-width:500px;margin:0 auto;line-height:1.6;">
+      The reliability diagram and ESA dose-response chart populate automatically once:
+      <br>① Clinicians accept or modify ACM recommendations
+      <br>② The next month's Hb is recorded in the patient's monthly data entry
+      <br>③ The weekly back-fill task runs (Monday 03:00 UTC)
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Decision distribution + model status ─────────────────────────────── -->
+  {% if summary and summary.total_recommendations %}
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Clinician Decision Distribution</div>
+      <div id="decision-chart" style="height:200px;"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Fallback Model (MLP)</div>
+      <div class="calib-kv"><span class="mk">Feature count</span>
+        <span class="mv">{{ model_status.n_features }} (32-feature clinical vector)</span></div>
+      <div class="calib-kv"><span class="mk">Fallback pipeline loaded</span>
+        <span class="mv" style="color:{% if model_status.available %}#16a34a{% else %}#d97706{% endif %};">
+          {% if model_status.available %}✓ Yes{% else %}Not yet trained{% endif %}</span></div>
+      {% if model_status.metrics %}
+      <div class="calib-kv"><span class="mk">CV MAE</span>
+        <span class="mv">{{ model_status.metrics.mae_cv }} g/dL</span></div>
+      <div class="calib-kv"><span class="mk">CV R²</span>
+        <span class="mv">{{ model_status.metrics.r2_cv }}</span></div>
+      <div class="calib-kv"><span class="mk">Training samples</span>
+        <span class="mv">{{ model_status.metrics.n_samples }}</span></div>
+      {% endif %}
+      <div class="calib-kv"><span class="mk">Last trained</span>
+        <span class="mv">{{ model_status.trained_at[:19] if model_status.trained_at else 'Never' }}</span></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Recent recommendations table ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Recent Recommendations</div>
+    {% if recent_recs %}
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th><th>Month</th><th>Hb</th><th>Status</th>
+          <th>ESA</th><th>Iron</th><th>Predicted +1mo</th>
+          <th>Observed +1mo</th><th>MAE</th><th>Decision</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in recent_recs %}
+        <tr>
+          <td><a href="/patients/{{ rec.patient_id }}">#{{ rec.patient_id }}</a></td>
+          <td>{{ rec.recommendation_month or '—' }}</td>
+          <td>{% if rec.current_hb %}<strong>{{ rec.current_hb }}</strong> g/dL{% else %}—{% endif %}</td>
+          <td>
+            <span class="badge badge-{{ rec.hb_status | replace('_','-') if rec.hb_status else 'pending' }}">
+              {{ rec.hb_status | replace('_',' ') | title if rec.hb_status else '—' }}
+            </span>
+          </td>
+          <td style="font-weight:600;color:
+            {% if rec.esa_action=='increase' %}#2563eb
+            {% elif rec.esa_action=='decrease' %}#f97316
+            {% elif rec.esa_action=='hold' %}#dc2626
+            {% else %}#16a34a{% endif %};">
+            {{ rec.esa_action | title if rec.esa_action else '—' }}
+            {% if rec.esa_change_pct and rec.esa_change_pct != 0 %}
+              ({{ '+' if rec.esa_change_pct > 0 }}{{ rec.esa_change_pct | int }}%)
+            {% endif %}
+          </td>
+          <td>{{ rec.iron_action | title if rec.iron_action else '—' }}</td>
+          <td>{{ rec.predicted_hb_1mo if rec.predicted_hb_1mo else '—' }}</td>
+          <td>
+            {% if rec.observed_hb_1mo %}
+              <strong>{{ rec.observed_hb_1mo }}</strong>
+            {% else %}
+              <span style="color:var(--muted);">pending</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if rec.hb_prediction_mae_1mo %}
+              <span style="color:{% if rec.hb_prediction_mae_1mo < 0.75 %}#16a34a{% elif rec.hb_prediction_mae_1mo < 1.5 %}#d97706{% else %}#dc2626{% endif %};">
+                {{ rec.hb_prediction_mae_1mo }} g/dL
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="badge badge-{{ rec.clinician_decision or 'pending' }}">
+              {{ rec.clinician_decision | title if rec.clinician_decision else 'Pending' }}
+            </span>
+          </td>
+          <td><a href="/acm/{{ rec.patient_id }}">Review →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:var(--muted);">No recommendations yet.</div>
+    {% endif %}
+  </div>
+
+</div><!-- /content -->
+
+<script>
+const scatterData    = {{ scatter_data | safe }};
+const esaRespData    = {{ esa_response_data | safe }};
+{% if summary and summary.total_recommendations %}
+const accepted = {{ summary.accepted or 0 }};
+const modified = {{ summary.modified or 0 }};
+const rejected = {{ summary.rejected or 0 }};
+const pending  = {{ summary.pending  or 0 }};
+{% endif %}
+
+// ── Decision pie ──────────────────────────────────────────────────────────────
+{% if summary and summary.total_recommendations %}
+Plotly.newPlot('decision-chart', [{
+  type:'pie',
+  labels:['Accepted','Modified','Rejected','Pending'],
+  values:[accepted, modified, rejected, pending],
+  marker:{colors:['#16a34a','#2563eb','#dc2626','#9ca3af']},
+  hole:.5, textinfo:'percent+label', textfont:{size:11},
+}], {
+  margin:{t:0,l:0,r:0,b:0},
+  showlegend:false,
+  paper_bgcolor:'white',
+}, {responsive:true, displayModeBar:false});
+{% endif %}
+
+// ── Reliability diagram ───────────────────────────────────────────────────────
+if (scatterData.length > 0) {
+  const predicted = scatterData.map(d => d.predicted);
+  const observed  = scatterData.map(d => d.observed);
+  const colors    = scatterData.map(d =>
+    d.decision === 'accept' ? '#16a34a' :
+    d.decision === 'modify' ? '#2563eb' :
+    d.decision === 'reject' ? '#dc2626' : '#9ca3af'
+  );
+
+  const allVals = [...predicted, ...observed];
+  const vMin = Math.floor(Math.min(...allVals) - 0.5);
+  const vMax = Math.ceil(Math.max(...allVals)  + 0.5);
+
+  Plotly.newPlot('reliability-chart', [
+    // Perfect calibration line
+    {
+      x:[vMin, vMax], y:[vMin, vMax],
+      mode:'lines', name:'Perfect calibration',
+      line:{color:'#94a3b8', dash:'dash', width:1.5},
+      showlegend:false,
+    },
+    // Scatter
+    {
+      x: predicted, y: observed,
+      mode:'markers', name:'Recommendation',
+      marker:{color:colors, size:7, opacity:0.75, line:{color:'white', width:0.5}},
+      text: scatterData.map(d => `Predicted: ${d.predicted}<br>Observed: ${d.observed}<br>MAE: ${d.mae ?? '—'}<br>Decision: ${d.decision}`),
+      hovertemplate:'%{text}<extra></extra>',
+    },
+  ], {
+    margin:{t:10,l:50,r:10,b:45},
+    xaxis:{title:'Predicted Hb (g/dL)', range:[vMin, vMax], gridcolor:'#f0f0f0'},
+    yaxis:{title:'Observed Hb (g/dL)', range:[vMin, vMax], gridcolor:'#f0f0f0'},
+    plot_bgcolor:'white', paper_bgcolor:'white',
+  }, {responsive:true, displayModeBar:false});
+}
+
+// ── ESA dose-response scatter ─────────────────────────────────────────────────
+if (esaRespData.length > 0) {
+  const xVals = esaRespData.map(d => d.esa_change_pct);
+  const yVals = esaRespData.map(d => d.delta_hb);
+
+  // Simple OLS trendline
+  const n = xVals.length;
+  const xMean = xVals.reduce((a,b)=>a+b,0)/n;
+  const yMean = yVals.reduce((a,b)=>a+b,0)/n;
+  const slope = xVals.reduce((s,x,i)=>s+(x-xMean)*(yVals[i]-yMean),0) /
+                Math.max(xVals.reduce((s,x)=>s+(x-xMean)**2,0),1e-9);
+  const intercept = yMean - slope * xMean;
+  const xLine = [Math.min(...xVals), Math.max(...xVals)];
+  const yLine = xLine.map(x => slope*x + intercept);
+
+  Plotly.newPlot('esa-response-chart', [
+    {
+      x: xLine, y: yLine, mode:'lines', name:'OLS trend',
+      line:{color:'#7c3aed', width:2},
+    },
+    {
+      x: xVals, y: yVals,
+      mode:'markers', name:'Accepted recommendation',
+      marker:{color:'#4338ca', size:7, opacity:0.7},
+      text: esaRespData.map(d => `ESA change: ${d.esa_change_pct}%<br>ΔHb: ${d.delta_hb} g/dL`),
+      hovertemplate:'%{text}<extra></extra>',
+    },
+  ], {
+    margin:{t:10,l:50,r:10,b:45},
+    xaxis:{title:'Recommended ESA change (%)', gridcolor:'#f0f0f0', zeroline:true},
+    yaxis:{title:'Actual ΔHb at +1 month (g/dL)', gridcolor:'#f0f0f0', zeroline:true},
+    plot_bgcolor:'white', paper_bgcolor:'white',
+    shapes:[{type:'line', x0:Math.min(...xVals), x1:Math.max(...xVals),
+             y0:0, y1:0, line:{color:'#94a3b8', dash:'dot', width:1}}],
+  }, {responsive:true, displayModeBar:false});
+}
+</script>
+</body>
+</html>

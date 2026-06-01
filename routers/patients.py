@@ -121,6 +121,11 @@ async def create_patient(
     diastolic_dysfunction: str = Form(""),
     echo_date: Optional[str] = Form(None),
     echo_report: str = Form(""),
+    lvot_diameter: Optional[float] = Form(None),
+    lvot_vti: Optional[float] = Form(None),
+    heart_rate: Optional[int] = Form(None),
+    stroke_volume: Optional[float] = Form(None),
+    cardiac_output: Optional[float] = Form(None),
     # ── Vascular access ───────────────────────────────────────────────────────
     access_type: str = Form(""),
     access_date: Optional[str] = Form(None),
@@ -529,6 +534,11 @@ async def update_patient(
     diastolic_dysfunction: str = Form(""),
     echo_date: Optional[str] = Form(None),
     echo_report: str = Form(""),
+    lvot_diameter: Optional[float] = Form(None),
+    lvot_vti: Optional[float] = Form(None),
+    heart_rate: Optional[int] = Form(None),
+    stroke_volume: Optional[float] = Form(None),
+    cardiac_output: Optional[float] = Form(None),
     # ── Vascular access ───────────────────────────────────────────────────────
     access_type: str = Form(""),
     access_date: Optional[str] = Form(None),

@@ -73,6 +73,10 @@
           <a href="/events" class="{{ 'active' if '/events' in _path }}">
             <i class="material-icons">notification_important</i> Clinical Events
           </a>
+          <div class="dd-divider"></div>
+          <a href="/acm/audit" class="{{ 'active' if '/acm' in _path }}">
+            <i class="material-icons">bloodtype</i> Anemia Control (ACM)
+          </a>
         </div>
       </div>
 
@@ -182,6 +186,10 @@
           <a href="/events" class="{{ 'active' if '/events' in _path }}">
             <i class="material-icons">notification_important</i> Clinical Events
           </a>
+          <div class="dd-divider"></div>
+          <a href="/acm/audit" class="{{ 'active' if '/acm' in _path }}">
+            <i class="material-icons">bloodtype</i> Anemia Control (ACM)
+          </a>
         </div>
       </div>
 
@@ -242,6 +250,10 @@
           <div class="dd-divider"></div>
           <a href="/events" class="{{ 'active' if '/events' in _path }}">
             <i class="material-icons">notification_important</i> Clinical Events
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/acm/audit" class="{{ 'active' if '/acm' in _path }}">
+            <i class="material-icons">bloodtype</i> Anemia Control (ACM)
           </a>
         </div>
       </div>
@@ -935,7 +947,30 @@
   /* ── Mobile drawer section accordion ── */
   function toggleDrawerSection(id) {
     var el = document.getElementById(id);
-    el.classList.toggle('open');
+    var isOpening = !el.classList.contains('open');
+    
+    // Close other main sections
+    if (el.classList.contains('drawer-section')) {
+      document.querySelectorAll('.drawer-section.open').forEach(function(sec) {
+        if (sec.id !== id) sec.classList.remove('open');
+      });
+    }
+    
+    // Close other subsections within the same parent
+    if (el.classList.contains('drawer-sub-section')) {
+      var parent = el.closest('.drawer-section-body');
+      if (parent) {
+        parent.querySelectorAll('.drawer-sub-section.open').forEach(function(sec) {
+          if (sec.id !== id) sec.classList.remove('open');
+        });
+      }
+    }
+
+    if (isOpening) {
+      el.classList.add('open');
+    } else {
+      el.classList.remove('open');
+    }
   }
 
   /* ── Auto-mark active nav links based on current URL ── */

@@ -156,6 +156,8 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         uf_volume=uf_volume,
         actual_uf_volume=actual_uf_volume,
         uf_rate=uf_rate,
+        dialysate_sodium=data.get("dialysate_sodium"),
+        dialysate_temperature=data.get("dialysate_temperature"),
     )
     db.add(rec)
     db.commit()
@@ -255,6 +257,8 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.cannulation_difficulty = data.get("cannulation_difficulty") or "routine"
     sess.cannulation_attempts = data.get("cannulation_attempts")
     sess.needle_infiltration = data.get("needle_infiltration", False)
+    sess.dialysate_sodium = data.get("dialysate_sodium")
+    sess.dialysate_temperature = data.get("dialysate_temperature")
 
     _wp = data.get("weight_pre")
     _wpo = data.get("weight_post")

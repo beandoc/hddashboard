@@ -129,6 +129,12 @@ class PatientCardiac(Base):
     handgrip_strength    = Column(Float)
     echo_date            = Column(Date)
     echo_report          = Column(Text)
+    lvot_diameter        = Column(Float)
+    lvot_vti             = Column(Float)
+    heart_rate           = Column(Integer)
+    stroke_volume        = Column(Float)
+    cardiac_output       = Column(Float)
+
 
 
 class PatientOutcomes(Base):
@@ -794,6 +800,47 @@ class Patient(Base):
     @echo_report.setter
     def echo_report(self, v):
         self._ensure_cardiac().echo_report = v
+
+    @property
+    def lvot_diameter(self):
+        return self.cardiac.lvot_diameter if self.cardiac else None
+
+    @lvot_diameter.setter
+    def lvot_diameter(self, v):
+        self._ensure_cardiac().lvot_diameter = v
+
+    @property
+    def lvot_vti(self):
+        return self.cardiac.lvot_vti if self.cardiac else None
+
+    @lvot_vti.setter
+    def lvot_vti(self, v):
+        self._ensure_cardiac().lvot_vti = v
+
+    @property
+    def heart_rate(self):
+        return self.cardiac.heart_rate if self.cardiac else None
+
+    @heart_rate.setter
+    def heart_rate(self, v):
+        self._ensure_cardiac().heart_rate = v
+
+    @property
+    def stroke_volume(self):
+        return self.cardiac.stroke_volume if self.cardiac else None
+
+    @stroke_volume.setter
+    def stroke_volume(self, v):
+        self._ensure_cardiac().stroke_volume = v
+
+    @property
+    def cardiac_output(self):
+        return self.cardiac.cardiac_output if self.cardiac else None
+
+    @cardiac_output.setter
+    def cardiac_output(self, v):
+        self._ensure_cardiac().cardiac_output = v
+
 
     # outcomes
     def _ensure_outcomes(self):

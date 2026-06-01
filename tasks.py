@@ -1,5 +1,5 @@
 from celery_app import celery_app
-from database import SessionLocal, Patient, AlertLog, MonthlyRecord, MLPrediction, MLModelMetrics, PatientFeatureSnapshot
+from database import SessionLocal, Patient, AlertLog, MonthlyRecord, MLPrediction, MLModelMetrics, PatientFeatureSnapshot, ACMRecommendation
 from dashboard_logic import get_patients_needing_alerts, get_month_label, get_current_month_str
 from alerts import send_bulk_whatsapp_alerts, send_ward_email, build_schedule_message, send_whatsapp
 import logging
@@ -651,6 +651,174 @@ def task_daily_data_integrity_report():
 
     except Exception as exc:
         logger.exception("task_daily_data_integrity_report failed: %s", exc)
+        raise
+    finally:
+        db.close()
+
+
+# ── ACM: back-fill observed outcomes ─────────────────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_backfill_acm_outcomes():
+    """
+    Weekly: fill observed_hb_1mo / observed_hb_3mo / hb_prediction_mae_1mo
+    on ACMRecommendation rows once the follow-up MonthlyRecord arrives.
+    """
+    db = SessionLocal()
+    filled_1mo = filled_3mo = skipped = 0
+    try:
+        pending = (
+            db.query(ACMRecommendation)
+            .filter(
+                ACMRecommendation.predicted_hb_1mo.isnot(None),
+                ACMRecommendation.observed_hb_1mo.is_(None),
+            )
+            .all()
+        )
+
+        for rec in pending:
+            if not rec.recommendation_month:
+                skipped += 1
+                continue
+            try:
+                yr, mo = int(rec.recommendation_month[:4]), int(rec.recommendation_month[5:7])
+                mo1 = mo + 1; yr1 = yr + (1 if mo1 > 12 else 0); mo1 = mo1 if mo1 <= 12 else mo1 - 12
+                mo3 = mo + 3; yr3 = yr + (mo3 - 1) // 12;        mo3 = ((mo3 - 1) % 12) + 1
+            except (ValueError, IndexError):
+                skipped += 1; continue
+
+            r1 = db.query(MonthlyRecord).filter(
+                MonthlyRecord.patient_id == rec.patient_id,
+                MonthlyRecord.record_month == f"{yr1:04d}-{mo1:02d}",
+                MonthlyRecord.hb.isnot(None),
+            ).first()
+            if r1:
+                rec.observed_hb_1mo = r1.hb
+                if rec.predicted_hb_1mo is not None:
+                    rec.hb_prediction_mae_1mo = round(abs(rec.predicted_hb_1mo - r1.hb), 3)
+                filled_1mo += 1
+
+            if rec.observed_hb_3mo is None:
+                r3 = db.query(MonthlyRecord).filter(
+                    MonthlyRecord.patient_id == rec.patient_id,
+                    MonthlyRecord.record_month == f"{yr3:04d}-{mo3:02d}",
+                    MonthlyRecord.hb.isnot(None),
+                ).first()
+                if r3:
+                    rec.observed_hb_3mo = r3.hb
+                    filled_3mo += 1
+
+        db.commit()
+        logger.info("task_backfill_acm_outcomes: 1mo=%d 3mo=%d skipped=%d", filled_1mo, filled_3mo, skipped)
+        return {"filled_1mo": filled_1mo, "filled_3mo": filled_3mo, "skipped": skipped}
+    except Exception as exc:
+        logger.exception("task_backfill_acm_outcomes failed: %s", exc)
+        raise
+    finally:
+        db.close()
+
+
+# ── ACM: calibration stats + ESA dose-response ───────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_compute_acm_calibration():
+    """
+    Weekly: compute calibration slope/intercept/MAE/R² from back-filled outcomes
+    and write one MLModelMetrics row (model_name='acm_v1').
+    Also computes ESA dose-response regression for accepted recommendations.
+    """
+    db = SessionLocal()
+    week_start = datetime.utcnow().strftime("%Y-%m-%d")
+    try:
+        import numpy as np
+        try:
+            import statsmodels.api as sm; _SM = True
+        except ImportError:
+            _SM = False
+
+        rows = db.query(ACMRecommendation).filter(
+            ACMRecommendation.predicted_hb_1mo.isnot(None),
+            ACMRecommendation.observed_hb_1mo.isnot(None),
+        ).all()
+
+        if len(rows) < 5:
+            return f"insufficient data ({len(rows)} rows)"
+
+        predicted = np.array([r.predicted_hb_1mo for r in rows], dtype=float)
+        observed  = np.array([r.observed_hb_1mo  for r in rows], dtype=float)
+        mae       = float(np.mean(np.abs(predicted - observed)))
+        ss_res    = np.sum((observed - predicted) ** 2)
+        ss_tot    = max(np.sum((observed - observed.mean()) ** 2), 1e-9)
+        r2        = float(1 - ss_res / ss_tot)
+
+        if _SM:
+            res = sm.OLS(observed, sm.add_constant(predicted)).fit()
+            slope, intercept = float(res.params[1]), float(res.params[0])
+        else:
+            c = np.polyfit(predicted, observed, 1)
+            slope, intercept = float(c[0]), float(c[1])
+
+        drift = bool(abs(slope - 1.0) > _SLOPE_DRIFT_THRESHOLD or mae > 1.5)
+
+        # ESA dose-response regression
+        esa_rows = [r for r in rows
+                    if r.clinician_decision == "accept"
+                    and r.esa_change_pct is not None
+                    and r.current_hb is not None]
+        esa_coef = None
+        if len(esa_rows) >= 5:
+            dh  = np.array([r.observed_hb_1mo - r.current_hb for r in esa_rows])
+            esc = np.array([r.esa_change_pct for r in esa_rows])
+            esa_coef = float(np.polyfit(esc, dh, 1)[0]) if not _SM else \
+                       float(sm.OLS(dh, sm.add_constant(esc)).fit().params[1])
+
+        detail = json.dumps({
+            "slope": round(slope, 4), "delta": round(slope - 1.0, 4),
+            "intercept": round(intercept, 4), "mae": round(mae, 4),
+            "r2": round(r2, 4), "n_rows": len(rows),
+            "esa_dose_response_coef": round(esa_coef, 5) if esa_coef is not None else None,
+            "n_esa_rows": len(esa_rows),
+        })
+
+        db.add(MLModelMetrics(
+            model_name=            "acm_v1",
+            week_start=            week_start,
+            n_predictions=         len(rows),
+            n_with_outcome=        len(rows),
+            brier_score=           round(mae, 4),
+            calibration_slope=     round(slope, 4),
+            calibration_intercept= round(intercept, 4),
+            roc_auc=               round(r2, 4),
+            drift_flagged=         drift,
+            drift_detail=          detail,
+        ))
+        db.commit()
+
+        logger.info("task_compute_acm_calibration: n=%d MAE=%.3f slope=%.3f drift=%s",
+                    len(rows), mae, slope, drift)
+        if drift:
+            task_alert_model_drift.apply_async(kwargs={"model_name": "acm_v1", "detail": detail})
+        return {"n_rows": len(rows), "mae": mae, "slope": slope, "drift": drift}
+    except Exception as exc:
+        logger.exception("task_compute_acm_calibration failed: %s", exc)
+        raise
+    finally:
+        db.close()
+
+
+# ── ACM: retrain hybrid model ─────────────────────────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_train_acm_model():
+    """Weekly: retrain ODE parameter fits + residual MLP for all patients."""
+    db = SessionLocal()
+    try:
+        from ml_acm import train_acm_model
+        result = train_acm_model(db)
+        logger.info("task_train_acm_model: %s", result)
+        return result
+    except Exception as exc:
+        logger.exception("task_train_acm_model failed: %s", exc)
         raise
     finally:
         db.close()

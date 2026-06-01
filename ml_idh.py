@@ -51,6 +51,43 @@ try:
 except ImportError:
     _XGB_AVAILABLE = False
 
+
+def _get_drt_mins(sr) -> Optional[float]:
+    if not sr:
+        return None
+    mapping = {
+        "<1 hour": 30.0,
+        "1-2 hours": 90.0,
+        "2-6 hours": 240.0,
+        "6-12 hours": 540.0,
+        ">12 hours": 720.0,
+        "Whole day": 1440.0,
+        "Never fully recover before next dialysis": 2880.0,
+    }
+    if isinstance(sr, dict):
+        drt = sr.get("dialysis_recovery_time")
+        if drt and drt in mapping:
+            return mapping[drt]
+        try:
+            val = sr.get("dialysis_recovery_time_mins")
+            if val is not None:
+                return float(val)
+        except (ValueError, TypeError):
+            pass
+        return None
+        
+    drt = getattr(sr, "dialysis_recovery_time", None)
+    if drt and drt in mapping:
+        return mapping[drt]
+    try:
+        val = getattr(sr, "dialysis_recovery_time_mins", None)
+        if val is not None:
+            return float(val)
+    except (ValueError, AttributeError, TypeError):
+        pass
+    return None
+
+
 try:
     from sklearn.linear_model import LogisticRegression
     from sklearn.calibration import CalibratedClassifierCV
@@ -448,8 +485,9 @@ def _extract_idh_features_for_training(
                 prev_giddiness = 1.0 if "dizziness" in str(sr.symptoms).lower() else 0.0
             else:
                 prev_giddiness = 0.0
-            if sr.dialysis_recovery_time_mins is not None:
-                prev_recovery_time = float(sr.dialysis_recovery_time_mins)
+            drt_mins = _get_drt_mins(sr)
+            if drt_mins is not None:
+                prev_recovery_time = float(drt_mins)
         else:
             prev_giddiness = 0.0
             prev_recovery_time = None
@@ -689,15 +727,15 @@ def _extract_idh_features_for_inference(
             sr = prev.get("symptom_report")
             if isinstance(sr, dict):
                 symptoms_val = sr.get("symptoms")
-                recovery_time_val = sr.get("dialysis_recovery_time_mins")
+                recovery_time_val = _get_drt_mins(sr)
             else:
                 symptoms_val = prev.get("symptoms")
-                recovery_time_val = prev.get("dialysis_recovery_time_mins")
+                recovery_time_val = _get_drt_mins(prev)
         else:
             sr = getattr(prev, "symptom_report", None)
             if sr:
                 symptoms_val = getattr(sr, "symptoms", None)
-                recovery_time_val = getattr(sr, "dialysis_recovery_time_mins", None)
+                recovery_time_val = _get_drt_mins(sr)
 
         if symptoms_val is not None:
             prev_giddiness = 1.0 if "dizziness" in str(symptoms_val).lower() else 0.0

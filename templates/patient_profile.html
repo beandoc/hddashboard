@@ -69,6 +69,9 @@
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">query_stats</i> <span class="btn-text">Analytics</span>
             </a>
             {% endif %}
+            <a href="/twin/{{ patient.id }}" class="btn-action btn-primary" style="background:#4338ca; border-color:#4338ca;">
+                <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">science</i> <span class="btn-text">Digital Twin</span>
+            </a>
             <a href="/patients/{{ patient.id }}/sessions/new" class="btn-action btn-primary" style="background:#0ea5e9; border-color:#0ea5e9;">
                 <i class="material-icons" style="font-size:1.1rem" aria-hidden="true">add_circle</i> <span class="btn-text">Log Session</span>
             </a>
@@ -1033,9 +1036,9 @@
                     <button onclick="openAccessEventModal()" class="btn-action" style="background:#fff1f2; color:#b91c1c; border:1px solid #fecaca; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
                         <i class="material-icons" style="font-size:1rem;">report_problem</i> Log Access Event
                     </button>
-                    <button onclick="openSurveillanceModal()" class="btn-action" style="background:#f0f9ff; color:#0369a1; border:1px solid #bae6fd; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                    <a href="/analytics/vascular-access/surveillance/{{ patient.id }}/new" class="btn-action" style="background:#f0f9ff; color:#0369a1; border:1px solid #bae6fd; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px; text-decoration:none;">
                         <i class="material-icons" style="font-size:1rem;">search</i> Log Imaging/Doppler
-                    </button>
+                    </a>
                     <button onclick="openLifePlanModal()" class="btn-action" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; padding:8px 14px; font-size:0.82rem; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
                         <i class="material-icons" style="font-size:1rem;">assignment</i> Update Life-Plan
                     </button>

@@ -379,9 +379,9 @@ def test_pds_analysis_matching(db):
     rep1 = PatientSymptomReport(
         patient_id=p.id,
         reported_at=sunday_morning,
-        dialysis_recovery_time_mins=120,
-        tiredness_score=5,
-        energy_level_score=6
+        dialysis_recovery_time="1-2 hours",
+        fatigue_physical_exhaustion=5,
+        fatigue_lack_of_energy=6
     )
     db.add(rep1)
     db.commit()
@@ -398,9 +398,9 @@ def test_pds_analysis_matching(db):
         patient_id=p.id,
         reported_at=monday_morning,
         session_date=saturday,
-        dialysis_recovery_time_mins=180,
-        tiredness_score=6,
-        energy_level_score=5
+        dialysis_recovery_time="2-6 hours",
+        fatigue_physical_exhaustion=6,
+        fatigue_lack_of_energy=5
     )
     db.add(rep2)
     db.commit()
@@ -413,9 +413,9 @@ def test_pds_analysis_matching(db):
     rep3 = PatientSymptomReport(
         patient_id=p.id,
         reported_at=wednesday_morning,
-        dialysis_recovery_time_mins=None,
-        tiredness_score=3,
-        energy_level_score=7
+        dialysis_recovery_time=None,
+        fatigue_physical_exhaustion=3,
+        fatigue_lack_of_energy=7
     )
     db.add(rep3)
     db.commit()
