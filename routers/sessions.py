@@ -215,7 +215,7 @@ async def edit_pds_form(session_id: int, request: Request, db: Session = Depends
     report = session_service.get_pds_report(db, session_id)
     return templates.TemplateResponse("pds_form.html", {
         "request": request, "patient": patient, "session": sess, "report": report,
-        "user": get_user(request),
+        "user": get_user(request), "getattr": getattr
     })
 
 @session_router.post("/{session_id}/pds/edit")
