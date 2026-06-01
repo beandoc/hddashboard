@@ -485,6 +485,9 @@ def simulate_idh_risk(
         "scenario_overrides": scenario_overrides,
         "baseline_full":     baseline_result,
         "scenario_full":     scenario_result,
+        "model_is_heuristic": baseline_result.get("data", {}).get("model_is_heuristic", True) or scenario_result.get("data", {}).get("model_is_heuristic", True),
+        "scenario_pi_lower": scenario_result.get("data", {}).get("pi_lower"),
+        "scenario_pi_upper": scenario_result.get("data", {}).get("pi_upper"),
     }
 
 
@@ -501,7 +504,9 @@ def simulate_uf_rate_idh_curve(
     Used to plot the UF rate vs IDH risk curve in the twin sandbox.
     """
     if uf_rate_range is None:
-        uf_rate_range = [round(v, 1) for v in np.arange(6.0, 16.5, 1.0)]
+        # Extend lower bound to 3.5 mL/kg/h to capture the Castro & Wu NDT 2024
+        # mortality-reduction threshold of 4 mL/kg/h within the sweep range.
+        uf_rate_range = [round(v, 1) for v in np.arange(3.5, 16.5, 0.5)]
 
     risks = []
     for uf_rate in uf_rate_range:
@@ -523,6 +528,7 @@ def simulate_uf_rate_idh_curve(
         "available": True,
         "uf_rate_range": uf_rate_range,
         "risks": risks,
+        "mortality_threshold_ml_kg_h": 4.0,
     }
 
 
@@ -792,6 +798,25 @@ def simulate_phosphate(
     if math.isnan(p_pre_measured):
         p_pre_measured = 5.0
 
+    # Use MCMC-calibrated ODE parameters when available (Bangsgaard 2023)
+    mcmc_kc_scale  = None
+    mcmc_koa_ratio = None
+    try:
+        from phosphate_mcmc import get_patient_phosphate_posterior
+        pid = patient_info.get("id")
+        if pid:
+            from database import SessionLocal as _SL
+            _pdb = _SL()
+            try:
+                mcmc_post = get_patient_phosphate_posterior(pid, _pdb)
+                if mcmc_post:
+                    mcmc_kc_scale  = mcmc_post.get("kc_scale_mean")
+                    mcmc_koa_ratio = mcmc_post.get("koa_ratio_mean")
+            finally:
+                _pdb.close()
+    except Exception:
+        pass
+
     def _run(p: dict) -> Optional[float]:
         qb        = _safe_float(p.get("qb_ml_min"), 300.0)
         qd        = _safe_float(p.get("qd_ml_min"), 500.0)
@@ -820,6 +845,9 @@ def simulate_phosphate(
             pass
 
         try:
+            # Use MCMC-calibrated koa_p_ratio when available (Bangsgaard 2023)
+            koa_p_ratio_use = mcmc_koa_ratio if mcmc_koa_ratio is not None else 0.5
+            kc_scale_use = mcmc_kc_scale if mcmc_kc_scale is not None else 1.0
             result = estimate_phosphate_kinetics(
                 sex             = sex,
                 weight          = weight,
@@ -834,6 +862,8 @@ def simulate_phosphate(
                 p_binder_pbe    = pbe,
                 krp_ml_min      = krp,
                 solve_for       = "p_pre",
+                koa_p_ratio     = koa_p_ratio_use,
+                kc_scale        = kc_scale_use,
             )
             val = result.get("modeled_p_pre")
             # Guard: RK4 can diverge to NaN/Inf with extreme inputs
@@ -866,14 +896,19 @@ def simulate_phosphate(
         return "on_target"
 
     return {
-        "available":     True,
-        "baseline_p":    round(base_p, 2) if base_p else None,
-        "scenario_p":    round(scen_p, 2) if scen_p else None,
-        "delta_p":       round((scen_p or 0) - (base_p or 0), 2) if (base_p and scen_p) else None,
+        "available":       True,
+        "baseline_p":      round(base_p, 2) if base_p else None,
+        "scenario_p":      round(scen_p, 2) if scen_p else None,
+        "delta_p":         round((scen_p or 0) - (base_p or 0), 2) if (base_p and scen_p) else None,
         "baseline_status": _status(base_p),
         "scenario_status": _status(scen_p),
-        "target_range":  [target_p_low, target_p_high],
-        "p_measured":    p_pre_measured,
+        "target_range":    [target_p_low, target_p_high],
+        "p_measured":      p_pre_measured,
+        "baseline_p_intake": baseline.get("p_intake_mg_day", 1200.0),
+        # MCMC calibration metadata (Bangsgaard 2023)
+        "mcmc_koa_ratio":  mcmc_koa_ratio,
+        "mcmc_kc_scale":   mcmc_kc_scale,
+        "mcmc_calibrated": mcmc_koa_ratio is not None,
     }
 
 
@@ -1015,6 +1050,7 @@ def run_scenario(
     monthly_data:        dict,
     monthly_records_3mo: list,
     scenario:            dict,
+    db:                  Optional[Session] = None,
 ) -> Dict:
     """
     Phase 1 integrated scenario runner — all five modules with cross-domain cascade.
@@ -1035,6 +1071,25 @@ def run_scenario(
         p_intake_mg_day  — dietary phosphate mg/day
         koa_urea         — dialyser KoA (urea)
     """
+    from services.nutrition_service import get_7day_rolling_mean_phosphate
+    
+    # Query rolling mean dietary phosphate
+    phosphate_data = {"value": 1200.0, "source": "default_1200mg"}
+    if db is not None:
+        try:
+            from sqlalchemy.orm import Session
+            phosphate_data = get_7day_rolling_mean_phosphate(db, patient_id)
+        except Exception as e:
+            logger.warning(f"Error querying dietary phosphate: {e}")
+            
+    baseline_p_intake = phosphate_data.get("value") or 1200.0
+    source = phosphate_data.get("source", "default_1200mg")
+    
+    if "p_intake_mg_day" in scenario:
+        source = "manual_entry"
+        
+    baseline_session = {**baseline_session, "p_intake_mg_day": baseline_p_intake}
+
     latest = records[0] if records else {}
     pre_bun  = _safe_float(latest.get("pre_dialysis_urea"))
     post_bun = _safe_float(latest.get("post_dialysis_urea"))
@@ -1118,7 +1173,25 @@ def run_scenario(
         records      = records,
     )
 
-    # ── 7. Cross-domain cascade summary ───────────────────────────────────────
+    # ── 7. Two-compartment fluid/volume model (Abohtyra 2018) ─────────────────
+    fluid_volume = {}
+    try:
+        from fluid_volume_model import simulate_fluid_volume, build_fluid_volume_plotly
+        scen_uf_vol_ml = scenario.get("uf_volume_L", base_uf_L) * 1000
+        scen_h = scenario.get("session_h", base_h)
+        latest_albumin = monthly_data.get("albumin") if monthly_data else None
+        fluid_sim = simulate_fluid_volume(
+            weight_kg    = post_wt,
+            session_h    = scen_h,
+            uf_volume_ml = scen_uf_vol_ml,
+            albumin_g_dl = float(latest_albumin) if latest_albumin else 3.8,
+        )
+        fluid_volume = build_fluid_volume_plotly(fluid_sim)
+        fluid_volume["raw"] = fluid_sim
+    except Exception as _fv_exc:
+        logger.debug("Fluid volume model skipped: %s", _fv_exc)
+
+    # ── 8. Cross-domain cascade summary ───────────────────────────────────────
     cascade = _cascade_summary(
         scenario  = scenario,
         baseline  = baseline_session,
@@ -1173,8 +1246,10 @@ def run_scenario(
         "uf_curve":     uf_curve,
         "cascade":      cascade,
         "hemodynamics": hemodynamics,
+        "fluid_volume": fluid_volume,
         "bia":          patient_info.get("bia"),
         "doppler":      patient_info.get("doppler"),
+        "dietary_phosphate_source": source,
     }
 
 
@@ -1291,20 +1366,36 @@ def build_twin_plotly_data(twin_result: Dict) -> Dict:
             "delta":         idh_sim.get("delta_risk_pct"),
             "scenario_level":idh_sim.get("scenario_level"),
             "baseline_level":idh_sim.get("baseline_level"),
+            "model_is_heuristic": idh_sim.get("model_is_heuristic", True),
+            # MAPIE 80% conformal prediction interval on scenario probability
+            "pi_lower_pct":  round(idh_sim.get("scenario_pi_lower", 0) * 100, 1) if idh_sim.get("scenario_pi_lower") is not None else None,
+            "pi_upper_pct":  round(idh_sim.get("scenario_pi_upper", 0) * 100, 1) if idh_sim.get("scenario_pi_upper") is not None else None,
         }
 
     # ── UF rate sweep ─────────────────────────────────────────────────────────
     uf_curve_traces = []
     if uf_curve.get("available"):
         risks = uf_curve.get("risks", [])
-        uf_curve_traces = [{
-            "x":    [r["uf_rate"] for r in risks],
-            "y":    [r["risk_pct"] for r in risks],
-            "name": "IDH Risk vs UF Rate",
-            "mode": "lines+markers",
-            "line": {"color": "#dc3545"},
-            "marker": {"size": 6},
-        }]
+        mortality_thresh = uf_curve.get("mortality_threshold_ml_kg_h", 4.0)
+        uf_curve_traces = [
+            {
+                "x":    [r["uf_rate"] for r in risks],
+                "y":    [r["risk_pct"] for r in risks],
+                "name": "IDH Risk vs UF Rate",
+                "mode": "lines+markers",
+                "line": {"color": "#dc3545"},
+                "marker": {"size": 6},
+            },
+            {
+                # Vertical reference line at the Castro & Wu NDT 2024 mortality threshold
+                "x":    [mortality_thresh, mortality_thresh],
+                "y":    [0, 100],
+                "name": f"Mortality threshold {mortality_thresh} mL/kg/h (Castro & Wu NDT 2024)",
+                "mode": "lines",
+                "line": {"color": "#6f42c1", "dash": "dash", "width": 2},
+                "hovertemplate": f"UF ≤{mortality_thresh} mL/kg/h associated with lower mortality risk<extra></extra>",
+            },
+        ]
 
     # ── Phosphate comparison ──────────────────────────────────────────────────
     phosphate_bar_data = {}
@@ -1335,4 +1426,6 @@ def build_twin_plotly_data(twin_result: Dict) -> Dict:
         "uf_curve_traces":   uf_curve_traces,
         "phosphate_bar_data":phosphate_bar_data,
         "cascade":           cascade,
+        "mortality_threshold_ml_kg_h": twin_result.get("uf_curve", {}).get("mortality_threshold_ml_kg_h", 4.0),
+        "fluid_volume":      fluid_volume,
     }

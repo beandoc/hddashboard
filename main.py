@@ -128,6 +128,41 @@ def _warm_caches() -> None:
 _APP_READY = False
 
 
+def _restore_all_ml_models() -> None:
+    """Restore all trained ML model .pkl files from the DB model_binary column.
+
+    Render's ephemeral filesystem loses every .pkl on container restart.
+    Each module already has its own _restore_model_from_db() — this function
+    calls them all so startup logging shows a single "restored N models" line.
+    """
+    restored = []
+    try:
+        from ml_idh import _restore_model_from_db as _restore_idh
+        if _restore_idh():
+            restored.append("idh_v1")
+    except Exception as exc:
+        logging.warning("IDH model restore failed: %s", exc)
+
+    try:
+        from ml_acm import _restore_model_from_db as _restore_acm
+        if _restore_acm():
+            restored.append("acm_v1")
+    except Exception as exc:
+        logging.warning("ACM model restore failed: %s", exc)
+
+    try:
+        from ml_risk import _restore_model_from_db as _restore_det
+        if _restore_det():
+            restored.append("deterioration_v1")
+    except Exception as exc:
+        logging.warning("Deterioration model restore failed: %s", exc)
+
+    if restored:
+        logging.info("ML models restored from DB: %s", ", ".join(restored))
+    else:
+        logging.info("No ML models needed restore (files present or no binary in DB).")
+
+
 def _background_startup() -> None:
     """Run all blocking startup work off the event loop.
 
@@ -140,6 +175,7 @@ def _background_startup() -> None:
         create_tables()
         _check_schema_version()
         _seed_default_users()
+        _restore_all_ml_models()
         logging.info("Background startup complete.")
     except Exception as exc:
         logging.error("Background startup error: %s", exc)

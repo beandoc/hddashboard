@@ -610,6 +610,39 @@ def train_residual_mlp(
     if _JOBLIB_AVAILABLE:
         os.makedirs("models", exist_ok=True)
         joblib.dump(pipeline, RESIDUAL_MLP_PATH)
+        
+        try:
+            import hashlib
+            import json
+            from database import SessionLocal, ModelArtifact
+            from ml_acm import ACM_FEATURE_NAMES
+            import datetime as dt_pkg
+            
+            with open(RESIDUAL_MLP_PATH, "rb") as f_bin:
+                model_bin_data = f_bin.read()
+                
+            _art_db = SessionLocal()
+            try:
+                training_data_hash = hashlib.sha256(
+                    json.dumps(X_rows, sort_keys=True).encode()
+                ).hexdigest()
+                
+                art = ModelArtifact(
+                    model_name          = "acm_v1",
+                    version             = _residual_trained_at,
+                    trained_at          = dt_pkg.datetime.utcnow(),
+                    training_data_hash  = training_data_hash,
+                    metrics_json        = json.dumps(_residual_metrics),
+                    feature_schema_json = json.dumps(ACM_FEATURE_NAMES),
+                    artifact_path       = RESIDUAL_MLP_PATH,
+                    model_binary        = model_bin_data,
+                )
+                _art_db.add(art)
+                _art_db.commit()
+            finally:
+                _art_db.close()
+        except Exception as _art_exc:
+            logger.warning("Failed to register acm_v1 ModelArtifact: %s", _art_exc)
 
     logger.info(f"Residual MLP trained: n={len(X)}, residual MAE={mae:.3f}, R²={r2:.3f}")
     return {"success": True, "n_samples": len(X), "residual_mae_cv": mae, "r2_cv": r2}

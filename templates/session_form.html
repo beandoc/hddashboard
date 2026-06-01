@@ -188,6 +188,39 @@
 <div class="container">
   <form method="POST">
 
+    <!-- ── Post-Dialysis Symptoms (PDS) Banner ── -->
+    {% if session and session.id %}
+    <div class="card" style="border-left: 4px solid #7c3aed; background: #faf5ff; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="background: #f3e8ff; color: #7c3aed; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <i class="material-icons" style="font-size: 1.5rem;">translate</i>
+        </div>
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 700; color: #5b21b6; margin: 0;">Post-Dialysis Symptoms (PDS) Multilingual Form</h3>
+          <p style="font-size: 0.82rem; color: #6b21a8; margin: 4px 0 0 0;">Capture patient-reported symptom burden in English and Hindi (मल्टीलिंगुअल फॉर्म).</p>
+        </div>
+      </div>
+      <a href="/sessions/{{ session.id }}/pds/edit" class="btn-pds" style="background: #7c3aed; color: white; padding: 10px 18px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 0.85rem; transition: background 0.15s; white-space: nowrap; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.15); display: flex; align-items: center; gap: 6px;">
+        <i class="material-icons" style="font-size: 1rem;">assignment</i> Open PDS Form
+      </a>
+    </div>
+    {% else %}
+    <div class="card" style="border-left: 4px solid #94a3b8; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="background: #e2e8f0; color: #64748b; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <i class="material-icons" style="font-size: 1.5rem;">translate</i>
+        </div>
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 700; color: #475569; margin: 0;">Post-Dialysis Symptoms (PDS) Multilingual Form</h3>
+          <p style="font-size: 0.82rem; color: #64748b; margin: 4px 0 0 0;">Save this session record first to enable the multilingual PDS symptoms form.</p>
+        </div>
+      </div>
+      <button type="button" disabled style="background: #cbd5e1; color: #94a3b8; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; border: none; cursor: not-allowed; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+        <i class="material-icons" style="font-size: 1rem;">lock</i> Save to Unlock PDS
+      </button>
+    </div>
+    {% endif %}
+
     <!-- ── Blood Flow Rate (hero) ── -->
     <div class="bfr-hero" id="section-dialysis">
       <div class="card-title">
@@ -671,10 +704,13 @@
       </div>
     </div>
 
-    <!-- ── Intradialytic Events ── -->
+    <!-- ── Intradialytic Events & Symptoms ── -->
     <div class="card" id="section-events">
-      <div class="card-title"><i class="material-icons">warning_amber</i> Intradialytic Events & Symptoms</div>
+      <div class="card-title">
+        <i class="material-icons" style="color: var(--warning);">warning_amber</i> Intradialytic Events & Symptoms
+      </div>
       
+      <!-- Respiratory Symptom Burden -->
       <div style="margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
         <label style="display:block; margin-bottom:10px; font-weight:700; font-size:0.8rem; color:#475569; text-transform:uppercase;">Respiratory Symptom Burden (1=None, 5=Severe)</label>
         <div class="grid">
@@ -699,20 +735,71 @@
         </div>
       </div>
 
-      <div class="checkbox-group">
-        <label class="checkbox-item">
-          <input type="checkbox" name="idh_episode" value="true" {{ 'checked' if session and session.idh_episode }}>
-          Hypotension Episode (IDH)
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" name="muscle_cramps" value="true" {{ 'checked' if session and session.muscle_cramps }}>
-          Muscle Cramps
-        </label>
-        <label class="checkbox-item">
-          <input type="checkbox" name="early_termination" value="true" {{ 'checked' if session and session.early_termination }}>
-          Early Termination
-        </label>
+      <!-- Symptoms Checkboxes -->
+      <div style="margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+        <label style="display:block; margin-bottom:10px; font-weight:700; font-size:0.8rem; color:#475569; text-transform:uppercase;">Symptom Checkboxes (Check all that occurred)</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item">
+            <input type="checkbox" name="idh_episode" value="true" {{ 'checked' if session and session.idh_episode }}>
+            <span>Hypotension Episode (IDH)</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="muscle_cramps" value="true" {{ 'checked' if session and session.muscle_cramps }}>
+            <span>Muscle Cramps</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="nausea_vomiting" value="true" {{ 'checked' if session and session.nausea_vomiting }}>
+            <span>Nausea / Vomiting</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="chest_pain" value="true" {{ 'checked' if session and session.chest_pain }}>
+            <span>Chest Pain</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="arrhythmia" value="true" {{ 'checked' if session and session.arrhythmia }}>
+            <span>Arrhythmia / Palpitations</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="early_termination" id="early-termination-cb" value="true" {{ 'checked' if session and session.early_termination }}>
+            <span>Early Termination</span>
+          </label>
+        </div>
       </div>
+
+      <!-- Conditional early termination reason -->
+      <div id="early-termination-reason-group" style="display: none; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+        <label>Reason for Early Termination</label>
+        <input type="text" name="reason_early_termination" placeholder="e.g. Severe Hypotension, Patient requested..." value="{{ session.reason_early_termination if session and session.reason_early_termination else '' }}">
+      </div>
+
+      <!-- Intradialytic Interventions, Diet & Exercise -->
+      <div>
+        <label style="display:block; margin-bottom:10px; font-weight:700; font-size:0.8rem; color:#475569; text-transform:uppercase;">Interventions & Intradialytic Activities</label>
+        <div class="grid">
+          <div>
+            <label>Saline Rescue Boluses (count)</label>
+            <input type="number" name="saline_bolus_count" min="0" max="10" step="1" placeholder="e.g. 0" value="{{ session.saline_bolus_count if session and session.saline_bolus_count is not none else '' }}">
+          </div>
+          <div>
+            <label>Morning Antihypertensive Taken</label>
+            <select name="antihypertensive_taken_prehd">
+              <option value="">— Select —</option>
+              <option value="true" {{ 'selected' if session and session.antihypertensive_taken_prehd == True }}>Yes</option>
+              <option value="false" {{ 'selected' if session and session.antihypertensive_taken_prehd == False }}>No</option>
+            </select>
+          </div>
+          <div>
+            <label>Intradialytic Meals Eaten</label>
+            <select name="intradialytic_meals_eaten">
+              <option value="false" {{ 'selected' if not session or not session.intradialytic_meals_eaten }}>No</option>
+              <option value="true" {{ 'selected' if session and session.intradialytic_meals_eaten }}>Yes</option>
+            </select>
+          </div>
+          <div>
+            <label>Intradialytic Exercise (mins)</label>
+            <input type="number" name="intradialytic_exercise_mins" min="0" max="120" step="5" placeholder="e.g. 15" value="{{ session.intradialytic_exercise_mins if session and session.intradialytic_exercise_mins is not none else '' }}">
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1153,6 +1240,18 @@
     }
     hidden.value = checked.join(',');
   });
+
+  // ── Conditional Early Termination Reason ──
+  (function() {
+    var etCb = document.getElementById('early-termination-cb');
+    var etGroup = document.getElementById('early-termination-reason-group');
+    if (!etCb || !etGroup) return;
+    function updateReasonVisibility() {
+      etGroup.style.display = etCb.checked ? 'block' : 'none';
+    }
+    etCb.addEventListener('change', updateReasonVisibility);
+    updateReasonVisibility();
+  })();
 </script>
 </body>
 </html>

@@ -822,3 +822,138 @@ def task_train_acm_model():
         raise
     finally:
         db.close()
+
+
+# ── Phosphate MCMC calibration ────────────────────────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_phosphate_mcmc_calibration():
+    """Weekly (Sunday 02:00 UTC): Bayesian MCMC calibration of phosphate ODE
+    parameters for all active patients with ≥ 3 monthly phosphate records.
+    Stores kc_scale and koa_ratio posteriors in patient_feature_snapshot JSONB.
+    Reference: Bangsgaard et al. MBE 2023 (R²=0.985).
+    """
+    db = SessionLocal()
+    results = {"success": 0, "skipped": 0, "failed": 0}
+    try:
+        from phosphate_mcmc import run_patient_mcmc_calibration
+        patients = db.query(Patient).filter(Patient.is_active == True).all()
+        for p in patients:
+            phos_count = (
+                db.query(MonthlyRecord)
+                .filter(MonthlyRecord.patient_id == p.id, MonthlyRecord.phosphorus.isnot(None))
+                .count()
+            )
+            if phos_count < 3:
+                results["skipped"] += 1
+                continue
+            try:
+                run_patient_mcmc_calibration(p.id, db)
+                results["success"] += 1
+            except Exception as exc:
+                logger.warning("Phosphate MCMC failed for patient %d: %s", p.id, exc)
+                results["failed"] += 1
+        logger.info("task_phosphate_mcmc_calibration: %s", results)
+        return results
+    except Exception as exc:
+        logger.exception("task_phosphate_mcmc_calibration failed: %s", exc)
+        raise
+    finally:
+        db.close()
+
+
+# ── Access failure risk scoring ───────────────────────────────────────────────
+
+@celery_app.task(acks_late=True, reject_on_worker_lost=True)
+def task_compute_access_failure_risk():
+    """Weekly (Sunday 02:30 UTC): Score 90-day vascular access failure risk for
+    all patients with ≥ 2 Doppler surveillance records.
+    Reference: Hsieh et al. 2023 IoMT XGBoost (90.7% precision).
+    """
+    from database import AccessSurveillanceRecord, PatientVascularAccess, ClinicalEvent, SessionRecord as SR
+    from services.access_failure_model import compute_access_failure_risk
+
+    db = SessionLocal()
+    results = {"scored": 0, "skipped": 0, "failed": 0}
+    try:
+        patients = db.query(Patient).filter(Patient.is_active == True).all()
+        for p in patients:
+            surv_count = (
+                db.query(AccessSurveillanceRecord)
+                .filter(AccessSurveillanceRecord.patient_id == p.id)
+                .count()
+            )
+            if surv_count < 2:
+                results["skipped"] += 1
+                continue
+            try:
+                surv_recs = (
+                    db.query(AccessSurveillanceRecord)
+                    .filter(AccessSurveillanceRecord.patient_id == p.id)
+                    .order_by(AccessSurveillanceRecord.record_date.desc())
+                    .limit(6)
+                    .all()
+                )
+                surv_dicts = [
+                    {
+                        "qa_ml_min":         r.qa_ml_min,
+                        "recirculation_pct": r.recirculation_pct,
+                        "psv_cm_s":          getattr(r, "psv_cm_s", None),
+                        "ri":                getattr(r, "ri", None),
+                        "stenosis_pct":      getattr(r, "stenosis_pct", None),
+                        "record_date":       r.record_date,
+                    }
+                    for r in surv_recs
+                ]
+                va = (
+                    db.query(PatientVascularAccess)
+                    .filter(PatientVascularAccess.patient_id == p.id)
+                    .order_by(PatientVascularAccess.id.desc())
+                    .first()
+                )
+                thrombosis_count = (
+                    db.query(ClinicalEvent)
+                    .filter(ClinicalEvent.patient_id == p.id,
+                            ClinicalEvent.event_type.in_(["thrombosis", "av_fistula_thrombosis"]))
+                    .count()
+                )
+                access_info = {
+                    "access_type":      va.access_type if va else "avf",
+                    "creation_date":    va.creation_date if va else None,
+                    "thrombosis_count": thrombosis_count,
+                }
+                total_sess = db.query(SR).filter(SR.patient_id == p.id).count()
+                diff_count = db.query(SR).filter(SR.patient_id == p.id, SR.cannulation_difficulty == True).count()
+                session_stats = {"total_sessions": total_sess, "cannulation_difficulty_count": diff_count}
+
+                risk = compute_access_failure_risk(surv_dicts, access_info, session_stats)
+
+                # Persist into patient_feature_snapshot JSONB
+                import json as _json
+                snap = (
+                    db.query(PatientFeatureSnapshot)
+                    .filter(PatientFeatureSnapshot.patient_id == p.id)
+                    .order_by(PatientFeatureSnapshot.computed_at.desc())
+                    .first()
+                )
+                if snap and snap.feature_vector is not None:
+                    feats = snap.feature_vector
+                    if isinstance(feats, str):
+                        feats = _json.loads(feats)
+                    else:
+                        feats = dict(feats)
+                    feats["access_failure_risk"] = risk
+                    snap.feature_vector = feats
+                    db.commit()
+                results["scored"] += 1
+            except Exception as exc:
+                logger.warning("Access failure risk failed for patient %d: %s", p.id, exc)
+                results["failed"] += 1
+
+        logger.info("task_compute_access_failure_risk: %s", results)
+        return results
+    except Exception as exc:
+        logger.exception("task_compute_access_failure_risk failed: %s", exc)
+        raise
+    finally:
+        db.close()

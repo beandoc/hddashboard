@@ -115,11 +115,27 @@
   <span class="bc-current">{{ patient.name }}</span>
 </nav>
 
-<header>
-  <h1><i class="material-icons" style="font-size:2rem;vertical-align:middle;margin-right:8px;">settings_input_component</i>Vascular Access Analytics</h1>
-  <p>{{ patient.name }} &nbsp;·&nbsp; {{ patient.hid_no }}
-    {% if current_ep %}&nbsp;·&nbsp; <strong>{{ current_ep.access_class }}</strong> — {{ current_ep.access_subtype or current_ep.access_class }}{% endif %}
-  </p>
+<header style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+  <div>
+    <h1><i class="material-icons" style="font-size:2rem;vertical-align:middle;margin-right:8px;">settings_input_component</i>Vascular Access Analytics</h1>
+    <p>{{ patient.name }} &nbsp;·&nbsp; {{ patient.hid_no }}
+      {% if current_ep %}&nbsp;·&nbsp; <strong>{{ current_ep.access_class }}</strong> — {{ current_ep.access_subtype or current_ep.access_class }}{% endif %}
+    </p>
+  </div>
+  {% if access_failure_risk %}
+  {% set risk_level = access_failure_risk.risk_level|default('low')|lower %}
+  {% set risk_prob = (access_failure_risk.risk_probability|default(0) * 100)|round|int %}
+  <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: var(--radius); padding: 14px 20px; border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; gap: 14px;">
+    <div style="width: 12px; height: 12px; border-radius: 50%; background: {% if risk_level == 'high' %}var(--danger){% elif risk_level == 'moderate' %}var(--warning){% else %}var(--success){% endif %}; box-shadow: 0 0 12px {% if risk_level == 'high' %}var(--danger){% elif risk_level == 'moderate' %}var(--warning){% else %}var(--success){% endif %};"></div>
+    <div>
+      <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7;">90-Day Failure Risk</div>
+      <div style="font-size: 1.25rem; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: baseline; gap: 4px;">
+        {{ risk_level|title }}
+        <span style="font-size: 0.85rem; font-weight: 500; opacity: 0.8;">({{ risk_prob }}%)</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </header>
 
 <div class="container">
@@ -319,6 +335,64 @@
       <span class="pill {{ 'pill-red' if item.priority=='urgent' else 'pill-amber' if item.priority=='this_week' else 'pill-green' }}" style="white-space:nowrap;">{{ item.priority|replace('_',' ')|title }}</span>
     </div>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── VASCULAR ACCESS RISK FACTORS ─────────────────────────────────── -->
+  {% if access_failure_risk %}
+  <div class="card">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="display:flex; align-items:center; gap:10px;">
+        <i class="material-icons" style="color:var(--warning);">analytics</i>
+        90-Day Failure Risk Analysis
+      </span>
+      <span class="pill {% if access_failure_risk.risk_level|lower == 'high' %}pill-red{% elif access_failure_risk.risk_level|lower == 'moderate' %}pill-amber{% else %}pill-green{% endif %}">
+        {{ access_failure_risk.risk_level|title }} Risk ({{ (access_failure_risk.risk_probability * 100)|round|int }}%)
+      </span>
+    </div>
+    
+    <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:24px; margin-top:12px;">
+      <!-- Risk factors / details list -->
+      <div>
+        <div style="font-weight:700; font-size:.88rem; color:#475569; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.04em;">Primary Risk Drivers</div>
+        {% if access_failure_risk.risk_factors %}
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            {% for factor in access_failure_risk.risk_factors %}
+              <div style="display:flex; align-items:center; gap:8px; font-size:.86rem; color:#334155;">
+                <i class="material-icons" style="font-size:1.1rem; color:var(--danger);">error_outline</i>
+                <span>{{ factor|replace('_',' ')|title }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="font-size:.86rem; color:#64748b; font-style:italic;">No elevated risk factors detected.</div>
+        {% endif %}
+      </div>
+      
+      <!-- Educational/Action context -->
+      <div style="background:#f8fafc; border-radius:10px; padding:16px 20px; border:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:center;">
+        <div style="font-weight:700; font-size:.88rem; color:#1e1b4b; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+          <i class="material-icons" style="font-size:1.15rem; color:var(--primary);">info</i>
+          Clinical Guidance (Hsieh 2023)
+        </div>
+        <p style="font-size:.82rem; color:#475569; margin:0 0 10px; line-height:1.45;">
+          This model uses a weekly XGBoost classifier to analyze trend features from Doppler reports (Qa, stenosis, PSV), historical thrombosis episodes, and session cannulation difficulty.
+        </p>
+        {% if access_failure_risk.risk_level|lower == 'high' %}
+          <div style="background:#fee2e2; border-left:4px solid var(--danger); padding:8px 12px; border-radius:4px; font-size:.8rem; color:#991b1b; font-weight:600;">
+            Recommendation: Prioritize urgent referral for duplex ultrasound or fistulogram.
+          </div>
+        {% elif access_failure_risk.risk_level|lower == 'moderate' %}
+          <div style="background:#fef3c7; border-left:4px solid var(--warning); padding:8px 12px; border-radius:4px; font-size:.8rem; color:#92400e; font-weight:600;">
+            Recommendation: Increase surveillance frequency and inspect access site before every session.
+          </div>
+        {% else %}
+          <div style="background:#dcfce7; border-left:4px solid var(--success); padding:8px 12px; border-radius:4px; font-size:.8rem; color:#166534; font-weight:600;">
+            Recommendation: Maintain routine monthly Doppler and physical examination protocol.
+          </div>
+        {% endif %}
+      </div>
+    </div>
   </div>
   {% endif %}
 

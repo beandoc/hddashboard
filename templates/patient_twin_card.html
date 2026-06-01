@@ -1,0 +1,170 @@
+{% extends "_patient_context_nav.html" %}
+{% block title %}My Treatment Simulation{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width:720px">
+
+  <h4 class="fw-semibold mb-1" style="color:var(--accent)">
+    <span class="material-icons align-middle me-1" style="font-size:1.3rem">science</span>
+    My Treatment Simulation
+  </h4>
+  <p class="text-muted small mb-4">
+    Your care team runs a personalised simulation before changing your dialysis prescription.
+    This page shows what the simulation predicted for you.
+  </p>
+
+  {% if not summary %}
+  <div class="card glass-card text-center py-5">
+    <span class="material-icons mb-2" style="font-size:3rem;color:var(--text-muted)">pending_actions</span>
+    <p class="mb-0 text-muted">No simulation has been run for your account yet.<br>Your care team will update this once a prescription review is completed.</p>
+  </div>
+
+  {% else %}
+  <!-- Meta bar -->
+  <div class="d-flex align-items-center gap-3 mb-4 text-muted small">
+    <span><span class="material-icons align-middle" style="font-size:1rem">schedule</span>
+      Last updated: <strong>{{ summary.sim_date.strftime("%d %b %Y") if summary.sim_date else "—" }}</strong>
+    </span>
+    {% if summary.adopted %}
+    <span class="badge" style="background:rgba(25,135,84,.25);color:#198754">
+      <span class="material-icons align-middle" style="font-size:.85rem">check_circle</span> Prescription adopted
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+
+    <!-- ── Haemoglobin card ─────────────────────────────────────────── -->
+    <div class="col-12 col-sm-6">
+      <div class="card glass-card h-100 p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="material-icons" style="color:#e05c5c">water_drop</span>
+          <span class="fw-semibold">Blood Count (Haemoglobin)</span>
+        </div>
+
+        {% if summary.hb_month1 %}
+          <div class="display-6 fw-bold mb-0" style="color:#e05c5c">
+            {{ "%.1f"|format(summary.hb_month1) }}
+            <small class="fs-6 text-muted fw-normal">g/dL</small>
+          </div>
+          <div class="text-muted small mb-2">Predicted next month</div>
+
+          {% if summary.hb_pi_low and summary.hb_pi_high %}
+          <div class="small text-muted">
+            Likely range: <strong>{{ "%.1f"|format(summary.hb_pi_low) }}–{{ "%.1f"|format(summary.hb_pi_high) }} g/dL</strong>
+            <span class="text-muted">(80% confidence)</span>
+          </div>
+          {% endif %}
+
+          {% set hb = summary.hb_month1 %}
+          <div class="mt-2 small {% if hb >= 10 and hb <= 12 %}text-success{% elif hb < 10 %}text-danger{% else %}text-warning{% endif %}">
+            {% if hb >= 10 and hb <= 12 %}
+              ✓ Within target (10–12 g/dL)
+            {% elif hb < 10 %}
+              ↓ Below target — your team may adjust your iron or ESA dose
+            {% else %}
+              ↑ Above target — your team will review your ESA dose
+            {% endif %}
+          </div>
+
+          {% if summary.hb_confidence == "prior-only" %}
+          <div class="mt-2 small text-muted fst-italic">
+            Based on population averages — improves with more monthly records.
+          </div>
+          {% elif summary.hb_confidence == "bayes-informed" %}
+          <div class="mt-2 small text-muted fst-italic">
+            Partially personalised to your history.
+          </div>
+          {% endif %}
+        {% else %}
+          <p class="text-muted small mb-0">Not available — haemoglobin history needed.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Dialysis adequacy card ───────────────────────────────────── -->
+    <div class="col-12 col-sm-6">
+      <div class="card glass-card h-100 p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="material-icons" style="color:#3b9ede">opacity</span>
+          <span class="fw-semibold">Waste Removal (Kt/V)</span>
+        </div>
+
+        {% if summary.ktv_val %}
+          <div class="display-6 fw-bold mb-0" style="color:#3b9ede">
+            {{ "%.2f"|format(summary.ktv_val) }}
+          </div>
+          <div class="text-muted small mb-2">Dialysis adequacy score</div>
+          <div class="small {% if summary.ktv_met %}text-success{% else %}text-danger{% endif %}">
+            {% if summary.ktv_met %}
+              ✓ Your dialysis is removing enough waste (target ≥ 1.2)
+            {% else %}
+              ✗ Below target — your session time or blood flow may need adjustment
+            {% endif %}
+          </div>
+        {% else %}
+          <p class="text-muted small mb-0">Not available — pre- and post-dialysis blood test values needed.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── IDH risk card ────────────────────────────────────────────── -->
+    <div class="col-12">
+      <div class="card glass-card p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="material-icons" style="color:#f59e0b">monitor_heart</span>
+          <span class="fw-semibold">Blood Pressure Risk During Dialysis</span>
+        </div>
+
+        {% if summary.idh_level %}
+          {% set level = summary.idh_level %}
+          <div class="d-flex align-items-center gap-3">
+            <div class="px-3 py-2 rounded-3 text-center"
+                 style="min-width:100px;background:{% if level == 'Low' %}rgba(25,135,84,.2){% elif level == 'Moderate' %}rgba(255,193,7,.2){% else %}rgba(220,53,69,.2){% endif %}">
+              <div class="fw-bold fs-5"
+                   style="color:{% if level == 'Low' %}#198754{% elif level == 'Moderate' %}#ffc107{% else %}#dc3545{% endif %}">
+                {{ level }}
+              </div>
+              {% if summary.idh_pct is not none %}
+              <div class="text-muted small">{{ "%.0f"|format(summary.idh_pct) }}%</div>
+              {% endif %}
+            </div>
+            <div class="small">
+              {% if level == "Low" %}
+                Your blood pressure is unlikely to drop significantly during this dialysis session.
+              {% elif level == "Moderate" %}
+                There is a moderate chance of blood pressure dropping during dialysis. Your nurse will monitor you more closely.
+              {% elif level == "High" %}
+                Your blood pressure may drop during dialysis. Your care team has reviewed your session plan to reduce this risk.
+              {% else %}
+                Your blood pressure risk has been reviewed by your care team.
+              {% endif %}
+            </div>
+          </div>
+
+          {% if summary.idh_heuristic %}
+          <div class="mt-2 small text-muted fst-italic">
+            <span class="material-icons align-middle" style="font-size:.9rem">info</span>
+            This is a simplified estimate based on your fluid removal rate only.
+            Your care team is collecting more session data to improve this prediction.
+          </div>
+          {% endif %}
+        {% else %}
+          <p class="text-muted small mb-0">Not available — session details needed.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div><!-- /row -->
+
+  <!-- Footer note -->
+  <div class="mt-4 p-3 rounded-3 small text-muted" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)">
+    <span class="material-icons align-middle me-1" style="font-size:1rem">info</span>
+    This simulation is a planning tool for your care team — it is <strong>not a diagnosis</strong>.
+    All decisions about your treatment require clinician approval.
+    Speak to your doctor or nurse if you have any questions.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

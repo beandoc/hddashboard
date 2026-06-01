@@ -31,3 +31,5 @@ scikit-learn
 statsmodels
 xgboost
 joblib
+mapie
+pymc

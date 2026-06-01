@@ -550,3 +550,77 @@ async def log_meals_bulk(
     db.commit()
     return {"status": "success", "count": len(meals)}
 
+
+@router.get("/my-twin", response_class=HTMLResponse)
+async def patient_twin_summary(request: Request, db: Session = Depends(get_db)):
+    """Read-only plain-language summary of the patient's most recent DT simulation."""
+    import json as _json
+    from database import TwinSimulation
+
+    u = get_user(request)
+    if not u or not isinstance(u, dict) or u.get("role") != "patient":
+        return RedirectResponse(url="/login")
+
+    p = db.query(Patient).filter(Patient.id == u["id"]).first()
+    if not p:
+        return RedirectResponse(url="/login")
+
+    sim = (
+        db.query(TwinSimulation)
+        .filter(TwinSimulation.patient_id == p.id)
+        .order_by(TwinSimulation.created_at.desc())
+        .first()
+    )
+
+    summary = None
+    if sim:
+        def _j(blob):
+            try:
+                return _json.loads(blob) if blob else {}
+            except Exception:
+                return {}
+
+        hb_sim  = _j(sim.hb_sim_json)
+        ktv_sim = _j(sim.ktv_sim_json)
+        idh_sim = _j(sim.idh_sim_json)
+
+        # Hb: month-1 scenario prediction
+        hb_month1 = None
+        hb_pi_low = hb_pi_high = None
+        if hb_sim.get("available") and hb_sim.get("hb_simulated"):
+            hb_month1 = hb_sim["hb_simulated"][0]
+            pi_u = hb_sim.get("pi_upper_scenario", [])
+            pi_l = hb_sim.get("pi_lower_scenario", [])
+            if pi_u and pi_l:
+                hb_pi_low, hb_pi_high = pi_l[0], pi_u[0]
+
+        # Kt/V adequacy
+        ktv_val     = ktv_sim.get("scenario_ktv") or ktv_sim.get("baseline_ktv")
+        ktv_met     = bool(ktv_sim.get("adequacy_met"))
+
+        # IDH risk level
+        idh_level   = idh_sim.get("scenario_level") or idh_sim.get("baseline_level")
+        idh_pct     = idh_sim.get("scenario_risk_pct") or idh_sim.get("baseline_risk_pct")
+        is_heuristic = idh_sim.get("model_is_heuristic", True)
+
+        summary = {
+            "sim_date":     sim.created_at,
+            "adopted":      sim.adopted,
+            "hb_month1":    hb_month1,
+            "hb_pi_low":    hb_pi_low,
+            "hb_pi_high":   hb_pi_high,
+            "hb_confidence": hb_sim.get("confidence", "prior-only"),
+            "ktv_val":      ktv_val,
+            "ktv_met":      ktv_met,
+            "idh_level":    idh_level,
+            "idh_pct":      idh_pct,
+            "idh_heuristic": is_heuristic,
+        }
+
+    return templates.TemplateResponse("patient_twin_card.html", {
+        "request": request,
+        "patient": p,
+        "summary": summary,
+        "user": u,
+    })
+

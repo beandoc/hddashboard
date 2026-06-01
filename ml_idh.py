@@ -46,6 +46,12 @@ except ImportError:
     _JOBLIB_AVAILABLE = False
 
 try:
+    from mapie.classification import MapieClassifier
+    _MAPIE_AVAILABLE = True
+except ImportError:
+    _MAPIE_AVAILABLE = False
+
+try:
     import xgboost as xgb
     _XGB_AVAILABLE = True
 except ImportError:
@@ -162,8 +168,9 @@ IDH_FEATURE_NAMES = [
 # ── Model paths ───────────────────────────────────────────────────────────────
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_IDH_MODEL_PATH = os.path.join(_BASE_DIR, "idh_model.joblib")
-_IDH_META_PATH  = os.path.join(_BASE_DIR, "idh_model_meta.json")
+_IDH_MODEL_PATH  = os.path.join(_BASE_DIR, "idh_model.joblib")
+_IDH_MAPIE_PATH  = os.path.join(_BASE_DIR, "idh_mapie.joblib")
+_IDH_META_PATH   = os.path.join(_BASE_DIR, "idh_model_meta.json")
 
 # EPF thresholds
 _N_FEATURES = len(IDH_FEATURE_NAMES)   # 41
@@ -823,6 +830,24 @@ def _extract_idh_features_for_inference(
 
 _IDH_MODEL       = None
 _IDH_MODEL_MTIME = 0
+_IDH_MAPIE_MODEL = None
+_IDH_MAPIE_MTIME = 0
+
+
+def _load_idh_mapie():
+    global _IDH_MAPIE_MODEL, _IDH_MAPIE_MTIME
+    if not (_MAPIE_AVAILABLE and _JOBLIB_AVAILABLE) or not os.path.exists(_IDH_MAPIE_PATH):
+        return None
+    try:
+        mtime = os.path.getmtime(_IDH_MAPIE_PATH)
+        if _IDH_MAPIE_MODEL is not None and mtime <= _IDH_MAPIE_MTIME:
+            return _IDH_MAPIE_MODEL
+        _IDH_MAPIE_MODEL = joblib.load(_IDH_MAPIE_PATH)
+        _IDH_MAPIE_MTIME = mtime
+        return _IDH_MAPIE_MODEL
+    except Exception as exc:
+        logger.debug("MAPIE model load skipped: %s", exc)
+        return None
 
 
 def _restore_model_from_db() -> bool:
@@ -1216,6 +1241,24 @@ def train_idh_model(db) -> dict:
     except Exception as _art_exc:
         logger.warning("Failed to register IDH ModelArtifact: %s", _art_exc)
 
+    # ── 5. MAPIE conformal classifier (80% prediction sets, Bangsgaard-style PI) ─
+    if _MAPIE_AVAILABLE and _JOBLIB_AVAILABLE:
+        try:
+            mapie_clf = MapieClassifier(
+                estimator=pipe if _XGB_AVAILABLE else base_lr,
+                cv=n_folds,
+                method="lac",
+            )
+            mapie_clf.fit(X_arr, y_arr)
+            joblib.dump(mapie_clf, _IDH_MAPIE_PATH, compress=3)
+            meta["mapie_trained"] = True
+            logger.info("IDH MAPIE conformal classifier trained and saved.")
+        except Exception as mapie_exc:
+            logger.warning("IDH MAPIE training failed (non-fatal): %s", mapie_exc)
+            meta["mapie_trained"] = False
+    else:
+        meta["mapie_trained"] = False
+
     logger.info(
         "IDH model trained: algo=%s n=%d events=%d epf=%.1f cv_auc=%.3f drift_risk=%s",
         algorithm, n_samples, n_events, epf, cv_auc, overfitting_risk,
@@ -1420,6 +1463,7 @@ def _heuristic_idh_score(feats: list, session_plan: dict, patient_info: dict) ->
         "model_trained_at": None,
         "auc_warning":  False,
         "inputs_missing": [],
+        "model_is_heuristic": True,
     }
 
 
@@ -1537,6 +1581,31 @@ def compute_idh_risk(
 
             shap_values = _compute_idh_shap(model, feats)
 
+            # ── MAPIE 80% conformal prediction interval ───────────────────────
+            pi_lower: Optional[float] = None
+            pi_upper: Optional[float] = None
+            mapie_model = _load_idh_mapie()
+            if mapie_model is not None:
+                try:
+                    x_arr = np.array([feats], dtype=float)
+                    _, y_ps = mapie_model.predict(x_arr, alpha=0.20)
+                    # y_ps shape: (n_samples, n_classes, n_alpha)
+                    in_set = y_ps[0, :, 0]   # boolean mask for each class at 80% coverage
+                    # If only class-1 is in set: lower bound = prob; upper = prob
+                    # If both classes in set: full uncertainty → widen to [0, 1]
+                    # If only class-0: near-zero risk
+                    if in_set[1] and not in_set[0]:
+                        pi_lower = round(max(prob - 0.05, 0.0), 3)
+                        pi_upper = round(min(prob + 0.05, 1.0), 3)
+                    elif in_set[0] and in_set[1]:
+                        pi_lower = 0.0
+                        pi_upper = 1.0
+                    else:
+                        pi_lower = 0.0
+                        pi_upper = round(min(prob + 0.10, 1.0), 3)
+                except Exception as pi_exc:
+                    logger.debug("MAPIE PI skipped: %s", pi_exc)
+
             if log_prediction:
                 session_date = sp.get("session_date")
                 _log_idh_prediction(
@@ -1564,6 +1633,9 @@ def compute_idh_risk(
                     "model_trained_at":  meta.get("trained_at"),
                     "auc_warning":       meta.get("auc_warning", False),
                     "inputs_missing":    missing,
+                    "model_is_heuristic": False,
+                    "pi_lower":          pi_lower,
+                    "pi_upper":          pi_upper,
                 },
             }
         except Exception as exc:

@@ -371,6 +371,7 @@ async def v1_phosphate_calculate(payload: Dict[str, Any], _user=Depends(_require
             koa_p_ratio=payload.get("koa_ratio", 0.5),
             hdf_pre=payload.get("hdf_pre", 0.0),
             hdf_post=payload.get("hdf_post", 0.0),
+            kc_scale=payload.get("kc_scale", 1.0),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

@@ -376,6 +376,7 @@
         <input type="range" id="pintake-slider" min="400" max="2000" step="50" value="900"
                oninput="document.getElementById('pintake-val').textContent=this.value"/>
         <div class="range-bounds"><span>400</span><span>2000 mg/day</span></div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:2px;" id="pintake-source-label">Source: default_1200mg</div>
       </div>
       <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;line-height:1.5;">
         1 PBE ≈ 45 mg P removed/day · 2-pool RK4 simulation (Daugirdas/Laursen model)
@@ -498,6 +499,12 @@
           Intradialytic Hypotension Risk
           <span id="idh-delta-badge" style="font-size:0.75rem;font-weight:700;padding:2px 8px;border-radius:20px;background:#f3f4f6;color:var(--muted);">—</span>
         </div>
+        <!-- IDH Heuristic warning banner (hidden by default) -->
+        <div id="idh-heuristic-warning" style="display:none; background:#fef3c7; border:1px solid #fde68a;
+             border-radius:8px; padding:10px 12px; margin-top:10px; margin-bottom:10px;
+             font-size:0.75rem; color:#92400e; line-height: 1.4;">
+          <strong>⚠ Notice:</strong> IDH risk estimate uses UF-rate heuristic only. Comorbidity-adjusted prediction requires ≥500 session records with BP nadir data.
+        </div>
         <div class="idh-grid">
           <div class="idh-block base">
             <div class="idh-label">Baseline</div>
@@ -508,6 +515,22 @@
             <div class="idh-label">Scenario</div>
             <div class="idh-val" id="idh-scen" style="color:#4338ca;">—%</div>
             <div class="idh-level" id="idh-scen-level">—</div>
+          </div>
+        </div>
+        <!-- Shaded Conformal Prediction Interval Band -->
+        <div id="idh-pi-band-container" style="margin-top: 14px; display: none;">
+          <div style="font-size: 0.68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: flex; justify-content: space-between;">
+            <span>Conformal Interval (80% PI)</span>
+            <span id="idh-pi-bounds-text" style="font-family: monospace;">[—%, —%]</span>
+          </div>
+          <div style="position: relative; height: 16px; background: #e2e8f0; border-radius: 8px; overflow: visible;">
+            <div id="idh-pi-band" style="position: absolute; top: 0; bottom: 0; left: 0%; right: 100%; background: rgba(67, 56, 202, 0.25); border-radius: 4px; border-left: 1px solid #4338ca; border-right: 1px solid #4338ca;"></div>
+            <div id="idh-scen-marker" style="position: absolute; top: -4px; bottom: -4px; width: 4px; left: 0%; background: #4338ca; border-radius: 2px; box-shadow: 0 0 6px #4338ca;" title="Scenario Estimate"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--muted); margin-top: 4px;">
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
           </div>
         </div>
         <div style="margin-top:10px;font-size:0.72rem;color:var(--muted);">
@@ -566,7 +589,7 @@
       <div class="chart-card">
         <div class="chart-title">
           UF Rate vs IDH Risk Curve
-          <span style="font-size:0.68rem;color:var(--muted);font-weight:400;">Swept from 6.0 to 16.0 mL/kg/h</span>
+          <span style="font-size:0.68rem;color:var(--muted);font-weight:400;">Swept from 3.5 to 16.0 mL/kg/h</span>
         </div>
         <div id="uf-chart" style="height:180px;"></div>
         <div style="margin-top:8px;font-size:0.72rem;color:var(--muted);">
@@ -575,6 +598,8 @@
         <div class="loading-overlay" id="uf-load">Calculating…</div>
       </div>
     </div>
+
+    <!-- RBV section removed as per user request -->
 
     <!-- BIA Body Composition + Vascular Access Hemodynamics -->
     <div class="grid-2" style="margin-top:16px;">
@@ -705,6 +730,7 @@ const baselineSession = {
   dialysate_temp:     {{ (baseline_session.dialysate_temp or 36.5) | float }},
   dialysate_sodium:   {{ (baseline_session.dialysate_sodium or 138) | int }},
 };
+const baselinePIntake = defaultResult?.phosphate?.baseline_p_intake || 1200;
 
 // ── Render helpers ──────────────────────────────────────────────────────────
 
@@ -797,22 +823,67 @@ function renderPhosChart(pd) {
   }, {responsive:true, displayModeBar:false});
 }
 
-function renderUfCurve(traces, selectedRate) {
-  const shapes = selectedRate ? [{
-    type:'line', x0:selectedRate, x1:selectedRate, y0:0, y1:100,
-    line:{color:'#4338ca', dash:'dot', width:2},
-  }] : [];
+function renderUfCurve(traces, selectedRate, thresholdRate) {
+  const thresh = thresholdRate || 4.0;
+  const shapes = [
+    {
+      type: 'line',
+      x0: thresh,
+      x1: thresh,
+      y0: 0,
+      y1: 100,
+      line: {
+        color: '#dc2626',
+        dash: 'dash',
+        width: 2
+      }
+    }
+  ];
+  if (selectedRate) {
+    shapes.push({
+      type: 'line',
+      x0: selectedRate,
+      x1: selectedRate,
+      y0: 0,
+      y1: 100,
+      line: {
+        color: '#4338ca',
+        dash: 'dot',
+        width: 2
+      }
+    });
+  }
+  const annotations = [
+    {
+      x: thresh,
+      y: 90,
+      xref: 'x',
+      yref: 'y',
+      text: 'Mortality threshold (Castro & Wu NDT 2024)',
+      showarrow: false,
+      textangle: -90,
+      xanchor: 'right',
+      yanchor: 'middle',
+      font: {
+        color: '#dc2626',
+        size: 9,
+        weight: 'bold'
+      }
+    }
+  ];
   Plotly.newPlot('uf-chart', traces, {
     margin:{t:10,l:45,r:10,b:40},
     xaxis:{title:'UF Rate (mL/kg/h)', gridcolor:'#f0f0f0'},
     yaxis:{title:'IDH Risk (%)', range:[0,100], gridcolor:'#f0f0f0'},
-    shapes, plot_bgcolor:'white', paper_bgcolor:'white',
+    shapes, annotations, plot_bgcolor:'white', paper_bgcolor:'white',
   }, {responsive:true, displayModeBar:false});
 }
 
 function riskColor(pct) {
   return pct < 25 ? 'risk-low' : pct < 50 ? 'risk-moderate' : pct < 75 ? 'risk-high' : 'risk-very-high';
 }
+
+// rbv render logic removed as per user request
 
 function updateKPIs(plotly, result) {
   const ktv  = result?.ktv_sim  || {};
@@ -854,6 +925,19 @@ function updateKPIs(plotly, result) {
                       phos.scenario_status === 'below_target' ? 'p-below' : 'p-target');
   }
 
+  // Phosphate Source
+  const phosSource = result?.dietary_phosphate_source || 'default_1200mg';
+  const sourceLabel = document.getElementById('pintake-source-label');
+  if (sourceLabel) {
+    if (phosSource === 'meal_logs') {
+      sourceLabel.innerHTML = '<span style="color:#16a34a;font-weight:600;">✓ Sourced from meal logs</span>';
+    } else if (phosSource === 'manual_entry') {
+      sourceLabel.innerHTML = '<span style="color:#2563eb;font-weight:600;">✎ Manually adjusted</span>';
+    } else {
+      sourceLabel.innerHTML = '<span style="color:var(--muted);">Sourced from default (1200mg)</span>';
+    }
+  }
+
   // IDH
   const g = plotly?.idh_gauge || {};
   if (g.baseline_pct != null) {
@@ -874,6 +958,12 @@ function updateKPIs(plotly, result) {
 
     document.getElementById('kpi-idh-delta').textContent = (g.delta >= 0 ? '+' : '') + g.delta + '%';
     document.getElementById('kpi-idh-delta').style.color = g.delta > 0 ? '#dc2626' : '#16a34a';
+  }
+
+  // IDH model warning banner
+  const warningEl = document.getElementById('idh-heuristic-warning');
+  if (warningEl) {
+    warningEl.style.display = idh.model_is_heuristic ? 'block' : 'none';
   }
 
   // ── BIA Details ──
@@ -993,6 +1083,33 @@ function updateKPIs(plotly, result) {
     const warnEl = document.getElementById('hemo-recirc-warning');
     if (warnEl) warnEl.textContent = 'Recirculation occurs if blood pump Qb exceeds access Doppler Qa.';
   }
+
+  // ── IDH Conformal Prediction Interval Band ──
+  const piContainer = document.getElementById('idh-pi-band-container');
+  const piBoundsText = document.getElementById('idh-pi-bounds-text');
+  const piBand = document.getElementById('idh-pi-band');
+  const scenMarker = document.getElementById('idh-scen-marker');
+  
+  if (piContainer) {
+    if (g.pi_lower_pct != null && g.pi_upper_pct != null && g.scenario_pct != null) {
+      piContainer.style.display = 'block';
+      piBoundsText.textContent = `[${g.pi_lower_pct.toFixed(1)}%, ${g.pi_upper_pct.toFixed(1)}%]`;
+      
+      const left = Math.max(0, Math.min(100, g.pi_lower_pct));
+      const right = Math.max(0, Math.min(100, g.pi_upper_pct));
+      const width = Math.max(0, right - left);
+      
+      piBand.style.left = left + '%';
+      piBand.style.width = width + '%';
+      
+      const scenPos = Math.max(0, Math.min(100, g.scenario_pct));
+      scenMarker.style.left = scenPos + '%';
+    } else {
+      piContainer.style.display = 'none';
+    }
+  }
+
+  // RBV Fluid Volume Card updates removed as per user request
 }
 
 // ── Bayesian confidence info ──────────────────────────────────────────────────
@@ -1181,9 +1298,14 @@ function renderShapPanel(result) {
 // ── Default render ──────────────────────────────────────────────────────────
 
 function renderDefault() {
+  if (document.getElementById('pintake-slider')) {
+    document.getElementById('pintake-slider').value = baselinePIntake;
+    document.getElementById('pintake-val').textContent = baselinePIntake;
+  }
   if (!defaultPlotly || !Object.keys(defaultPlotly).length) return;
   if (defaultPlotly.hb_traces?.length) renderHbChart(defaultPlotly.hb_traces);
-  if (defaultPlotly.uf_curve_traces?.length) renderUfCurve(defaultPlotly.uf_curve_traces, 10.0);
+  if (defaultPlotly.uf_curve_traces?.length) renderUfCurve(defaultPlotly.uf_curve_traces, 10.0, defaultPlotly.mortality_threshold_ml_kg_h);
+  // removed renderRbvChart call
   
   if (typeof defaultResult !== 'undefined' && defaultResult && Object.keys(defaultResult).length) {
     updateKPIs(defaultPlotly, defaultResult);
@@ -1228,6 +1350,8 @@ async function runSimulation() {
     // Hb
     if (plotly.hb_traces?.length) renderHbChart(plotly.hb_traces);
 
+    // rbv render logic removed
+
     // Kt/V adequacy
     const std = plotly.std_ktv_bar_data || {};
     const ktv = result.ktv_sim || {};
@@ -1246,7 +1370,7 @@ async function runSimulation() {
 
     // UF curve
     if (plotly.uf_curve_traces?.length) {
-      renderUfCurve(plotly.uf_curve_traces, scenario.uf_rate_ml_kg_h);
+      renderUfCurve(plotly.uf_curve_traces, scenario.uf_rate_ml_kg_h, plotly.mortality_threshold_ml_kg_h);
     }
 
     // KPIs + IDH
@@ -1294,8 +1418,10 @@ function resetAll() {
   document.getElementById('na-val').textContent = baselineSession.dialysate_sodium;
   document.getElementById('pbe-slider').value = 3.0;
   document.getElementById('pbe-val').textContent = '3.0';
-  document.getElementById('pintake-slider').value = 900;
-  document.getElementById('pintake-val').textContent = '900';
+  document.getElementById('pintake-slider').value = baselinePIntake;
+  document.getElementById('pintake-val').textContent = baselinePIntake;
+  
+  // RBV resets removed
   renderDefault();
 }
 

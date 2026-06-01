@@ -870,6 +870,25 @@ async def vascular_access_analytics(patient_id: int, request: Request, db: Sessi
     if not patient:
         raise HTTPException(status_code=404)
 
+    # Load access_failure_risk from the latest feature snapshot
+    access_failure_risk = None
+    try:
+        from database import PatientFeatureSnapshot
+        import json
+        snap = (
+            db.query(PatientFeatureSnapshot)
+            .filter(PatientFeatureSnapshot.patient_id == patient_id)
+            .order_by(PatientFeatureSnapshot.computed_at.desc())
+            .first()
+        )
+        if snap and snap.feature_vector:
+            features = snap.feature_vector
+            if isinstance(features, str):
+                features = json.loads(features)
+            access_failure_risk = features.get("access_failure_risk")
+    except Exception as exc:
+        pass
+
     # All episodes, most recent first
     episodes = (
         db.query(AccessEpisode)
@@ -987,6 +1006,7 @@ async def vascular_access_analytics(patient_id: int, request: Request, db: Sessi
         "chart_events_json": _json.dumps(chart_events),
         "chart_surveillance_json": _json.dumps(chart_surveillance),
         "user": get_user(request),
+        "access_failure_risk": access_failure_risk,
     })
 
 
@@ -1054,6 +1074,7 @@ async def mortality_risk_list(
         "total_low":  total_low,
         "total_no_data": total_no_data,
         "user":      get_user(request),
+        "calibration_source": "literature_dopps_india",
     })
 
 

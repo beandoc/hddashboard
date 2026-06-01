@@ -556,6 +556,12 @@
   </div>
   {% endif %}
 
+  {% if calibration_source == "literature_dopps_india" %}
+  <div class="mortality-footnote" style="margin-top:24px; padding:12px; font-size:0.75rem; color:var(--muted); text-align:center; border-top:1px solid var(--border);">
+    ℹ️ Mortality risk calibration uses published Indian HD population parameters. Local recalibration requires ≥50 confirmed deaths.
+  </div>
+  {% endif %}
+
 </div>
 </body>
 </html>

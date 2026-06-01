@@ -410,6 +410,34 @@ def train_acm_model(db: "Session") -> Dict:
             if _JOBLIB_AVAILABLE:
                 os.makedirs("models", exist_ok=True)
                 joblib.dump(pipeline, MODEL_PATH)
+                
+                try:
+                    from database import ModelArtifact, SessionLocal
+                    _art_db = SessionLocal()
+                    try:
+                        with open(MODEL_PATH, "rb") as f_bin:
+                            model_bin_data = f_bin.read()
+                        
+                        training_data_hash = hashlib.sha256(
+                            json.dumps(X, sort_keys=True).encode()
+                        ).hexdigest()
+                        
+                        art = ModelArtifact(
+                            model_name          = "acm_v1",
+                            version             = _acm_trained_at,
+                            trained_at          = datetime.utcnow(),
+                            training_data_hash  = training_data_hash,
+                            metrics_json        = json.dumps(_acm_metrics),
+                            feature_schema_json = json.dumps(ACM_FEATURE_NAMES),
+                            artifact_path       = MODEL_PATH,
+                            model_binary        = model_bin_data,
+                        )
+                        _art_db.add(art)
+                        _art_db.commit()
+                    finally:
+                        _art_db.close()
+                except Exception as _art_exc:
+                    logger.warning("Failed to register fallback acm_v1 ModelArtifact: %s", _art_exc)
 
     logger.info(f"ACM hybrid training: {n_ode_fitted} ODE fits, residual={result}")
     return {
@@ -420,12 +448,48 @@ def train_acm_model(db: "Session") -> Dict:
     }
 
 
+def _restore_model_from_db() -> bool:
+    """
+    Restore acm_v1 model from ModelArtifact database binary if it exists.
+    Writes the binary to MODEL_PATH.
+    Returns True if successfully restored, False otherwise.
+    """
+    try:
+        from database import SessionLocal, ModelArtifact
+        db = SessionLocal()
+        try:
+            art = (
+                db.query(ModelArtifact)
+                .filter(ModelArtifact.model_name == "acm_v1")
+                .filter(ModelArtifact.model_binary != None)
+                .order_by(ModelArtifact.trained_at.desc())
+                .first()
+            )
+            if art:
+                # Ensure target directory exists
+                os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+                
+                # Write model binary
+                with open(MODEL_PATH, "wb") as f:
+                    f.write(art.model_binary)
+                
+                logger.info("Successfully restored acm_v1 model from DB.")
+                return True
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("Failed to restore acm_v1 model from DB: %s", exc)
+    return False
+
+
 def _load_acm_model() -> bool:
     global _acm_pipeline, _acm_trained_at
     if _acm_pipeline is not None:
         return True
     if not _JOBLIB_AVAILABLE:
         return False
+    if not os.path.exists(MODEL_PATH):
+        _restore_model_from_db()
     if not os.path.exists(MODEL_PATH):
         return False
     try:

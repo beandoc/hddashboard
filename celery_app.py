@@ -93,6 +93,16 @@ celery_app.conf.update(
             "task":     "tasks.task_train_acm_model",
             "schedule": crontab(hour=4, minute=0, day_of_week=1),
         },
+        # Phosphate MCMC calibration — Sunday 02:00 UTC (for all active patients)
+        "phosphate-mcmc-calibration": {
+            "task":     "tasks.task_phosphate_mcmc_calibration",
+            "schedule": crontab(hour=2, minute=0, day_of_week=0),
+        },
+        # Access failure risk scoring — Sunday 02:30 UTC
+        "access-failure-risk": {
+            "task":     "tasks.task_compute_access_failure_risk",
+            "schedule": crontab(hour=2, minute=30, day_of_week=0),
+        },
     },
 )
 

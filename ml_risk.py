@@ -255,8 +255,62 @@ def _extract_analytics_features_for_inference(
 _DETERIORATION_MODEL = None
 _MODEL_LOAD_TIME = 0
 
+def _restore_model_from_db() -> bool:
+    """
+    Restore deterioration_v1 model from ModelArtifact database binary if it exists.
+    Writes the binary to _MODEL_PATH and metadata JSON to _MODEL_META_PATH.
+    Returns True if successfully restored, False otherwise.
+    """
+    try:
+        from database import SessionLocal, ModelArtifact
+        db = SessionLocal()
+        try:
+            art = (
+                db.query(ModelArtifact)
+                .filter(ModelArtifact.model_name == "deterioration_v1")
+                .filter(ModelArtifact.model_binary != None)
+                .order_by(ModelArtifact.trained_at.desc())
+                .first()
+            )
+            if art:
+                # Ensure target directory exists
+                os.makedirs(os.path.dirname(_MODEL_PATH), exist_ok=True)
+                
+                # Write model binary
+                with open(_MODEL_PATH, "wb") as f:
+                    f.write(art.model_binary)
+                
+                # Write model metadata JSON
+                meta = {
+                    "trained_at":          art.version,
+                    "feature_names":       DETERIORATION_FEATURE_NAMES,
+                    "training_data_hash":  art.training_data_hash,
+                }
+                # If metrics_json is present, parse and update
+                if art.metrics_json:
+                    try:
+                        metrics = json.loads(art.metrics_json)
+                        meta.update(metrics)
+                    except:
+                        pass
+                
+                with open(_MODEL_META_PATH, "w") as f:
+                    json.dump(meta, f, indent=2)
+                
+                logger.info("Successfully restored deterioration_v1 model from DB.")
+                return True
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("Failed to restore deterioration_v1 model from DB: %s", exc)
+    return False
+
+
 def _load_deterioration_model():
     global _DETERIORATION_MODEL, _MODEL_LOAD_TIME
+
+    if not os.path.exists(_MODEL_PATH):
+        _restore_model_from_db()
 
     if os.path.exists(_MODEL_PATH):
         try:
@@ -437,6 +491,10 @@ def train_deterioration_model(db: Session) -> dict:
         from database import SessionLocal, ModelArtifact
         _art_db = SessionLocal()
         try:
+            model_bin_data = None
+            if os.path.exists(_MODEL_PATH):
+                with open(_MODEL_PATH, "rb") as f_bin:
+                    model_bin_data = f_bin.read()
             art = ModelArtifact(
                 model_name          = "deterioration_v1",
                 version             = trained_at_str,
@@ -449,6 +507,7 @@ def train_deterioration_model(db: Session) -> dict:
                 }),
                 feature_schema_json = json.dumps(DETERIORATION_FEATURE_NAMES),
                 artifact_path       = os.path.relpath(_MODEL_PATH),
+                model_binary        = model_bin_data,
             )
             _art_db.add(art)
             _art_db.commit()

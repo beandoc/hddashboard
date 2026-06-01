@@ -288,6 +288,7 @@ async def twin_sandbox(
                 monthly_data        = records[0] if records else {},
                 monthly_records_3mo = records[:3],
                 scenario            = {},
+                db                  = db,
             )
             default_plotly = build_twin_plotly_data(default_result)
         except Exception as e:
@@ -363,6 +364,7 @@ async def twin_simulate(
             monthly_data        = records[0],
             monthly_records_3mo = records[:3],
             scenario            = scenario,
+            db                  = db,
         )
         plotly_data = build_twin_plotly_data(result)
     except Exception as e:

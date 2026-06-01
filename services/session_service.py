@@ -141,6 +141,12 @@ def create_session_record(db: Session, patient_id: int, data: dict) -> SessionRe
         reason_emergency=data.get("reason_emergency"),
         idh_episode=data.get("idh_episode", False),
         muscle_cramps=data.get("muscle_cramps", False),
+        nausea_vomiting=data.get("nausea_vomiting", False),
+        chest_pain=data.get("chest_pain", False),
+        arrhythmia=data.get("arrhythmia", False),
+        reason_early_termination=data.get("reason_early_termination"),
+        saline_bolus_count=int(data["saline_bolus_count"]) if data.get("saline_bolus_count") not in (None, "") else None,
+        antihypertensive_taken_prehd=True if data.get("antihypertensive_taken_prehd") in ("true", True) else False if data.get("antihypertensive_taken_prehd") in ("false", False) else None,
         urea_peripheral_s=data.get("urea_peripheral_s"),
         urea_arterial_a=data.get("urea_arterial_a"),
         urea_venous_v=data.get("urea_venous_v"),
@@ -245,6 +251,20 @@ def update_session_record(db: Session, session_id: int, data: dict) -> SessionRe
     sess.post_hd_dyspnea_likert = data.get("post_hd_dyspnea_likert")
     sess.is_emergency = data.get("is_emergency", False)
     sess.reason_emergency = data.get("reason_emergency")
+    sess.nausea_vomiting = data.get("nausea_vomiting", False)
+    sess.chest_pain = data.get("chest_pain", False)
+    sess.arrhythmia = data.get("arrhythmia", False)
+    sess.reason_early_termination = data.get("reason_early_termination")
+    sess.saline_bolus_count = int(data["saline_bolus_count"]) if data.get("saline_bolus_count") not in (None, "") else None
+    
+    _ah = data.get("antihypertensive_taken_prehd")
+    if _ah in ("true", True):
+        sess.antihypertensive_taken_prehd = True
+    elif _ah in ("false", False):
+        sess.antihypertensive_taken_prehd = False
+    else:
+        sess.antihypertensive_taken_prehd = None
+
     sess.urea_peripheral_s = data.get("urea_peripheral_s")
     sess.urea_arterial_a = data.get("urea_arterial_a")
     sess.urea_venous_v = data.get("urea_venous_v")

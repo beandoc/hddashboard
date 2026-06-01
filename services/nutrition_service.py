@@ -159,3 +159,47 @@ def estimate_meal_nutrients(notes: str, meal_type: str, db=None) -> tuple[float,
         round(total_pot, 1),
         round(total_calc, 1),
     )
+
+
+def get_7day_rolling_mean_phosphate(db, patient_id: int) -> dict:
+    """
+    Query the patient's meal logs for the last 30 days.
+    If the patient has >= 3 meal diary entries in the last 30 days,
+    calculate the 7-day rolling mean phosphorus (mg/day) and return
+    with source 'meal_logs'. Otherwise, return default 1200mg/day.
+    """
+    from datetime import date, timedelta
+    from sqlalchemy import and_
+    from database import PatientMealRecord
+    
+    today = date.today()
+    start_30 = today - timedelta(days=30)
+    
+    records = db.query(PatientMealRecord).filter(
+        and_(
+            PatientMealRecord.patient_id == patient_id,
+            PatientMealRecord.date >= start_30
+        )
+    ).all()
+    
+    if len(records) < 3:
+        return {"value": 1200.0, "source": "default_1200mg"}
+        
+    daily_sums = {}
+    for r in records:
+        d = r.date
+        p_val = r.phosphorus if r.phosphorus is not None else 0.0
+        daily_sums[d] = daily_sums.get(d, 0.0) + p_val
+        
+    start_7 = today - timedelta(days=6)
+    last_7_days_sums = [sum_val for d, sum_val in daily_sums.items() if d >= start_7]
+    
+    if last_7_days_sums:
+        avg_val = sum(last_7_days_sums) / len(last_7_days_sums)
+    else:
+        avg_val = sum(daily_sums.values()) / len(daily_sums)
+        
+    if avg_val < 100:
+        return {"value": 1200.0, "source": "default_1200mg"}
+        
+    return {"value": round(avg_val, 1), "source": "meal_logs"}

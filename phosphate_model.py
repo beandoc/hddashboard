@@ -59,7 +59,8 @@ def estimate_phosphate_kinetics(
     solve_for: str = "p_pre", # p_pre, p_intake, or p_binder
     koa_p_ratio: float = 0.5,
     hdf_pre: float = 0.0,
-    hdf_post: float = 0.0
+    hdf_post: float = 0.0,
+    kc_scale: float = 1.0
 ) -> Dict[str, Any]:
     """
     Phosphate Kinetic Model (Two-Pool) with variable intercompartmental clearance.
@@ -73,6 +74,7 @@ def estimate_phosphate_kinetics(
     
     # 2. Intercompartmental Clearance (Kc)
     kc_base = (90.0 * weight / 70.0) if sex.lower().startswith('m') else (80.0 * weight / 70.0)
+    kc_base *= kc_scale
     
     # 3. Dialyzer Clearance (Michaels for Phosphate + HDF)
     def get_k_dialyzer(q_f: float) -> float:
