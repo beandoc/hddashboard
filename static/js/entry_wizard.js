@@ -11,7 +11,7 @@
 
 const WIZ_TOTAL    = 4;
 const WIZ_NAMES    = ['Parameters', 'Lab Values', 'Medications', 'Review'];
-const WIZ_REQUIRED = { 1: [], 2: ['hb'], 3: [], 4: [] };
+const WIZ_REQUIRED = { 1: [], 2: [], 3: [], 4: [] };
 
 // WIZ_SS_KEY is injected by the template as a data attribute on the form element.
 // e.g. <form data-wiz-key="hd_wiz_42_2026-05">

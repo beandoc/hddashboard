@@ -5,10 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Entry · {{ patient.name }} · {{ month_label }} | HD Dashboard</title>
-    <link rel="preload" href="/static/vendor/fonts/fonts.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
-    <noscript><link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/></noscript>
-    <link rel="preload" href="/static/vendor/fonts/material-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'"/>
-    <noscript><link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/></noscript>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
     <link rel="stylesheet" href="/static/css/entry_form.css">
 </head>
 <body>
@@ -190,7 +188,7 @@
                     <div class="grid">
                         <div class="form-group">
                             <label>Hemoglobin (g/dL)</label>
-                            <input type="number" step="0.01" name="hb" inputmode="decimal" value="{{ record.hb or '' if record else '' }}" required>
+                            <input type="number" step="0.01" name="hb" inputmode="decimal" value="{{ record.hb or '' if record else '' }}">
                         </div>
                         <div class="form-group">
                             <label>Hematocrit (%)</label>

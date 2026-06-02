@@ -925,9 +925,20 @@ def get_fleet_acm_summary(db: "Session") -> Dict:
 
         # Recent Hb statistics from monthly records (last 3 months)
         from dashboard_logic import get_current_month_str
-        import calendar
+        current_month = get_current_month_str()
+        y, m = int(current_month[:4]), int(current_month[5:7])
+        recent_months = []
+        for i in range(3):
+            target_m = m - i
+            target_y = y
+            while target_m <= 0:
+                target_m += 12
+                target_y -= 1
+            recent_months.append(f"{target_y}-{target_m:02d}")
+
         recent_hb = db.query(MonthlyRecord.hb).filter(
-            MonthlyRecord.hb.isnot(None)
+            MonthlyRecord.hb.isnot(None),
+            MonthlyRecord.record_month.in_(recent_months)
         ).all()
         hb_vals = [r[0] for r in recent_hb if r[0] is not None]
         on_target = sum(1 for v in hb_vals if HB_TARGET_LOW <= v <= HB_TARGET_HIGH)
