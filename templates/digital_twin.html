@@ -377,9 +377,9 @@
         <div class="param-label">UF rate <span class="val" id="uf-val">{{ uf_default }}</span> mL/kg/h
           <span style="font-size:0.65rem;color:#dc2626;font-weight:700;" id="uf-warning-inline"></span>
         </div>
-        <input type="range" id="uf-slider" min="6.0" max="16.0" step="0.5" value="{{ uf_default }}"
+        <input type="range" id="uf-slider" min="3.5" max="16.0" step="0.5" value="{{ uf_default }}"
                oninput="document.getElementById('uf-val').textContent=parseFloat(this.value).toFixed(1); updateUfWarning(parseFloat(this.value))"/>
-        <div class="range-bounds"><span>6</span><span>16 mL/kg/h</span></div>
+        <div class="range-bounds"><span>3.5</span><span>16 mL/kg/h</span></div>
       </div>
       <div class="param-group">
         <div class="param-label">Dialysate temp <span class="val" id="temp-val">{{ baseline_session.dialysate_temp or 36.5 }}</span> °C</div>
@@ -899,6 +899,8 @@ function renderPhosChart(pd) {
 }
 
 function renderUfCurve(traces, selectedRate, thresholdRate) {
+  window.currentUfTraces = traces;
+  window.currentMortalityThresh = thresholdRate || 4.0;
   const thresh = thresholdRate || 4.0;
   const shapes = [
     {
@@ -951,6 +953,7 @@ function renderUfCurve(traces, selectedRate, thresholdRate) {
     xaxis:{title:'UF Rate (mL/kg/h)', gridcolor:'#f0f0f0'},
     yaxis:{title:'IDH Risk (%)', range:[0,100], gridcolor:'#f0f0f0'},
     shapes, annotations, plot_bgcolor:'white', paper_bgcolor:'white',
+    showlegend: false
   }, {responsive:true, displayModeBar:false});
 }
 
@@ -1756,8 +1759,21 @@ function updateUfWarning(val) {
   }
 }
 
+function updateUfChartProposedLine(val) {
+  if (window.currentUfTraces && window.currentUfTraces.length) {
+    renderUfCurve(window.currentUfTraces, val, window.currentMortalityThresh);
+  }
+}
+
 // Attach live slider input event listeners
-['uf-slider', 'temp-slider', 'na-slider'].forEach(id => {
+const ufSliderEl = document.getElementById('uf-slider');
+if (ufSliderEl) {
+  ufSliderEl.addEventListener('input', function() {
+    updateGuardrailsFromSliders();
+    updateUfChartProposedLine(parseFloat(this.value));
+  });
+}
+['temp-slider', 'na-slider'].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener('input', updateGuardrailsFromSliders);
