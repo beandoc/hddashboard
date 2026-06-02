@@ -207,3 +207,74 @@ def test_measured_cardiac_output():
     
     db.close()
 
+
+def test_twin_simulation_fluid_volume_params():
+    from db.models.ml import TwinSimulation
+    db = TestingSessionLocal()
+    
+    # Save a TwinSimulation record with fluid_volume_params
+    sim = TwinSimulation(
+        patient_id=99,
+        scenario_json='{"uf_rate": 10.0}',
+        baseline_session_json='{}',
+        hb_sim_json='{}',
+        ktv_sim_json='{}',
+        idh_sim_json='{}',
+        uf_curve_json='{}',
+        fluid_volume_params={"optimal_uf_rate_ml_kg_h": 8.5}
+    )
+    db.add(sim)
+    db.commit()
+    
+    # Retrieve it and verify
+    retrieved = db.query(TwinSimulation).filter(TwinSimulation.patient_id == 99).first()
+    assert retrieved is not None
+    assert retrieved.fluid_volume_params is not None
+    assert retrieved.fluid_volume_params["optimal_uf_rate_ml_kg_h"] == 8.5
+    
+    db.close()
+
+
+def test_patient_access_failure_risk_endpoint():
+    from unittest.mock import MagicMock
+    import asyncio
+    import routers.api_v1
+    from db.models.clinical import AccessSurveillanceRecord
+
+    # Add a second AccessSurveillanceRecord so patient 99 has >= 2 records
+    db = TestingSessionLocal()
+    p = db.query(Patient).filter(Patient.id == 99).first()
+    ep = p.access_episodes[0]
+    
+    # Add second Doppler surveillance record
+    doppler2 = AccessSurveillanceRecord(
+        patient_id=p.id,
+        episode_id=ep.id,
+        surveillance_date=date(2026, 5, 10),
+        clinical_trigger="Followup",
+        qa_by_imaging=320.0,
+        psv_at_stenosis=240.0,
+        stenosis_pct=50.0,
+        finding="moderate_stenosis"
+    )
+    db.add(doppler2)
+    db.commit()
+    
+    # Monkeypatch _require_staff to bypass authentication checks
+    original_require_staff = routers.api_v1._require_staff
+    routers.api_v1._require_staff = lambda req: MagicMock()
+    
+    try:
+        mock_req = MagicMock()
+        # Call the endpoint function directly
+        coro = routers.api_v1.v1_patient_access_failure_risk(patient_id=99, request=mock_req, db=db)
+        res = asyncio.run(coro)
+        
+        # Assertions
+        assert res is not None
+        assert res["available"] is True
+        assert "probability_90d" in res
+        assert "risk_level" in res
+    finally:
+        routers.api_v1._require_staff = original_require_staff
+        db.close()

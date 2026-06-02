@@ -220,6 +220,7 @@ class TwinSimulation(Base):
 
     # Outcome tracking (back-filled)
     actual_outcomes_json = Column(Text, nullable=True)
+    fluid_volume_params = Column(JSONB, nullable=True)
 
     patient = relationship("Patient", foreign_keys=[patient_id])
 

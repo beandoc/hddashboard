@@ -389,6 +389,7 @@ async def twin_simulate(
                 "phosphate": result.get("phosphate"),
                 "cascade":   result.get("cascade"),
             }),
+            fluid_volume_params   = result.get("fluid_volume"),
         )
         db.add(sim)
         db.commit()

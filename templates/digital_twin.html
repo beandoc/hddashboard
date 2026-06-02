@@ -584,6 +584,17 @@
         <div style="margin-top:8px;font-size:0.72rem;color:var(--muted);">
           Steady-state 14-day RK4. Target: 3.5–5.5 mg/dL (KDIGO). Measured: <strong>{{ current_phosphorus or '—' }} mg/dL</strong>.
         </div>
+        <!-- MCMC HDI display -->
+        <div id="phos-mcmc-info" style="display:none; margin-top:10px; padding:10px 12px; background:#f0fdf4; border-radius:8px; border:1px solid #bbf7d0; font-size:0.72rem; color:#166534;">
+          <div style="display:flex; align-items:center; gap:8px; justify-content:space-between;">
+            <span style="font-weight:700;">🧠 Bayesian Parameter Calibration (MCMC)</span>
+            <span id="phos-mcmc-method" style="background:#dcfce7;color:#15803d;font-size:0.68rem;padding:2px 8px;border-radius:6px;font-weight:600;">—</span>
+          </div>
+          <div style="margin-top:6px; line-height:1.5;">
+            Intercompartmental scale (k_c): <strong id="phos-kc-scale-val">—</strong> <span style="color:#15803d;font-family:monospace;" id="phos-kc-scale-hdi"></span><br>
+            Forecast pre-P: <strong id="phos-forecast-val">—</strong> <span style="color:#15803d;font-family:monospace;" id="phos-forecast-hdi"></span> (80% Highest Density Interval)
+          </div>
+        </div>
         <div class="loading-overlay" id="phos-load">Simulating phosphate kinetics…</div>
       </div>
       <div class="chart-card">
@@ -599,7 +610,30 @@
       </div>
     </div>
 
-    <!-- RBV section removed as per user request -->
+    <!-- Relative Blood Volume (RBV) & Capillary Refill Card -->
+    <div class="chart-card">
+      <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>💧 Relative Blood Volume (RBV) &amp; Capillary Refill</span>
+        <span id="rbv-status-badge" class="badge" style="background:#e2e8f0;color:#64748b;font-size:0.68rem;padding:2px 8px;border-radius:6px;font-weight:600;">No Simulation</span>
+      </div>
+      <div class="grid-2" style="margin-top:10px;">
+        <div id="rbv-chart" style="height:200px;"></div>
+        <div style="padding-left:10px; display:flex; flex-direction:column; justify-content:center; gap:12px;">
+          <div>
+            <div style="font-size:0.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;">RBV Nadir</div>
+            <div style="font-size:1.55rem;font-weight:900;color:var(--text);font-family:'Outfit',sans-serif;margin-top:2px;" id="rbv-nadir-val">—</div>
+          </div>
+          <div>
+            <div style="font-size:0.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;">Optimal Max Safe UF Rate</div>
+            <div style="font-size:1.55rem;font-weight:900;color:var(--green);font-family:'Outfit',sans-serif;margin-top:2px;" id="rbv-optimal-val">—</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;line-height:1.4;">
+              Maximum rate that keeps the simulated intravascular blood volume above the critical nadir threshold (8% to 10% reduction, Abohtyra 2018).
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="loading-overlay" id="rbv-load">Simulating fluid volume kinetics…</div>
+    </div>
 
     <!-- BIA Body Composition + Vascular Access Hemodynamics -->
     <div class="grid-2" style="margin-top:16px;">
@@ -883,7 +917,38 @@ function riskColor(pct) {
   return pct < 25 ? 'risk-low' : pct < 50 ? 'risk-moderate' : pct < 75 ? 'risk-high' : 'risk-very-high';
 }
 
-// rbv render logic removed as per user request
+function renderRbvChart(fv) {
+  const chartDiv = document.getElementById('rbv-chart');
+  if (!chartDiv || !fv || !fv.rbv_trace) return;
+  const traces = [
+    {
+      x: fv.rbv_trace.x,
+      y: fv.rbv_trace.y,
+      name: fv.rbv_trace.name,
+      mode: 'lines',
+      line: { color: '#2563eb', width: 3 },
+      hovertemplate: 't=%{x:.0f} min  RBV=%{y:.1%}<extra></extra>'
+    }
+  ];
+  if (fv.threshold_trace) {
+    traces.push({
+      x: fv.threshold_trace.x,
+      y: fv.threshold_trace.y,
+      name: fv.threshold_trace.name,
+      mode: 'lines',
+      line: { color: '#dc2626', dash: 'dash', width: 1.5 },
+      hovertemplate: 'Threshold: %{y:.1%}<extra></extra>'
+    });
+  }
+  Plotly.newPlot('rbv-chart', traces, {
+    margin: { t: 10, l: 45, r: 10, b: 40 },
+    xaxis: { title: 'Time (min)', gridcolor: '#f1f5f9' },
+    yaxis: { title: 'RBV (%)', tickformat: '.0%', gridcolor: '#f1f5f9', range: [0.75, 1.05] },
+    plot_bgcolor: 'white',
+    paper_bgcolor: 'white',
+    showlegend: false
+  }, { responsive: true, displayModeBar: false });
+}
 
 function updateKPIs(plotly, result) {
   const ktv  = result?.ktv_sim  || {};
@@ -935,6 +1000,47 @@ function updateKPIs(plotly, result) {
       sourceLabel.innerHTML = '<span style="color:#2563eb;font-weight:600;">✎ Manually adjusted</span>';
     } else {
       sourceLabel.innerHTML = '<span style="color:var(--muted);">Sourced from default (1200mg)</span>';
+    }
+  }
+
+  // Update Phosphate MCMC Info
+  const mcmcPost = phos.mcmc_posterior;
+  const mcmcInfoEl = document.getElementById('phos-mcmc-info');
+  const mcmcMethodEl = document.getElementById('phos-mcmc-method');
+  const kcScaleEl = document.getElementById('phos-kc-scale-val');
+  const kcScaleHdiEl = document.getElementById('phos-kc-scale-hdi');
+  const forecastEl = document.getElementById('phos-forecast-val');
+  const forecastHdiEl = document.getElementById('phos-forecast-hdi');
+
+  if (mcmcInfoEl) {
+    if (mcmcPost && mcmcPost.calibrated) {
+      mcmcInfoEl.style.display = 'block';
+      if (mcmcMethodEl) {
+        mcmcMethodEl.textContent = mcmcPost.method === 'pymc_nuts' ? 'PyMC NUTS MCMC' : 
+                                   mcmcPost.method === 'conjugate_gaussian' ? 'Conjugate Gaussian update' : 'Prior Only';
+      }
+      if (kcScaleEl) {
+        kcScaleEl.textContent = mcmcPost.kc_scale_mean != null ? mcmcPost.kc_scale_mean.toFixed(3) : '—';
+      }
+      if (kcScaleHdiEl) {
+        if (mcmcPost.kc_scale_hdi80) {
+          kcScaleHdiEl.textContent = ` [${mcmcPost.kc_scale_hdi80[0].toFixed(3)} - ${mcmcPost.kc_scale_hdi80[1].toFixed(3)}]`;
+        } else {
+          kcScaleHdiEl.textContent = '';
+        }
+      }
+      if (forecastEl) {
+        forecastEl.textContent = mcmcPost.p_pre_forecast != null ? mcmcPost.p_pre_forecast.toFixed(2) : '—';
+      }
+      if (forecastHdiEl) {
+        if (mcmcPost.p_pre_hdi80) {
+          forecastHdiEl.textContent = ` [${mcmcPost.p_pre_hdi80[0].toFixed(2)} - ${mcmcPost.p_pre_hdi80[1].toFixed(2)}]`;
+        } else {
+          forecastHdiEl.textContent = '';
+        }
+      }
+    } else {
+      mcmcInfoEl.style.display = 'none';
     }
   }
 
@@ -1109,7 +1215,45 @@ function updateKPIs(plotly, result) {
     }
   }
 
-  // RBV Fluid Volume Card updates removed as per user request
+  // Update RBV Card
+  const fv = plotly?.fluid_volume || {};
+  const fvSummary = fv.summary || {};
+  const nadirVal = fvSummary.rbv_nadir;
+  const optimalVal = fvSummary.optimal_uf_rate_ml_kg_h;
+  const idhPred = fvSummary.idh_predicted;
+
+  const rbvBadge = document.getElementById('rbv-status-badge');
+  const nadirEl = document.getElementById('rbv-nadir-val');
+  const optimalEl = document.getElementById('rbv-optimal-val');
+
+  if (rbvBadge) {
+    if (nadirVal != null) {
+      if (idhPred) {
+        rbvBadge.textContent = 'High IDH Risk (Nadir Critical)';
+        rbvBadge.style.background = '#fee2e2';
+        rbvBadge.style.color = '#991b1b';
+      } else {
+        rbvBadge.textContent = 'RBV Safe Zone';
+        rbvBadge.style.background = '#dcfce7';
+        rbvBadge.style.color = '#166534';
+      }
+    } else {
+      rbvBadge.textContent = 'No Simulation';
+      rbvBadge.style.background = '#e2e8f0';
+      rbvBadge.style.color = '#64748b';
+    }
+  }
+
+  if (nadirEl) {
+    nadirEl.textContent = nadirVal != null ? (nadirVal * 100).toFixed(1) + '%' : '—';
+    if (nadirVal != null) {
+      nadirEl.style.color = idhPred ? '#dc2626' : 'var(--text)';
+    }
+  }
+
+  if (optimalEl) {
+    optimalEl.textContent = optimalVal != null ? optimalVal.toFixed(1) + ' mL/kg/h' : '—';
+  }
 }
 
 // ── Bayesian confidence info ──────────────────────────────────────────────────
@@ -1305,7 +1449,7 @@ function renderDefault() {
   if (!defaultPlotly || !Object.keys(defaultPlotly).length) return;
   if (defaultPlotly.hb_traces?.length) renderHbChart(defaultPlotly.hb_traces);
   if (defaultPlotly.uf_curve_traces?.length) renderUfCurve(defaultPlotly.uf_curve_traces, 10.0, defaultPlotly.mortality_threshold_ml_kg_h);
-  // removed renderRbvChart call
+  if (defaultPlotly.fluid_volume) renderRbvChart(defaultPlotly.fluid_volume);
   
   if (typeof defaultResult !== 'undefined' && defaultResult && Object.keys(defaultResult).length) {
     updateKPIs(defaultPlotly, defaultResult);
@@ -1334,7 +1478,7 @@ async function runSimulation() {
     p_intake_mg_day:  parseInt(document.getElementById('pintake-slider').value),
   };
 
-  showLoad(['hb-load','ktv-load','kd-load','idh-load','phos-load','uf-load','shap-load']);
+  showLoad(['hb-load','ktv-load','kd-load','idh-load','phos-load','uf-load','shap-load', 'rbv-load']);
 
   try {
     const resp = await fetch(`/twin/${PATIENT_ID}/simulate`, {
@@ -1350,7 +1494,8 @@ async function runSimulation() {
     // Hb
     if (plotly.hb_traces?.length) renderHbChart(plotly.hb_traces);
 
-    // rbv render logic removed
+    // RBV
+    if (plotly.fluid_volume) renderRbvChart(plotly.fluid_volume);
 
     // Kt/V adequacy
     const std = plotly.std_ktv_bar_data || {};
@@ -1391,7 +1536,7 @@ async function runSimulation() {
   } catch(e) {
     alert('Network error: ' + e.message);
   } finally {
-    hideLoad(['hb-load','ktv-load','kd-load','idh-load','phos-load','uf-load','shap-load']);
+    hideLoad(['hb-load','ktv-load','kd-load','idh-load','phos-load','uf-load','shap-load', 'rbv-load']);
     btn.disabled = false;
     btn.textContent = '▶ Run All 5 Domains';
   }
@@ -1421,7 +1566,28 @@ function resetAll() {
   document.getElementById('pintake-slider').value = baselinePIntake;
   document.getElementById('pintake-val').textContent = baselinePIntake;
   
-  // RBV resets removed
+  // Reset RBV values
+  const rbvBadge = document.getElementById('rbv-status-badge');
+  if (rbvBadge) {
+    rbvBadge.textContent = 'No Simulation';
+    rbvBadge.style.background = '#e2e8f0';
+    rbvBadge.style.color = '#64748b';
+  }
+  const nadirEl = document.getElementById('rbv-nadir-val');
+  if (nadirEl) {
+    nadirEl.textContent = '—';
+    nadirEl.style.color = 'var(--text)';
+  }
+  const optimalEl = document.getElementById('rbv-optimal-val');
+  if (optimalEl) {
+    optimalEl.textContent = '—';
+  }
+
+  const mcmcInfoEl = document.getElementById('phos-mcmc-info');
+  if (mcmcInfoEl) {
+    mcmcInfoEl.style.display = 'none';
+  }
+
   renderDefault();
 }
 

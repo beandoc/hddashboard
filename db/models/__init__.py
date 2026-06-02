@@ -15,7 +15,16 @@ from db.models.patient import (
 from db.models.auth import User
 from db.models.records import MonthlyRecord, SustainabilityRecord, DryWeightAssessment
 from db.models.sessions import SessionRecord, InterimLabRecord, AlertLog
-from db.models.clinical import PatientReminder, ClinicalEvent, PatientSymptomReport, HospitalisationEvent
+from db.models.clinical import (
+    PatientReminder,
+    ClinicalEvent,
+    PatientSymptomReport,
+    HospitalisationEvent,
+    AccessEpisode,
+    AccessEvent,
+    AccessSurveillanceRecord,
+    AccessAlertOverride,
+)
 from db.models.nutrition import PatientMealRecord, FoodDatabaseItem
 from db.models.research import ResearchProject, ResearchRecord
 from db.models.ml import (
@@ -50,6 +59,10 @@ __all__ = [
     "ClinicalEvent",
     "PatientSymptomReport",
     "HospitalisationEvent",
+    "AccessEpisode",
+    "AccessEvent",
+    "AccessSurveillanceRecord",
+    "AccessAlertOverride",
     "PatientMealRecord",
     "FoodDatabaseItem",
     "ResearchProject",
@@ -63,3 +76,4 @@ __all__ = [
     "ACMRecommendation",
     "TwinSimulation",
 ]
+

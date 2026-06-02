@@ -890,25 +890,24 @@ def task_compute_access_failure_risk():
                 surv_recs = (
                     db.query(AccessSurveillanceRecord)
                     .filter(AccessSurveillanceRecord.patient_id == p.id)
-                    .order_by(AccessSurveillanceRecord.record_date.desc())
+                    .order_by(AccessSurveillanceRecord.surveillance_date.desc())
                     .limit(6)
                     .all()
                 )
                 surv_dicts = [
                     {
-                        "qa_ml_min":         r.qa_ml_min,
-                        "recirculation_pct": r.recirculation_pct,
-                        "psv_cm_s":          getattr(r, "psv_cm_s", None),
+                        "qa_ml_min":         r.qa_by_imaging,
+                        "recirculation_pct": getattr(r, "recirculation_pct", 0.0),
+                        "psv_cm_s":          r.psv_at_stenosis,
                         "ri":                getattr(r, "ri", None),
-                        "stenosis_pct":      getattr(r, "stenosis_pct", None),
-                        "record_date":       r.record_date,
+                        "stenosis_pct":      r.stenosis_pct,
+                        "record_date":       r.surveillance_date,
                     }
                     for r in surv_recs
                 ]
                 va = (
                     db.query(PatientVascularAccess)
                     .filter(PatientVascularAccess.patient_id == p.id)
-                    .order_by(PatientVascularAccess.id.desc())
                     .first()
                 )
                 thrombosis_count = (

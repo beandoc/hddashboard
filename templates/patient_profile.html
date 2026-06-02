@@ -1012,9 +1012,12 @@
                  ═══════════════════════════════════════════════════════════════ -->
             <div class="card" id="access-history-card">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-                    <h2 class="section-title" style="font-size:1rem; margin:0;">
-                        <i class="material-icons" aria-hidden="true">settings_input_component</i> Vascular Access History
-                    </h2>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <h2 class="section-title" style="font-size:1rem; margin:0;">
+                            <i class="material-icons" aria-hidden="true">settings_input_component</i> Vascular Access History
+                        </h2>
+                        <span id="access-failure-risk-badge" class="badge" style="display:none; font-size:0.75rem; padding:3px 10px; border-radius:12px; font-weight:700;"></span>
+                    </div>
                     <button onclick="openAccessEpisodeModal()"
                             class="btn-action btn-primary"
                             style="padding:6px 12px; font-size:0.78rem;"
@@ -1671,6 +1674,39 @@
     const STATUS_COLORS = { confirmed: '#16a34a', pending_review: '#d97706', ruled_out: '#94a3b8' };
     const PRIORITY_COLORS = { urgent: '#b91c1c', this_week: '#92400e', routine: '#166534' };
 
+    async function loadAccessFailureRisk() {
+        const badge = document.getElementById('access-failure-risk-badge');
+        if (!badge) return;
+        try {
+            const res = await fetch(`/api/v1/patients/${PATIENT_ID}/access-failure-risk`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.available) {
+                const prob = (data.probability_90d * 100).toFixed(0);
+                const level = data.risk_level || 'Low';
+                badge.style.display = 'inline-block';
+                badge.textContent = `90d Failure Risk: ${prob}% (${level})`;
+                if (level.toLowerCase() === 'high') {
+                    badge.style.background = '#fee2e2';
+                    badge.style.color = '#b91c1c';
+                    badge.style.border = '1px solid #fecaca';
+                } else if (level.toLowerCase() === 'moderate') {
+                    badge.style.background = '#fef3c7';
+                    badge.style.color = '#92400e';
+                    badge.style.border = '1px solid #fde68a';
+                } else {
+                    badge.style.background = '#dcfce7';
+                    badge.style.color = '#166534';
+                    badge.style.border = '1px solid #bbf7d0';
+                }
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (e) {
+            console.error('Failed to load access failure risk:', e);
+        }
+    }
+
     async function loadAccessHistory() {
         const container = document.getElementById('access-episodes-container');
         try {
@@ -1679,9 +1715,11 @@
             window._accessEpisodeCache = data;
             if (!data.length) {
                 container.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:0.85rem;"><i class="material-icons" style="font-size:2rem;opacity:0.25;display:block;">settings_input_component</i>No access episodes recorded. Click "New Episode" to begin.</div>';
+                loadAccessFailureRisk();
                 return;
             }
             container.innerHTML = data.map(d => renderEpisodeCard(d)).join('');
+            loadAccessFailureRisk();
         } catch(e) {
             container.innerHTML = '<div style="color:#ef4444;font-size:0.82rem;padding:12px;">Failed to load access history.</div>';
         }

@@ -46,6 +46,10 @@ from db.models import (
     ClinicalEvent,
     PatientSymptomReport,
     HospitalisationEvent,
+    AccessEpisode,
+    AccessEvent,
+    AccessSurveillanceRecord,
+    AccessAlertOverride,
     PatientMealRecord,
     FoodDatabaseItem,
     ResearchProject,
@@ -95,6 +99,10 @@ __all__ = [
     "ClinicalEvent",
     "PatientSymptomReport",
     "HospitalisationEvent",
+    "AccessEpisode",
+    "AccessEvent",
+    "AccessSurveillanceRecord",
+    "AccessAlertOverride",
     "PatientMealRecord",
     "FoodDatabaseItem",
     "ResearchProject",
@@ -108,3 +116,4 @@ __all__ = [
     "ACMRecommendation",
     "TwinSimulation",
 ]
+

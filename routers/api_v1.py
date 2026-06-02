@@ -403,6 +403,7 @@ async def v1_schema_version():
             "GET /api/v1/at-risk-trends",
             "GET /api/v1/patients/{patient_id}/latest-monthly",
             "GET /api/v1/patients/{patient_id}/feature-history",
+            "GET /api/v1/patients/{patient_id}/access-failure-risk",
         ],
     )
 
@@ -565,3 +566,70 @@ async def v1_patient_feature_history(
         }
         for s in snaps
     ])
+
+
+@router.get("/patients/{patient_id}/access-failure-risk", summary="Vascular access failure risk")
+async def v1_patient_access_failure_risk(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_staff(request)
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    from database import AccessSurveillanceRecord, PatientVascularAccess, ClinicalEvent, SessionRecord as SR
+    from services.access_failure_model import compute_access_failure_risk
+
+    surv_recs = (
+        db.query(AccessSurveillanceRecord)
+        .filter(AccessSurveillanceRecord.patient_id == patient_id)
+        .order_by(AccessSurveillanceRecord.surveillance_date.desc())
+        .limit(6)
+        .all()
+    )
+    surv_dicts = [
+        {
+            "qa_ml_min":         r.qa_by_imaging,
+            "recirculation_pct": getattr(r, "recirculation_pct", 0.0),
+            "psv_cm_s":          r.psv_at_stenosis,
+            "ri":                getattr(r, "ri", None),
+            "stenosis_pct":      r.stenosis_pct,
+            "record_date":       r.surveillance_date,
+        }
+        for r in surv_recs
+    ]
+
+    if len(surv_dicts) < 2:
+        return {
+            "available":      False,
+            "error":          "Minimum 2 Doppler surveillance records required.",
+            "model_trained":  False,
+        }
+
+    va = (
+        db.query(PatientVascularAccess)
+        .filter(PatientVascularAccess.patient_id == patient_id)
+        .first()
+    )
+    thrombosis_count = (
+        db.query(ClinicalEvent)
+        .filter(ClinicalEvent.patient_id == patient_id,
+                ClinicalEvent.event_type.in_(["thrombosis", "av_fistula_thrombosis"]))
+        .count()
+    )
+    access_info = {
+        "access_type":      va.access_type if va else "avf",
+        "creation_date":    va.creation_date if va else None,
+        "thrombosis_count": thrombosis_count,
+    }
+    total_sess = db.query(SR).filter(SR.patient_id == patient_id).count()
+    diff_count = db.query(SR).filter(SR.patient_id == patient_id, SR.cannulation_difficulty == True).count()
+    session_stats = {"total_sessions": total_sess, "cannulation_difficulty_count": diff_count}
+
+    try:
+        risk = compute_access_failure_risk(surv_dicts, access_info, session_stats)
+        return jsonable_encoder(risk)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

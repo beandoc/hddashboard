@@ -314,7 +314,7 @@ def train_access_failure_model(db) -> Dict:
         surveillance = (
             _db.query(AccessSurveillanceRecord)
             .filter(AccessSurveillanceRecord.patient_id == p.id)
-            .order_by(AccessSurveillanceRecord.record_date.desc())
+            .order_by(AccessSurveillanceRecord.surveillance_date.desc())
             .all()
         )
         if len(surveillance) < 2:
@@ -324,7 +324,6 @@ def train_access_failure_model(db) -> Dict:
         va = (
             _db.query(PatientVascularAccess)
             .filter(PatientVascularAccess.patient_id == p.id)
-            .order_by(PatientVascularAccess.id.desc())
             .first()
         )
         thrombosis_count = (
@@ -364,12 +363,12 @@ def train_access_failure_model(db) -> Dict:
 
         recs_dicts = [
             {
-                "qa_ml_min":          r.qa_ml_min,
-                "recirculation_pct":  r.recirculation_pct,
-                "psv_cm_s":           getattr(r, "psv_cm_s", None),
+                "qa_ml_min":          r.qa_by_imaging,
+                "recirculation_pct":  getattr(r, "recirculation_pct", 0.0),
+                "psv_cm_s":           r.psv_at_stenosis,
                 "ri":                 getattr(r, "ri", None),
-                "stenosis_pct":       getattr(r, "stenosis_pct", None),
-                "record_date":        r.record_date,
+                "stenosis_pct":       r.stenosis_pct,
+                "record_date":        r.surveillance_date,
             }
             for r in surveillance
         ]

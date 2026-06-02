@@ -801,6 +801,7 @@ def simulate_phosphate(
     # Use MCMC-calibrated ODE parameters when available (Bangsgaard 2023)
     mcmc_kc_scale  = None
     mcmc_koa_ratio = None
+    mcmc_posterior = None
     try:
         from phosphate_mcmc import get_patient_phosphate_posterior
         pid = patient_info.get("id")
@@ -812,6 +813,7 @@ def simulate_phosphate(
                 if mcmc_post:
                     mcmc_kc_scale  = mcmc_post.get("kc_scale_mean")
                     mcmc_koa_ratio = mcmc_post.get("koa_ratio_mean")
+                    mcmc_posterior = mcmc_post
             finally:
                 _pdb.close()
     except Exception:
@@ -909,6 +911,7 @@ def simulate_phosphate(
         "mcmc_koa_ratio":  mcmc_koa_ratio,
         "mcmc_kc_scale":   mcmc_kc_scale,
         "mcmc_calibrated": mcmc_koa_ratio is not None,
+        "mcmc_posterior":  mcmc_posterior,
     }
 
 
@@ -1266,6 +1269,7 @@ def build_twin_plotly_data(twin_result: Dict) -> Dict:
     uf_curve    = twin_result.get("uf_curve", {})
     phosphate   = twin_result.get("phosphate", {})
     cascade     = twin_result.get("cascade", [])
+    fluid_volume= twin_result.get("fluid_volume", {})
 
     # ── Hb trajectory + 80% prediction interval ──────────────────────────────
     months_labels = [f"Month +{m}" for m in hb_sim.get("months", [])]
@@ -1416,6 +1420,7 @@ def build_twin_plotly_data(twin_result: Dict) -> Dict:
             "baseline_status":  phosphate.get("baseline_status"),
             "scenario_status":  phosphate.get("scenario_status"),
             "measured_p":       phosphate.get("p_measured"),
+            "mcmc_posterior":   phosphate.get("mcmc_posterior"),
         }
 
     return {
