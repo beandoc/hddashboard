@@ -10,9 +10,7 @@ Routes:
 """
 import json
 import logging
-from typing import Optional
-
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -64,6 +62,7 @@ def _monthly_records_dicts(db: Session, patient_id: int, limit: int = 12) -> lis
             "iv_iron_dose":       rec.iv_iron_dose,
             "pre_dialysis_urea":  rec.pre_dialysis_urea,
             "post_dialysis_urea": rec.post_dialysis_urea,
+            "phosphorus":         rec.phosphorus,
             "ufr":                rec.ufr,
             "record_month":       rec.record_month,
         }
@@ -309,6 +308,33 @@ async def twin_sandbox(
         from ml_esa import _resolve_weekly_iu_sc
         current_iu = _resolve_weekly_iu_sc(records[0])
 
+    # spKt/V: prefer recorded monthly value → simulation baseline → compute from
+    # most recent monthly record that has both pre and post urea
+    current_ktv = None
+    if records:
+        current_ktv = records[0].get("single_pool_ktv")
+        if current_ktv is None:
+            current_ktv = (default_result.get("ktv_sim", {}).get("baseline_ktv")
+                           if default_result else None)
+        if current_ktv is None:
+            from ml_twin import calculate_ktv_daugirdas
+            uf_L = (past_sessions[0].get("uf_volume") or 1500) / 1000 if past_sessions else 1.5
+            session_h = (past_sessions[0].get("actual_session_time") or 240) / 60 if past_sessions else 4.0
+            for rec in records:
+                pre  = rec.get("pre_dialysis_urea")
+                post = rec.get("post_dialysis_urea")
+                wt   = rec.get("last_prehd_weight") or rec.get("weight")
+                if pre and post and wt:
+                    post_wt = wt - uf_L
+                    ktv = calculate_ktv_daugirdas(pre, post, session_h, uf_L, post_wt)
+                    if ktv is not None and 0.5 <= ktv <= 4.0:
+                        current_ktv = round(ktv, 2)
+                    break
+        if current_ktv is not None:
+            current_ktv = round(float(current_ktv), 2)
+
+    ktv_is_recorded = bool(records and records[0].get("single_pool_ktv"))
+
     return templates.TemplateResponse("digital_twin.html", {
         "request":          request,
         "user":             user,
@@ -321,7 +347,8 @@ async def twin_sandbox(
         "current_iu":          current_iu or 0,
         "current_tsat":        records[0].get("tsat") if records else 25,
         "current_hb":          records[0].get("hb") if records else None,
-        "current_ktv":         records[0].get("single_pool_ktv") if records else None,
+        "current_ktv":         current_ktv,
+        "ktv_is_recorded":     ktv_is_recorded,
         "current_phosphorus":  records[0].get("phosphorus") if records else None,
     })
 

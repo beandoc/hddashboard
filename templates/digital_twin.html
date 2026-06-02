@@ -315,8 +315,8 @@
           <div style="font-size:1.15rem;font-weight:800;color:#7c3aed;">{{ current_hb or '—' }}<span style="font-size:0.65rem;color:var(--muted);"> g/dL</span></div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:0.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;">spKt/V</div>
-          <div style="font-size:1.15rem;font-weight:800;color:{% if current_ktv and current_ktv >= 1.2 %}#16a34a{% else %}#dc2626{% endif %};">{{ current_ktv or '—' }}</div>
+          <div style="font-size:0.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;">spKt/V{% if current_ktv and not ktv_is_recorded %} <span style="font-weight:400;font-style:italic;color:#94a3b8;" title="Computed from most recent available pre/post urea — no recorded value this month">~est</span>{% endif %}</div>
+          <div style="font-size:1.15rem;font-weight:800;color:{% if current_ktv and current_ktv >= 1.2 %}#16a34a{% elif current_ktv %}#dc2626{% else %}var(--muted){% endif %};">{{ current_ktv or '—' }}</div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:0.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;">Phosphate</div>
