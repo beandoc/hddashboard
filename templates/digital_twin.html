@@ -261,11 +261,34 @@
 
     @media (max-width: 960px) {
       .layout { grid-template-columns: 1fr; padding: 16px; }
-      .kpi-strip { grid-template-columns: repeat(3, 1fr); }
       .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .kpi-strip {
+        display: flex;
+        overflow-x: auto;
+        gap: 12px;
+        padding-bottom: 8px;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        margin-bottom: 16px;
+      }
+      .kpi-strip::-webkit-scrollbar {
+        height: 6px;
+      }
+      .kpi-strip::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+      }
+      .kpi-strip::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      .kpi {
+        flex: 0 0 170px;
+        scroll-snap-align: start;
+        text-align: center;
+      }
     }
     @media (max-width: 640px) {
-      .kpi-strip { grid-template-columns: repeat(2, 1fr); }
       .idh-grid { grid-template-columns: 1fr; }
       .page-hero { flex-direction: column; align-items: flex-start; padding: 16px; }
       .page-hero > div { width: 100%; }
@@ -274,8 +297,73 @@
       .shap-feat-label { width: 100%; text-align: left; margin-bottom: 4px; }
       .bia-footer { flex-direction: column; gap: 8px; align-items: flex-start; }
     }
-    @media (max-width: 480px) {
-      .kpi-strip { grid-template-columns: 1fr; }
+
+    /* Mobile Tabs for responsiveness */
+    .twin-mobile-tabs-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+    .twin-mobile-tabs {
+      display: none;
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px;
+      margin-top: 16px;
+      margin-bottom: 0;
+      gap: 6px;
+      box-shadow: var(--shadow);
+    }
+    .twin-mobile-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .twin-mobile-tab.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 2px 6px rgba(67, 56, 202, 0.2);
+    }
+
+    @media (max-width: 960px) {
+      .twin-mobile-tabs-container {
+        padding: 0 16px !important;
+      }
+      .twin-mobile-tabs {
+        display: flex;
+      }
+      .layout {
+        grid-template-columns: 1fr;
+        padding: 16px;
+        margin-top: 0;
+      }
+      /* Hide / show based on active tab state on mobile */
+      .charts:not(.tab-active) {
+        display: none !important;
+      }
+      .sidebar.tab-hidden {
+        display: none !important;
+      }
+      .sidebar, .charts {
+        width: 100%;
+      }
+      .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -299,6 +387,17 @@
       </p>
     </div>
     <a href="/acm/{{ patient.id }}" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);color:white;text-decoration:none;padding:8px 16px;border-radius:8px;font-size:0.82rem;font-weight:600;">← Anemia Control</a>
+</div>
+<!-- Mobile responsive tabs (visible on mobile only) -->
+<div class="twin-mobile-tabs-container">
+  <div class="twin-mobile-tabs">
+    <button class="twin-mobile-tab active" data-tab="prescription" onclick="switchTwinTab('prescription')">
+      <span class="material-icons" style="font-size: 1.1rem; vertical-align: middle;">tune</span> Prescriptions
+    </button>
+    <button class="twin-mobile-tab" data-tab="charts" onclick="switchTwinTab('charts')">
+      <span class="material-icons" style="font-size: 1.1rem; vertical-align: middle;">bar_chart</span> Sim Results
+    </button>
+  </div>
 </div>
 
 <div class="layout">
@@ -1615,6 +1714,11 @@ async function runSimulation() {
     // KPI accent colors
     updateKpiAccents(result);
 
+    // Auto-switch to charts tab on mobile screens so they see the result immediately
+    if (window.innerWidth <= 960) {
+      switchTwinTab('charts');
+    }
+
   } catch(e) {
     alert('Network error: ' + e.message);
   } finally {
@@ -1825,6 +1929,39 @@ function updateKpiAccents(result) {
 
 renderDefault();
 updateUfWarning(10.0);
+
+function switchTwinTab(tabName) {
+  const tabs = document.querySelectorAll('.twin-mobile-tab');
+  const sidebar = document.querySelector('.sidebar');
+  const charts = document.querySelector('.charts');
+
+  tabs.forEach(tab => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+
+  if (tabName === 'prescription') {
+    sidebar.classList.remove('tab-hidden');
+    charts.classList.remove('tab-active');
+  } else {
+    sidebar.classList.add('tab-hidden');
+    charts.classList.add('tab-active');
+    setTimeout(resizeAllCharts, 50);
+  }
+}
+
+function resizeAllCharts() {
+  const chartIds = ['hb-chart', 'ktv-chart', 'kd-chart', 'phos-chart', 'uf-chart', 'rbv-chart'];
+  chartIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.classList.contains('js-plotly-plot')) {
+      Plotly.Plots.resize(el);
+    }
+  });
+}
 </script>
 </body>
 </html>
