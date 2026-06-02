@@ -136,6 +136,30 @@
     .idh-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .idh-val   { font-size: 2rem; font-weight: 900; margin: 4px 0; }
     .idh-level { font-size: 0.75rem; font-weight: 600; }
+
+    /* ── Slider baseline marker ── */
+    .baseline-marker {
+      font-size: 0.62rem; color: var(--muted); margin-top: 2px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .baseline-marker::before {
+      content: ''; display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; background: #94a3b8; flex-shrink: 0;
+    }
+
+    /* ── Chart placeholder ── */
+    .chart-placeholder {
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 0.8rem; font-style: italic;
+      height: 100%; min-height: 160px;
+    }
+
+    /* ── Section divider ── */
+    .section-label {
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted); padding: 4px 0 8px;
+      border-bottom: 1px solid var(--border); margin-bottom: 14px;
+    }
     .risk-low       { color: #16a34a; }
     .risk-moderate  { color: #d97706; }
     .risk-high      { color: #ea580c; }
@@ -309,12 +333,15 @@
         <input type="range" id="esa-slider" min="0" max="24000" step="500" value="{{ current_iu | int }}"
                oninput="document.getElementById('esa-val').textContent=this.value"/>
         <div class="range-bounds"><span>0</span><span>24,000</span></div>
+        {% if current_iu %}<div class="baseline-marker">Current: {{ current_iu | int }} IU/wk</div>{% endif %}
       </div>
       <div class="param-group">
-        <div class="param-label">Iron target TSAT <span class="val" id="tsat-val">{{ current_tsat | int if current_tsat else 25 }}</span>%</div>
-        <input type="range" id="tsat-slider" min="10" max="50" step="1" value="{{ current_tsat | int if current_tsat else 25 }}"
+        {% set tsat_val = current_tsat | int if current_tsat else 25 %}
+        <div class="param-label">Iron target TSAT <span class="val" id="tsat-val">{{ tsat_val }}</span>%</div>
+        <input type="range" id="tsat-slider" min="10" max="50" step="1" value="{{ tsat_val }}"
                oninput="document.getElementById('tsat-val').textContent=this.value"/>
         <div class="range-bounds"><span>10%</span><span>50%</span></div>
+        <div class="baseline-marker">Current: {{ tsat_val }}%</div>
       </div>
     </div>
 
@@ -322,28 +349,36 @@
     <div class="sidebar-section">
       <div class="sidebar-title">🔬 Session Prescription</div>
       <div class="param-group">
-        <div class="param-label">Duration <span class="val" id="session-val">{{ (baseline_session.session_duration_h or 4.0) | round(2) }}</span> h</div>
+        {% set session_h = (baseline_session.session_duration_h or 4.0) | round(2) %}
+        <div class="param-label">Duration <span class="val" id="session-val">{{ session_h }}</span> h</div>
         <input type="range" id="session-slider" min="3.0" max="5.0" step="0.25"
-               value="{{ (baseline_session.session_duration_h or 4.0) | round(2) }}"
+               value="{{ session_h }}"
                oninput="document.getElementById('session-val').textContent=parseFloat(this.value).toFixed(2)"/>
         <div class="range-bounds"><span>3 h</span><span>5 h</span></div>
+        <div class="baseline-marker">Current: {{ session_h }} h</div>
       </div>
       <div class="param-group">
-        <div class="param-label">Blood flow Qb <span class="val" id="qb-val">300</span> mL/min</div>
-        <input type="range" id="qb-slider" min="150" max="450" step="25" value="300"
+        {% set baseline_qb = (baseline_session.qb_ml_min or 300) | int %}
+        <div class="param-label">Blood flow Qb <span class="val" id="qb-val">{{ baseline_qb }}</span> mL/min</div>
+        <input type="range" id="qb-slider" min="150" max="450" step="25" value="{{ baseline_qb }}"
                oninput="document.getElementById('qb-val').textContent=this.value"/>
         <div class="range-bounds"><span>150</span><span>450 mL/min</span></div>
+        <div class="baseline-marker">Current: {{ baseline_qb }} mL/min</div>
       </div>
       <div class="param-group">
-        <div class="param-label">Dialysate flow Qd <span class="val" id="qd-val">500</span> mL/min</div>
-        <input type="range" id="qd-slider" min="300" max="800" step="50" value="500"
+        {% set baseline_qd = 500 %}
+        <div class="param-label">Dialysate flow Qd <span class="val" id="qd-val">{{ baseline_qd }}</span> mL/min</div>
+        <input type="range" id="qd-slider" min="300" max="800" step="50" value="{{ baseline_qd }}"
                oninput="document.getElementById('qd-val').textContent=this.value"/>
         <div class="range-bounds"><span>300</span><span>800 mL/min</span></div>
       </div>
       <div class="param-group">
-        <div class="param-label">UF rate <span class="val" id="uf-val">10.0</span> mL/kg/h</div>
-        <input type="range" id="uf-slider" min="6.0" max="16.0" step="0.5" value="10.0"
-               oninput="document.getElementById('uf-val').textContent=parseFloat(this.value).toFixed(1)"/>
+        {% set uf_default = 10.0 %}
+        <div class="param-label">UF rate <span class="val" id="uf-val">{{ uf_default }}</span> mL/kg/h
+          <span style="font-size:0.65rem;color:#dc2626;font-weight:700;" id="uf-warning-inline"></span>
+        </div>
+        <input type="range" id="uf-slider" min="6.0" max="16.0" step="0.5" value="{{ uf_default }}"
+               oninput="document.getElementById('uf-val').textContent=parseFloat(this.value).toFixed(1); updateUfWarning(parseFloat(this.value))"/>
         <div class="range-bounds"><span>6</span><span>16 mL/kg/h</span></div>
       </div>
       <div class="param-group">
@@ -408,45 +443,46 @@
 
     <!-- KPI strip -->
     <div class="kpi-strip">
-      <div class="kpi">
-        <div class="kpi-label">Baseline Hb</div>
+      <div class="kpi" style="border-left: 3px solid #7c3aed;">
+        <div class="kpi-label" style="color:#7c3aed;">Current Hb</div>
         <div class="kpi-val" style="color:#7c3aed;">{{ current_hb or '—' }}</div>
-        <div class="kpi-unit">g/dL</div>
+        <div class="kpi-unit">g/dL · target 10–11.5</div>
+        <div class="kpi-delta" style="color:#94a3b8;font-size:0.65rem;">baseline reference</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Scenario spKt/V</div>
+      <div class="kpi" style="border-left: 3px solid #e2e8f0;">
+        <div class="kpi-label">Simulated spKt/V</div>
         <div class="kpi-val" id="kpi-ktv" style="color:var(--muted);">—</div>
         <div class="kpi-unit">target ≥ 1.2</div>
         <div class="kpi-delta" id="kpi-ktv-delta"></div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Scenario eKt/V</div>
+      <div class="kpi" style="border-left: 3px solid #e2e8f0;">
+        <div class="kpi-label">Simulated eKt/V</div>
         <div class="kpi-val" id="kpi-ektv" style="color:var(--muted);">—</div>
-        <div class="kpi-unit">equilibrated</div>
+        <div class="kpi-unit">equilibrated · target ≥ 1.0</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Pre-P (scenario)</div>
+      <div class="kpi" style="border-left: 3px solid #e2e8f0;">
+        <div class="kpi-label">Simulated Pre-P</div>
         <div class="kpi-val" id="kpi-phos" style="color:var(--muted);">—</div>
         <div class="kpi-unit">mg/dL · target 3.5–5.5</div>
         <div class="kpi-delta" id="kpi-phos-delta"></div>
       </div>
-      <div class="kpi">
+      <div class="kpi" style="border-left: 3px solid #e2e8f0;">
         <div class="kpi-label">IDH Risk Δ</div>
         <div class="kpi-val" id="kpi-idh-delta" style="color:var(--muted);">—</div>
-        <div class="kpi-unit">% change from baseline</div>
+        <div class="kpi-unit">% change vs baseline</div>
       </div>
     </div>
 
     <!-- Grid for Cascade + Guardrails -->
-    <div class="grid-2" style="margin-top: 16px;">
+    <div class="grid-2" style="margin-top: 16px; align-items: start;">
       <!-- Cascade summary -->
-      <div class="cascade-card" id="cascade-card" style="margin-top:0; margin-bottom:0;">
+      <div class="cascade-card" id="cascade-card" style="margin-top:0; margin-bottom:0; min-height:100px;">
         <div class="cascade-title">⛓ Cross-domain cascade — run a simulation to see effects</div>
         <div class="no-cascade">Adjust sliders and click ▶ Run to see how changes cascade across Hb, Kt/V, phosphate, and IDH.</div>
       </div>
 
       <!-- Clinical Guardrails & Safety Insights -->
-      <div class="guardrails-card" id="guardrails-card" style="margin-top:0; margin-bottom:0;">
+      <div class="guardrails-card" id="guardrails-card" style="margin-top:0; margin-bottom:0; min-height:100px;">
         <div class="guardrails-title">🛡️ Clinical Guardrails &amp; Safety Insights</div>
         <div class="no-guardrails">Adjust sliders to assess clinical safety thresholds.</div>
       </div>
@@ -457,9 +493,9 @@
     <div class="chart-card">
       <div class="chart-title">
         Hemoglobin Trajectory (3 months)
-        <span style="font-size:0.72rem;color:var(--muted);font-weight:400;">Target 10–11.5 g/dL</span>
+        <span style="font-size:0.72rem;color:var(--muted);font-weight:400;">Bayesian · Target 10–11.5 g/dL</span>
       </div>
-      <div id="hb-chart" style="height:240px;"></div>
+      <div id="hb-chart" style="height:240px;"><div class="chart-placeholder">Adjust ESA / Iron sliders and click ▶ Run</div></div>
       <!-- Bayesian confidence footer -->
       <div id="hb-bayes-info" style="display:none; margin-top:10px; padding:10px 12px;
            background:#f0f9ff; border-radius:8px; border:1px solid #bae6fd;">
@@ -481,13 +517,17 @@
     <!-- Kt/V + eKt/V row -->
     <div class="grid-2">
       <div class="chart-card">
-        <div class="chart-title">Dialysis Adequacy — spKt/V &amp; eKt/V</div>
-        <div id="ktv-chart" style="height:220px;"></div>
+        <div class="chart-title">Dialysis Adequacy — spKt/V &amp; eKt/V
+          <span style="font-size:0.68rem;color:var(--muted);font-weight:400;">Daugirdas 2nd-gen</span>
+        </div>
+        <div id="ktv-chart" style="height:220px;"><div class="chart-placeholder">Run simulation to compare baseline vs scenario</div></div>
         <div class="loading-overlay" id="ktv-load">Calculating…</div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Dialyzer Clearance (Kd) &amp; Std Kt/V</div>
-        <div id="kd-chart" style="height:220px;"></div>
+        <div class="chart-title">Dialyzer Clearance (Kd) &amp; Std Kt/V
+          <span style="font-size:0.68rem;color:var(--muted);font-weight:400;">Tattersall / Leypoldt</span>
+        </div>
+        <div id="kd-chart" style="height:220px;"><div class="chart-placeholder">Run simulation to see clearance breakdown</div></div>
         <div class="loading-overlay" id="kd-load">Calculating…</div>
       </div>
     </div>
@@ -577,10 +617,10 @@
     <div class="grid-2">
       <div class="chart-card"><!-- PHOSPHATE START -->
         <div class="chart-title">
-          Pre-Dialysis Phosphate (2-pool simulation)
+          Pre-Dialysis Phosphate (2-pool RK4 simulation)
           <span id="p-status-badge" class="p-badge">—</span>
         </div>
-        <div id="phos-chart" style="height:180px;"></div>
+        <div id="phos-chart" style="height:180px;"><div class="chart-placeholder">Run simulation to compare phosphate</div></div>
         <div style="margin-top:8px;font-size:0.72rem;color:var(--muted);">
           Steady-state 14-day RK4. Target: 3.5–5.5 mg/dL (KDIGO). Measured: <strong>{{ current_phosphorus or '—' }} mg/dL</strong>.
         </div>
@@ -763,6 +803,7 @@ const baselineSession = {
   session_duration_h: {{ (baseline_session.session_duration_h or 4.0) | float }},
   dialysate_temp:     {{ (baseline_session.dialysate_temp or 36.5) | float }},
   dialysate_sodium:   {{ (baseline_session.dialysate_sodium or 138) | int }},
+  qb_ml_min:          {{ (baseline_session.qb_ml_min or 300) | int }},
 };
 const baselinePIntake = defaultResult?.phosphate?.baseline_p_intake || 1200;
 
@@ -1448,12 +1489,30 @@ function renderDefault() {
   }
   if (!defaultPlotly || !Object.keys(defaultPlotly).length) return;
   if (defaultPlotly.hb_traces?.length) renderHbChart(defaultPlotly.hb_traces);
-  if (defaultPlotly.uf_curve_traces?.length) renderUfCurve(defaultPlotly.uf_curve_traces, 10.0, defaultPlotly.mortality_threshold_ml_kg_h);
+  if (defaultPlotly.uf_curve_traces?.length) renderUfCurve(defaultPlotly.uf_curve_traces, parseFloat(document.getElementById('uf-slider')?.value || 10), defaultPlotly.mortality_threshold_ml_kg_h);
   if (defaultPlotly.fluid_volume) renderRbvChart(defaultPlotly.fluid_volume);
-  
+
   if (typeof defaultResult !== 'undefined' && defaultResult && Object.keys(defaultResult).length) {
+    // Kt/V chart
+    const std = defaultPlotly.std_ktv_bar_data || {};
+    const ktv = defaultResult.ktv_sim || {};
+    if (ktv.baseline_ktv != null) {
+      renderKtvChart({
+        base_sp:      ktv.baseline_ktv,
+        scen_sp:      ktv.scenario_ktv,
+        base_ektv:    std.base_ektv,
+        scenario_ektv:std.scenario_ektv,
+      });
+    }
+    // Kd chart
+    if (std.base_kd != null) renderKdChart(std);
+    // Phosphate chart
+    if (defaultPlotly.phosphate_bar_data?.baseline_p != null) renderPhosChart(defaultPlotly.phosphate_bar_data);
+
     updateKPIs(defaultPlotly, defaultResult);
     if (defaultResult.cascade) renderCascade(defaultResult.cascade);
+    renderBayesInfo(defaultResult);
+    renderShapPanel(defaultResult);
   }
   updateGuardrailsFromSliders();
 }
@@ -1533,6 +1592,9 @@ async function runSimulation() {
     // Dynamic Clinical Guardrails
     updateGuardrailsFromSliders();
 
+    // KPI accent colors
+    updateKpiAccents(result);
+
   } catch(e) {
     alert('Network error: ' + e.message);
   } finally {
@@ -1551,12 +1613,13 @@ function resetAll() {
   document.getElementById('tsat-val').textContent = baselineTSAT;
   document.getElementById('session-slider').value = baselineSession.session_duration_h;
   document.getElementById('session-val').textContent = baselineSession.session_duration_h.toFixed(2);
-  document.getElementById('qb-slider').value = 300;
-  document.getElementById('qb-val').textContent = '300';
+  document.getElementById('qb-slider').value = baselineSession.qb_ml_min;
+  document.getElementById('qb-val').textContent = baselineSession.qb_ml_min;
   document.getElementById('qd-slider').value = 500;
   document.getElementById('qd-val').textContent = '500';
   document.getElementById('uf-slider').value = 10.0;
   document.getElementById('uf-val').textContent = '10.0';
+  updateUfWarning(10.0);
   document.getElementById('temp-slider').value = baselineSession.dialysate_temp;
   document.getElementById('temp-val').textContent = baselineSession.dialysate_temp;
   document.getElementById('na-slider').value = baselineSession.dialysate_sodium;
@@ -1680,6 +1743,19 @@ function updateGuardrailsFromSliders() {
   });
 }
 
+// ── UF Rate inline warning ────────────────────────────────────────────────────
+function updateUfWarning(val) {
+  const el = document.getElementById('uf-warning-inline');
+  if (!el) return;
+  if (val > 13.0) {
+    el.textContent = '⚠ Very high';
+  } else if (val > 10.0) {
+    el.textContent = '⚠ Above threshold';
+  } else {
+    el.textContent = '';
+  }
+}
+
 // Attach live slider input event listeners
 ['uf-slider', 'temp-slider', 'na-slider'].forEach(id => {
   const el = document.getElementById(id);
@@ -1688,7 +1764,34 @@ function updateGuardrailsFromSliders() {
   }
 });
 
+// Update KPI strip border color when simulation results come in
+function updateKpiAccents(result) {
+  const ktv  = result?.ktv_sim?.scenario_ktv;
+  const ektv = result?.ktv_extended?.scenario?.e_ktv;
+  const phos = result?.phosphate?.scenario_p;
+  const idhDelta = result?.idh_sim?.idh_delta_pct;
+
+  const kpis = [
+    { el: document.querySelector('.kpi:nth-child(2)'), val: ktv, low: 1.2, green: true },
+    { el: document.querySelector('.kpi:nth-child(3)'), val: ektv, low: 1.0, green: true },
+  ];
+  kpis.forEach(k => {
+    if (k.el && k.val != null) {
+      k.el.style.borderLeft = `3px solid ${k.val >= k.low ? '#16a34a' : '#dc2626'}`;
+    }
+  });
+  const phosKpi = document.querySelector('.kpi:nth-child(4)');
+  if (phosKpi && phos != null) {
+    phosKpi.style.borderLeft = `3px solid ${phos > 5.5 || phos < 3.5 ? '#dc2626' : '#16a34a'}`;
+  }
+  const idhKpi = document.querySelector('.kpi:nth-child(5)');
+  if (idhKpi && idhDelta != null) {
+    idhKpi.style.borderLeft = `3px solid ${idhDelta > 0 ? '#dc2626' : idhDelta < 0 ? '#16a34a' : '#e2e8f0'}`;
+  }
+}
+
 renderDefault();
+updateUfWarning(10.0);
 </script>
 </body>
 </html>
