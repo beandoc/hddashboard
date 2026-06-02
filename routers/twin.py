@@ -317,7 +317,7 @@ async def twin_sandbox(
             current_ktv = (default_result.get("ktv_sim", {}).get("baseline_ktv")
                            if default_result else None)
         if current_ktv is None:
-            from ml_twin import calculate_ktv_daugirdas
+            from ml_twin import calculate_ktv_daugirdas, _UREA_MG_DL_TO_BUN
             uf_L = (past_sessions[0].get("uf_volume") or 1500) / 1000 if past_sessions else 1.5
             session_h = (past_sessions[0].get("actual_session_time") or 240) / 60 if past_sessions else 4.0
             for rec in records:
@@ -326,7 +326,12 @@ async def twin_sandbox(
                 wt   = rec.get("last_prehd_weight") or rec.get("weight")
                 if pre and post and wt:
                     post_wt = wt - uf_L
-                    ktv = calculate_ktv_daugirdas(pre, post, session_h, uf_L, post_wt)
+                    # Convert urea (mg/dL) → BUN (mg/dL) before Daugirdas formula
+                    ktv = calculate_ktv_daugirdas(
+                        pre  * _UREA_MG_DL_TO_BUN,
+                        post * _UREA_MG_DL_TO_BUN,
+                        session_h, uf_L, post_wt,
+                    )
                     if ktv is not None and 0.5 <= ktv <= 4.0:
                         current_ktv = round(ktv, 2)
                     break

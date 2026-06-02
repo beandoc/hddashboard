@@ -67,6 +67,13 @@ _POP_HB_NADIR             = 8.0     # g/dL — physiologic minimum modelled
 # Session physics
 _UF_IDH_THRESHOLD_ML_KG_H = 10.0   # mL/kg/h — above this IDH risk rises steeply
 
+# Unit conversion — clinics record serum urea (mg/dL total urea); Daugirdas
+# formula expects BUN (blood urea nitrogen).  BUN = urea × (28 / 60).
+# NOTE: since Daugirdas uses only the ratio R = post/pre, both pre and post must
+# use the *same* units — so the factor always cancels in Kt/V.  The conversion
+# is applied for correctness of the BUN values themselves (e.g. display, audit).
+_UREA_MG_DL_TO_BUN = 28.0 / 60.0   # ≈ 0.4667
+
 # ── Helper utilities ──────────────────────────────────────────────────────────
 
 
@@ -638,10 +645,12 @@ def simulate_urea_kinetics(
             
         kd_effective = kd * (1.0 - ar_fraction) if kd else None
 
-        # spKt/V from Daugirdas
+        # spKt/V from Daugirdas — stored values are total urea (mg/dL); convert to BUN
         pre_bun  = _safe_float(latest.get("pre_dialysis_urea"))
         post_bun = _safe_float(latest.get("post_dialysis_urea"))
-        
+        if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
+        if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
+
         sp_ktv_daugirdas = calculate_ktv_daugirdas(
             pre_bun if not math.isnan(pre_bun) else None,
             post_bun if not math.isnan(post_bun) else None,
@@ -1096,6 +1105,9 @@ def run_scenario(
     latest = records[0] if records else {}
     pre_bun  = _safe_float(latest.get("pre_dialysis_urea"))
     post_bun = _safe_float(latest.get("post_dialysis_urea"))
+    # Convert from total urea (mg/dL) to BUN (mg/dL) — factor cancels in Kt/V ratio
+    if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
+    if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
     post_wt  = _safe_float(latest.get("last_prehd_weight") or latest.get("weight"), 70.0)
     base_h   = _safe_float(
         baseline_session.get("session_duration_h") or baseline_session.get("session_h"), 4.0
