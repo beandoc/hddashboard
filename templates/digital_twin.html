@@ -825,9 +825,29 @@ function renderHbChart(traces) {
     banner.style.display = 'none';
   }
 
+  // Calculate dynamic y-axis range based on actual simulated values
+  let allY = [];
+  plotTraces.forEach(t => {
+    if (t.y && t.y.length) {
+      t.y.forEach(val => {
+        if (typeof val === 'number' && !isNaN(val)) {
+          allY.push(val);
+        }
+      });
+    }
+  });
+  let minY = allY.length ? Math.min(...allY) : 6;
+  let maxY = allY.length ? Math.max(...allY) : 15;
+  // Ensure standard clinical reference range (9.0 to 12.5) is always fully visible
+  minY = Math.min(minY, 9.0);
+  maxY = Math.max(maxY, 12.5);
+  // Add padding of 1.0 g/dL on top and bottom
+  minY = Math.floor(minY - 1.0);
+  maxY = Math.ceil(maxY + 1.0);
+
   Plotly.newPlot('hb-chart', plotTraces, {
     margin: {t:10,l:45,r:10,b:40},
-    yaxis:  {title:'Hb (g/dL)', range:[6,15], gridcolor:'#f0f0f0'},
+    yaxis:  {title:'Hb (g/dL)', range:[minY, maxY], gridcolor:'#f0f0f0'},
     xaxis:  {gridcolor:'#f0f0f0'},
     legend: {orientation:'h',y:-0.22},
     shapes: [{type:'rect',x0:0,x1:1,y0:10,y1:11.5,xref:'paper',
