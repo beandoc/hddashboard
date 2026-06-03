@@ -472,5 +472,99 @@ def test_new_clinical_alerts(db):
     assert "Progressive decline" in "; ".join(res_bfr["alert_reasons"])
 
 
+def test_multiple_phosphate_binders_and_pbe_calculation(db):
+    from services.entry_service import save_monthly_record
+    from phosphate_model import calculate_record_pbe
+    from ml_twin import run_scenario
+
+    p = Patient(name="Multiple Binders Patient", hid_no="T010", is_active=True)
+    db.add(p)
+    db.commit()
+
+    # Enter multiple binders
+    data = {
+        "month_str": "2026-04",
+        "phosphate_binder_type": ["Sevelamer Carbonate", "Calcium Acetate"],
+        "pb_strength": [800.0, 667.0],
+        "phosphate_binder_freq": ["BD", "TDS"],
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record = save_monthly_record(db, p.id, data, actor="testadmin")
+    
+    # Assertions on saved database record
+    # 1. Total Daily Dose = 800 * 2 + 667 * 3 = 1600 + 2001 = 3601.0
+    assert record.phosphate_binder_dose_mg == 3601.0
+    
+    # 2. Backwards compatibility legacy fields (should map to primary / first binder)
+    assert record.phosphate_binder_type == "Sevelamer Carbonate"
+    assert record.pb_strength == 800.0
+    assert record.phosphate_binder_freq == "BD"
+    
+    # 3. Details JSON serialization
+    import json
+    details = json.loads(record.phosphate_binder_details)
+    assert len(details) == 2
+    assert details[0]["name"] == "Sevelamer Carbonate"
+    assert details[0]["dose"] == 1600.0
+    assert details[1]["name"] == "Calcium Acetate"
+    assert details[1]["dose"] == 2001.0
+
+    # 4. PBE Calculation
+    # PBE coefficient of Sevelamer: 0.75 -> 1.6 * 0.75 = 1.2
+    # PBE coefficient of Calcium Acetate: 1.0 -> 2.001 * 1.0 = 2.001
+    # Total PBE = 1.2 + 2.001 = 3.201 -> rounded to 3.2
+    pbe = calculate_record_pbe(record)
+    assert pbe == 3.2
+
+    # 5. ML Twin run_scenario baseline PBE
+    # Set up some dummy records/sessions for the scenario run
+    records_list = [{
+        "hb":                 record.hb,
+        "serum_ferritin":     record.serum_ferritin,
+        "tsat":               record.tsat or 25,
+        "albumin":            record.albumin,
+        "single_pool_ktv":    record.single_pool_ktv,
+        "last_prehd_weight":  record.last_prehd_weight or 70.0,
+        "weight":             record.last_prehd_weight or 70.0,
+        "epo_mircera_dose":   record.epo_mircera_dose,
+        "epo_weekly_units":   record.epo_weekly_units,
+        "iv_iron_dose":       record.iv_iron_dose,
+        "pre_dialysis_urea":  record.pre_dialysis_urea,
+        "post_dialysis_urea": record.post_dialysis_urea,
+        "phosphorus":         record.phosphorus,
+        "ufr":                record.ufr,
+        "record_month":       record.record_month,
+        "phosphate_binder_type": record.phosphate_binder_type,
+        "phosphate_binder_dose_mg": record.phosphate_binder_dose_mg,
+        "phosphate_binder_details": record.phosphate_binder_details,
+    }]
+    patient_info = {"id": p.id, "sex": "m", "age": 50, "height": 170.0, "weight": 70.0}
+    baseline_session = {"qb_ml_min": 300, "qd_ml_min": 500, "session_h": 4.0, "uf_volume": 2500}
+    
+    res = run_scenario(
+        patient_id=p.id,
+        records=records_list,
+        patient_info=patient_info,
+        baseline_session=baseline_session,
+        past_sessions=[],
+        monthly_data=records_list[0],
+        monthly_records_3mo=records_list,
+        scenario={},
+        db=db
+    )
+    
+    # Check that baseline PBE used in the simulation matches our calculated baseline PBE
+    assert res["phosphate"]["baseline_pbe"] == 3.2
+
+
+
 
 

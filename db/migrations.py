@@ -3,24 +3,34 @@ from sqlalchemy import text
 
 from db.engine import Base, engine, SessionLocal
 import db.models  # noqa: F401 — registers all models with Base.metadata
-
-
 def create_tables():
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
+    
+    def safe_execute(sql, params=None):
+        try:
+            db.execute(text(sql), params or {})
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logging.debug(f"Migration statement failed (expected if column/table already exists): {sql} - Error: {e}")
+
+    # 1. Credentials
+    safe_execute("ALTER TABLE patient_credentials ADD COLUMN login_username VARCHAR;")
+    safe_execute("UPDATE patient_credentials pc SET login_username = p.login_username FROM patients p WHERE pc.patient_id = p.id AND pc.login_username IS NULL;")
+    safe_execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_patient_credentials_login_username ON patient_credentials (login_username);")
+
+    # 2. Meal Records
+    safe_execute("ALTER TABLE patient_meal_records ADD COLUMN phosphorus DOUBLE PRECISION;")
+    safe_execute("ALTER TABLE patient_meal_records ADD COLUMN potassium DOUBLE PRECISION;")
+    safe_execute("ALTER TABLE patient_meal_records ADD COLUMN calcium DOUBLE PRECISION;")
+
+    # 3. Food Database
     try:
-        db.execute(text("ALTER TABLE patient_credentials ADD COLUMN IF NOT EXISTS login_username VARCHAR;"))
-        db.execute(text("UPDATE patient_credentials pc SET login_username = p.login_username FROM patients p WHERE pc.patient_id = p.id AND pc.login_username IS NULL;"))
-        db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_patient_credentials_login_username ON patient_credentials (login_username);"))
-
-        db.execute(text("ALTER TABLE patient_meal_records ADD COLUMN IF NOT EXISTS phosphorus DOUBLE PRECISION;"))
-        db.execute(text("ALTER TABLE patient_meal_records ADD COLUMN IF NOT EXISTS potassium DOUBLE PRECISION;"))
-        db.execute(text("ALTER TABLE patient_meal_records ADD COLUMN IF NOT EXISTS calcium DOUBLE PRECISION;"))
-
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS food_database_items (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR UNIQUE NOT NULL,
                 synonyms TEXT,
                 calories DOUBLE PRECISION NOT NULL,
@@ -28,59 +38,54 @@ def create_tables():
                 phosphorus DOUBLE PRECISION NOT NULL,
                 potassium DOUBLE PRECISION,
                 calcium DOUBLE PRECISION,
-                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now()
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         """))
-        db.execute(text("ALTER TABLE food_database_items ADD COLUMN IF NOT EXISTS potassium DOUBLE PRECISION;"))
-        db.execute(text("ALTER TABLE food_database_items ADD COLUMN IF NOT EXISTS calcium DOUBLE PRECISION;"))
-        db.execute(text("ALTER TABLE food_database_items ADD COLUMN IF NOT EXISTS serving_size VARCHAR;"))
         db.commit()
-
-        # ── variable_definitions extra columns (2026-05) ─────────────────────
+    except Exception:
+        db.rollback()
         try:
-            db.execute(text("ALTER TABLE variable_definitions ADD COLUMN normal_range TEXT"))
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS food_database_items (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR UNIQUE NOT NULL,
+                    synonyms TEXT,
+                    calories DOUBLE PRECISION NOT NULL,
+                    protein DOUBLE PRECISION NOT NULL,
+                    phosphorus DOUBLE PRECISION NOT NULL,
+                    potassium DOUBLE PRECISION,
+                    calcium DOUBLE PRECISION,
+                    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now()
+                );
+            """))
             db.commit()
-        except Exception:
+        except Exception as e:
             db.rollback()
-        try:
-            db.execute(text("ALTER TABLE variable_definitions ADD COLUMN clinical_significance TEXT"))
-            db.commit()
-        except Exception:
-            db.rollback()
+            logging.error(f"Failed to create food_database_items: {e}")
 
-        # ── Research projects extra columns (2026-05) ─────────────────────────
-        try:
-            db.execute(text("ALTER TABLE research_projects ADD COLUMN start_date DATE"))
-            db.commit()
-        except Exception:
-            db.rollback()
-        try:
-            db.execute(text("ALTER TABLE research_projects ADD COLUMN test_types TEXT"))
-            db.commit()
-        except Exception:
-            db.rollback()
+    safe_execute("ALTER TABLE food_database_items ADD COLUMN potassium DOUBLE PRECISION;")
+    safe_execute("ALTER TABLE food_database_items ADD COLUMN calcium DOUBLE PRECISION;")
+    safe_execute("ALTER TABLE food_database_items ADD COLUMN serving_size VARCHAR;")
 
-        # ── patient_symptom_reports: session_date column (2026-05) ───────────
-        try:
-            db.execute(text("ALTER TABLE patient_symptom_reports ADD COLUMN IF NOT EXISTS session_date DATE;"))
-            db.commit()
-        except Exception:
-            db.rollback()
+    # 4. Variable Definitions
+    safe_execute("ALTER TABLE variable_definitions ADD COLUMN normal_range TEXT;")
+    safe_execute("ALTER TABLE variable_definitions ADD COLUMN clinical_significance TEXT;")
 
-        # ── Research records data-safety migration (2026-05) ──────────────────
-        # project_id must be nullable so records survive when a project is deleted.
-        db.execute(text("ALTER TABLE research_records ALTER COLUMN project_id DROP NOT NULL;"))
-        try:
-            db.execute(text("ALTER TABLE research_records DROP CONSTRAINT IF EXISTS research_records_project_id_fkey;"))
-            db.execute(text(
-                "ALTER TABLE research_records "
-                "ADD CONSTRAINT research_records_project_id_fkey "
-                "FOREIGN KEY (project_id) REFERENCES research_projects(id) ON DELETE SET NULL;"
-            ))
-        except Exception as fk_err:
-            logging.warning("research_records FK migration (non-fatal): %s", fk_err)
-        db.commit()
+    # 5. Research Projects
+    safe_execute("ALTER TABLE research_projects ADD COLUMN start_date DATE;")
+    safe_execute("ALTER TABLE research_projects ADD COLUMN test_types TEXT;")
 
+    # 6. Symptom Reports
+    safe_execute("ALTER TABLE patient_symptom_reports ADD COLUMN session_date DATE;")
+
+    # 7. Monthly Records (Multiple Binders)
+    safe_execute("ALTER TABLE monthly_records ADD COLUMN phosphate_binder_details TEXT;")
+
+    # 8. Research Records project_id nullability
+    safe_execute("ALTER TABLE research_records ALTER COLUMN project_id DROP NOT NULL;")
+    safe_execute("ALTER TABLE research_records DROP CONSTRAINT IF EXISTS research_records_project_id_fkey;")
+    safe_execute("ALTER TABLE research_records ADD CONSTRAINT research_records_project_id_fkey FOREIGN KEY (project_id) REFERENCES research_projects(id) ON DELETE SET NULL;")
+    try:
         serving_backfill = [
             ("Roti / Chapati / Phulka", "1 roti (~30g)"),
             ("Rice / Chawal", "1 katori (100g)"),

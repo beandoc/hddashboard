@@ -916,6 +916,8 @@ def simulate_phosphate(
         "target_range":    [target_p_low, target_p_high],
         "p_measured":      p_pre_measured,
         "baseline_p_intake": baseline.get("p_intake_mg_day", 1200.0),
+        "baseline_pbe":    baseline.get("p_binder_pbe"),
+        "scenario_pbe":    scenario_params.get("p_binder_pbe"),
         # MCMC calibration metadata (Bangsgaard 2023)
         "mcmc_koa_ratio":  mcmc_koa_ratio,
         "mcmc_kc_scale":   mcmc_kc_scale,
@@ -1094,15 +1096,19 @@ def run_scenario(
         except Exception as e:
             logger.warning(f"Error querying dietary phosphate: {e}")
             
+    latest = records[0] if records else {}
+    from phosphate_model import calculate_record_pbe
+    baseline_pbe = calculate_record_pbe(latest)
+    if baseline_pbe <= 0.0:
+        baseline_pbe = 3.0
+
     baseline_p_intake = phosphate_data.get("value") or 1200.0
     source = phosphate_data.get("source", "default_1200mg")
     
     if "p_intake_mg_day" in scenario:
         source = "manual_entry"
         
-    baseline_session = {**baseline_session, "p_intake_mg_day": baseline_p_intake}
-
-    latest = records[0] if records else {}
+    baseline_session = {**baseline_session, "p_intake_mg_day": baseline_p_intake, "p_binder_pbe": baseline_pbe}
     pre_bun  = _safe_float(latest.get("pre_dialysis_urea"))
     post_bun = _safe_float(latest.get("post_dialysis_urea"))
     # Convert from total urea (mg/dL) to BUN (mg/dL) — factor cancels in Kt/V ratio

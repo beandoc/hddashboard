@@ -1,5 +1,26 @@
 import math
+import json
 from typing import Dict, Any, List, Optional
+
+def normalize_binder_type(raw_type: str) -> str:
+    if not raw_type:
+        return ""
+    mapping = {
+        "calcium carbonate": "calcium_carbonate",
+        "calcium acetate": "calcium_acetate",
+        "sevelamer carbonate": "sevelamer",
+        "sevelamer hcl": "sevelamer",
+        "sevelamer": "sevelamer",
+        "lanthanum carbonate": "lanthanum",
+        "lanthanum": "lanthanum",
+        "sucroferric oxyhydroxide": "sucroferric",
+        "sucroferric": "sucroferric",
+        "magnesium carbonate (anhydrous)": "magnesium_carbonate_anhydrous",
+        "magnesium carbonate (hydrated)": "magnesium_carbonate_hydrated",
+        "ferric citrate": "ferric_citrate"
+    }
+    cleaned = raw_type.strip().lower()
+    return mapping.get(cleaned, cleaned)
 
 def calculate_pbe(binders: List[Dict[str, Any]]) -> Dict[str, float]:
     """
@@ -29,7 +50,7 @@ def calculate_pbe(binders: List[Dict[str, Any]]) -> Dict[str, float]:
     total_ca_mg = 0.0
     
     for b in binders:
-        type_key = b.get("type", "").lower()
+        type_key = normalize_binder_type(b.get("type", ""))
         mg = b.get("mg", 0.0)
         
         pbe_coeff = pbe_coeffs.get(type_key, 0.0)
@@ -42,6 +63,51 @@ def calculate_pbe(binders: List[Dict[str, Any]]) -> Dict[str, float]:
         "total_pbe": round(total_pbe, 2),
         "total_ca_mg": round(total_ca_mg, 1)
     }
+
+def calculate_record_pbe(record: Any) -> float:
+    """
+    Calculates total PBE from a record (dict, Pydantic model, or SQLAlchemy model instance).
+    First checks phosphate_binder_details.
+    Falls back to legacy fields phosphate_binder_type and phosphate_binder_dose_mg.
+    """
+    if not record:
+        return 0.0
+        
+    def get_field(obj: Any, name: str) -> Any:
+        if isinstance(obj, dict):
+            return obj.get(name)
+        try:
+            return getattr(obj, name, None)
+        except Exception:
+            return None
+
+    details = get_field(record, "phosphate_binder_details")
+    binders = []
+    
+    if details:
+        try:
+            if isinstance(details, str):
+                details = json.loads(details)
+            if isinstance(details, list):
+                for item in details:
+                    name = item.get("name")
+                    dose = item.get("dose") or 0.0
+                    if name and dose:
+                        binders.append({"type": name, "mg": float(dose)})
+        except Exception:
+            pass
+            
+    if not binders:
+        b_type = get_field(record, "phosphate_binder_type")
+        dose = get_field(record, "phosphate_binder_dose_mg") or 0.0
+        if b_type and dose:
+            binders.append({"type": b_type, "mg": float(dose)})
+            
+    if not binders:
+        return 0.0
+        
+    result = calculate_pbe(binders)
+    return result["total_pbe"]
 
 def estimate_phosphate_kinetics(
     sex: str,

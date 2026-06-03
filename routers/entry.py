@@ -143,6 +143,28 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
         try: hosp_details = json.loads(rec.hospitalization_details)
         except: pass
 
+    pb_meds = []
+    if rec and rec.phosphate_binder_details:
+        try: pb_meds = json.loads(rec.phosphate_binder_details)
+        except: pass
+    elif rec and rec.phosphate_binder_type:
+        pb_meds = [{
+            "name": rec.phosphate_binder_type,
+            "strength": rec.pb_strength,
+            "freq": rec.phosphate_binder_freq,
+            "dose": rec.phosphate_binder_dose_mg
+        }]
+    elif prior_rec and prior_rec.phosphate_binder_details:
+        try: pb_meds = json.loads(prior_rec.phosphate_binder_details)
+        except: pass
+    elif prior_rec and prior_rec.phosphate_binder_type:
+        pb_meds = [{
+            "name": prior_rec.phosphate_binder_type,
+            "strength": prior_rec.pb_strength,
+            "freq": prior_rec.phosphate_binder_freq,
+            "dose": prior_rec.phosphate_binder_dose_mg
+        }]
+
     # Research Mapped Flag
     is_research_mapped = db.query(ResearchRecord).filter(ResearchRecord.patient_id == patient_id).first() is not None
 
@@ -160,6 +182,7 @@ async def entry_form(patient_id: int, request: Request, month: Optional[str] = N
     return templates.TemplateResponse("entry_form.html", {
         "request": request, "patient": p, "record": rec,
         "anti_meds": anti_meds,
+        "pb_meds": pb_meds,
         "hosp_details": hosp_details,
         "prior_record": prior_rec,
         "prior_anti_meds": prior_anti_meds,
@@ -222,10 +245,10 @@ async def save_entry(
     platelet_count: Optional[float] = Form(None),
     hba1c: Optional[float] = Form(None),
     vitamin_d_analog_dose: str = Form(""),
-    phosphate_binder_type: str = Form(""),
-    pb_strength: Optional[float] = Form(None),
+    phosphate_binder_type: list[str] = Form([]),
+    pb_strength: list[str] = Form([]),
     phosphate_binder_dose_mg: Optional[float] = Form(None),
-    phosphate_binder_freq: str = Form(""),
+    phosphate_binder_freq: list[str] = Form([]),
     antihypertensive_count: Optional[int] = Form(None),
     antihypertensive_name: list[str] = Form([]),
     antihypertensive_dose: list[str] = Form([]),
@@ -307,6 +330,18 @@ async def save_entry(
             try: _hosp = json.loads(existing_rec.hospitalization_details)
             except: pass
 
+        _pb_meds = []
+        if existing_rec and existing_rec.phosphate_binder_details:
+            try: _pb_meds = json.loads(existing_rec.phosphate_binder_details)
+            except: pass
+        elif existing_rec and existing_rec.phosphate_binder_type:
+            _pb_meds = [{
+                "name": existing_rec.phosphate_binder_type,
+                "strength": existing_rec.pb_strength,
+                "freq": existing_rec.phosphate_binder_freq,
+                "dose": existing_rec.phosphate_binder_dose_mg
+            }]
+
         _ruo = None
         _ruo_rec = db.query(MonthlyRecord).filter(
             MonthlyRecord.patient_id == patient_id,
@@ -333,6 +368,7 @@ async def save_entry(
             "patient": p,
             "record": existing_rec,
             "anti_meds": _anti_meds,
+            "pb_meds": _pb_meds,
             "hosp_details": _hosp,
             "prior_record": prior_rec,
             "prior_anti_meds": _prior_anti,

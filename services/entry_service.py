@@ -248,23 +248,77 @@ def save_monthly_record(
         if e_ktv is not None:
             data["equilibrated_ktv"] = e_ktv
 
-        # 3. Backend Phosphate Binder Daily Dose Calculation
-        pb_strength = data.get("pb_strength")
-        pb_freq = data.get("phosphate_binder_freq")
-        pb_dose = data.get("phosphate_binder_dose_mg")
-        
-        if pb_strength and pb_freq and (pb_dose is None or pb_dose == ""):
-            try:
-                strength = float(pb_strength)
-                multiplier = 0
-                if pb_freq == "OD": multiplier = 1
-                elif pb_freq == "BD": multiplier = 2
-                elif pb_freq == "TDS": multiplier = 3
-                elif pb_freq == "QID": multiplier = 4
+        # 3. Backend Phosphate Binder Daily Dose Calculation (supports multiple binders)
+        pb_names = data.get("phosphate_binder_type", [])
+        if isinstance(pb_names, str):
+            pb_names = [pb_names] if pb_names else []
+        elif pb_names is None:
+            pb_names = []
+
+        pb_strengths = data.get("pb_strength", [])
+        if isinstance(pb_strengths, (str, int, float)) or pb_strengths is None:
+            pb_strengths = [pb_strengths] if pb_strengths is not None else []
+
+        pb_freqs = data.get("phosphate_binder_freq", [])
+        if isinstance(pb_freqs, str):
+            pb_freqs = [pb_freqs] if pb_freqs else []
+        elif pb_freqs is None:
+            pb_freqs = []
+
+        # Pad/align lists so zip doesn't drop items
+        max_pb_len = max(len(pb_names), len(pb_strengths), len(pb_freqs))
+        def _pad_pb(lst, default_val=None):
+            return list(lst) + [default_val] * (max_pb_len - len(lst))
+
+        pb_names = _pad_pb(pb_names, "")
+        pb_strengths = _pad_pb(pb_strengths, None)
+        pb_freqs = _pad_pb(pb_freqs, "")
+
+        pb_list = []
+        total_pb_dose_mg = 0.0
+        multipliers = {"OD": 1, "BD": 2, "TDS": 3, "QID": 4}
+
+        for name, strength_raw, freq in zip(pb_names, pb_strengths, pb_freqs):
+            name_str = str(name).strip() if name else ""
+            freq_str = str(freq).strip().upper() if freq else ""
+            
+            has_name = bool(name_str)
+            has_strength = strength_raw is not None and str(strength_raw).strip() != ""
+            has_freq = bool(freq_str)
+            
+            if has_name or has_strength or has_freq:
+                strength = 0.0
+                if strength_raw is not None and str(strength_raw).strip():
+                    try:
+                        strength = float(strength_raw)
+                    except (ValueError, TypeError):
+                        pass
                 
-                data["phosphate_binder_dose_mg"] = strength * multiplier
-            except Exception as pb_err:
-                logger.error(f"Error calculating phosphate binder dose on backend: {pb_err}")
+                mult = multipliers.get(freq_str, 0)
+                daily_dose = strength * mult
+                total_pb_dose_mg += daily_dose
+                
+                pb_list.append({
+                    "name": name_str,
+                    "strength": strength,
+                    "freq": freq_str,
+                    "dose": daily_dose
+                })
+
+        # Save to data dict
+        if pb_list:
+            data["phosphate_binder_details"] = json.dumps(pb_list)
+            # For backward compatibility, save first item in legacy columns
+            data["phosphate_binder_type"] = pb_list[0]["name"]
+            data["pb_strength"] = pb_list[0]["strength"]
+            data["phosphate_binder_freq"] = pb_list[0]["freq"]
+            data["phosphate_binder_dose_mg"] = total_pb_dose_mg
+        else:
+            data["phosphate_binder_details"] = ""
+            data["phosphate_binder_type"] = ""
+            data["pb_strength"] = None
+            data["phosphate_binder_freq"] = ""
+            data["phosphate_binder_dose_mg"] = None
 
         # 4. Backend Nutrition Averages and Carry-Forward
         p_dry_weight = None
@@ -497,6 +551,7 @@ def save_monthly_record(
             pb_strength=data.get("pb_strength"),
             phosphate_binder_dose_mg=data.get("phosphate_binder_dose_mg"),
             phosphate_binder_freq=data.get("phosphate_binder_freq", ""),
+            phosphate_binder_details=data.get("phosphate_binder_details", ""),
             antihypertensive_count=len(meds_list) if meds_list else data.get("antihypertensive_count"),
             antihypertensive_details=antihypertensive_details_json,
             hospitalization_this_month=hosp_this_month if hosp_list else (rec.hospitalization_this_month if rec else False),

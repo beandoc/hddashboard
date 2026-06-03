@@ -77,6 +77,7 @@ class MonthlyRecord(Base):
     pb_strength = Column(Float)
     phosphate_binder_dose_mg = Column(Float)
     phosphate_binder_freq = Column(String)
+    phosphate_binder_details = Column(Text)
 
     # ── Electrolytes & Acid-Base ──────────────────────────────────────────────
     serum_sodium = Column(Float)

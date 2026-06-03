@@ -65,6 +65,9 @@ def _monthly_records_dicts(db: Session, patient_id: int, limit: int = 12) -> lis
             "phosphorus":         rec.phosphorus,
             "ufr":                rec.ufr,
             "record_month":       rec.record_month,
+            "phosphate_binder_type": rec.phosphate_binder_type,
+            "phosphate_binder_dose_mg": rec.phosphate_binder_dose_mg,
+            "phosphate_binder_details": getattr(rec, "phosphate_binder_details", None),
         }
         for rec in recs
     ]
@@ -304,9 +307,14 @@ async def twin_sandbox(
 
     # Current ESA dose (for slider default)
     current_iu = None
+    current_pbe = 3.0
     if records:
         from ml_esa import _resolve_weekly_iu_sc
+        from phosphate_model import calculate_record_pbe
         current_iu = _resolve_weekly_iu_sc(records[0])
+        current_pbe = calculate_record_pbe(records[0])
+        if current_pbe <= 0.0:
+            current_pbe = 3.0
 
     # spKt/V: prefer recorded monthly value → simulation baseline → compute from
     # most recent monthly record that has both pre and post urea
@@ -350,6 +358,7 @@ async def twin_sandbox(
         "default_result":   json.dumps(default_result),
         "sim_history":      sim_history,
         "current_iu":          current_iu or 0,
+        "current_pbe":         current_pbe,
         "current_tsat":        records[0].get("tsat") if records else 25,
         "current_hb":          records[0].get("hb") if records else None,
         "current_ktv":         current_ktv,

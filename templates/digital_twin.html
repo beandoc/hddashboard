@@ -500,8 +500,8 @@
     <div class="sidebar-section">
       <div class="sidebar-title">🧪 Phosphate Protocol</div>
       <div class="param-group">
-        <div class="param-label">Binder dose <span class="val" id="pbe-val">3.0</span> PBE/day</div>
-        <input type="range" id="pbe-slider" min="0" max="12" step="0.5" value="3.0"
+        <div class="param-label">Binder dose <span class="val" id="pbe-val">{{ "%.1f"|format(current_pbe) }}</span> PBE/day</div>
+        <input type="range" id="pbe-slider" min="0" max="12" step="0.5" value="{{ current_pbe }}"
                oninput="document.getElementById('pbe-val').textContent=parseFloat(this.value).toFixed(1)"/>
         <div class="range-bounds"><span>0</span><span>12 PBE units</span></div>
       </div>
@@ -1748,8 +1748,8 @@ function resetAll() {
   document.getElementById('temp-val').textContent = baselineSession.dialysate_temp;
   document.getElementById('na-slider').value = baselineSession.dialysate_sodium;
   document.getElementById('na-val').textContent = baselineSession.dialysate_sodium;
-  document.getElementById('pbe-slider').value = 3.0;
-  document.getElementById('pbe-val').textContent = '3.0';
+  document.getElementById('pbe-slider').value = {{ current_pbe }};
+  document.getElementById('pbe-val').textContent = '{{ "%.1f"|format(current_pbe) }}';
   document.getElementById('pintake-slider').value = baselinePIntake;
   document.getElementById('pintake-val').textContent = baselinePIntake;
   

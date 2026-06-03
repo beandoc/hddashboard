@@ -365,32 +365,58 @@ async function autoFillPt() {
             if (data.available) {
                 if (data.phosphorus) document.getElementById('val_pre').value = data.phosphorus;
                 
-                if (data.phosphate_binder_type && data.phosphate_binder_dose_mg) {
-                    // Pre-fill the PBE calculator row
-                    const container = document.getElementById('binderRows');
-                    container.innerHTML = ''; // Clear existing
-                    addBinderRow();
-                    const row = container.querySelector('.binder-row');
-                    const typeSel = row.querySelector('.binder-type');
-                    
-                    // Map display name to key
-                    const mapping = {
-                        "Calcium Carbonate": "calcium_carbonate",
-                        "Sevelamer Carbonate": "sevelamer",
-                        "Sevelamer HCl": "sevelamer",
-                        "Lanthanum Carbonate": "lanthanum",
-                        "Sucroferric Oxyhydroxide": "sucroferric",
-                        "Magnesium Carbonate (Anhydrous)": "magnesium_carbonate_anhydrous",
-                        "Magnesium Carbonate (Hydrated)": "magnesium_carbonate_hydrated"
-                    };
-                    
+                const container = document.getElementById('binderRows');
+                container.innerHTML = ''; // Clear existing
+                
+                let filled = false;
+                const mapping = {
+                    "Calcium Carbonate": "calcium_carbonate",
+                    "Calcium Acetate": "calcium_acetate",
+                    "Sevelamer Carbonate": "sevelamer",
+                    "Sevelamer HCl": "sevelamer",
+                    "Lanthanum Carbonate": "lanthanum",
+                    "Sucroferric Oxyhydroxide": "sucroferric",
+                    "Magnesium Carbonate (Anhydrous)": "magnesium_carbonate_anhydrous",
+                    "Magnesium Carbonate (Hydrated)": "magnesium_carbonate_hydrated",
+                    "Ferric Citrate": "ferric_citrate"
+                };
+
+                if (data.phosphate_binder_details) {
+                    try {
+                        const pbMeds = JSON.parse(data.phosphate_binder_details);
+                        if (Array.isArray(pbMeds) && pbMeds.length > 0) {
+                            pbMeds.forEach(med => {
+                                const key = mapping[med.name];
+                                const dose = parseFloat(med.dose) || 0;
+                                if (key && dose > 0) {
+                                    addBinderRow();
+                                    const rows = container.querySelectorAll('.binder-row');
+                                    const row = rows[rows.length - 1];
+                                    row.querySelector('.binder-type').value = key;
+                                    row.querySelector('.binder-mg').value = dose;
+                                    filled = true;
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse phosphate_binder_details", e);
+                    }
+                }
+                
+                if (!filled && data.phosphate_binder_type && data.phosphate_binder_dose_mg) {
                     const key = mapping[data.phosphate_binder_type];
                     if (key) {
-                        typeSel.value = key;
+                        addBinderRow();
+                        const row = container.querySelector('.binder-row');
+                        row.querySelector('.binder-type').value = key;
                         row.querySelector('.binder-mg').value = data.phosphate_binder_dose_mg;
-                        calcTotalPBE();
-                        syncPBE();
+                        filled = true;
                     }
+                }
+                
+                if (filled) {
+                    calcTotalPBE();
+                    syncPBE();
                 }
             }
         } catch (e) {

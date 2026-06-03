@@ -217,17 +217,44 @@ function calculateKTV() {
    ════════════════════════════════════════════════════════════════ */
 
 function calculateTotalBinder() {
-    const strength  = parseFloat(document.getElementById('pb_strength')?.value) || 0;
-    const freq      = document.getElementById('pb_freq')?.value;
-    const totalInput = document.getElementById('pb_total');
-    const hint      = document.getElementById('pb_calc_hint');
+    const rows = document.querySelectorAll('.pb-med-row');
+    let grandTotal = 0;
     const multipliers = { OD: 1, BD: 2, TDS: 3, QID: 4 };
-    const mult = multipliers[freq] || 0;
-    const total = strength * mult;
-    if (totalInput) totalInput.value = total || '';
+    const details = [];
+
+    rows.forEach(row => {
+        const typeEl = row.querySelector('[name="phosphate_binder_type"]');
+        const strengthEl = row.querySelector('[name="pb_strength"]');
+        const freqEl = row.querySelector('[name="phosphate_binder_freq"]');
+        if (!typeEl || !strengthEl || !freqEl) return;
+
+        const type = typeEl.value;
+        const strength = parseFloat(strengthEl.value) || 0;
+        const freq = freqEl.value;
+
+        if (type && strength > 0 && freq) {
+            const mult = multipliers[freq] || 0;
+            const dose = strength * mult;
+            grandTotal += dose;
+            details.push(`${strength} mg ${freq} of ${type}`);
+        }
+    });
+
+    const totalInput = document.getElementById('pb_total');
+    const hint = document.getElementById('pb_calc_hint');
+
+    if (totalInput) {
+        totalInput.value = grandTotal > 0 ? grandTotal : '';
+    }
+
     if (hint) {
-        hint.textContent = total > 0 ? `Total Daily Dose: ${total} mg (${strength} mg ${freq})` : '';
-        hint.style.color = total > 0 ? 'var(--primary)' : '';
+        if (grandTotal > 0) {
+            hint.textContent = `Total Daily Dose: ${grandTotal} mg (${details.join(' + ')})`;
+            hint.style.color = 'var(--primary)';
+        } else {
+            hint.textContent = '';
+            hint.style.color = '';
+        }
     }
 }
 

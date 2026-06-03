@@ -535,40 +535,63 @@
                                    value="{{ record.vitamin_d_analog_dose if record and record.vitamin_d_analog_dose else (prior_record.vitamin_d_analog_dose if prior_record and prior_record.vitamin_d_analog_dose else '') }}">
                             <div id="vit_d_preview" style="font-size:0.85rem;color:var(--primary);margin-top:6px;font-weight:500;"></div>
                         </div>
-                        <div class="form-group">
-                            <label>Phosphate Binder</label>
-                            <select name="phosphate_binder_type">
-                                <option value="">-- None / Select --</option>
-                                {% set binder_cur = record.phosphate_binder_type if record else (prior_record.phosphate_binder_type if prior_record else '') %}
-                                {% for b in ["Calcium Carbonate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)"] %}
-                                <option value="{{ b }}" {{ 'selected' if binder_cur == b }}>{{ b }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Tablet Strength (mg)</label>
-                            <input type="number" id="pb_strength" name="pb_strength" step="1" placeholder="e.g. 800"
-                                   value="{{ record.pb_strength or '' if record else (prior_record.pb_strength or '' if prior_record else '') }}"
-                                   oninput="calculateTotalBinder()" aria-describedby="pb_calc_hint">
-                        </div>
-                        <div class="form-group">
-                            <label>Frequency</label>
-                            <select id="pb_freq" name="phosphate_binder_freq" onchange="calculateTotalBinder()" aria-describedby="pb_calc_hint">
-                                <option value="">-- Select --</option>
-                                {% set freq_cur = record.phosphate_binder_freq if record else (prior_record.phosphate_binder_freq if prior_record else '') %}
-                                {% for f in ["OD","BD","TDS","QID"] %}
-                                <option value="{{ f }}" {{ 'selected' if freq_cur == f }}>{{ f }}</option>
-                                {% endfor %}
-                            </select>
+                        <div class="form-group" style="grid-column: 1 / -1; margin-bottom: 20px;">
+                            <label style="font-weight: 600; color: #374151; display: block; margin-bottom: 8px;">Phosphate Binders &amp; Regimen</label>
+                            <div id="pbMedsWrapper" style="display:flex;flex-direction:column;gap:8px;">
+                                {# Render existing binders or one blank row #}
+                                {% if pb_meds %}
+                                    {% for med in pb_meds %}
+                                    <div class="pb-med-row" style="display:flex;gap:8px;align-items:center;">
+                                        <select name="phosphate_binder_type" style="flex:2;" onchange="calculateTotalBinder()">
+                                            <option value="">-- Choose Binder --</option>
+                                            {% for b in ["Calcium Carbonate","Calcium Acetate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)","Ferric Citrate"] %}
+                                            <option value="{{ b }}" {{ 'selected' if med.name == b }}>{{ b }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <input type="number" name="pb_strength" placeholder="Strength (mg)" value="{{ med.strength or '' }}" style="flex:1;" oninput="calculateTotalBinder()">
+                                        <select name="phosphate_binder_freq" style="flex:1;" onchange="calculateTotalBinder()">
+                                            <option value="">Freq</option>
+                                            {% for f in ["OD","BD","TDS","QID"] %}
+                                            <option value="{{ f }}" {{ 'selected' if med.freq == f }}>{{ f }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="button" class="btn-remove-row" onclick="this.closest('.pb-med-row').remove(); calculateTotalBinder();" style="background:#fee2e2;color:#ef4444;border:none;padding:8px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                                            <i class="material-icons" style="font-size:1.1rem;">delete</i>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                <div class="pb-med-row" style="display:flex;gap:8px;align-items:center;">
+                                    <select name="phosphate_binder_type" style="flex:2;" onchange="calculateTotalBinder()">
+                                        <option value="">-- Choose Binder --</option>
+                                        {% for b in ["Calcium Carbonate","Calcium Acetate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)","Ferric Citrate"] %}
+                                        <option value="{{ b }}">{{ b }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <input type="number" name="pb_strength" placeholder="Strength (mg)" oninput="calculateTotalBinder()" style="flex:1;">
+                                    <select name="phosphate_binder_freq" style="flex:1;" onchange="calculateTotalBinder()">
+                                        <option value="">Freq</option>
+                                        {% for f in ["OD","BD","TDS","QID"] %}
+                                        <option value="{{ f }}">{{ f }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn-remove-row" onclick="this.closest('.pb-med-row').remove(); calculateTotalBinder();" style="background:#fee2e2;color:#ef4444;border:none;padding:8px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                                        <i class="material-icons" style="font-size:1.1rem;">delete</i>
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" onclick="addPbMedRow()"
+                                    style="margin-top:10px;background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;font-weight:600;transition:all 0.2s;display:inline-flex;align-items:center;gap:4px;">
+                                <i class="material-icons" style="font-size:1rem;">add</i> Add Another Phosphate Binder
+                            </button>
                         </div>
                         <div class="form-group" style="grid-column:1/-1;margin-top:-10px;">
                             <input type="hidden" id="pb_total" name="phosphate_binder_dose_mg"
-                                   value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else (prior_record.phosphate_binder_dose_mg if prior_record and prior_record.phosphate_binder_dose_mg is not none else '') }}">
+                                   value="{{ record.phosphate_binder_dose_mg if record and record.phosphate_binder_dose_mg is not none else '' }}">
                             <div id="pb_calc_hint" class="form-hint" style="font-weight:600;">
                                 {% if record and record.phosphate_binder_dose_mg %}
                                 Total Daily Dose: {{ record.phosphate_binder_dose_mg }} mg
-                                {% elif prior_record and prior_record.phosphate_binder_dose_mg %}
-                                Total Daily Dose: {{ prior_record.phosphate_binder_dose_mg }} mg
                                 {% endif %}
                             </div>
                         </div>
@@ -934,6 +957,28 @@
         </div>
     </template>
 
+    <!-- Phosphate Binder Row Template -->
+    <template id="pb-med-template">
+        <div class="pb-med-row" style="display:flex;gap:8px;align-items:center;">
+            <select name="phosphate_binder_type" style="flex:2;" onchange="calculateTotalBinder()">
+                <option value="">-- Choose Binder --</option>
+                {% for b in ["Calcium Carbonate","Calcium Acetate","Sevelamer Carbonate","Sevelamer HCl","Lanthanum Carbonate","Sucroferric Oxyhydroxide","Magnesium Carbonate (Anhydrous)","Magnesium Carbonate (Hydrated)","Ferric Citrate"] %}
+                <option value="{{ b }}">{{ b }}</option>
+                {% endfor %}
+            </select>
+            <input type="number" name="pb_strength" placeholder="Strength (mg)" style="flex:1;" oninput="calculateTotalBinder()">
+            <select name="phosphate_binder_freq" style="flex:1;" onchange="calculateTotalBinder()">
+                <option value="">Freq</option>
+                {% for f in ["OD","BD","TDS","QID"] %}
+                <option value="{{ f }}">{{ f }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn-remove-row" onclick="this.closest('.pb-med-row').remove(); calculateTotalBinder();" style="background:#fee2e2;color:#ef4444;border:none;padding:8px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                <i class="material-icons" style="font-size:1.1rem;">delete</i>
+            </button>
+        </div>
+    </template>
+
     <!-- OCR Modal -->
     <div id="ocr_modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,0.75);backdrop-filter:blur(4px);overflow-y:auto;padding:20px;box-sizing:border-box;">
         <div style="max-width:660px;margin:0 auto;background:#fff;border-radius:20px;box-shadow:0 25px 60px rgba(0,0,0,0.3);overflow:hidden;">
@@ -984,6 +1029,13 @@
         const wrap = document.getElementById('antiMedsWrapper');
         if (!tmpl || !wrap) return;
         wrap.appendChild(tmpl.content.cloneNode(true));
+    }
+    function addPbMedRow() {
+        const tmpl = document.getElementById('pb-med-template');
+        const wrap = document.getElementById('pbMedsWrapper');
+        if (!tmpl || !wrap) return;
+        wrap.appendChild(tmpl.content.cloneNode(true));
+        calculateTotalBinder();
     }
     function addHospRow() {
         const tmpl = document.getElementById('hosp-row-template');

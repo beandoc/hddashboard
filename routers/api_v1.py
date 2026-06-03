@@ -94,6 +94,7 @@ class LatestMonthlyResponse(BaseModel):
     phosphate_binder_type: Optional[str] = None
     phosphate_binder_dose_mg: Optional[float] = None
     v_urea: Optional[float] = None
+    phosphate_binder_details: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -267,6 +268,7 @@ async def v1_patient_latest_monthly(
         phosphate_binder_type=rec.phosphate_binder_type,
         phosphate_binder_dose_mg=rec.phosphate_binder_dose_mg,
         v_urea=rec.single_pool_ktv,
+        phosphate_binder_details=getattr(rec, "phosphate_binder_details", None),
     )
 
 
