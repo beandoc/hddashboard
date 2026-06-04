@@ -98,6 +98,7 @@
         {% set hard_limits_json %}{"hb":{"min":2.0,"max":22.0,"label":"Hemoglobin"},"albumin":{"min":0.8,"max":6.5,"label":"Albumin"},"calcium":{"min":3.0,"max":18.0,"label":"Calcium"},"phosphorus":{"min":0.5,"max":20.0,"label":"Phosphorus"},"serum_ferritin":{"min":1,"max":50000,"label":"Serum Ferritin"},"wbc_count":{"min":100,"max":100000,"label":"WBC Count (/cmm)"},"serum_creatinine":{"min":0.2,"max":40.0,"label":"Serum Creatinine"},"serum_potassium":{"min":1.5,"max":10.0,"label":"Serum Potassium"},"serum_sodium":{"min":100,"max":180,"label":"Serum Sodium"}}{% endset %}
 
         <form method="POST" action="/entry/{{ patient.id }}?month={{ month_str }}"
+              novalidate
               {% if record %}data-has-record="1"{% endif %}
               {% if form_error %}data-form-error="1"{% endif %}
               data-wiz-key="hd_wiz_{{ patient.id }}_{{ month_str }}"
@@ -340,7 +341,7 @@
                         </div>
                         <div class="form-group">
                             <label>Parathyroid hormone(iPTH) (pg/mL)</label>
-                            <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth or '' if record else '' }}">
+                            <input type="number" step="0.1" name="ipth" inputmode="decimal" value="{{ record.ipth or '' if record else '' }}">
                         </div>
                     </div>
                 </div>

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -279,6 +280,16 @@ app.add_middleware(StaticCacheMiddleware)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request: Request, exc: RequestValidationError):
+    # Surface form parsing errors (e.g. comma-decimal like "1,20") as a readable JSON response
+    # instead of a raw 422 page that gives no hint about which field failed.
+    errors = [
+        {"field": " → ".join(str(l) for l in e["loc"]), "msg": e["msg"]}
+        for e in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": "Form validation failed", "errors": errors})
 
 # Paths where the route handler manages its own session cookie — middleware
 # must not overwrite those Set-Cookie headers.
