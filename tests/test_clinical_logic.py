@@ -167,6 +167,29 @@ def test_backend_ktv_calculation(db):
     assert record.single_pool_ktv == 1.47
     assert record.equilibrated_ktv == 1.43
 
+def test_backend_tsat_calculation(db):
+    from services.entry_service import save_monthly_record
+    p = Patient(name="TSAT Patient", hid_no="T011", is_active=True)
+    db.add(p)
+    db.commit()
+
+    data = {
+        "month_str": "2026-04",
+        "serum_iron": 60.0,
+        "tibc": 300.0,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+
+    record = save_monthly_record(db, p.id, data, actor="testadmin")
+    assert record.tsat == 20.0
+
 def test_phosphate_binder_dose_calculation(db):
     from services.entry_service import save_monthly_record
     p = Patient(name="PB Patient", hid_no="T006", is_active=True)

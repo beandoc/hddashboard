@@ -47,10 +47,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     calculateKTV();
 
+    // TSAT — attach listeners + initial run
+    ['serum_iron', 'tibc'].forEach(name => {
+        const el = document.querySelector(`input[name="${name}"]`);
+        if (el) el.addEventListener('input', calculateTSAT);
+    });
+    calculateTSAT();
+
     // Transfusion hint
     document.querySelector('input[name="hb"]')?.addEventListener('input', updateTransfusionHint);
     updateTransfusionHint();
 });
+
+
+
 
 /* ════════════════════════════════════════════════════════════════
    ESA / EPO Calculator
@@ -447,3 +457,22 @@ function updateTransfusionHint() {
     hintEl.innerHTML = `<strong>⚠ Transfusion Confounding Detected:</strong> ${units} unit(s) transfused.${note} The analytics engine will use the corrected Hb for ERI and Hb trajectory.`;
     hintEl.style.display = 'block';
 }
+
+/* ── TSAT Auto-Calculation ── */
+function calculateTSAT() {
+    const iron = parseFloat(document.querySelector('input[name="serum_iron"]')?.value);
+    const tibc = parseFloat(document.querySelector('input[name="tibc"]')?.value);
+    const tsatInput = document.querySelector('input[name="tsat"]');
+
+    if (tsatInput) {
+        if (iron > 0 && tibc > 0) {
+            const tsat = (iron / tibc) * 100;
+            if (isFinite(tsat) && tsat >= 0) {
+                tsatInput.value = tsat.toFixed(2);
+                return;
+            }
+        }
+        tsatInput.value = '';
+    }
+}
+

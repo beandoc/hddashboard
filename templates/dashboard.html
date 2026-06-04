@@ -241,7 +241,7 @@
     <a href="/analytics/patients?month={{ month_str }}&filter=ipth" class="card{% if m.count > 0 %} highlight{% endif %}" style="text-decoration:none;color:inherit;">
     {% else %}<div class="card{% if m.count > 0 %} highlight{% endif %}">{% endif %}
       <div class="card-icon-wrap icon-purple"><i class="material-icons">monitor_heart</i></div>
-      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">iPTH &gt; 1000 pg/mL</div></div>
+      <div class="card-body"><div class="value">{{ m.count }}</div><div class="title">Parathyroid hormone(iPTH) &gt; 1000 pg/mL</div></div>
       {% if m.names %}<div class="tooltip">{{ m.names | join(' · ') }}</div>{% endif %}
     {% if user.role in ['admin', 'doctor'] and m.count > 0 %}</a>{% else %}</div>{% endif %}
 
@@ -455,7 +455,7 @@
               <option value="tsat">TSAT (&lt; 20%)</option>
               <option value="single_pool_ktv">Kt/V (&lt; 1.2)</option>
               <option value="urr">URR (&lt; 65%)</option>
-              <option value="ipth">iPTH (&lt; 150 or &gt; 600)</option>
+              <option value="ipth">Parathyroid hormone(iPTH) (&lt; 150 or &gt; 600)</option>
               <option value="serum_potassium">Potassium (&lt; 3.5 or &gt; 5.5)</option>
               <option value="idwg">IDWG (&gt; 2.5kg)</option>
             </select>
@@ -815,7 +815,7 @@ renderTrend("hb"); renderTrend("alb"); renderTrend("phos");
 const AT_RISK_LABELS = {
   hb:'Hemoglobin', albumin:'Albumin', phosphorus:'Phosphorus', calcium:'Calcium',
   serum_ferritin:'Ferritin', tsat:'TSAT', single_pool_ktv:'Kt/V', urr:'URR',
-  ipth:'iPTH', serum_potassium:'Potassium', idwg:'IDWG',
+  ipth:'Parathyroid hormone(iPTH)', serum_potassium:'Potassium', idwg:'IDWG',
 };
 
 let _arData = { months: [], patients: [], parameter: '' };
@@ -1101,7 +1101,7 @@ function refreshCards(data) {
     "Calcium":           m.calcium_low,
     "Phosphorus":        m.phos_high,
     "IV Iron":           m.iv_iron_rec,
-    "iPTH":              m.ipth_very_high,
+    "Parathyroid hormone(iPTH)":              m.ipth_very_high,
     "Infectious":        m.infectious_hd,
     "AVF Flow":          m.avf_low_flow,
     "Transplant":        m.transplant_prospects,

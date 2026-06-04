@@ -203,7 +203,7 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     # Quarterly / intermittent labs — NOT measured every month by default.
     # Calcium and Phosphorus ARE monthly — excluded here.
     QUARTERLY_FIELDS = {
-        "ipth":           {"label": "iPTH",      "unit": "pg/mL"},
+        "ipth":           {"label": "Parathyroid hormone(iPTH)",      "unit": "pg/mL"},
         "serum_ferritin": {"label": "Ferritin",  "unit": "ng/mL"},
         "tsat":           {"label": "TSAT",       "unit": "%"},
         "serum_iron":     {"label": "Serum Iron", "unit": "µg/dL"},

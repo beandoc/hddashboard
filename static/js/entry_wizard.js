@@ -190,7 +190,7 @@ function buildReviewSummary() {
             { name: 'calcium',             label: 'Calcium',       unit: 'mg/dL' },
             { name: 'phosphorus',          label: 'Phosphorus',    unit: 'mg/dL' },
             { name: 'alkaline_phosphate',  label: 'Alk Phos',      unit: 'U/L' },
-            { name: 'ipth',                label: 'iPTH',          unit: 'pg/mL' },
+            { name: 'ipth',                label: 'Parathyroid hormone(iPTH)',          unit: 'pg/mL' },
             { name: 'vit_d',               label: 'Vit D',         unit: 'ng/mL' },
             { name: 'albumin',             label: 'Albumin',       unit: 'g/dL' },
             { name: 'pre_dialysis_urea',   label: 'Pre-HD Urea',   unit: 'mg/dL' },

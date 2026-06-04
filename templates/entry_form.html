@@ -229,8 +229,9 @@
                             <input type="number" step="1" name="serum_ferritin" inputmode="numeric" value="{{ record.serum_ferritin or '' if record else '' }}">
                         </div>
                         <div class="form-group">
-                            <label>TSAT (%)</label>
-                            <input type="number" step="0.01" name="tsat" inputmode="decimal" value="{{ record.tsat or '' if record else '' }}">
+                            <label>TSAT (%) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto-calculated)</span></label>
+                            <input type="number" step="0.01" name="tsat" inputmode="decimal" placeholder="Auto from Iron/TIBC"
+                                   value="{{ record.tsat or '' if record else '' }}" readonly>
                         </div>
                     </div>
                 </div>
@@ -338,7 +339,7 @@
                             <input type="number" step="0.01" name="vit_d" inputmode="decimal" value="{{ record.vit_d or '' if record else '' }}">
                         </div>
                         <div class="form-group">
-                            <label>iPTH (pg/mL)</label>
+                            <label>Parathyroid hormone(iPTH) (pg/mL)</label>
                             <input type="number" step="1" name="ipth" inputmode="numeric" value="{{ record.ipth or '' if record else '' }}">
                         </div>
                     </div>

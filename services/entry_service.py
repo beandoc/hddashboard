@@ -196,6 +196,18 @@ def save_monthly_record(
                 if ufr_vals:
                     data["ufr"] = round(sum(ufr_vals) / len(ufr_vals), 2)
 
+        # Backend TSAT Calculation
+        serum_iron = data.get("serum_iron")
+        tibc = data.get("tibc")
+        if serum_iron is not None and tibc is not None:
+            try:
+                iron_val = float(serum_iron)
+                tibc_val = float(tibc)
+                if tibc_val > 0:
+                    data["tsat"] = round((iron_val / tibc_val) * 100, 2)
+            except (ValueError, TypeError):
+                pass
+
         # 2. Backend spKt/V and eKt/V Calculation
         pre_urea = data.get("pre_dialysis_urea")
         post_urea = data.get("post_dialysis_urea")

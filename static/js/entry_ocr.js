@@ -28,7 +28,7 @@ const OCR_RANGES = {
 const OCR_FIELD_LABELS = {
     hb:'Hemoglobin', hct:'Hematocrit', serum_ferritin:'Ferritin', tsat:'TSAT',
     serum_iron:'Serum Iron', tibc:'TIBC', calcium:'Calcium', phosphorus:'Phosphorus',
-    alkaline_phosphate:'ALP', ipth:'iPTH', vit_d:'Vitamin D', serum_sodium:'Sodium',
+    alkaline_phosphate:'ALP', ipth:'Parathyroid hormone(iPTH)', vit_d:'Vitamin D', serum_sodium:'Sodium',
     serum_potassium:'Potassium', serum_bicarbonate:'Bicarbonate',
     serum_creatinine:'Creatinine', serum_uric_acid:'Uric Acid',
     pre_dialysis_urea:'Pre-HD Urea', post_dialysis_urea:'Post-HD Urea',
