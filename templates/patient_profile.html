@@ -1412,7 +1412,7 @@
                 x: labels, y: hbData,
                 name: 'Hemoglobin (g/dL)',
                 type: 'scatter', mode: 'lines+markers',
-                yaxis: 'y1',
+                yaxis: 'y',
                 line: { color: '#0ea5e9', width: 3, shape: 'spline' },
                 fill: 'tozeroy', fillcolor: 'rgba(14,165,233,0.08)',
                 marker: { size: 7, color: '#fff', line: { color: '#0ea5e9', width: 2.5 } },
@@ -1465,7 +1465,7 @@
                 x: labels, y: wtData,
                 name: 'Prescribed Dry Weight (kg)',
                 type: 'scatter', mode: 'lines+markers',
-                yaxis: 'y1',
+                yaxis: 'y',
                 line: { color: '#7c3aed', width: 3, shape: 'spline' },
                 fill: 'tozeroy', fillcolor: 'rgba(124,58,237,0.06)',
                 marker: { size: 6 },
@@ -1757,7 +1757,7 @@
             </div>`).join('');
 
         return `
-        <div style="border:${border};border-radius:12px;padding:16px;margin-bottom:14px;position:relative;">
+        <div data-episode-id="${ep.id}" style="border:${border};border-radius:12px;padding:16px;margin-bottom:14px;position:relative;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
                 ${isCurrent ? '<span style="font-size:0.7rem;background:#ede9fe;color:#6d28d9;padding:3px 10px;border-radius:20px;font-weight:700;">CURRENT</span>' : '<span style="font-size:0.7rem;background:#f1f5f9;color:#94a3b8;padding:3px 10px;border-radius:20px;font-weight:700;">HISTORICAL</span>'}
                 <strong style="font-size:0.95rem;">${ep.access_class} — ${ep.access_subtype||ep.access_class}</strong>

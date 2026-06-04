@@ -25,6 +25,7 @@ body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-body); 
 .container { max-width: 1280px; margin: 24px auto; padding: 0 24px; }
 
 .profile-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+.profile-grid main { min-width: 0; }
 
 /* Tablet: prevent sidebar crushing main content */
 @media (max-width: 1200px) {

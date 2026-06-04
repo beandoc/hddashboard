@@ -998,17 +998,21 @@ async def delete_hospitalisation(
 
 @router.post("/{patient_id}/clinical_background")
 async def update_clinical_background(
-    patient_id: int, 
-    clinical_background: str = Form(""), 
-    db: Session = Depends(get_db), 
-    user=Depends(get_user)
+    patient_id: int,
+    request: Request,
+    clinical_background: str = Form(""),
+    db: Session = Depends(get_db),
 ):
-    from services.patient_service import get_patient_by_id
-    p = get_patient_by_id(db, patient_id)
+    p = db.query(Patient).filter(Patient.id == patient_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if user.role in ["admin", "doctor"]:
-        p.clinical_background = clinical_background
-        db.commit()
+    
+    user = get_user(request)
+    role = (user.get("role") if isinstance(user, dict) else getattr(user, "role", "")) if user else ""
+    if role not in ("admin", "doctor"):
+        raise HTTPException(status_code=403, detail="Permission denied")
+        
+    p.clinical_background = clinical_background
+    db.commit()
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=f"/patients/{patient_id}", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)

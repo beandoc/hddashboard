@@ -322,4 +322,4 @@ async def create_interim_lab(
     )
     db.add(interim)
     db.commit()
-    return RedirectResponse(url=f"/patients/{patient_id}/profile", status_code=303)
+    return RedirectResponse(url=f"/patients/{patient_id}/profile?msg=lab_saved", status_code=303)
