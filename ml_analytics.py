@@ -574,12 +574,33 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
         MonthlyRecord.record_month == month,
         MonthlyRecord.patient_id.in_(active_patient_ids),
     ).all()
+
+    # Fetch interim lab overrides for the current month, mirroring dashboard_logic.py.
+    # Patients may have Hb (or other parameters) entered only as an interim lab — their
+    # MonthlyRecord field will be None, so without this they are silently excluded from
+    # the at-risk list even though the main dashboard shows their (interim) value correctly.
+    interim_overrides: Dict[int, float] = {}
+    if hasattr(InterimLabRecord, 'parameter'):
+        interim_recs = db.query(InterimLabRecord).filter(
+            InterimLabRecord.record_month == month,
+            InterimLabRecord.parameter == parameter,
+            InterimLabRecord.patient_id.in_(active_patient_ids),
+        ).order_by(InterimLabRecord.lab_date.asc()).all()
+        for il in interim_recs:
+            interim_overrides[il.patient_id] = il.value  # last date wins (asc order)
+
     at_risk_patient_ids = []
+    seen_patient_ids = set()
 
     for r in curr_records:
+        seen_patient_ids.add(r.patient_id)
         val = getattr(r, parameter, None)
         if parameter == "calcium" and r.calcium is not None and r.albumin is not None:
             val = r.calcium + 0.8 * (3.5 - r.albumin)
+
+        # Fall back to interim override when monthly record field is absent
+        if val is None and r.patient_id in interim_overrides:
+            val = interim_overrides[r.patient_id]
 
         if val is None: continue
 
@@ -589,6 +610,16 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
 
         if is_out:
             at_risk_patient_ids.append(r.patient_id)
+
+    # Catch active patients with NO MonthlyRecord this month but with an interim value
+    for pid, val in interim_overrides.items():
+        if pid in seen_patient_ids:
+            continue  # already evaluated above
+        is_out = False
+        if "min" in thresh and val < thresh["min"]: is_out = True
+        if "max" in thresh and val > thresh["max"]: is_out = True
+        if is_out:
+            at_risk_patient_ids.append(pid)
 
     if not at_risk_patient_ids:
         return {"patients": []}
