@@ -82,6 +82,10 @@ def _seed_default_users() -> None:
 # request finds a warm cache instead of paying the full DB cost itself.
 _DASHBOARD_WARM_EVENT = threading.Event()
 
+# Set when the background database startup thread completes (migrations, seeding, models restore).
+# The cache warm-up threads wait on this before performing queries so they don't hit old schemas.
+_STARTUP_COMPLETE_EVENT = threading.Event()
+
 
 def _warm_caches() -> None:
     """Pre-populate dashboard and ML caches at startup.
@@ -91,6 +95,7 @@ def _warm_caches() -> None:
     own SessionLocal so they don't share a connection or fight over pool slots.
     """
     def _warm_dashboard():
+        _STARTUP_COMPLETE_EVENT.wait()
         db = SessionLocal()
         try:
             from dashboard_logic import compute_dashboard
@@ -103,6 +108,7 @@ def _warm_caches() -> None:
             _DASHBOARD_WARM_EVENT.set()
 
     def _warm_ml():
+        _STARTUP_COMPLETE_EVENT.wait()
         db = SessionLocal()
         try:
             from ml_analytics import get_all_patients_mortality_risk, run_cohort_analytics
@@ -193,6 +199,7 @@ def _background_startup() -> None:
         logging.error("Background startup error: %s", exc)
     finally:
         _APP_READY = True   # flip even on error so health check reports degraded
+        _STARTUP_COMPLETE_EVENT.set()
 
 
 @asynccontextmanager
