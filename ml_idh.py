@@ -1581,7 +1581,13 @@ def compute_idh_risk(
 
             shap_values = _compute_idh_shap(model, feats)
 
-            # ── MAPIE 80% conformal prediction interval ───────────────────────
+            # ── Approximate uncertainty band via MAPIE conformal classification ──
+            # MAPIE produces a classification *prediction set* (which class labels
+            # are plausible at 80% coverage), NOT a probability interval.  We use
+            # set membership to pick a heuristic band width around `prob`.  These
+            # bounds carry NO rigorous coverage guarantee for the probability value
+            # itself — they are indicative only and must not be treated as a
+            # statistically valid credible or conformal probability interval.
             pi_lower: Optional[float] = None
             pi_upper: Optional[float] = None
             mapie_model = _load_idh_mapie()
@@ -1591,9 +1597,10 @@ def compute_idh_risk(
                     _, y_ps = mapie_model.predict(x_arr, alpha=0.20)
                     # y_ps shape: (n_samples, n_classes, n_alpha)
                     in_set = y_ps[0, :, 0]   # boolean mask for each class at 80% coverage
-                    # If only class-1 is in set: lower bound = prob; upper = prob
-                    # If both classes in set: full uncertainty → widen to [0, 1]
-                    # If only class-0: near-zero risk
+                    # Heuristic width from prediction-set membership:
+                    #   only class-1 in set  → narrow band (model is confident it's IDH)
+                    #   both classes in set  → widen to [0, 1] (full ambiguity)
+                    #   only class-0 in set  → near-zero risk, small upper tail
                     if in_set[1] and not in_set[0]:
                         pi_lower = round(max(prob - 0.05, 0.0), 3)
                         pi_upper = round(min(prob + 0.05, 1.0), 3)
@@ -1604,7 +1611,7 @@ def compute_idh_risk(
                         pi_lower = 0.0
                         pi_upper = round(min(prob + 0.10, 1.0), 3)
                 except Exception as pi_exc:
-                    logger.debug("MAPIE PI skipped: %s", pi_exc)
+                    logger.debug("MAPIE uncertainty band skipped: %s", pi_exc)
 
             if log_prediction:
                 session_date = sp.get("session_date")

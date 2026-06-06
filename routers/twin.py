@@ -223,6 +223,7 @@ def _build_patient_info(patient: Patient, monthly_records: list, db: Session) ->
     cad = getattr(cm, "cad_status", False) if cm else False
 
     return {
+        "id":           patient.id,
         "age":          patient.age,
         "sex":          patient.sex,
         "height":       patient.height,
@@ -273,28 +274,11 @@ async def twin_sandbox(
 
     records       = _monthly_records_dicts(db, patient_id)
     past_sessions = _past_sessions_dicts(db, patient_id)
-    patient_info  = _build_patient_info(patient, records, db)
     baseline_session = _build_baseline_session(past_sessions)
 
-    # Run the default scenario (no changes = baseline vs itself)
+    # Page load carries empty defaults; the JS triggers runSimulation() on DOMContentLoaded.
     default_result = {}
     default_plotly = {}
-    if records:
-        try:
-            default_result = run_scenario(
-                patient_id          = patient_id,
-                records             = records,
-                patient_info        = patient_info,
-                baseline_session    = baseline_session,
-                past_sessions       = past_sessions,
-                monthly_data        = records[0] if records else {},
-                monthly_records_3mo = records[:3],
-                scenario            = {},
-                db                  = db,
-            )
-            default_plotly = build_twin_plotly_data(default_result)
-        except Exception as e:
-            logger.warning(f"Digital Twin default run failed for patient {patient_id}: {e}")
 
     # Previous simulation history
     sim_history = (
@@ -316,14 +300,10 @@ async def twin_sandbox(
         if current_pbe <= 0.0:
             current_pbe = 3.0
 
-    # spKt/V: prefer recorded monthly value → simulation baseline → compute from
-    # most recent monthly record that has both pre and post urea
+    # spKt/V: prefer recorded monthly value → compute from most recent record with pre/post urea
     current_ktv = None
     if records:
         current_ktv = records[0].get("single_pool_ktv")
-        if current_ktv is None:
-            current_ktv = (default_result.get("ktv_sim", {}).get("baseline_ktv")
-                           if default_result else None)
         if current_ktv is None:
             from ml_twin import calculate_ktv_daugirdas, _UREA_MG_DL_TO_BUN
             uf_L = (past_sessions[0].get("uf_volume") or 1500) / 1000 if past_sessions else 1.5
