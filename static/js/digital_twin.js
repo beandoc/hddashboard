@@ -105,6 +105,26 @@ function _updateIdhKpis(plotly, result) {
       document.getElementById('idh-pi-band').style.left  = left + '%';
       document.getElementById('idh-pi-band').style.width = Math.max(0, right - left) + '%';
       document.getElementById('idh-scen-marker').style.left = Math.max(0, Math.min(100, g.scenario_pct)) + '%';
+
+      // Label + tooltip: reflect whether the band comes from calibration data or fallback
+      const scenFull = result?.idh_sim?.scenario_full?.data || {};
+      const delta    = scenFull.pi_delta;
+      const nCalib   = scenFull.pi_n_calib;
+      const cov      = scenFull.pi_coverage;
+      const labelEl  = document.getElementById('idh-pi-label');
+      const metaEl   = document.getElementById('idh-pi-calib-meta');
+      if (labelEl) {
+        if (delta != null && nCalib != null) {
+          const covStr = cov != null ? ` · empirical coverage ${(cov * 100).toFixed(0)}%` : '';
+          labelEl.title = `Mondrian split-conformal regression band. δ = ±${(delta * 100).toFixed(1)}% computed from ${nCalib} out-of-fold CV calibration samples${covStr}. Approximate 80% marginal coverage within this risk stratum.`;
+          labelEl.textContent = '80% Conformal Band ⓘ';
+          if (metaEl) metaEl.textContent = `δ = ±${(delta * 100).toFixed(1)}%  ·  n_calib = ${nCalib}${cov != null ? '  ·  coverage ' + (cov * 100).toFixed(0) + '%' : ''}`;
+        } else {
+          labelEl.title = 'Uncertainty band (calibration data not yet available — retrain the IDH model to compute empirical bands).';
+          labelEl.textContent = '80% Uncertainty Band ⓘ';
+          if (metaEl) metaEl.textContent = '';
+        }
+      }
     } else {
       piContainer.style.display = 'none';
     }

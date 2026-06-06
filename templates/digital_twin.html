@@ -290,10 +290,10 @@
             <div class="idh-level" id="idh-scen-level">—</div>
           </div>
         </div>
-        <!-- Indicative uncertainty band from MAPIE conformal classification -->
+        <!-- 80% Mondrian split-conformal uncertainty band -->
         <div id="idh-pi-band-container" style="margin-top: 14px; display: none;">
           <div style="font-size: 0.68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: flex; justify-content: space-between;">
-            <span title="Derived from MAPIE conformal classification prediction sets. Band width reflects model confidence (narrow = high confidence, wide = ambiguous). This is NOT a statistically rigorous probability interval — treat as indicative only.">Uncertainty Band ⓘ</span>
+            <span id="idh-pi-label" title="">80% Uncertainty Band ⓘ</span>
             <span id="idh-pi-bounds-text" style="font-family: monospace;">[—%, —%]</span>
           </div>
           <div style="position: relative; height: 16px; background: #e2e8f0; border-radius: 8px; overflow: visible;">
@@ -305,6 +305,7 @@
             <span>50%</span>
             <span>100%</span>
           </div>
+          <div id="idh-pi-calib-meta" style="font-size:0.62rem;color:var(--muted);margin-top:5px;font-style:italic;"></div>
         </div>
         <div style="margin-top:10px;font-size:0.72rem;color:var(--muted);">
           Driven by UF rate, dialysate temp/Na, pre-SBP. Longer session → lower effective UF rate → lower IDH.

@@ -171,6 +171,7 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _IDH_MODEL_PATH  = os.path.join(_BASE_DIR, "idh_model.joblib")
 _IDH_MAPIE_PATH  = os.path.join(_BASE_DIR, "idh_mapie.joblib")
 _IDH_META_PATH   = os.path.join(_BASE_DIR, "idh_model_meta.json")
+_IDH_CALIB_PATH  = os.path.join(_BASE_DIR, "idh_calibration_bands.json")
 
 # EPF thresholds
 _N_FEATURES = len(IDH_FEATURE_NAMES)   # 41
@@ -834,6 +835,28 @@ _IDH_MAPIE_MODEL = None
 _IDH_MAPIE_MTIME = 0
 
 
+_IDH_CALIB_BANDS: Optional[dict] = None
+_IDH_CALIB_MTIME: float = 0.0
+
+
+def _load_idh_calib_bands() -> Optional[dict]:
+    """Return Mondrian conformal bands dict, reloading when file changes."""
+    global _IDH_CALIB_BANDS, _IDH_CALIB_MTIME
+    if not os.path.exists(_IDH_CALIB_PATH):
+        return None
+    try:
+        mtime = os.path.getmtime(_IDH_CALIB_PATH)
+        if _IDH_CALIB_BANDS is not None and mtime <= _IDH_CALIB_MTIME:
+            return _IDH_CALIB_BANDS
+        with open(_IDH_CALIB_PATH) as f:
+            _IDH_CALIB_BANDS = json.load(f)
+        _IDH_CALIB_MTIME = mtime
+        return _IDH_CALIB_BANDS
+    except Exception as exc:
+        logger.debug("Calibration bands load failed: %s", exc)
+        return None
+
+
 def _load_idh_mapie():
     global _IDH_MAPIE_MODEL, _IDH_MAPIE_MTIME
     if not (_MAPIE_AVAILABLE and _JOBLIB_AVAILABLE) or not os.path.exists(_IDH_MAPIE_PATH):
@@ -1165,6 +1188,78 @@ def train_idh_model(db) -> dict:
         algorithm = "LogisticRegression (calibrated, XGBoost unavailable)"
 
     auc_warning = cv_auc < 0.65 or overfitting_risk
+
+    # ── 3a. Mondrian split-conformal probability bands ────────────────────────
+    # cv_probs are out-of-fold predictions: each sample was scored by a fold that
+    # never saw it, making them valid held-out scores for conformal calibration.
+    #
+    # Nonconformity score: s_i = |y_i - p_hat_i| (regression on probability).
+    # For each risk stratum we compute the (1-alpha) conformal quantile δ — the
+    # smallest value such that at least (1-alpha) of calibration errors ≤ δ.
+    # At inference: pi_lower = max(0, prob-δ), pi_upper = min(1, prob+δ).
+    # Mondrian stratification gives conditional (within-stratum) coverage.
+    _alpha = 0.20  # target 80% coverage
+    _nc = np.abs(y_arr - cv_probs)  # nonconformity scores
+    _strata_def = [
+        ("low",      cv_probs < 0.30),
+        ("moderate", (cv_probs >= 0.30) & (cv_probs < 0.60)),
+        ("high",     cv_probs >= 0.60),
+    ]
+    _calib_strata: dict = {}
+    for _sname, _mask in _strata_def:
+        _nc_s = _nc[_mask]
+        _n_s  = int(_mask.sum())
+        if _n_s >= 5:
+            # Finite-sample conformal level: ceil((n+1)(1-α))/n
+            _lvl   = min(1.0, float(np.ceil((_n_s + 1) * (1 - _alpha)) / _n_s))
+            _delta = float(np.quantile(_nc_s, _lvl))
+            _p_s   = cv_probs[_mask]
+            _y_s   = y_arr[_mask]
+            _lo    = np.maximum(0.0, _p_s - _delta)
+            _hi    = np.minimum(1.0, _p_s + _delta)
+            _cov   = float(np.mean((_y_s >= _lo) & (_y_s <= _hi)))
+        else:
+            _delta = 0.20  # conservative fallback when stratum is too small
+            _cov   = None
+        _calib_strata[_sname] = {
+            "delta":              round(_delta, 4),
+            "n_calib":            _n_s,
+            "empirical_coverage": round(_cov, 3) if _cov is not None else None,
+        }
+    # Overall band (fallback when a stratum has insufficient calibration data)
+    _ovr_lvl   = min(1.0, float(np.ceil((len(_nc) + 1) * (1 - _alpha)) / len(_nc)))
+    _ovr_delta = float(np.quantile(_nc, _ovr_lvl))
+    _ovr_cov   = float(np.mean(_nc <= _ovr_delta))
+    _calib_strata["overall"] = {
+        "delta":              round(_ovr_delta, 4),
+        "n_calib":            len(_nc),
+        "empirical_coverage": round(_ovr_cov, 3),
+    }
+    _calib_bands_meta = {
+        "method":      "mondrian_split_conformal_regression",
+        "description": (
+            "Split conformal regression on predicted probabilities using out-of-fold "
+            "CV predictions as the calibration set. Stratum-specific quantile δ gives "
+            "approximate 80% marginal coverage within each risk stratum."
+        ),
+        "alpha":       _alpha,
+        "strata":      _calib_strata,
+    }
+    try:
+        with open(_IDH_CALIB_PATH, "w") as _cf:
+            json.dump(_calib_bands_meta, _cf, indent=2)
+        global _IDH_CALIB_BANDS, _IDH_CALIB_MTIME
+        _IDH_CALIB_BANDS = _calib_bands_meta
+        _IDH_CALIB_MTIME = os.path.getmtime(_IDH_CALIB_PATH)
+        logger.info(
+            "IDH calibration bands saved: low δ=%.3f (n=%d, cov=%.2f), "
+            "mod δ=%.3f (n=%d, cov=%.2f), high δ=%.3f (n=%d, cov=%.2f)",
+            _calib_strata["low"]["delta"],      _calib_strata["low"]["n_calib"],      _calib_strata["low"]["empirical_coverage"] or 0,
+            _calib_strata["moderate"]["delta"],  _calib_strata["moderate"]["n_calib"],  _calib_strata["moderate"]["empirical_coverage"] or 0,
+            _calib_strata["high"]["delta"],      _calib_strata["high"]["n_calib"],      _calib_strata["high"]["empirical_coverage"] or 0,
+        )
+    except Exception as _cb_exc:
+        logger.warning("Failed to save calibration bands (non-fatal): %s", _cb_exc)
 
     # ── 3. Persist model ───────────────────────────────────────────────────────
     import hashlib as _hl, json as _js, io as _io
@@ -1581,37 +1676,39 @@ def compute_idh_risk(
 
             shap_values = _compute_idh_shap(model, feats)
 
-            # ── Approximate uncertainty band via MAPIE conformal classification ──
-            # MAPIE produces a classification *prediction set* (which class labels
-            # are plausible at 80% coverage), NOT a probability interval.  We use
-            # set membership to pick a heuristic band width around `prob`.  These
-            # bounds carry NO rigorous coverage guarantee for the probability value
-            # itself — they are indicative only and must not be treated as a
-            # statistically valid credible or conformal probability interval.
+            # ── Uncertainty band: Mondrian split-conformal regression ────────────
+            # δ is the 80th-percentile nonconformity score (|y - p_hat|) computed
+            # on out-of-fold CV predictions during training, stratified by risk
+            # stratum (Mondrian conditioning).  This gives approximate marginal
+            # 80% coverage within each stratum — a quantifiable, empirically
+            # verified claim, unlike the previous ±5% heuristic.
             pi_lower: Optional[float] = None
             pi_upper: Optional[float] = None
-            mapie_model = _load_idh_mapie()
-            if mapie_model is not None:
+            pi_delta: Optional[float] = None
+            pi_n_calib: Optional[int] = None
+            pi_coverage: Optional[float] = None
+            calib_bands = _load_idh_calib_bands()
+            if calib_bands is not None:
                 try:
-                    x_arr = np.array([feats], dtype=float)
-                    _, y_ps = mapie_model.predict(x_arr, alpha=0.20)
-                    # y_ps shape: (n_samples, n_classes, n_alpha)
-                    in_set = y_ps[0, :, 0]   # boolean mask for each class at 80% coverage
-                    # Heuristic width from prediction-set membership:
-                    #   only class-1 in set  → narrow band (model is confident it's IDH)
-                    #   both classes in set  → widen to [0, 1] (full ambiguity)
-                    #   only class-0 in set  → near-zero risk, small upper tail
-                    if in_set[1] and not in_set[0]:
-                        pi_lower = round(max(prob - 0.05, 0.0), 3)
-                        pi_upper = round(min(prob + 0.05, 1.0), 3)
-                    elif in_set[0] and in_set[1]:
-                        pi_lower = 0.0
-                        pi_upper = 1.0
+                    strata = calib_bands.get("strata", {})
+                    if prob < 0.30:
+                        s = strata.get("low", strata.get("overall", {}))
+                    elif prob < 0.60:
+                        s = strata.get("moderate", strata.get("overall", {}))
                     else:
-                        pi_lower = 0.0
-                        pi_upper = round(min(prob + 0.10, 1.0), 3)
+                        s = strata.get("high", strata.get("overall", {}))
+                    # Fall back to overall if stratum has too few calibration samples
+                    if (s.get("n_calib") or 0) < 5:
+                        s = strata.get("overall", s)
+                    delta = s.get("delta")
+                    if delta is not None:
+                        pi_lower    = round(max(0.0, prob - delta), 3)
+                        pi_upper    = round(min(1.0, prob + delta), 3)
+                        pi_delta    = delta
+                        pi_n_calib  = s.get("n_calib")
+                        pi_coverage = s.get("empirical_coverage")
                 except Exception as pi_exc:
-                    logger.debug("MAPIE uncertainty band skipped: %s", pi_exc)
+                    logger.debug("Calibration bands lookup failed: %s", pi_exc)
 
             if log_prediction:
                 session_date = sp.get("session_date")
@@ -1643,6 +1740,9 @@ def compute_idh_risk(
                     "model_is_heuristic": False,
                     "pi_lower":          pi_lower,
                     "pi_upper":          pi_upper,
+                    "pi_delta":          pi_delta,
+                    "pi_n_calib":        pi_n_calib,
+                    "pi_coverage":       pi_coverage,
                 },
             }
         except Exception as exc:
