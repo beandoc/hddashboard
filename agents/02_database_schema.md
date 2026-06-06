@@ -1,7 +1,7 @@
 # 02 — Database Schema Reference
 
 > Agent memory file · HD Dashboard · Last updated 2026-06-01
-> Current Alembic head: `e44246158d0d`
+> Current Alembic head: `8b92695a7472`
 
 ---
 

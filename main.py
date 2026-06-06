@@ -26,7 +26,7 @@ from routers import auth, patients, entry, sessions, analytics, events, variable
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "eda57b8c4029"
+REQUIRED_DB_VERSION = "8b92695a7472"
 
 
 def _check_schema_version() -> None:
@@ -173,6 +173,17 @@ def _background_startup() -> None:
     """
     global _APP_READY
     try:
+        # Run alembic migrations automatically on startup
+        logging.info("Applying database migrations (alembic upgrade head)...")
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            logging.warning(f"Alembic auto-upgrade did not run or failed: {result.stderr or result.returncode}")
+        else:
+            logging.info("Alembic migrations applied successfully.")
+
         create_tables()
         _check_schema_version()
         _seed_default_users()

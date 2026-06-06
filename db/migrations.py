@@ -85,6 +85,9 @@ def create_tables():
     safe_execute("ALTER TABLE research_records ALTER COLUMN project_id DROP NOT NULL;")
     safe_execute("ALTER TABLE research_records DROP CONSTRAINT IF EXISTS research_records_project_id_fkey;")
     safe_execute("ALTER TABLE research_records ADD CONSTRAINT research_records_project_id_fkey FOREIGN KEY (project_id) REFERENCES research_projects(id) ON DELETE SET NULL;")
+
+    # 9. Reticulocyte Count
+    safe_execute("ALTER TABLE monthly_records ADD COLUMN reticulocyte_count FLOAT;")
     try:
         serving_backfill = [
             ("Roti / Chapati / Phulka", "1 roti (~30g)"),

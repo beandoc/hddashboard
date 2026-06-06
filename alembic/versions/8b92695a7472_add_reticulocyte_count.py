@@ -15,13 +15,22 @@ branch_labels = None
 depends_on = None
 
 
+import sqlalchemy as sa
+
 def upgrade():
-    # Use IF NOT EXISTS so this is safe to re-run if alembic_version ever
-    # gets ahead of the actual schema (e.g. after a partially-applied deploy).
-    op.execute(
-        "ALTER TABLE monthly_records"
-        " ADD COLUMN IF NOT EXISTS reticulocyte_count FLOAT"
-    )
+    # Use IF NOT EXISTS for PostgreSQL, and check before adding for SQLite.
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        from sqlalchemy import inspect
+        inspector = inspect(bind)
+        columns = [col['name'] for col in inspector.get_columns('monthly_records')]
+        if 'reticulocyte_count' not in columns:
+            op.add_column('monthly_records', sa.Column('reticulocyte_count', sa.Float(), nullable=True))
+    else:
+        op.execute(
+            "ALTER TABLE monthly_records"
+            " ADD COLUMN IF NOT EXISTS reticulocyte_count FLOAT"
+        )
 
 
 def downgrade():

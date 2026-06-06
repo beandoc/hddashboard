@@ -56,7 +56,7 @@ When tackling a specific type of task, you can ask Claude to adopt one of these 
 ## Required DB Schema Version
 
 ```
-REQUIRED_DB_VERSION = "e44246158d0d"   # main.py line 28
+REQUIRED_DB_VERSION = "8b92695a7472"   # main.py
 ```
 
 Run `alembic upgrade head` (or `scripts/pre_deploy.py`) before booting after
