@@ -6,12 +6,83 @@ ESA (Erythropoiesis-Stimulating Agent) Dose Normalization and Hyporesponse Detec
 All ESAs are normalised to a single common currency: weekly SC IU equivalents.
 This facility uses subcutaneous administration exclusively — no IV correction is applied.
 """
+import math as _math
 import re
 import logging
 from typing import Optional, List, Dict
 
 
 logger = logging.getLogger(__name__)
+
+# ── ESA Pharmacokinetics ──────────────────────────────────────────────────────
+#
+# Half-lives for SC administration (the only route used at this facility):
+#   Epoetin alfa/beta SC  ≈ 24 h = 1.0 day
+#   Darbepoetin alfa SC   ≈ 49 h = 2.04 days
+#   Methoxy-PEG-EPO SC    ≈ 134 h = 5.58 days  (Mircera)
+#
+# PK correction for ODE epo_norm:
+#   For the same potency-equivalent weekly IU, different dosing schedules deliver
+#   different monthly AUC due to half-life differences.  Mircera dosed monthly
+#   has ~5.45× higher AUC than weekly epoetin at the same "equivalent weekly IU".
+#   The ODE absorbs this via a lower patient-specific k_epo for Mircera patients,
+#   which is fitted automatically from observed Hb data.
+#
+# Reference: weekly epoetin SC (4 doses/month, t½=1 day).
+#   All correction factors are expressed relative to this reference.
+
+_THALF_EPO_DAYS  = 1.0          # epoetin alfa/beta SC ≈ 24 h
+_THALF_DARB_DAYS = 49.0 / 24.0  # darbepoetin alfa SC  ≈ 49 h
+_THALF_MIRC_DAYS = 134.0 / 24.0 # methoxy-PEG-EPO SC   ≈ 134 h
+
+
+def _monthly_auc_factor(thalf_days: float, n_doses: int) -> float:
+    """
+    Total AUC[0, 30 days] for n_doses equally-spaced SC doses each of 1 IU.
+    Units: IU·days.  Assumes first-order elimination from a 1-compartment model.
+    """
+    k = _math.log(2) / thalf_days
+    interval = 30.0 / n_doses
+    return sum(
+        (1.0 - _math.exp(-k * (30.0 - i * interval))) / k
+        for i in range(n_doses)
+    )
+
+
+# Compute once at module load — reference AUC for weekly epoetin (4 doses/month)
+_F_EPO_WEEKLY_REF: float = _monthly_auc_factor(_THALF_EPO_DAYS, n_doses=4)  # ≈ 5.77 IU-days
+
+
+def pk_correction_factor(drug_type: str, frequency: str) -> float:
+    """
+    PK AUC correction factor for ODE epo_norm relative to weekly-epoetin reference.
+
+    factor = AUC_{drug,schedule} / AUC_{epoetin,weekly}  at the same weekly_sc_iu value.
+
+    Values > 1.0 indicate more monthly exposure per equivalent weekly IU.  The ODE
+    will fit k_epo proportionally lower for such patients, correctly separating
+    drug-specific receptor pharmacology from dose-response.
+
+    Typical values:
+        Epoetin 3×/week : ≈ 0.98  (slightly less uniform than weekly)
+        Epoetin weekly  : = 1.00  (reference)
+        Darbepoetin weekly: ≈ 2.02 (longer t½ → less pulsatile)
+        Mircera monthly : ≈ 5.45  (essentially flat concentration over 30 days)
+    """
+    _n_doses: dict = {
+        "tiw": 13, "biw": 9, "weekly": 4, "biweekly": 2,
+        "every_10_days": 3, "monthly": 1,
+    }
+    _thalf: dict = {
+        "epoetin":     _THALF_EPO_DAYS,
+        "darbepoetin": _THALF_DARB_DAYS,
+        "mircera":     _THALF_MIRC_DAYS,
+    }
+    thalf = _thalf.get(drug_type, _THALF_EPO_DAYS)
+    n = _n_doses.get(frequency, 4)
+    # General formula: factor = (4/n) × F(thalf, n) / F_REF
+    # — accounts for the total monthly dose being 4×weekly regardless of schedule.
+    return (4.0 / n) * _monthly_auc_factor(thalf, n) / _F_EPO_WEEKLY_REF
 
 # ── ESA Dose Normalization ────────────────────────────────────────────────────
 #
@@ -26,8 +97,8 @@ logger = logging.getLogger(__name__)
 #   Mircera (biweekly)      → weekly SC IU equiv       = biweekly_mcg × 100
 #
 # Mircera threshold bands (for equivalence checks):
-#   < 8 000 IU/week epoetin  ↔  < 40 mcg/week darbepoetin  →  120 mcg/month Mircera
-#   8 000–16 000 IU/week     ↔  40–80 mcg/week darbepoetin  →  180 mcg/month Mircera
+#   ≤ 8 000 IU/week epoetin  ↔  ≤ 40 mcg/week darbepoetin  →  120 mcg/month Mircera
+#   8 001–16 000 IU/week     ↔  41–80 mcg/week darbepoetin  →  180 mcg/month Mircera
 
 _MIRCERA_SYNONYMS   = {"mircera", "peginesatide", "cera", "methoxy peg", "mpg-epo", "erypeg", "peg epo", "peg-epo", "ery peg", "eripack"}
 _DARBE_SYNONYMS     = {"darbepoetin", "aranesp", "darb", "darbp", "darbe"}
@@ -129,14 +200,25 @@ def normalize_epo_dose(dose_str: str) -> dict:
     if weekly_iu is not None:
         weekly_iu = round(weekly_iu, 2)
 
+    # ── PK-corrected effective monthly AUC ────────────────────────────────────
+    # AUC[0-30 days] in IU-days for the actual dosing schedule, accounting for
+    # each drug's SC half-life.  Mircera dosed monthly accumulates ~5.45× more
+    # monthly AUC than the same "equivalent weekly IU" of epoetin given weekly.
+    pk_factor: float = pk_correction_factor(drug_type, frequency)
+    effective_monthly_auc_iu: Optional[float] = (
+        round(weekly_iu * pk_factor * _F_EPO_WEEKLY_REF, 1) if weekly_iu is not None else None
+    )
+
     return {
-        "weekly_iu_sc": weekly_iu,
-        "drug_type":    drug_type,
-        "frequency":    frequency,
-        "dose_value":   dose_value,
-        "original":     dose_str,
-        "route":        "sc",
-        "confidence":   "high" if drug_type != "unknown" else "low",
+        "weekly_iu_sc":             weekly_iu,
+        "drug_type":                drug_type,
+        "frequency":                frequency,
+        "dose_value":               dose_value,
+        "original":                 dose_str,
+        "route":                    "sc",
+        "confidence":               "high" if drug_type != "unknown" else "low",
+        "pk_correction_factor":     round(pk_factor, 4),
+        "effective_monthly_auc_iu": effective_monthly_auc_iu,
     }
 
 
@@ -147,16 +229,16 @@ def get_mircera_equivalent(epoetin_weekly_iu: float = None,
     Used as a feature-engineering helper for the ML pipeline.
     """
     if epoetin_weekly_iu is not None:
-        if epoetin_weekly_iu < 8000:
-            return {"mircera_monthly_mcg": 120, "band": "<8000 IU/week", "basis": "epoetin"}
+        if epoetin_weekly_iu <= 8000:
+            return {"mircera_monthly_mcg": 120, "band": "≤8000 IU/week", "basis": "epoetin"}
         elif epoetin_weekly_iu <= 16000:
-            return {"mircera_monthly_mcg": 180, "band": "8000–16000 IU/week", "basis": "epoetin"}
+            return {"mircera_monthly_mcg": 180, "band": "8001–16000 IU/week", "basis": "epoetin"}
         else:
             return {"mircera_monthly_mcg": 200, "band": ">16000 IU/week", "basis": "epoetin"}
 
     if darbepoetin_weekly_mcg is not None:
-        if darbepoetin_weekly_mcg < 40:
-            return {"mircera_monthly_mcg": 120, "band": "<40 mcg/week", "basis": "darbepoetin"}
+        if darbepoetin_weekly_mcg <= 40:
+            return {"mircera_monthly_mcg": 120, "band": "≤40 mcg/week", "basis": "darbepoetin"}
         elif darbepoetin_weekly_mcg <= 80:
             return {"mircera_monthly_mcg": 180, "band": "40–80 mcg/week", "basis": "darbepoetin"}
         else:
@@ -180,6 +262,32 @@ def _resolve_weekly_iu_sc(record: dict) -> Optional[float]:
     stored = record.get("epo_weekly_units")
     if stored is not None:
         return float(stored)  # Manual units are entered as SC IU directly
+    return None
+
+
+def _resolve_pk_corrected_iu(record: dict) -> Optional[float]:
+    """
+    Weekly SC IU × pk_correction_factor — use this for the ODE's epo_norm instead
+    of plain weekly_iu.
+
+    For epoetin weekly the result is identical to _resolve_weekly_iu_sc (factor=1.0).
+    For Mircera monthly the result is ~5.45× higher, so the per-patient ODE fitter
+    will converge to a proportionally lower k_epo, correctly capturing that Mircera's
+    long half-life (t½=134 h) delivers far more monthly AUC per equivalent IU than
+    pulsatile weekly epoetin.
+
+    Falls back to plain weekly_iu (factor=1.0) when the dose string is unparseable,
+    preserving the existing behaviour for manually-entered epo_weekly_units.
+    """
+    dose_str = record.get("epo_mircera_dose")
+    if dose_str:
+        parsed = normalize_epo_dose(dose_str)
+        if parsed.get("confidence") == "high" and parsed.get("weekly_iu_sc") is not None:
+            return parsed["weekly_iu_sc"] * parsed["pk_correction_factor"]
+
+    stored = record.get("epo_weekly_units")
+    if stored is not None:
+        return float(stored)   # plain IU — no drug-type info, factor defaults to 1.0
     return None
 
 
@@ -326,7 +434,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
     # ── Build human-readable message ──────────────────────────────────────────
     drug_label = {"epoetin": "Epoetin", "darbepoetin": "Darbepoetin",
                   "mircera": "Mircera"}.get(drug_type, "ESA")
-    dose_display = f"{int(dose_iv):,} IV-IU/wk equiv" if dose_iv else "unknown dose"
+    dose_display = f"{int(dose_iv):,} SC-IU/wk" if dose_iv else "unknown dose"
 
     transfusion_note = (
         f" [Hb corrected: {hb_raw} → {hb:.1f} g/dL after {transfusion_units} PRBC unit(s)]"
@@ -362,7 +470,7 @@ def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # no
         "data": {
             "hypo_response": is_hypo,
             "eri": round(eri, 2),
-            "dose_per_kg_iv": round(dose_per_kg, 1),
+            "dose_per_kg_sc": round(dose_per_kg, 1),
             "severity": severity,
             "response_class": response_class,
             "status": {

@@ -27,7 +27,7 @@ from database import (
     get_db,
 )
 from dependencies import get_user, _require_staff_role
-from ml_acm import generate_acm_recommendation, get_acm_model_status, get_fleet_acm_summary
+from ml_acm import generate_acm_recommendation, get_acm_model_status, get_fleet_acm_summary, _row_to_dict
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/acm", tags=["acm"])
@@ -37,7 +37,16 @@ router = APIRouter(prefix="/acm", tags=["acm"])
 
 
 def _records_for_patient(db: Session, patient_id: int, limit: int = 18) -> list:
-    """Return newest-first monthly records as plain dicts for ml_acm functions."""
+    """Return newest-first merged sequence of monthly + interim Hb records.
+
+    Monthly records carry the full clinical feature set; interim Hb entries
+    (recorded between monthly visits via the patient-profile modal) are injected
+    at their exact dates so the ODE sees the real Hb trajectory, not a monthly
+    summary.  Clinical features are forward-filled from the nearest preceding
+    monthly record by merge_hb_sequence.
+    """
+    from services.interim_hb_service import get_interim_hbs, merge_hb_sequence
+
     recs = (
         db.query(MonthlyRecord)
         .filter(MonthlyRecord.patient_id == patient_id)
@@ -45,24 +54,10 @@ def _records_for_patient(db: Session, patient_id: int, limit: int = 18) -> list:
         .limit(limit)
         .all()
     )
-    return [
-        {
-            "hb":                rec.hb,
-            "serum_ferritin":    rec.serum_ferritin,
-            "tsat":              rec.tsat,
-            "albumin":           rec.albumin,
-            "single_pool_ktv":   rec.single_pool_ktv,
-            "crp":               getattr(rec, "crp", None),
-            "weight":            rec.last_prehd_weight,
-            "epo_mircera_dose":  rec.epo_mircera_dose,
-            "epo_weekly_units":  rec.epo_weekly_units,
-            "iv_iron_dose":      rec.iv_iron_dose,
-            "record_month":      rec.record_month,
-            "pre_dialysis_urea": rec.pre_dialysis_urea,
-            "post_dialysis_urea":rec.post_dialysis_urea,
-        }
-        for rec in recs
-    ]
+    monthly_dicts = [_row_to_dict(rec) for rec in recs]
+
+    interim_hbs = get_interim_hbs(db, patient_id, limit=limit * 3)
+    return merge_hb_sequence(monthly_dicts, interim_hbs)
 
 
 def _get_patient_or_404(db: Session, patient_id: int) -> Patient:
@@ -257,7 +252,6 @@ async def acm_patient_dashboard(
     )
 
     if rec_to_show and rec_to_show.get("available") and rec_to_show.get("predicted_hb_1mo"):
-        last_month = chart_data["months"][-1] if chart_data["months"] else current_month
         prediction_overlay = {
             "months":    [f"+1 mo", "+2 mo", "+3 mo"],
             "hb_values": [

@@ -95,7 +95,7 @@
         {% endif %}
 
         {# Hard limits injected from Python validators — single source of truth, no duplication #}
-        {% set hard_limits_json %}{"hb":{"min":2.0,"max":22.0,"label":"Hemoglobin"},"albumin":{"min":0.8,"max":6.5,"label":"Albumin"},"calcium":{"min":3.0,"max":18.0,"label":"Calcium"},"phosphorus":{"min":0.5,"max":20.0,"label":"Phosphorus"},"serum_ferritin":{"min":1,"max":50000,"label":"Serum Ferritin"},"wbc_count":{"min":100,"max":100000,"label":"WBC Count (/cmm)"},"serum_creatinine":{"min":0.2,"max":40.0,"label":"Serum Creatinine"},"serum_potassium":{"min":1.5,"max":10.0,"label":"Serum Potassium"},"serum_sodium":{"min":100,"max":180,"label":"Serum Sodium"}}{% endset %}
+        {% set hard_limits_json %}{"hb":{"min":2.0,"max":22.0,"label":"Hemoglobin"},"albumin":{"min":0.8,"max":6.5,"label":"Albumin"},"calcium":{"min":3.0,"max":18.0,"label":"Calcium"},"phosphorus":{"min":0.5,"max":20.0,"label":"Phosphorus"},"serum_ferritin":{"min":1,"max":50000,"label":"Serum Ferritin"},"wbc_count":{"min":100,"max":100000,"label":"WBC Count (/cmm)"},"serum_creatinine":{"min":0.2,"max":40.0,"label":"Serum Creatinine"},"serum_potassium":{"min":1.5,"max":10.0,"label":"Serum Potassium"},"serum_sodium":{"min":100,"max":180,"label":"Serum Sodium"},"reticulocyte_count":{"min":0.0,"max":15.0,"label":"Reticulocyte Count (%)"}}{% endset %}
 
         <form method="POST" action="/entry/{{ patient.id }}?month={{ month_str }}"
               novalidate
@@ -209,6 +209,12 @@
                             <label>Platelet Count (lakh/cmm)</label>
                             <input type="number" step="0.01" name="platelet_count" inputmode="decimal" placeholder="e.g. 2.5"
                                    value="{{ '%.2f'|format(record.platelet_count / 100.0) if record and record.platelet_count else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Reticulocyte Count (%)</label>
+                            <input type="number" step="0.01" name="reticulocyte_count" inputmode="decimal"
+                                   placeholder="e.g. 1.2  (normal 0.5–2.5)"
+                                   value="{{ record.reticulocyte_count or '' if record else '' }}">
                         </div>
                     </div>
                 </div>

@@ -103,6 +103,7 @@ class MonthlyRecord(Base):
     lymphocyte_count = Column(Float)
     platelet_count = Column(Float)
     hba1c = Column(Float)
+    reticulocyte_count = Column(Float)   # reticulocyte % (normal 0.5–2.5 %)
 
     # ── Liver Function ────────────────────────────────────────────────────────
     ast = Column(Float)

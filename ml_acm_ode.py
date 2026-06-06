@@ -82,10 +82,32 @@ RESIDUAL_MLP_PATH = os.path.join("models", "acm_residual_mlp.pkl")
 # ── Population-level parameter priors (fallback when < 3 months data) ────────
 # Derived from Fuertinger et al. 2014 and Barbieri et al. 2016 HD cohort medians
 
-_POP_K_EPO   = 0.012   # g/dL per IU/kg/week per month — typical EPO sensitivity
+# k_epo recentered at 0.030: steady-state Hb* = (k_epo·epo_norm·iron_frac + k_prod - crp_pen·CRP) / k_loss
+# At typical maintenance (85 IU/kg/wk, TSAT≥30%, CRP 5): Hb* ≈ (0.030×85×1 + 0.35 - 0.02) / 0.25 ≈ 11.3 g/dL
+# Prior was 0.012 → Hb* ≈ 5.4 g/dL, causing phantom Hb-collapse forecasts for uncalibrated patients.
+_POP_K_EPO   = 0.030   # g/dL per IU/kg/week per month — physiologically recentered
 _POP_K_PROD  = 0.35    # g/dL/month basal production (endogenous EPO equivalent)
 _POP_K_LOSS  = 0.25    # 25% monthly fractional decay ≈ 120-day RBC lifespan
 _CRP_PENALTY = 0.004   # g/dL per mg/L CRP per month — inflammation suppression
+
+# ── Reticulocyte compartment ──────────────────────────────────────────────────
+# 10-day maturation delay: k_mat = 1 − exp(−30/10) ≈ 0.95 per monthly step.
+# This represents ~95% of the reticulocyte pool maturing to RBCs within one
+# monthly window.  At monthly resolution the temporal lag itself is sub-step
+# (~1/3 of a month), but the two-compartment structure still matters because:
+#   1. It decouples ESA stimulation from Hb delivery, so a dose change mid-month
+#      is correctly carried into the next step via the R state.
+#   2. The 5% carry-over (1 − K_MAT) accumulates correctly during multi-step
+#      forecasts — e.g. a +50% ESA escalation ramps up rather than spiking.
+#   3. It prepares the architecture for biweekly/session resolution where the
+#      10-day lag becomes a full time-step.
+K_MAT = 0.95   # reticulocyte maturation fraction per monthly step
+
+# Conversion: observed reticulocyte % → ODE R state (g/dL equiv).
+# Derivation: circulating retics as Hb-eq = (retic_pct/100)×Hb;
+# these represent K_MAT×R produced over RETIC_BLOOD_DAYS ≈ 1.5 days in blood.
+# R = (retic_pct/100) × Hb × 30 / (K_MAT × RETIC_BLOOD_DAYS)
+RETIC_BLOOD_DAYS = 1.5   # mean reticulocyte blood lifespan (days)
 
 # Singleton residual MLP
 _residual_pipeline: Optional[object] = None
@@ -143,6 +165,7 @@ def ode_simulate(
     """
     Simulate Hb trajectory from hb0 over len(inputs) monthly steps.
     Returns list of predicted Hb values [Hb(t+1), Hb(t+2), ...].
+    Single-compartment; kept for reference — use ode_simulate_2c for all new code.
     """
     trajectory = []
     hb = hb0
@@ -158,27 +181,178 @@ def ode_simulate(
     return trajectory
 
 
+# ── Two-compartment erythropoiesis (reticulocyte + RBC) ──────────────────────
+
+def _r_steady_state(k_epo: float, epo_norm: float, iron_frac: float) -> float:
+    """
+    Steady-state reticulocyte pool (g/dL equiv) for constant ESA input.
+
+    At steady state: R_ss = k_epo × EPO_norm × iron_frac / K_MAT
+    Used to initialise the reticulocyte compartment from the most-recent
+    observation so predictions start on the correct operating curve.
+    """
+    if K_MAT <= 0:
+        return 0.0
+    return float(np.clip(k_epo * epo_norm * iron_frac / K_MAT, 0.0, 10.0))
+
+
+def _r_init(
+    k_epo: float,
+    epo_norm: float,
+    iron_frac: float,
+    hb: float,
+    retic_pct: Optional[float] = None,
+) -> float:
+    """
+    R initialisation: blend steady-state estimate with observed reticulocyte %.
+
+    When retic_pct is available it directly constrains R, making k_epo far more
+    identifiable in the optimisation. The blend weight (0.5/0.5) is conservative;
+    neither source alone is definitive — the SS estimate assumes static inputs,
+    while the retic lab has pre-analytical variability.
+
+    Conversion (from RETIC_BLOOD_DAYS constant):
+        R_obs = (retic_pct/100) × hb × 30 / (K_MAT × RETIC_BLOOD_DAYS)
+    """
+    r_ss = _r_steady_state(k_epo, epo_norm, iron_frac)
+    if retic_pct is None or math.isnan(retic_pct) or hb <= 0:
+        return r_ss
+    r_obs = float(np.clip(
+        (retic_pct / 100.0) * hb * 30.0 / (K_MAT * RETIC_BLOOD_DAYS),
+        0.0, 10.0,
+    ))
+    return 0.5 * r_ss + 0.5 * r_obs
+
+
+def ode_step_2c(
+    hb_t:       float,
+    r_t:        float,
+    epo_norm:   float,
+    iron_frac:  float,
+    crp:        float,
+    params:     Tuple[float, float, float],
+    step_days:  float = 30.0,
+) -> Tuple[float, float]:
+    """
+    Single step of the two-compartment erythropoiesis ODE.
+
+    step_days (default 30) allows variable-interval observations — interim
+    Hb entries recorded mid-month are handled without changing k_epo units.
+    All monthly rates (k_epo, k_prod, k_loss, _CRP_PENALTY) are scaled by
+    frac = step_days/30.  K_MAT uses a geometric interpolation so it reduces
+    exactly to K_MAT at step_days=30 and approaches 0 for short intervals:
+
+        k_mat_step = 1 − (1 − K_MAT)^(step_days/30)
+
+    Reticulocyte pool:
+        R(t+d) = (1 − k_mat_step) × R(t)  +  k_epo × EPO_norm × iron_frac × frac
+
+    Hemoglobin:
+        Hb(t+d) = Hb(t) × (1 − k_loss×frac)
+               + k_mat_step × R(t)
+               + k_prod × frac
+               − CRP_PENALTY × CRP × frac
+
+    At step_days=30 this is algebraically identical to the previous fixed-step
+    version, so all calibrated per-patient parameters remain valid.
+
+    Returns (hb_next, r_next), both clipped to physiologic bounds.
+    """
+    k_epo, k_prod, k_loss = params
+    crp_val = crp if (not math.isnan(crp) and crp >= 0) else 5.0
+    frac = step_days / 30.0
+    k_mat_step = 1.0 - (1.0 - K_MAT) ** frac   # geometric: exact at 30, ~linear for short steps
+
+    r_next = float(np.clip(
+        (1.0 - k_mat_step) * r_t + k_epo * epo_norm * iron_frac * frac,
+        0.0, 10.0,
+    ))
+    hb_next = float(np.clip(
+        hb_t * (1.0 - k_loss * frac)
+        + k_mat_step * r_t
+        + k_prod * frac
+        - _CRP_PENALTY * crp_val * frac,
+        6.0, 18.0,
+    ))
+    return hb_next, r_next
+
+
+def ode_simulate_2c(
+    hb0:    float,
+    r0:     float,
+    inputs: List[Dict],
+    params: Tuple[float, float, float],
+) -> List[float]:
+    """
+    Simulate Hb trajectory from (hb0, r0) over len(inputs) monthly steps.
+
+    The reticulocyte state is propagated internally.
+    Returns Hb values only — [Hb(t+1), Hb(t+2), ...] — matching the shape of
+    ode_simulate() so callers can switch without changing their result handling.
+    """
+    trajectory = []
+    hb, r = hb0, r0
+    for inp in inputs:
+        hb, r = ode_step_2c(
+            hb_t      = hb,
+            r_t       = r,
+            epo_norm  = inp.get("epo_norm", 0.0),
+            iron_frac = inp.get("iron_frac", 0.75),
+            crp       = inp.get("crp", 5.0),
+            params    = params,
+            step_days = inp.get("step_days", 30.0),   # variable-step support
+        )
+        trajectory.append(hb)
+    return trajectory
+
+
 # ── Patient-specific parameter fitting ───────────────────────────────────────
 
 def _build_inputs_from_records(records: List[Dict]) -> List[Dict]:
     """
     Convert monthly records (newest-first) to ODE input sequence (oldest-first).
     Each entry: {epo_norm, iron_frac, crp}.
-    """
-    from ml_esa import _resolve_weekly_iu_sc
 
+    epo_norm uses the PK-corrected IU so Mircera patients (factor≈5.45) have a
+    proportionally higher epo_norm; their per-patient k_epo is then fitted lower,
+    correctly separating Mircera's flat-exposure receptor pharmacology from
+    pulsatile epoetin's pulsed stimulation.
+    """
+    from ml_esa import _resolve_pk_corrected_iu
+    from services.interim_hb_service import _record_date
+
+    records_asc = list(reversed(records))   # oldest-first
     inputs = []
-    for rec in reversed(records):
+    for i, rec in enumerate(records_asc):
         weight   = _safe(rec.get("last_prehd_weight") or rec.get("weight"), 70.0)
-        iu_sc    = _resolve_weekly_iu_sc(rec) or 0.0
+        iu_sc    = _resolve_pk_corrected_iu(rec) or 0.0
         epo_norm = (iu_sc / weight) if weight > 0 else 0.0
         tsat     = _safe(rec.get("tsat"))
         ferritin = _safe(rec.get("serum_ferritin"))
         crp      = _safe(rec.get("crp"), 5.0)
+
+        # step_days: duration of the transition FROM this observation TO the next.
+        # Use pre-computed value from merge_hb_sequence when present; otherwise
+        # derive from adjacent record dates (monthly-only records → ~30 days).
+        if i + 1 < len(records_asc):
+            next_rec = records_asc[i + 1]
+            step_days = float(next_rec.get("step_days") or 30.0)
+            if step_days < 1.0:
+                # Not set by merge — compute from dates
+                d0 = _record_date(rec)
+                d1 = _record_date(next_rec)
+                if d0 is not None and d1 is not None:
+                    step_days = max(1.0, float((d1 - d0).days))
+                else:
+                    step_days = 30.0
+        else:
+            step_days = 30.0  # last record: no successor
+
         inputs.append({
             "epo_norm":  epo_norm,
             "iron_frac": _iron_factor(tsat, ferritin),
             "crp":       crp if not math.isnan(crp) else 5.0,
+            "step_days": step_days,
         })
     return inputs
 
@@ -227,6 +401,10 @@ def fit_patient_ode_params(
     hb_targets = np.array(hb_obs[1:])
     inputs_for_fit = inputs_asc[:-1]   # inputs driving steps 1..n-1
 
+    # Use observed reticulocyte % at the oldest step to anchor R0 during fitting.
+    # Falls back to steady-state inside _r_init when the field is absent.
+    retic_pct_fit = _safe(hb_records_asc[0].get("reticulocyte_count"))
+
     if len(hb_targets) < 2:
         return {
             "k_epo":      _POP_K_EPO,
@@ -240,10 +418,12 @@ def fit_patient_ode_params(
 
     def objective(params):
         k_epo, k_prod, k_loss = params
-        pred = ode_simulate(hb0, inputs_for_fit, (k_epo, k_prod, k_loss))
+        r0 = _r_init(k_epo, inputs_for_fit[0]["epo_norm"], inputs_for_fit[0]["iron_frac"],
+                     hb0, retic_pct_fit)
+        pred = ode_simulate_2c(hb0, r0, inputs_for_fit, (k_epo, k_prod, k_loss))
         mse_val = float(np.mean((np.array(pred) - hb_targets) ** 2))
         prior_penalty = (
-            ((k_epo - _POP_K_EPO) / 0.01) ** 2 +
+            ((k_epo - _POP_K_EPO) / 0.02) ** 2 +   # widened from 0.01 → allows data to pull k_epo
             ((k_prod - _POP_K_PROD) / 0.15) ** 2 +
             ((k_loss - _POP_K_LOSS) / 0.05) ** 2
         )
@@ -284,7 +464,9 @@ def fit_patient_ode_params(
         }
 
     k_epo, k_prod, k_loss = best_result.x
-    pred_final = ode_simulate(hb0, inputs_for_fit, (k_epo, k_prod, k_loss))
+    r0_final = _r_init(k_epo, inputs_for_fit[0]["epo_norm"], inputs_for_fit[0]["iron_frac"],
+                       hb0, retic_pct_fit)
+    pred_final = ode_simulate_2c(hb0, r0_final, inputs_for_fit, (k_epo, k_prod, k_loss))
     mae = float(np.mean(np.abs(np.array(pred_final) - hb_targets)))
     mse = float(np.mean((np.array(pred_final) - hb_targets) ** 2))
 
@@ -401,7 +583,7 @@ def ode_predict_trajectory(
 
     Returns ODE prediction dict with calibration metadata.
     """
-    from ml_esa import _resolve_weekly_iu_sc
+    from ml_esa import _resolve_pk_corrected_iu
 
     if not records or _safe(records[0].get("hb")) != _safe(records[0].get("hb")):
         return {"available": False, "error": "No baseline Hb"}
@@ -413,8 +595,11 @@ def ode_predict_trajectory(
     hb0    = _safe(rec.get("hb"))
     weight = _safe(rec.get("last_prehd_weight") or rec.get("weight"), 70.0)
 
-    # Scenario inputs for each future month
-    curr_iu   = _resolve_weekly_iu_sc(rec) or 0.0
+    # Scenario inputs — use PK-corrected IU so the ODE trajectory correctly
+    # reflects the drug's actual monthly AUC, not a flat weekly-IU proxy.
+    # esa_scenario is a raw weekly IU change; the PK factor from the current
+    # drug type is preserved when computing the scenario norm.
+    curr_iu   = _resolve_pk_corrected_iu(rec) or 0.0
     scen_iu   = esa_scenario if esa_scenario is not None else curr_iu
     scen_norm = (scen_iu / weight) if weight > 0 else 0.0
 
@@ -437,8 +622,15 @@ def ode_predict_trajectory(
         for _ in range(horizon)
     ]
 
-    traj_scen = ode_simulate(hb0, future_inputs_scen, ode_params)
-    traj_base = ode_simulate(hb0, future_inputs_base, ode_params)
+    # Initialise reticulocyte pool.  When reticulocyte_count (%) is available it
+    # is blended with the steady-state estimate via _r_init, making k_epo better
+    # identified.  Scenario and baseline differ only in their epo_norm/iron_frac.
+    retic_pct = _safe(rec.get("reticulocyte_count"))
+    r0_scen = _r_init(ode_params[0], scen_norm, iron_frac, hb0, retic_pct)
+    r0_base = _r_init(ode_params[0], base_norm, base_ifrac, hb0, retic_pct)
+
+    traj_scen = ode_simulate_2c(hb0, r0_scen, future_inputs_scen, ode_params)
+    traj_base = ode_simulate_2c(hb0, r0_base, future_inputs_base, ode_params)
 
     # ── Prediction intervals ───────────────────────────────────────────────────
     # Use ODE fitting MAE as the 1-σ uncertainty estimate, widened proportionally
@@ -548,27 +740,56 @@ def train_residual_mlp(
         }
         dicts = [_row_to_dict(r) for r in recs_orm]
 
-        # Fit ODE for this patient
-        params = get_or_fit_patient_params(patient.id, dicts)
-        ode_params = (params["k_epo"], params["k_prod"], params["k_loss"])
+        # Walk-forward ODE params cache for this patient.
+        # Key = start index into dicts (newest-first); value = (k_epo, k_prod, k_loss).
+        # For step t we fit on dicts[t:] — records that do NOT include the target
+        # dicts[t-1] — so the ODE is never calibrated on the point it must predict.
+        # Fits are cached by start index to avoid re-running the scipy optimiser for
+        # identical record slices within the same patient loop.
+        _wf_cache: dict = {}
+
+        def _wf_ode_params(start: int) -> tuple:
+            if start not in _wf_cache:
+                p = fit_patient_ode_params(dicts[start:])
+                _wf_cache[start] = (p["k_epo"], p["k_prod"], p["k_loss"])
+            return _wf_cache[start]
 
         for t in range(1, len(dicts)):
             if dicts[t - 1].get("hb") is None:
                 continue
+
+            # Interim records lack full clinical features — skip MLP residual for
+            # them.  They DO contribute to ODE fitting via fit_patient_ode_params
+            # (which sees the full merged sequence) so they improve k_epo even
+            # though we don't generate MLP training rows here.
+            if dicts[t].get("is_interim"):
+                continue
+
             feats = _extract_acm_features(dicts[t:], patient_meta=pm)
             if feats is None:
                 continue
 
-            # ODE prediction for step t → t-1
-            hb_t      = _safe(dicts[t].get("hb"))
+            # ODE prediction for step t → t-1 using walk-forward params.
+            # step_days: duration of the transition from dicts[t] (older) to
+            # dicts[t-1] (newer). Pre-computed by merge_hb_sequence; defaults
+            # to 30 days for monthly-only records.
+            step_d = float(dicts[t - 1].get("step_days") or 30.0)
+
+            hb_t = _safe(dicts[t].get("hb"))
             if math.isnan(hb_t):
                 continue
-            inp = _build_inputs_from_records([dicts[t]])[0]
-            hb_ode    = ode_step(hb_t, inp["epo_norm"], inp["iron_frac"], inp["crp"], ode_params)
+            ode_params_t = _wf_ode_params(t)
+            inp  = _build_inputs_from_records([dicts[t]])[0]
+            retic_t = _safe(dicts[t].get("reticulocyte_count"))
+            r_ss = _r_init(ode_params_t[0], inp["epo_norm"], inp["iron_frac"], hb_t, retic_t)
+            hb_ode, _ = ode_step_2c(
+                hb_t, r_ss, inp["epo_norm"], inp["iron_frac"], inp["crp"],
+                ode_params_t, step_days=step_d,
+            )
             hb_actual = _safe(dicts[t - 1].get("hb"))
             if math.isnan(hb_actual):
                 continue
-            residual  = hb_actual - hb_ode
+            residual = hb_actual - hb_ode
 
             X_rows.append(feats)
             y_residuals.append(residual)

@@ -558,6 +558,7 @@ def save_monthly_record(
             neutrophil_count=data.get("neutrophil_count"),
             platelet_count=data.get("platelet_count"),
             hba1c=data.get("hba1c"),
+            reticulocyte_count=data.get("reticulocyte_count"),
             vitamin_d_analog_dose=data.get("vitamin_d_analog_dose", ""),
             phosphate_binder_type=data.get("phosphate_binder_type", ""),
             pb_strength=data.get("pb_strength"),

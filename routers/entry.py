@@ -244,6 +244,7 @@ async def save_entry(
     neutrophil_count: Optional[float] = Form(None),
     platelet_count: Optional[float] = Form(None),
     hba1c: Optional[float] = Form(None),
+    reticulocyte_count: Optional[float] = Form(None),
     vitamin_d_analog_dose: str = Form(""),
     phosphate_binder_type: list[str] = Form([]),
     pb_strength: list[str] = Form([]),

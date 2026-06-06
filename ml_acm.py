@@ -40,6 +40,8 @@ Override logging: every clinician decision feeds back via ClinicalOverrideLog.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import os
@@ -76,7 +78,7 @@ try:
 except ImportError:
     _SQLALCHEMY_AVAILABLE = False
 
-from ml_esa import _resolve_weekly_iu_sc
+from ml_esa import _resolve_weekly_iu_sc, normalize_epo_dose, pk_correction_factor
 
 # ── Clinical constants (KDIGO 2012 / KDOQI 2019) ─────────────────────────────
 
@@ -119,27 +121,33 @@ ACM_FEATURE_NAMES = [
     "calcium",           # 11  mg/dL (mineral metabolism)
     "crp",               # 12  C-reactive protein mg/L (inflammation marker)
     "wbc",               # 13  WBC ×10³/µL (leukocytes — infection/inflammation proxy)
-    "mch",               # 14  mean corpuscular Hb pg (iron utilisation)
-    "mcv",               # 15  mean corpuscular volume fL
-    "potassium",         # 16  serum K mEq/L
-    "phosphorus",        # 17  serum phosphate mg/dL
-    "sodium",            # 18  serum Na mEq/L
-    "overhydration",     # 19  IDWG / dry weight (fraction — volume overload proxy)
+    # mch/mcv removed: no DB columns exist; getattr always returned None → always NaN.
+    "potassium",         # 14  serum K mEq/L
+    "phosphorus",        # 15  serum phosphate mg/dL
+    "sodium",            # 16  serum Na mEq/L
+    "overhydration",     # 17  IDWG / dry weight (fraction — volume overload proxy)
     # ── HD treatment history ─────────────────────────────────────────────────
-    "ktv",               # 20  single-pool Kt/V (adequacy)
-    "pre_weight",        # 21  pre-dialysis weight kg
-    "dry_weight",        # 22  target dry weight kg
-    "epo_iu_norm",       # 23  weekly SC IU / dry_weight (IU/kg/week)
-    "esa_dose_140d_mean",# 24  mean weekly SC IU over 140-day window
-    "n_esa_doses_140d",  # 25  number of ESA administrations in 140-day window
-    "iv_iron_140d_total",# 26  total IV iron dose mg in 140-day window
-    "n_iron_doses_140d", # 27  number of IV iron administrations in 140-day window
+    "ktv",               # 18  single-pool Kt/V (adequacy)
+    "pre_weight",        # 19  pre-dialysis weight kg
+    "dry_weight",        # 20  target dry weight kg
+    "epo_iu_norm",       # 21  weekly SC IU / dry_weight (IU/kg/week)
+    "esa_dose_140d_mean",# 22  mean weekly SC IU over 140-day window
+    "n_esa_doses_140d",  # 23  number of ESA administrations in 140-day window
+    "iv_iron_140d_total",# 24  total IV iron dose mg in 140-day window
+    "n_iron_doses_140d", # 25  number of IV iron administrations in 140-day window
     # ── Demographics ─────────────────────────────────────────────────────────
-    "age",               # 28  years
-    "sex_f",             # 29  1 = female, 0 = male
-    "height_m",          # 30  metres (for BSA-adjusted dose normalisation)
+    "age",               # 26  years
+    "sex_f",             # 27  1 = female, 0 = male
+    "height_m",          # 28  metres (for BSA-adjusted dose normalisation)
     # ── Transfusion history (120-day window) ─────────────────────────────────
-    "transfusion_120d",  # 31  PRBC units transfused in past 120 days
+    "transfusion_120d",  # 29  PRBC units transfused in past 120 days
+    # ── Erythropoiesis marker ─────────────────────────────────────────────────
+    "reticulocyte_pct",  # 30  reticulocyte % — partial observation of ODE R state
+    # ── Hepcidin proxy ───────────────────────────────────────────────────────
+    "hepcidin_proxy",    # 31  1 = high ferritin (>500) + CRP (>10) + low TSAT (<20)
+    #                          strongest single ESA-resistance predictor; free from existing labs
+    # ── ESA pharmacokinetics ─────────────────────────────────────────────────
+    "epo_pk_factor",     # 32  PK AUC correction vs weekly-epoetin ref (1.0=epo, ~5.45=Mircera)
 ]
 
 # ── Singleton model store ─────────────────────────────────────────────────────
@@ -159,7 +167,9 @@ def _to_float(v, default: float = float("nan")) -> float:
 
 
 def _hb_stats(records: List[Dict]) -> Dict:
-    """Compute Hb summary statistics across the 120-day (≈4-month) window."""
+    """Compute Hb summary statistics across the most-recent 4 records (≈120 days).
+    A missing month silently shrinks the effective window; callers should ensure
+    records are complete before interpreting the stats as a true 120-day window."""
     hb_vals = [_to_float(r.get("hb")) for r in records[:4] if not math.isnan(_to_float(r.get("hb")))]
     if not hb_vals:
         nan = float("nan")
@@ -181,7 +191,9 @@ def _hb_stats(records: List[Dict]) -> Dict:
 
 
 def _esa_history(records: List[Dict]) -> Dict:
-    """Aggregate ESA and IV iron data over the 140-day (≈5-month) window."""
+    """Aggregate ESA and IV iron data across the most-recent 5 records (≈140 days).
+    A missing month shrinks the effective window; callers should note this is a
+    record-count window, not a guaranteed calendar-day window."""
     esa_doses, iron_doses = [], []
     for r in records[:5]:
         iu = _resolve_weekly_iu_sc(r)
@@ -228,8 +240,6 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
     calcium   = _to_float(rec.get("calcium"))
     crp       = _to_float(rec.get("crp"), default=0.0)
     wbc       = _to_float(rec.get("wbc_count"))
-    mch       = _to_float(rec.get("mch"))
-    mcv       = _to_float(rec.get("mcv"))
     potassium = _to_float(rec.get("serum_potassium"))
     phosphorus= _to_float(rec.get("phosphorus"))
     sodium    = _to_float(rec.get("serum_sodium"))
@@ -257,6 +267,24 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
         for r in records[:4]
     )
 
+    # Reticulocyte % — most-recent value; NaN when lab not ordered
+    reticulocyte_pct = _to_float(records[0].get("reticulocyte_count"))
+
+    # Hepcidin proxy — functional iron deficiency in inflammatory state.
+    # All three criteria must be non-missing; any missing lab → 0 (under-flag
+    # rather than NaN, since the ESA-resistance flag is additive, not required).
+    _ferritin_ok  = not math.isnan(ferritin)  and ferritin > 500.0
+    _crp_ok       = not math.isnan(crp)       and crp      > 10.0
+    _tsat_ok      = not math.isnan(tsat)      and tsat     < 20.0
+    hepcidin_proxy = float(_ferritin_ok and _crp_ok and _tsat_ok)
+
+    # ESA PK correction factor — drug/schedule-specific AUC vs weekly-epoetin ref.
+    # Parsed from the dose string in the most-recent record; defaults to 1.0 when
+    # unparseable (equivalent to assuming weekly epoetin, no correction applied).
+    _dose_str = records[0].get("epo_mircera_dose") or ""
+    _parsed   = normalize_epo_dose(_dose_str) if _dose_str else {}
+    epo_pk_factor = float(_parsed.get("pk_correction_factor") or 1.0)
+
     return np.array([
         # Hb history
         hb, delta_1, delta_3,
@@ -264,7 +292,7 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
         # Iron
         ferritin, tsat,
         # Biochemistry
-        albumin, calcium, crp, wbc, mch, mcv, potassium, phosphorus, sodium, overhydration,
+        albumin, calcium, crp, wbc, potassium, phosphorus, sodium, overhydration,
         # HD treatment
         ktv, pre_wt, dry_wt, epo_norm,
         esa_hist["esa_mean"], esa_hist["n_esa"], esa_hist["iron_total"], esa_hist["n_iron"],
@@ -272,6 +300,10 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
         age, sex_f, height_m,
         # Transfusions
         transfusion_120d,
+        # Erythropoiesis marker
+        reticulocyte_pct,
+        # Hepcidin proxy + ESA PK
+        hepcidin_proxy, epo_pk_factor,
     ])
 
 
@@ -281,6 +313,7 @@ def _build_training_set(db: "Session") -> Tuple[np.ndarray, np.ndarray]:
     Target y = Hb in the subsequent month.
     """
     from database import MonthlyRecord, Patient
+    from services.interim_hb_service import get_interim_hbs, merge_hb_sequence
 
     patients = db.query(Patient).all()
     X_rows, y_vals = [], []
@@ -300,16 +333,23 @@ def _build_training_set(db: "Session") -> Tuple[np.ndarray, np.ndarray]:
             "sex":    getattr(patient, "sex", None) or getattr(patient, "gender", None),
             "height": getattr(patient, "height", None),
         }
-        dicts = [_row_to_dict(r) for r in recs]
-        # Slide a window: features at position t → target Hb at t-1 (next month)
+        monthly_dicts = [_row_to_dict(r) for r in recs]
+        interim_hbs   = get_interim_hbs(db, patient.id)
+        dicts         = merge_hb_sequence(monthly_dicts, interim_hbs)
+        # Slide a window: features at position t → target Hb at t-1 (next observation).
+        # Only use monthly records as training targets to avoid predicting interim Hb
+        # values that do not represent end-of-period steady state.
         for t in range(1, len(dicts)):
-            if dicts[t - 1].get("hb") is None:
+            target = dicts[t - 1]
+            if target.get("hb") is None:
+                continue
+            if target.get("is_interim"):
                 continue
             feats = _extract_acm_features(dicts[t:], patient_meta=patient_meta)
             if feats is None:
                 continue
             X_rows.append(feats)
-            y_vals.append(float(dicts[t - 1]["hb"]))
+            y_vals.append(float(target["hb"]))
 
     if not X_rows:
         return np.array([]), np.array([])
@@ -318,6 +358,13 @@ def _build_training_set(db: "Session") -> Tuple[np.ndarray, np.ndarray]:
 
 
 def _row_to_dict(rec) -> Dict:
+    """
+    Canonical MonthlyRecord ORM → feature dict used by BOTH training and inference.
+    All callers (training loop, ODE residual builder, serving router) must go through
+    here so train/serving feature sets stay identical.
+
+    B2 fix: transfusion_units reads blood_transfusion_units (the real column name).
+    """
     return {
         "hb":                  rec.hb,
         "serum_ferritin":      rec.serum_ferritin,
@@ -327,8 +374,6 @@ def _row_to_dict(rec) -> Dict:
         "single_pool_ktv":     rec.single_pool_ktv,
         "crp":                 getattr(rec, "crp", None),
         "wbc_count":           getattr(rec, "wbc_count", None),
-        "mch":                 getattr(rec, "mch", None),
-        "mcv":                 getattr(rec, "mcv", None),
         "serum_potassium":     getattr(rec, "serum_potassium", None),
         "phosphorus":          rec.phosphorus,
         "serum_sodium":        getattr(rec, "serum_sodium", None),
@@ -339,8 +384,9 @@ def _row_to_dict(rec) -> Dict:
         "epo_mircera_dose":    rec.epo_mircera_dose,
         "epo_weekly_units":    rec.epo_weekly_units,
         "iv_iron_dose":        rec.iv_iron_dose,
-        "transfusion_units":   getattr(rec, "transfusion_units", None),
-        "record_month":        rec.record_month,
+        "transfusion_units":    getattr(rec, "blood_transfusion_units", None),
+        "reticulocyte_count":   getattr(rec, "reticulocyte_count", None),
+        "record_month":         rec.record_month,
     }
 
 # ── Model training ─────────────────────────────────────────────────────────────
@@ -418,9 +464,7 @@ def train_acm_model(db: "Session") -> Dict:
                         with open(MODEL_PATH, "rb") as f_bin:
                             model_bin_data = f_bin.read()
                         
-                        training_data_hash = hashlib.sha256(
-                            json.dumps(X, sort_keys=True).encode()
-                        ).hexdigest()
+                        training_data_hash = hashlib.sha256(X.tobytes()).hexdigest()
                         
                         art = ModelArtifact(
                             model_name          = "acm_v1",
@@ -560,6 +604,17 @@ def predict_hb_trajectory(
     predictions  = []
     current_feats = feats.copy()
 
+    # Reconstruct a 4-step Hb buffer (oldest → newest) from the starting features so
+    # delta_1mo / delta_3mo / Hb-stats roll forward correctly across the horizon.
+    # hb_t-2 is not stored directly; linearly interpolate between t-1 and t-3.
+    _hb0   = current_feats[0]
+    _d1    = current_feats[1] if not math.isnan(current_feats[1]) else 0.0
+    _d3    = current_feats[2] if not math.isnan(current_feats[2]) else 0.0
+    _hb_neg1 = _hb0 - _d1
+    _hb_neg3 = _hb0 - _d3
+    _hb_neg2 = (_hb_neg1 + _hb_neg3) / 2
+    _hb_buf  = [_hb_neg3, _hb_neg2, _hb_neg1, _hb0]  # 4-element rolling window
+
     for month_offset in range(1, horizon_months + 1):
         if model_loaded and _acm_pipeline:
             try:
@@ -572,10 +627,22 @@ def predict_hb_trajectory(
             pred_hb = _heuristic_hb_prediction(current_feats)
 
         predictions.append({"month_offset": month_offset, "predicted_hb": pred_hb})
-        prev_hb          = current_feats[0]
-        current_feats[0] = pred_hb
-        current_feats[1] = pred_hb - prev_hb
-        current_feats[2] = (current_feats[2] + pred_hb - prev_hb) / 2
+
+        # Roll the buffer forward and update all 8 Hb-history features (indices 0-7).
+        _hb_buf.append(pred_hb)
+        _hb_buf = _hb_buf[-4:]                              # keep last 4 (≈120-day window)
+        current_feats[0] = pred_hb                          # hb_current
+        current_feats[1] = pred_hb - _hb_buf[-2]           # delta_hb_1mo
+        current_feats[2] = pred_hb - _hb_buf[0]            # delta_hb_3mo (oldest in buffer)
+        current_feats[3] = float(np.min(_hb_buf))           # hb_min_120d
+        current_feats[4] = float(np.max(_hb_buf))           # hb_max_120d
+        current_feats[5] = float(np.mean(_hb_buf))          # hb_mean_120d
+        current_feats[6] = float(np.std(_hb_buf)) if len(_hb_buf) > 1 else 0.0  # hb_sd_120d
+        try:
+            _x = np.arange(len(_hb_buf), dtype=float)
+            current_feats[7] = float(np.polyfit(_x, _hb_buf, 1)[0])  # hb_trend_slope
+        except Exception:
+            pass  # keep previous slope on degenerate input
 
     return {
         "available":       True,
@@ -608,9 +675,21 @@ def _esa_recommendation(
     ferritin: Optional[float],
     tsat: Optional[float],
     crp: Optional[float],
+    forecast_confidence: str = "heuristic",
+    k_epo_near_zero: bool = False,
 ) -> Dict:
     """
     Generate ESA dosing recommendation using KDIGO 2012 / KDOQI 2019 rules.
+
+    forecast_confidence: value from traj["confidence"] — one of
+        "hybrid-calibrated", "ode-calibrated", "population-prior",
+        "mlp", "heuristic".
+    k_epo_near_zero: True when the per-patient ODE fit could not resolve ESA
+        sensitivity from the available history (sparse / uniform dosing).
+
+    When confidence is low (population-prior, heuristic, or k_epo≈0) the
+    function ignores forecast-driven decisions and falls back to current-Hb
+    rules only, capping adjustments at ±25% to avoid overshoot.
 
     Returns:
         {
@@ -626,6 +705,15 @@ def _esa_recommendation(
     safety_flags    = []
     rationale_parts = []
 
+    # Forecast is trustworthy only when the ODE was calibrated on this patient's
+    # history and k_epo is meaningfully identified.
+    _LOW_CONFIDENCE = forecast_confidence in ("population-prior", "heuristic") or k_epo_near_zero
+    if _LOW_CONFIDENCE:
+        safety_flags.append(
+            f"Forecast confidence '{forecast_confidence}' — dose adjustments capped at ±25% "
+            "and +50% escalation suppressed (KDIGO §3.4: avoid rapid dose changes with uncertain trajectory)."
+        )
+
     # Safety: Hb above ceiling — unconditional hold
     if current_hb >= HB_CEILING:
         safety_flags.append(f"Hb {current_hb:.1f} ≥ {HB_CEILING} g/dL — hold ESA until Hb drops below 12.0")
@@ -635,6 +723,26 @@ def _esa_recommendation(
             "recommended_iu_sc": 0.0,
             "rationale": f"ESA held: Hb {current_hb:.1f} g/dL exceeds safety ceiling ({HB_CEILING} g/dL). Resume when Hb < 12.0.",
             "safety_flags": safety_flags,
+        }
+
+    # A3 fix: Hb ≥ 12.0 → unconditional ESA reduction, regardless of forecast.
+    # Forecast should never suppress a guideline-indicated de-escalation (KDIGO/TREAT).
+    if current_hb >= 12.0:
+        action, change_pct = "decrease", -ESA_ADJUST_STEP * 100
+        rationale_parts.append(
+            f"Hb {current_hb:.1f} g/dL ≥ 12.0 g/dL — reduce ESA by 25% unconditionally "
+            "(CV/thrombotic risk; KDIGO §3.6.1, TREAT trial)."
+        )
+        # Skip the forecast-driven branches below; compute dose and return.
+        recommended_iu = None
+        if current_iu_sc is not None and current_iu_sc > 0:
+            recommended_iu = round(max(ESA_MIN_DOSE_IU, current_iu_sc * (1.0 + change_pct / 100.0)), -2)
+        return {
+            "action":            action,
+            "esa_change_pct":    change_pct,
+            "recommended_iu_sc": recommended_iu,
+            "rationale":         " ".join(rationale_parts),
+            "safety_flags":      safety_flags,
         }
 
     # Iron stores inadequate — do not increase ESA, fix iron first
@@ -653,33 +761,41 @@ def _esa_recommendation(
 
     trajectory = _classify_hb_trajectory(current_hb, pred_3mo)
 
+    # 11.5–12.0 buffer band: only reduce if forecast confirms persistence
     if current_hb > HB_TARGET_HIGH and pred_1mo > HB_TARGET_HIGH:
-        # Hb persistently above target: reduce
         action, change_pct = "decrease", -ESA_ADJUST_STEP * 100
         rationale_parts.append(
             f"Hb {current_hb:.1f} g/dL above target {HB_TARGET_HIGH} g/dL and predicted to remain elevated — reduce ESA by 25%."
         )
 
     elif current_hb < HB_TARGET_LOW and not iron_deficient:
-        # Hb below target and iron replete: increase
-        if trajectory == "falling_fast":
+        # Hb below target and iron replete: increase.
+        # A2 fix: +50% escalation requires calibrated forecast; cap at +25% when confidence is low.
+        if trajectory == "falling_fast" and not _LOW_CONFIDENCE:
             change_pct = ESA_MAX_INCREASE * 100
         else:
             change_pct = ESA_ADJUST_STEP * 100
         action = "increase"
-        rationale_parts.append(
-            f"Hb {current_hb:.1f} g/dL below target {HB_TARGET_LOW} g/dL (trajectory: {trajectory}) — increase ESA by {change_pct:.0f}%."
-        )
+        if trajectory == "falling_fast" and _LOW_CONFIDENCE:
+            rationale_parts.append(
+                f"Hb {current_hb:.1f} g/dL below target (trajectory: {trajectory}) — "
+                f"capped at +25% (not +50%) because forecast confidence is '{forecast_confidence}'. "
+                "Recheck in 4 weeks before further escalation."
+            )
+        else:
+            rationale_parts.append(
+                f"Hb {current_hb:.1f} g/dL below target {HB_TARGET_LOW} g/dL (trajectory: {trajectory}) — increase ESA by {change_pct:.0f}%."
+            )
 
-    elif trajectory == "falling" and current_hb < 11.0:
-        # Hb falling toward lower bound: pre-emptive increase
+    elif trajectory == "falling" and current_hb < 11.0 and not _LOW_CONFIDENCE:
+        # Pre-emptive increase: only act on forecast-driven "falling" when forecast is trusted
         action, change_pct = "increase", ESA_ADJUST_STEP * 100
         rationale_parts.append(
             f"Hb {current_hb:.1f} g/dL falling and projected to drop below target — pre-emptive +25% increase."
         )
 
-    elif trajectory == "rising" and pred_3mo > HB_TARGET_HIGH:
-        # Hb rising toward ceiling: pre-emptive decrease
+    elif trajectory == "rising" and pred_3mo > HB_TARGET_HIGH and not _LOW_CONFIDENCE:
+        # Pre-emptive decrease: suppress when forecast is unreliable
         action, change_pct = "decrease", -ESA_ADJUST_STEP * 100
         rationale_parts.append(
             f"Hb predicted to rise to {pred_3mo:.1f} g/dL — reduce ESA by 25% to avoid overshoot."
@@ -836,15 +952,24 @@ def generate_acm_recommendation(
     else:
         pred_1mo = pred_3mo = current_hb
 
+    # Extract forecast confidence and k_epo signal from trajectory result
+    _forecast_confidence = traj.get("confidence", "heuristic")
+    _k_epo_near_zero = bool(
+        traj.get("ode_params", {}).get("k_epo_near_zero") or
+        traj.get("params",     {}).get("k_epo_near_zero")
+    )
+
     # ESA recommendation
     esa_rec = _esa_recommendation(
-        current_hb   = current_hb,
-        pred_1mo     = pred_1mo,
-        pred_3mo     = pred_3mo,
-        current_iu_sc= current_iu,
-        ferritin     = ferritin_f,
-        tsat         = tsat_f,
-        crp          = crp_f,
+        current_hb          = current_hb,
+        pred_1mo            = pred_1mo,
+        pred_3mo            = pred_3mo,
+        current_iu_sc       = current_iu,
+        ferritin            = ferritin_f,
+        tsat                = tsat_f,
+        crp                 = crp_f,
+        forecast_confidence = _forecast_confidence,
+        k_epo_near_zero     = _k_epo_near_zero,
     )
 
     # Iron recommendation
