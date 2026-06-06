@@ -226,10 +226,10 @@
       </div>
       <div class="grid-2">
         <div>
-          <label>Prescribed BFR (mL/min)</label>
+          <label>Prescribed BFR (mL/min) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
           <input type="number" name="blood_flow_rate" id="bfr-prescribed"
             min="50" max="600" step="5" inputmode="numeric"
-            placeholder="e.g. 300"
+            placeholder="e.g. 300" required
             value="{{ session.blood_flow_rate if session and session.blood_flow_rate else '' }}">
           <div class="bfr-hint"><i class="material-icons" style="font-size:0.9rem;">info</i> Target: 250–400 mL/min (AVF) · 200–350 (catheter)</div>
         </div>
@@ -283,9 +283,9 @@
           </select>
         </div>
         <div>
-          <label>Duration (hours)</label>
+          <label>Duration (hours) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
           <input type="number" name="duration_hours" min="1" max="8" step="1" inputmode="numeric"
-            placeholder="e.g. 4"
+            placeholder="e.g. 4" required
             value="{{ session.duration_hours if session and session.duration_hours else '' }}">
         </div>
         <div>
@@ -309,16 +309,22 @@
           </select>
         </div>
         <div>
-          <label>Dialysate Temp (°C)</label>
-          <input type="number" name="dialysate_temperature" min="34.0" max="39.0" step="0.1"
+          <label>Dialysate Temp (°C) <span style="color:var(--warning); font-size:0.8em;" title="Recommended for digital twin IDH simulation">⚠ ML</span></label>
+          <input type="number" name="dialysate_temperature" id="dialysate_temperature" min="34.0" max="39.0" step="0.1"
             placeholder="e.g. 36.5"
             value="{{ session.dialysate_temperature if session and session.dialysate_temperature is not none else '' }}">
+          <div id="warn-dialysate-temperature" style="display:none; font-size:0.7rem; color:#d97706; margin-top:4px; font-weight:600;">
+            ⚠ Imputed to 37.0°C — enter actual to improve IDH risk prediction
+          </div>
         </div>
         <div>
-          <label>Dialysate Sodium (mEq/L)</label>
-          <input type="number" name="dialysate_sodium" min="130.0" max="150.0" step="0.1"
+          <label>Dialysate Sodium (mEq/L) <span style="color:var(--warning); font-size:0.8em;" title="Recommended for digital twin IDH simulation">⚠ ML</span></label>
+          <input type="number" name="dialysate_sodium" id="dialysate_sodium" min="130.0" max="150.0" step="0.1"
             placeholder="e.g. 138"
             value="{{ session.dialysate_sodium if session and session.dialysate_sodium is not none else '' }}">
+          <div id="warn-dialysate-sodium" style="display:none; font-size:0.7rem; color:#d97706; margin-top:4px; font-weight:600;">
+            ⚠ Imputed to 138 mEq/L — enter actual prescription for accurate fluid-shift modelling
+          </div>
         </div>
         <div>
           <label>Dialyzer Type</label>
@@ -569,15 +575,15 @@
       <div class="card-title"><i class="material-icons">monitor_weight</i> Weights & Blood Pressure</div>
       <div class="grid">
         <div>
-          <label>Weight Pre-HD (kg)</label>
+          <label>Weight Pre-HD (kg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
           <input type="number" name="weight_pre" step="0.1" inputmode="decimal"
-            placeholder="e.g. 68.5"
+            placeholder="e.g. 68.5" required
             value="{{ session.weight_pre if session and session.weight_pre else '' }}">
         </div>
         <div>
           <label>Weight Post-HD (kg) <span style="color:var(--danger); font-size:0.85em;">*</span></label>
           <input type="number" name="weight_post" step="0.1" inputmode="decimal"
-            placeholder="e.g. 65.2"
+            placeholder="e.g. 65.2" required
             value="{{ session.weight_post if session and session.weight_post else '' }}">
           <div style="font-size:0.7rem; color:var(--muted); margin-top:5px; line-height:1.4;">
             {% if last_3_sessions %}
@@ -590,11 +596,14 @@
           </div>
         </div>
         <div>
-          <label>Ultrafiltration Target (mL)</label>
+          <label>Ultrafiltration Target (mL) <span style="color:var(--warning); font-size:0.8em;" title="Recommended for digital twin IDH simulation">⚠ ML</span></label>
           <input type="number" name="uf_volume" id="uf-target" step="50" inputmode="numeric"
             placeholder="e.g. 3000"
             value="{{ session.uf_volume if session and session.uf_volume else '' }}">
           <div class="bfr-hint"><i class="material-icons" style="font-size:0.9rem;">info</i> Prescribed target volume</div>
+          <div id="warn-uf-volume" style="display:none; font-size:0.7rem; color:#d97706; margin-top:4px; font-weight:600;">
+            ⚠ UF target missing — UF achievement ratio cannot be tracked across sessions
+          </div>
         </div>
         <div>
           <label>Ultrafiltration Actual (mL)</label>
@@ -1249,6 +1258,57 @@
     }
     etCb.addEventListener('change', updateReasonVisibility);
     updateReasonVisibility();
+  })();
+
+  // ── Soft-required ML field warnings ──────────────────────────────────────
+  // Shows inline hint when field is blank; does NOT block save.
+  (function() {
+    var softFields = [
+      { inputId: 'dialysate_temperature', warnId: 'warn-dialysate-temperature' },
+      { inputId: 'dialysate_sodium',      warnId: 'warn-dialysate-sodium'      },
+      { inputId: 'uf-target',             warnId: 'warn-uf-volume'             },
+    ];
+
+    function checkSoftField(inputEl, warnEl) {
+      warnEl.style.display = inputEl.value.trim() === '' ? 'block' : 'none';
+    }
+
+    softFields.forEach(function(f) {
+      var inp  = document.getElementById(f.inputId);
+      var warn = document.getElementById(f.warnId);
+      if (!inp || !warn) return;
+      checkSoftField(inp, warn);
+      inp.addEventListener('input', function() { checkSoftField(inp, warn); });
+      inp.addEventListener('change', function() { checkSoftField(inp, warn); });
+    });
+
+    // Pre-submit banner: lists all blank soft fields before the user saves
+    var form = document.querySelector('form');
+    var submitBtn = document.querySelector('.submit-btn, button[type="submit"], input[type="submit"]');
+    if (form && submitBtn) {
+      var banner = document.createElement('div');
+      banner.id = 'soft-warn-banner';
+      banner.style.cssText = 'display:none; background:#fffbeb; border:1.5px solid #f59e0b; border-radius:12px; padding:14px 18px; margin-bottom:16px; font-size:0.85rem; color:#92400e;';
+      submitBtn.parentNode.insertBefore(banner, submitBtn);
+
+      var SOFT_LABELS = {
+        'dialysate_temperature': 'Dialysate Temperature',
+        'dialysate_sodium':      'Dialysate Sodium',
+        'uf-target':             'UF Target (mL)',
+      };
+
+      form.addEventListener('submit', function() {
+        var missing = [];
+        softFields.forEach(function(f) {
+          var inp = document.getElementById(f.inputId);
+          if (inp && inp.value.trim() === '') missing.push(SOFT_LABELS[f.inputId]);
+        });
+        if (missing.length > 0) {
+          banner.innerHTML = '<strong>⚠ ML data quality notice:</strong> The following fields are blank and will be imputed by the digital twin engine — consider filling them for better prediction accuracy: <em>' + missing.join(', ') + '</em>. Save will continue in 3 seconds or click Save again to proceed immediately.';
+          banner.style.display = 'block';
+        }
+      });
+    }
   })();
 </script>
 </body>

@@ -45,7 +45,7 @@
 ) %}
 {% set _analytics_active = '/analytics' in _path or '/research' in _path %}
 {% set _analytics_sub_active = '/analytics/' in _path and '/analytics/patients' not in _path %}
-{% set _ops_active = '/schedule' in _path or '/entry' in _path or '/alerts' in _path %}
+{% set _ops_active = '/schedule' in _path or '/entry' in _path or '/alerts' in _path or '/protocols' in _path %}
 {% set _admin_active = '/admin' in _path or '/variables/manager' in _path or '/analytics/admin' in _path %}
 {% set _system_active = '/admin/system' in _path or '/analytics/admin' in _path or '/admin/run-migration' in _path %}
 
@@ -165,6 +165,10 @@
             <i class="material-icons">manage_search</i> ICD-10 Lookup
           </a>
           <div class="dd-divider"></div>
+          <a href="/protocols/iv-iron" class="{{ 'active' if '/protocols/iv-iron' in _path }}" style="color:#7c3aed !important;">
+            <i class="material-icons" style="color:#7c3aed;">vaccines</i> IV Iron Protocol
+          </a>
+          <div class="dd-divider"></div>
           <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
             <i class="material-icons">warning</i> Alerts
           </a>
@@ -210,6 +214,10 @@
           </a>
           <a href="/icd" class="{{ 'active' if _path == '/icd' }}">
             <i class="material-icons">manage_search</i> ICD-10 Lookup
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/protocols/iv-iron" class="{{ 'active' if '/protocols/iv-iron' in _path }}" style="color:#7c3aed !important;">
+            <i class="material-icons" style="color:#7c3aed;">vaccines</i> IV Iron Protocol
           </a>
           <div class="dd-divider"></div>
           <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
@@ -337,6 +345,10 @@
           </a>
           <a href="/icd" class="{{ 'active' if _path == '/icd' }}">
             <i class="material-icons">manage_search</i> ICD-10 Lookup
+          </a>
+          <div class="dd-divider"></div>
+          <a href="/protocols/iv-iron" class="{{ 'active' if '/protocols/iv-iron' in _path }}" style="color:#7c3aed !important;">
+            <i class="material-icons" style="color:#7c3aed;">vaccines</i> IV Iron Protocol
           </a>
           <div class="dd-divider"></div>
           <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
@@ -668,6 +680,9 @@
         </a>
         <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
           <i class="material-icons">event</i> Schedule
+        </a>
+        <a href="/protocols/iv-iron" class="{{ 'active' if '/protocols/iv-iron' in _path }}" style="color:#a78bfa;">
+          <i class="material-icons" style="color:#a78bfa;">vaccines</i> IV Iron Protocol
         </a>
         <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
           <i class="material-icons">warning</i> Alerts

@@ -13,6 +13,29 @@ logger = logging.getLogger(__name__)
 
 from services import session_service
 
+
+def _validate_ml_required_fields(
+    blood_flow_rate,
+    duration_hours,
+    weight_pre,
+    weight_post,
+):
+    """Raise HTTP 422 if any of the four hard-required ML fields are missing."""
+    missing = []
+    if blood_flow_rate is None:
+        missing.append("Prescribed BFR (blood_flow_rate)")
+    if not duration_hours:
+        missing.append("Duration hours (duration_hours)")
+    if weight_pre is None:
+        missing.append("Weight Pre-HD (weight_pre)")
+    if weight_post is None:
+        missing.append("Weight Post-HD (weight_post)")
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Missing required fields for ML/digital-twin engine: {', '.join(missing)}",
+        )
+
 router = APIRouter(prefix="/patients", tags=["sessions"])
 session_router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -105,6 +128,7 @@ async def create_session(
     cannulation_attempts: Optional[int] = Form(None),
     needle_infiltration: bool = Form(False)
 ):
+    _validate_ml_required_fields(blood_flow_rate, duration_hours, weight_pre, weight_post)
     try:
         kwargs = locals().copy()
         # Remove dependencies
@@ -191,6 +215,7 @@ async def update_session(
     cannulation_attempts: Optional[int] = Form(None),
     needle_infiltration: bool = Form(False)
 ):
+    _validate_ml_required_fields(blood_flow_rate, duration_hours, weight_pre, weight_post)
     try:
         kwargs = locals().copy()
         # Remove request and db from kwargs so they aren't parsed as session field data

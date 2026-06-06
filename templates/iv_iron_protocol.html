@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IV Iron Protocol — Bulk Entry</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800&display=swap"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+  <style>
+    :root {
+      --primary: #0f172a; --accent: #0ea5e9; --success: #16a34a;
+      --warning: #d97706; --danger: #dc2626;
+      --border: #e2e8f0; --bg: #f1f5f9; --card: #ffffff;
+      --text: #0f172a; --muted: #64748b; --radius: 14px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+
+    .page-header {
+      background: white; border-bottom: 1px solid var(--border);
+      padding: 18px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    .page-header-left { display: flex; align-items: center; gap: 14px; flex: 1; }
+    .page-header h1 { font-family: 'Outfit', sans-serif; font-size: 1.2rem; color: var(--primary); }
+    .page-header .sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .back-btn {
+      padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.82rem; color: var(--muted); text-decoration: none;
+      display: flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .container { max-width: 1100px; margin: 28px auto; padding: 0 16px 60px; }
+
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); border: 1px solid var(--border);
+      padding: 20px 22px; margin-bottom: 18px;
+    }
+    .card-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); margin-bottom: 16px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    }
+    .card-title i { color: var(--accent); font-size: 1.1rem; }
+
+    /* ── Preset strip ── */
+    .preset-strip {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 18px;
+    }
+    .preset-label { font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-right: 4px; }
+    .preset-btn {
+      padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--accent);
+      background: #f0f9ff; color: #0369a1; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .preset-btn:hover { background: var(--accent); color: #fff; }
+
+    /* ── Global date row ── */
+    .global-row {
+      display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .global-row .fg { display: flex; flex-direction: column; gap: 5px; }
+    .global-row label { font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+    .global-row input[type="date"] {
+      padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.88rem; font-family: 'Inter', sans-serif;
+    }
+    .apply-date-btn {
+      padding: 8px 16px; background: var(--primary); color: #fff;
+      border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+    .apply-date-btn:hover { background: #1e293b; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    thead th {
+      background: #f8fafc; padding: 10px 12px; text-align: left;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted);
+      border-bottom: 2px solid var(--border); white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr.already-entered { background: #f0fdf4; }
+    tbody tr.excluded { opacity: 0.45; }
+    td { padding: 10px 12px; vertical-align: middle; }
+
+    .patient-name { font-weight: 600; font-size: 0.88rem; }
+    .patient-hid  { font-size: 0.72rem; color: var(--muted); }
+
+    .lab-val { font-weight: 700; font-size: 0.9rem; }
+    .lab-low  { color: #dc2626; }
+    .lab-ok   { color: #16a34a; }
+    .lab-warn { color: #d97706; }
+    .lab-none { color: #94a3b8; }
+    .lab-age  { font-size: 0.68rem; color: #94a3b8; margin-top:2px; }
+
+    .done-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 0.68rem; font-weight: 700; background: #dcfce7; color: #15803d;
+      padding: 2px 7px; border-radius: 20px; white-space: nowrap;
+    }
+
+    select.product-sel, input.dose-inp, input.date-inp {
+      padding: 6px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.83rem; font-family: 'Inter', sans-serif; width: 100%;
+    }
+    select.product-sel:focus, input.dose-inp:focus, input.date-inp:focus {
+      outline: none; border-color: var(--accent);
+    }
+    input.dose-inp { width: 90px; }
+    input.date-inp { width: 148px; }
+
+    .cb-include {
+      width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent);
+    }
+
+    /* ── Submit bar ── */
+    .submit-bar {
+      position: sticky; bottom: 0; background: white;
+      border-top: 1px solid var(--border);
+      padding: 14px 24px; display: flex; align-items: center;
+      gap: 14px; flex-wrap: wrap; z-index: 100;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+    }
+    .submit-bar .count-label {
+      font-size: 0.85rem; color: var(--muted);
+    }
+    .submit-bar strong { color: var(--primary); }
+    .btn-save-all {
+      padding: 11px 28px; background: var(--accent); color: #fff;
+      border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 700;
+      cursor: pointer; font-family: 'Outfit', sans-serif; letter-spacing: 0.02em;
+      box-shadow: 0 4px 12px rgba(14,165,233,0.3); transition: all 0.15s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-save-all:hover { background: #0284c7; transform: translateY(-1px); }
+    .btn-select-all {
+      padding: 8px 16px; background: #f1f5f9; color: var(--muted);
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    }
+    .btn-select-all:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Success/info banners ── */
+    .banner {
+      padding: 14px 18px; border-radius: 12px; margin-bottom: 18px;
+      display: flex; align-items: center; gap: 12px; font-size: 0.88rem;
+    }
+    .banner-success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+    .banner-info    { background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af; }
+    .banner i { font-size: 1.2rem; flex-shrink: 0; }
+
+    /* ── ML wiring note ── */
+    .ml-note {
+      background: #fafafa; border: 1px solid #e2e8f0; border-left: 4px solid #7c3aed;
+      border-radius: 10px; padding: 12px 16px; font-size: 0.78rem; color: #4c1d95;
+      margin-bottom: 18px; line-height: 1.6;
+    }
+    .ml-note strong { font-weight: 700; }
+
+    @media (max-width: 640px) {
+      input.dose-inp { width: 70px; }
+      input.date-inp { width: 130px; }
+    }
+  </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="page-header">
+  <div class="page-header-left">
+    <a href="/" class="back-btn"><i class="material-icons" style="font-size:1rem;">arrow_back</i> Dashboard</a>
+    <div>
+      <h1><i class="material-icons" style="font-size:1.1rem; vertical-align:middle; color:#0ea5e9; margin-right:4px;">vaccines</i> IV Iron Protocol — Bulk Monthly Entry</h1>
+      <div class="sub">{{ current_month }} · {{ patients | length }} active patients · All changes write to monthly ML record</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  {% set saved = request.query_params.get('saved') %}
+  {% set skipped = request.query_params.get('skipped') %}
+  {% if saved %}
+  <div class="banner banner-success">
+    <i class="material-icons">check_circle</i>
+    <div><strong>Saved {{ saved }} patient(s)</strong> — IV iron data written to {{ current_month }} monthly records and is now live in the Hb trajectory, EPO responsiveness, ESI, ACM, and digital twin engines.{% if skipped and skipped != '0' %} {{ skipped }} skipped (no product selected).{% endif %}</div>
+  </div>
+  {% endif %}
+
+  <div class="ml-note">
+    <strong>ML wiring:</strong> Data saved here writes directly to <code>MonthlyRecord.iv_iron_product / iv_iron_dose / iv_iron_date</code>.
+    This feeds: <strong>Hb trajectory (ml_trends)</strong> · <strong>EPO hyporesponse / ERI (ml_esa)</strong> · <strong>ESI / ESA index (ml_analytics)</strong> · <strong>ACM 140-day iron window (ml_acm)</strong> · <strong>Mortality risk (ml_risk)</strong> · <strong>Digital twin iron-replete status</strong>.
+    Existing monthly lab values are <em>not touched</em> — only the 3 iron columns are updated.
+  </div>
+
+  <form method="POST" action="/protocols/iv-iron" id="bulk-form">
+
+    <!-- Global controls -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">tune</i> Protocol Defaults — Apply to All Selected Patients</div>
+
+      <div class="preset-strip">
+        <span class="preset-label">Quick presets:</span>
+        <button type="button" class="preset-btn" onclick="applyPreset('Ferric Carboxymaltose', 100)">FCM 100 mg</button>
+        <button type="button" class="preset-btn" onclick="applyPreset('Ferric Carboxymaltose', 200)">FCM 200 mg</button>
+        <button type="button" class="preset-btn" onclick="applyPreset('Iron Sucrose', 100)">Iron Sucrose 100 mg</button>
+        <button type="button" class="preset-btn" onclick="applyPreset('Iron Sucrose', 200)">Iron Sucrose 200 mg</button>
+        <button type="button" class="preset-btn" onclick="applyPreset('Low Molecular Weight Iron Dextran', 100)">LMWID 100 mg</button>
+      </div>
+
+      <div class="global-row">
+        <div class="fg">
+          <label>Administration Date (applies to all selected patients)</label>
+          <input type="date" name="global_iron_date" id="global_iron_date" value="{{ today }}">
+        </div>
+        <button type="button" class="apply-date-btn" onclick="applyGlobalDate()">
+          <i class="material-icons" style="font-size:0.95rem;vertical-align:middle;">event</i> Apply Date to All
+        </button>
+      </div>
+    </div>
+
+    <!-- Patient table -->
+    <div class="card">
+      <div class="card-title"><i class="material-icons">people</i> Patient List — Check to Include</div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px;">
+                <input type="checkbox" class="cb-include" id="cb-all" title="Select / deselect all" onchange="toggleAll(this)">
+              </th>
+              <th>Patient</th>
+              <th>Hb<br/><span style="font-weight:400;font-size:0.68rem;">g/dL</span></th>
+              <th>Ferritin<br/><span style="font-weight:400;font-size:0.68rem;">ng/mL</span></th>
+              <th>TSAT<br/><span style="font-weight:400;font-size:0.68rem;">%</span></th>
+              <th>IV Iron Product</th>
+              <th>Dose (mg)</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="patient-tbody">
+            {% for p in patients %}
+            <tr id="row-{{ p.id }}" class="{{ 'already-entered' if p.already_entered_this_month }}">
+              <td>
+                <input type="checkbox" class="cb-include cb-patient" name="include" value="{{ p.id }}"
+                  id="cb-{{ p.id }}" checked onchange="toggleRow({{ p.id }}, this.checked)">
+                <input type="hidden" name="patient_ids" value="{{ p.id }}">
+              </td>
+              <td>
+                <div class="patient-name">
+                  <a href="/patients/{{ p.id }}/profile" target="_blank"
+                     style="color:inherit;text-decoration:none;" title="Open patient profile">
+                    {{ p.name }}
+                  </a>
+                </div>
+                <div class="patient-hid">{{ p.hid_no }}</div>
+              </td>
+
+              {# Hb #}
+              <td>
+                {% if p.hb is not none %}
+                  <div class="lab-val {{ 'lab-low' if p.hb < 10 else ('lab-ok' if p.hb >= 11 else 'lab-warn') }}">{{ "%.1f"|format(p.hb) }}</div>
+                {% else %}
+                  <div class="lab-val lab-none">—</div>
+                {% endif %}
+                {% if p.lab_month %}<div class="lab-age">{{ p.lab_month }}</div>{% endif %}
+              </td>
+
+              {# Ferritin #}
+              <td>
+                {% if p.serum_ferritin is not none %}
+                  <div class="lab-val {{ 'lab-warn' if p.serum_ferritin < 100 else ('lab-warn' if p.serum_ferritin > 500 else 'lab-ok') }}">
+                    {{ "%.0f"|format(p.serum_ferritin) }}
+                  </div>
+                {% else %}
+                  <div class="lab-val lab-none">—</div>
+                {% endif %}
+              </td>
+
+              {# TSAT #}
+              <td>
+                {% if p.tsat is not none %}
+                  <div class="lab-val {{ 'lab-low' if p.tsat < 20 else ('lab-warn' if p.tsat > 40 else 'lab-ok') }}">
+                    {{ "%.0f"|format(p.tsat) }}%
+                  </div>
+                {% else %}
+                  <div class="lab-val lab-none">—</div>
+                {% endif %}
+              </td>
+
+              {# Product #}
+              <td>
+                <select name="product_{{ p.id }}" id="product-{{ p.id }}" class="product-sel">
+                  <option value="">— Select —</option>
+                  {% for prod in ["Ferric Carboxymaltose", "Iron Sucrose", "Low Molecular Weight Iron Dextran", "Ferumoxytol"] %}
+                  <option value="{{ prod }}" {{ 'selected' if p.iv_iron_product == prod }}>{{ prod }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+
+              {# Dose #}
+              <td>
+                <input type="number" name="dose_{{ p.id }}" id="dose-{{ p.id }}"
+                  class="dose-inp" step="25" min="25" max="1000"
+                  placeholder="e.g. 200"
+                  value="{{ p.iv_iron_dose | int if p.iv_iron_dose else '' }}">
+              </td>
+
+              {# Date #}
+              <td>
+                <input type="date" name="iron_date_{{ p.id }}" id="date-{{ p.id }}"
+                  class="date-inp" value="{{ p.iv_iron_date or today }}">
+              </td>
+
+              {# Status #}
+              <td>
+                {% if p.already_entered_this_month %}
+                  <span class="done-badge"><i class="material-icons" style="font-size:0.85rem;">check_circle</i> This month</span>
+                {% else %}
+                  <span style="font-size:0.72rem; color:#94a3b8;">Not entered</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </form>
+</div>
+
+<!-- Sticky save bar -->
+<div class="submit-bar">
+  <button type="button" class="btn-select-all" onclick="selectAll()">Select All</button>
+  <button type="button" class="btn-select-all" onclick="deselectAll()">Deselect All</button>
+  <span class="count-label">Selected: <strong id="selected-count">{{ patients | length }}</strong> patients</span>
+  <div style="flex:1;"></div>
+  <button type="submit" form="bulk-form" class="btn-save-all">
+    <i class="material-icons" style="font-size:1.1rem;">save</i>
+    Save All Selected
+  </button>
+</div>
+
+<script>
+  var TODAY = "{{ today }}";
+  var totalPatients = {{ patients | length }};
+
+  /* ── Preset: apply product + dose to all CHECKED rows ── */
+  function applyPreset(product, dose) {
+    document.querySelectorAll('.cb-patient:checked').forEach(function(cb) {
+      var pid = cb.value;
+      var sel  = document.getElementById('product-' + pid);
+      var doseInp = document.getElementById('dose-' + pid);
+      if (sel)     sel.value     = product;
+      if (doseInp) doseInp.value = dose;
+    });
+  }
+
+  /* ── Apply global date to all CHECKED rows ── */
+  function applyGlobalDate() {
+    var d = document.getElementById('global_iron_date').value;
+    if (!d) return;
+    document.querySelectorAll('.cb-patient:checked').forEach(function(cb) {
+      var dateInp = document.getElementById('date-' + cb.value);
+      if (dateInp) dateInp.value = d;
+    });
+  }
+
+  /* ── Toggle row visual when checkbox changes ── */
+  function toggleRow(pid, checked) {
+    var row = document.getElementById('row-' + pid);
+    if (row) {
+      if (checked) row.classList.remove('excluded');
+      else         row.classList.add('excluded');
+    }
+    updateCount();
+  }
+
+  /* ── Select / deselect all ── */
+  function toggleAll(masterCb) {
+    document.querySelectorAll('.cb-patient').forEach(function(cb) {
+      cb.checked = masterCb.checked;
+      toggleRow(cb.value, masterCb.checked);
+    });
+  }
+  function selectAll()   { document.querySelectorAll('.cb-patient').forEach(function(cb){ cb.checked=true;  toggleRow(cb.value,true);  }); }
+  function deselectAll() { document.querySelectorAll('.cb-patient').forEach(function(cb){ cb.checked=false; toggleRow(cb.value,false); }); }
+
+  /* ── Live count ── */
+  function updateCount() {
+    var n = document.querySelectorAll('.cb-patient:checked').length;
+    document.getElementById('selected-count').textContent = n;
+    document.getElementById('cb-all').indeterminate = (n > 0 && n < totalPatients);
+    document.getElementById('cb-all').checked = (n === totalPatients);
+  }
+  document.querySelectorAll('.cb-patient').forEach(function(cb){
+    cb.addEventListener('change', updateCount);
+  });
+
+  /* ── When global date input changes, push immediately to all checked rows ── */
+  document.getElementById('global_iron_date').addEventListener('change', function() {
+    applyGlobalDate();
+  });
+
+  /* Initial count sync */
+  updateCount();
+</script>
+</body>
+</html>

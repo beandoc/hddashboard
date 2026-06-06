@@ -20,7 +20,7 @@ from database import get_db, Patient, SessionLocal, User, create_tables
 from config import templates, serializer, pwd_context, limiter, COOKIE_SECURE, SESSION_MAX_AGE, SESSION_IDLE_TTL
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
-from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research, api_v1, ocr, api_next, acm, twin
+from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research, api_v1, ocr, api_next, acm, twin, protocols
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REQUIRED DB SCHEMA VERSION
@@ -427,6 +427,7 @@ app.include_router(ocr.router)
 app.include_router(api_next.router)
 app.include_router(acm.router)
 app.include_router(twin.router)
+app.include_router(protocols.router)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ICD-10 LOOKUP

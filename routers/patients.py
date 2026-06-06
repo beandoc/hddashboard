@@ -213,6 +213,15 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
     # Load up to 6 months of records for look-back (already fetched above)
     lookback_records = monthly_records  # already desc order, last 6 months
 
+    # Interim lab parameter names for each quarterly field (lowercase, as stored in InterimLabRecord)
+    QUARTERLY_INTERIM_PARAM = {
+        "ipth":           "ipth",
+        "serum_ferritin": "ferritin",
+        "tsat":           "tsat",
+        "serum_iron":     "serum_iron",
+        "vit_d":          "vit_d",
+    }
+
     quarterly_labs = {}
     latest_month_str = latest_monthly.record_month if latest_monthly else None
 
@@ -220,13 +229,13 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         found_val = None
         found_month = None
         months_ago = None
+        source = "monthly"
 
         for r in lookback_records:
             val = getattr(r, field, None)
             if val is not None:
                 found_val = val
                 found_month = r.record_month
-                # Calculate how many months ago this was
                 if latest_month_str and found_month:
                     try:
                         ly, lm = int(latest_month_str[:4]), int(latest_month_str[5:7])
@@ -236,14 +245,40 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
                         months_ago = None
                 break  # stop at first found (most recent)
 
+        # Fallback: search InterimLabRecord if monthly records have no value
+        if found_val is None:
+            interim_param = QUARTERLY_INTERIM_PARAM.get(field)
+            if interim_param:
+                interim_hit = (
+                    db.query(InterimLabRecord)
+                    .filter(
+                        InterimLabRecord.patient_id == patient_id,
+                        InterimLabRecord.parameter == interim_param,
+                    )
+                    .order_by(InterimLabRecord.lab_date.desc())
+                    .first()
+                )
+                if interim_hit:
+                    found_val = interim_hit.value
+                    found_month = str(interim_hit.lab_date)[:7] if interim_hit.lab_date else None
+                    source = "interim"
+                    if latest_month_str and found_month:
+                        try:
+                            ly, lm = int(latest_month_str[:4]), int(latest_month_str[5:7])
+                            fy, fm = int(found_month[:4]),      int(found_month[5:7])
+                            months_ago = (ly * 12 + lm) - (fy * 12 + fm)
+                        except Exception:
+                            months_ago = None
+
         quarterly_labs[field] = {
             "label":      meta["label"],
             "unit":       meta["unit"],
             "value":      found_val,
             "month":      found_month,
             "months_ago": months_ago,
+            "source":     source,
             # current = value is in the latest monthly record itself
-            "is_current": (found_month == latest_month_str) if found_month else False,
+            "is_current": (found_month == latest_month_str) if (found_month and source == "monthly") else False,
         }
 
     # Real trend data (chronological) for chart
