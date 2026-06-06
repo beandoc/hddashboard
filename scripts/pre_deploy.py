@@ -6,6 +6,11 @@ Handles two cases:
   2. Existing database (tables present, no alembic_version table):
      stamps as 0001 so alembic knows the baseline is already applied,
      then upgrades head to apply only the incremental migrations (0002+).
+
+After alembic runs, a schema-guard pass checks that every required column
+actually exists in the DB and adds any that are missing. This is a safety
+net for the case where alembic_version gets ahead of the real schema (e.g.
+after a partially-applied deploy on Render).
 """
 import subprocess
 import sys
@@ -16,12 +21,44 @@ from sqlalchemy import inspect, text
 from database import engine
 
 
+# Columns that must exist in monthly_records. Each entry is:
+#   (column_name, DDL_type_string)
+# Only add columns here that have a corresponding migration; this list is
+# the fallback guard, not a replacement for migrations.
+_REQUIRED_MONTHLY_RECORD_COLUMNS: list[tuple[str, str]] = [
+    ("reticulocyte_count", "FLOAT"),
+]
+
+
 def _has_table(name: str) -> bool:
     return inspect(engine).has_table(name)
 
 
+def _ensure_columns() -> None:
+    """Add any missing columns to monthly_records using IF NOT EXISTS."""
+    insp = inspect(engine)
+    if not insp.has_table("monthly_records"):
+        return
+
+    existing = {col["name"] for col in insp.get_columns("monthly_records")}
+    with engine.begin() as conn:
+        for col_name, col_type in _REQUIRED_MONTHLY_RECORD_COLUMNS:
+            if col_name not in existing:
+                print(
+                    f"[pre_deploy] Schema guard: adding missing column"
+                    f" monthly_records.{col_name} ({col_type}) …"
+                )
+                conn.execute(
+                    text(
+                        f"ALTER TABLE monthly_records"
+                        f" ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                    )
+                )
+                print(f"[pre_deploy] Schema guard: {col_name} added.")
+
+
 def main() -> int:
-    with engine.connect() as conn:
+    with engine.connect() as conn:  # noqa: F841 — side-effect: validates connectivity
         has_alembic = _has_table("alembic_version")
         has_patients = _has_table("patients")
 
@@ -49,6 +86,10 @@ def main() -> int:
         return result.returncode
 
     print("[pre_deploy] Migrations complete.")
+
+    _ensure_columns()
+
+    print("[pre_deploy] Schema guard complete. Deploy ready.")
     return 0
 
 

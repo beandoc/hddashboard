@@ -8,7 +8,6 @@ Adds reticulocyte_count (%) to monthly_records for two-compartment ODE
 partial observability of the reticulocyte pool state R.
 """
 from alembic import op
-import sqlalchemy as sa
 
 revision = "8b92695a7472"
 down_revision = "eda57b8c4029"
@@ -17,9 +16,11 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "monthly_records",
-        sa.Column("reticulocyte_count", sa.Float(), nullable=True),
+    # Use IF NOT EXISTS so this is safe to re-run if alembic_version ever
+    # gets ahead of the actual schema (e.g. after a partially-applied deploy).
+    op.execute(
+        "ALTER TABLE monthly_records"
+        " ADD COLUMN IF NOT EXISTS reticulocyte_count FLOAT"
     )
 
 
