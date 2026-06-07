@@ -15,7 +15,7 @@ import main
 main.SessionLocal = TestingSessionLocal
 main._check_schema_version = lambda: None
 
-from database import Base, get_db, User
+from database import Base, get_db, User, Patient, InterimLabRecord, MonthlyRecord
 from passlib.context import CryptContext
 from fastapi.testclient import TestClient
 

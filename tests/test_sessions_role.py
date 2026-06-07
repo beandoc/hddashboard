@@ -87,6 +87,10 @@ def test_staff_session_edit_redirect(client):
     
     response = client.post("/sessions/10/edit", data={
         "session_date": "2026-04-01",
+        "blood_flow_rate": 250.0,
+        "duration_hours": 4,
+        "weight_pre": 70.0,
+        "weight_post": 68.0,
         "symptoms": []
     }, cookies={"hd_session": token}, follow_redirects=False)
     
@@ -105,6 +109,10 @@ def test_admin_session_edit_redirect(client):
     
     response = client.post("/sessions/11/edit", data={
         "session_date": "2026-04-01",
+        "blood_flow_rate": 250.0,
+        "duration_hours": 4,
+        "weight_pre": 70.0,
+        "weight_post": 68.0,
         "symptoms": []
     }, cookies={"hd_session": token}, follow_redirects=False)
     
