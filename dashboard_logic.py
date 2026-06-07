@@ -655,7 +655,28 @@ def compute_dashboard(db: Session, month: str = None):
                 row["vit_d"] = p_interim["vit_d"]["value"]
                 row["is_interim"] = True
                 row["interim_details"]["vit_d"] = p_interim["vit_d"]
-        
+            if "ferritin" in p_interim:
+                row["ferritin"] = p_interim["ferritin"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["ferritin"] = p_interim["ferritin"]
+            if "tsat" in p_interim:
+                row["tsat"] = p_interim["tsat"]["value"]
+                row["is_interim"] = True
+                row["interim_details"]["tsat"] = p_interim["tsat"]
+
+            # Re-evaluate missing-data status now that interim overrides are applied.
+            # A field is only truly missing if both the monthly record AND interim are absent.
+            _updated_fields = {
+                "Hb": row["hb"],
+                "Albumin": row["albumin"],
+                "Phosphorus": row["phosphorus"],
+                "Calcium": row["corrected_ca"],
+                "TSAT": row["tsat"],
+            }
+            _missing_fields = [k for k, v in _updated_fields.items() if v is None]
+            row["missing_fields"] = _missing_fields
+            row["has_missing_data"] = bool(_missing_fields)
+
         # 1. Vascular Access classification
         name = p.name
         raw_access = ((r.access_type if r else None) or p.access_type or "").strip()
@@ -721,7 +742,7 @@ def compute_dashboard(db: Session, month: str = None):
 
             # Dialysis Intensification Alert: Phos rising (current > prev) AND IDWG >= 2.5
             prev_phos = prev_r.phosphorus if prev_r else None
-            effective_phos = r.phosphorus
+            effective_phos = row["phosphorus"]  # interim-overridden if available
             phos_rising = (effective_phos is not None) and (prev_phos is not None) and (effective_phos > prev_phos)
             effective_idwg = r.idwg
             if phos_rising and effective_idwg and effective_idwg >= 2.5:
@@ -736,13 +757,14 @@ def compute_dashboard(db: Session, month: str = None):
                 row["alerts"].append("High Hb (>13)")
 
             # 3. Albumin < 2.5 g/dL (User remapped from 3.5)
-            if r.albumin and r.albumin < 2.5:
+            effective_albumin = row["albumin"]  # interim-overridden if available
+            if effective_albumin and effective_albumin < 2.5:
                 metrics['albumin_low']['count'] += 1
                 metrics['albumin_low']['names'].append(name)
                 metrics['trend_albumin'].append({
                     "id": p.id,
                     "name": name,
-                    "current": r.albumin,
+                    "current": effective_albumin,
                     "previous": prev_r.albumin if prev_r else None
                 })
                 row["alerts"].append("Low Albumin")
@@ -755,13 +777,13 @@ def compute_dashboard(db: Session, month: str = None):
                 row["alerts"].append("Low Corrected Calcium")
                 
             # 5. Phosphorus > 5.5 mg/dL
-            if r.phosphorus and r.phosphorus > 5.5:
+            if effective_phos and effective_phos > 5.5:
                 metrics['phos_high']['count'] += 1
                 metrics['phos_high']['names'].append(name)
                 metrics['trend_phosphorus'].append({
                     "id": p.id,
                     "name": name,
-                    "current": r.phosphorus,
+                    "current": effective_phos,
                     "previous": prev_r.phosphorus if prev_r else None
                 })
                 row["alerts"].append("High Phos")

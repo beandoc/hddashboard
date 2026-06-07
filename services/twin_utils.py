@@ -12,11 +12,14 @@ from __future__ import annotations
 # Gaussian conjugate prior: θ ~ N(μ₀, σ₀²)
 # Posterior after n observations: μₙ = (μ₀/σ₀² + Σxᵢyᵢ/σ_ε²) / (1/σ₀² + Σxᵢ²/σ_ε²)
 #
-# k_gain  [g/dL per 1 IU/kg/wk per month]
-_PRIOR_K_GAIN_MU    = 0.018   # population mean
-_PRIOR_K_GAIN_VAR   = 0.007 ** 2  # population variance (SD ≈ 0.007)
-_PRIOR_K_GAIN_MIN   = 0.003
-_PRIOR_K_GAIN_MAX   = 0.10
+# k_gain  [g/dL per (IU/kg/wk × 1000)]
+# Formula: ΔHb = k_gain × (iu_norm × 1000) + ...
+# At 100 IU/kg/wk: iu_norm×1000 = 100,000 → ΔHb = 1.0 g/dL/month (clinical literature)
+# Therefore: k_gain = 1.0 / 100,000 = 1e-5
+_PRIOR_K_GAIN_MU    = 1.0e-5  # population mean  (was 0.018 — 1000× too large, caused ceiling bug)
+_PRIOR_K_GAIN_VAR   = (4.0e-6) ** 2  # SD ≈ 4e-6 (wide prior, ≈40% of mean)
+_PRIOR_K_GAIN_MIN   = 2.0e-6  # poor responder
+_PRIOR_K_GAIN_MAX   = 5.0e-5  # excellent responder
 
 # k_iron  [g/dL per 1% TSAT increase per month]
 _PRIOR_K_IRON_MU    = 0.015
