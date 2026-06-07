@@ -871,7 +871,7 @@ function renderAtRiskTable() {
     const vals = (p.trend || []).filter(v => v != null);
     p._latest = vals.length ? vals[vals.length - 1] : null;
     p._first  = vals.length ? vals[0] : null;
-    p._delta  = (p._latest != null && p._first != null) ? +(p._latest - p._first).toFixed(2) : null;
+    p._delta  = (vals.length >= 2) ? +(p._latest - p._first).toFixed(2) : null;
   });
 
   // Sort
