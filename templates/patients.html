@@ -253,14 +253,16 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 
                     <!-- Hb Trend (6m) -->
                     <td data-label="Hb Trend (6m)">
-                        {% if row.hb_sparkline and row.hb_sparkline.points %}
+                        {% if row.hb is not none %}
                             <div style="display:flex; flex-direction:column; align-items:flex-start;">
                                 <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
-                                    {{ row.hb if row.hb is not none else '—' }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
+                                    {{ row.hb }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
                                 </span>
+                                {% if row.hb_sparkline and row.hb_sparkline.points %}
                                 <svg class="sparkline" viewBox="0 0 70 20" role="img" aria-label="Hemoglobin 6-month trend line">
                                     <polyline class="{{ row.hb_sparkline.trend }}-trend" points="{{ row.hb_sparkline.points }}"></polyline>
                                 </svg>
+                                {% endif %}
                             </div>
                         {% else %}
                             <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">—</span>
@@ -269,14 +271,16 @@ th[data-sortable].sort-desc .sort-icon { opacity: 1; color: var(--primary); }
 
                     <!-- Albumin Trend (6m) -->
                     <td data-label="Albumin Trend (6m)">
-                        {% if row.alb_sparkline and row.alb_sparkline.points %}
+                        {% if row.albumin is not none %}
                             <div style="display:flex; flex-direction:column; align-items:flex-start;">
                                 <span style="font-size:0.92rem; font-weight:700; color:var(--text);">
-                                    {{ row.albumin if row.albumin is not none else '—' }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
+                                    {{ row.albumin }} <span style="font-size:0.7rem; font-weight:400; color:var(--text-muted)">g/dL</span>
                                 </span>
+                                {% if row.alb_sparkline and row.alb_sparkline.points %}
                                 <svg class="sparkline" viewBox="0 0 70 20" role="img" aria-label="Albumin 6-month trend line">
                                     <polyline class="{{ row.alb_sparkline.trend }}-trend" points="{{ row.alb_sparkline.points }}"></polyline>
                                 </svg>
+                                {% endif %}
                             </div>
                         {% else %}
                             <span style="color:#94a3b8; font-size:0.82rem; font-style:italic;">—</span>
