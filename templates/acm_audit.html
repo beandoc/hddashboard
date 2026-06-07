@@ -91,6 +91,17 @@
               padding:14px 16px;font-size:.82rem;color:#1e40af;margin-bottom:18px;}
     .drift-warn{background:#fef3c7;border:1px solid #fde68a;border-radius:10px;
                 padding:14px 16px;font-size:.82rem;color:#92400e;margin-bottom:18px;}
+    .train-success{background:#dcfce7;border:1px solid #86efac;border-radius:10px;
+                   padding:14px 16px;font-size:.82rem;color:#166534;margin-bottom:18px;}
+    .train-error  {background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;
+                   padding:14px 16px;font-size:.82rem;color:#991b1b;margin-bottom:18px;}
+    .btn-train{display:inline-flex;align-items:center;gap:6px;
+               background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.35);
+               color:white;text-decoration:none;padding:8px 16px;border-radius:8px;
+               font-size:.82rem;font-weight:600;cursor:pointer;
+               transition:background .15s;}
+    .btn-train:hover{background:rgba(255,255,255,0.25);}
+    .btn-train:disabled{opacity:.5;cursor:not-allowed;}
   </style>
 </head>
 <body>
@@ -101,12 +112,36 @@
     <h1>🩸 Anemia Control Model — Fleet Audit</h1>
     <p>Calibration tracking, Hb target attainment, and ESA dose-response analysis</p>
   </div>
-  <a href="/" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);
-     color:white;text-decoration:none;padding:8px 16px;border-radius:8px;
-     font-size:.82rem;font-weight:600;">← Dashboard</a>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <form method="post" action="/acm/train" id="train-form" style="margin:0;">
+      <button type="submit" class="btn-train" id="train-btn" onclick="handleTrainClick(this)">
+        ⚡ Train Now
+      </button>
+    </form>
+    <a href="/" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);
+       color:white;text-decoration:none;padding:8px 16px;border-radius:8px;
+       font-size:.82rem;font-weight:600;">← Dashboard</a>
+  </div>
 </div>
 
 <div class="content">
+
+  {% if train_status == 'queued' %}
+  <div class="train-success">
+    ✓ <strong>Training job queued.</strong> The ACM model is retraining in the background — this takes 30–90 seconds.
+    Refresh this page in a minute to see updated model metrics.
+  </div>
+  {% elif train_status == 'done' %}
+  <div class="train-success">
+    ✓ <strong>Training complete.</strong> The ACM model has been retrained on all current patient data.
+    Model metrics above are now up to date.
+  </div>
+  {% elif train_status == 'error' %}
+  <div class="train-error">
+    ✗ <strong>Training failed.</strong> Check server logs for details.
+    Ensure patients have ≥ 3 monthly records with Hb values recorded.
+  </div>
+  {% endif %}
 
   {% if calib and calib.drift_flagged %}
   <div class="drift-warn">
@@ -420,6 +455,11 @@
 </div><!-- /content -->
 
 <script>
+function handleTrainClick(btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳ Training…';
+}
+
 const scatterData    = {{ scatter_data | safe }};
 const esaRespData    = {{ esa_response_data | safe }};
 {% if summary and summary.total_recommendations %}

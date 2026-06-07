@@ -119,6 +119,16 @@
               <a href="/analytics/urea-modeling" class="{{ 'active' if '/analytics/urea-modeling' in _path }}">
                 <i class="material-icons">biotech</i> Urea Modeler
               </a>
+              <div class="dd-divider"></div>
+              <a href="/analytics/dialysis-adequacy" class="{{ 'active' if '/analytics/dialysis-adequacy' in _path }}">
+                <i class="material-icons">monitor_heart</i> Dialysis Adequacy
+              </a>
+              <a href="/analytics/dry-weight" class="{{ 'active' if '/analytics/dry-weight' in _path }}">
+                <i class="material-icons">monitor_weight</i> Dry Weight Trajectory
+              </a>
+              <a href="/analytics/vascular-intel" class="{{ 'active' if '/analytics/vascular-intel' in _path }}">
+                <i class="material-icons">device_hub</i> Vascular Intelligence
+              </a>
             </div>
           </div>
           <a href="/analytics/patients" class="{{ 'active' if '/analytics/patients' in _path }}">
@@ -152,10 +162,6 @@
           </a>
           <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
             <i class="material-icons">event</i> Schedule
-          </a>
-          <div class="dd-divider"></div>
-          <a href="/hospitalisations" class="{{ 'active' if '/hospitalisations' in _path }}">
-            <i class="material-icons">local_hospital</i> Hospitalisations
           </a>
           <div class="dd-divider"></div>
           <a href="/hospitalisations" class="{{ 'active' if '/hospitalisations' in _path }}">
@@ -304,6 +310,16 @@
               </a>
               <a href="/analytics/urea-modeling" class="{{ 'active' if '/analytics/urea-modeling' in _path }}">
                 <i class="material-icons">biotech</i> Urea Modeler
+              </a>
+              <div class="dd-divider"></div>
+              <a href="/analytics/dialysis-adequacy" class="{{ 'active' if '/analytics/dialysis-adequacy' in _path }}">
+                <i class="material-icons">monitor_heart</i> Dialysis Adequacy
+              </a>
+              <a href="/analytics/dry-weight" class="{{ 'active' if '/analytics/dry-weight' in _path }}">
+                <i class="material-icons">monitor_weight</i> Dry Weight Trajectory
+              </a>
+              <a href="/analytics/vascular-intel" class="{{ 'active' if '/analytics/vascular-intel' in _path }}">
+                <i class="material-icons">device_hub</i> Vascular Intelligence
               </a>
             </div>
           </div>
@@ -654,8 +670,8 @@
     {# ── STAFF mobile drawer ── #}
     {% if _cur_role == 'staff' %}
 
-    <div class="drawer-section {{ 'open' if '/patients' in _path or '/events' in _path }}" id="ds-clinical">
-      <button class="drawer-section-toggle {{ 'active-section' if '/patients' in _path or '/events' in _path }}" onclick="toggleDrawerSection('ds-clinical')">
+    <div class="drawer-section {{ 'open' if '/patients' in _path or '/events' in _path or '/acm' in _path }}" id="ds-clinical">
+      <button class="drawer-section-toggle {{ 'active-section' if '/patients' in _path or '/events' in _path or '/acm' in _path }}" onclick="toggleDrawerSection('ds-clinical')">
         <span>Clinical</span>
         <i class="material-icons chevron">expand_more</i>
       </button>
@@ -665,6 +681,9 @@
         </a>
         <a href="/events" class="{{ 'active' if '/events' in _path }}">
           <i class="material-icons">notification_important</i> Clinical Events
+        </a>
+        <a href="/acm/audit" class="{{ 'active' if '/acm' in _path }}">
+          <i class="material-icons">bloodtype</i> Anemia Control (ACM)
         </a>
       </div>
     </div>
@@ -708,8 +727,8 @@
     {# ── DOCTOR / ADMIN mobile drawer ── #}
     {% else %}
 
-    <div class="drawer-section {{ 'open' if _clinical_active }}" id="ds-clinical">
-      <button class="drawer-section-toggle {{ 'active-section' if _clinical_active }}" onclick="toggleDrawerSection('ds-clinical')">
+    <div class="drawer-section {{ 'open' if _clinical_active or '/acm' in _path }}" id="ds-clinical">
+      <button class="drawer-section-toggle {{ 'active-section' if _clinical_active or '/acm' in _path }}" onclick="toggleDrawerSection('ds-clinical')">
         <span>Clinical</span>
         <i class="material-icons chevron">expand_more</i>
       </button>
@@ -722,6 +741,9 @@
         </a>
         <a href="/events" class="{{ 'active' if '/events' in _path }}">
           <i class="material-icons">notification_important</i> Clinical Events
+        </a>
+        <a href="/acm/audit" class="{{ 'active' if '/acm' in _path }}">
+          <i class="material-icons">bloodtype</i> Anemia Control (ACM)
         </a>
       </div>
     </div>
@@ -765,6 +787,15 @@
             <a href="/analytics/urea-modeling" class="{{ 'active' if '/analytics/urea-modeling' in _path }}">
               <i class="material-icons">biotech</i> Urea Modeler
             </a>
+            <a href="/analytics/dialysis-adequacy" class="{{ 'active' if '/analytics/dialysis-adequacy' in _path }}">
+              <i class="material-icons">monitor_heart</i> Dialysis Adequacy
+            </a>
+            <a href="/analytics/dry-weight" class="{{ 'active' if '/analytics/dry-weight' in _path }}">
+              <i class="material-icons">monitor_weight</i> Dry Weight Trajectory
+            </a>
+            <a href="/analytics/vascular-intel" class="{{ 'active' if '/analytics/vascular-intel' in _path }}">
+              <i class="material-icons">device_hub</i> Vascular Intelligence
+            </a>
           </div>
         </div>
         <a href="/analytics/patients" class="{{ 'active' if '/analytics/patients' in _path }}">
@@ -787,8 +818,8 @@
       </div>
     </div>
 
-    <div class="drawer-section {{ 'open' if _ops_active }}" id="ds-ops">
-      <button class="drawer-section-toggle {{ 'active-section' if _ops_active }}" onclick="toggleDrawerSection('ds-ops')">
+    <div class="drawer-section {{ 'open' if _ops_active or '/hospitalisations' in _path or _path == '/icd' }}" id="ds-ops">
+      <button class="drawer-section-toggle {{ 'active-section' if _ops_active or '/hospitalisations' in _path or _path == '/icd' }}" onclick="toggleDrawerSection('ds-ops')">
         <span>Operations</span>
         <i class="material-icons chevron">expand_more</i>
       </button>
@@ -798,6 +829,15 @@
         </a>
         <a href="/schedule" class="{{ 'active' if '/schedule' in _path }}">
           <i class="material-icons">event</i> Schedule
+        </a>
+        <a href="/hospitalisations" class="{{ 'active' if '/hospitalisations' in _path }}">
+          <i class="material-icons">local_hospital</i> Hospitalisations
+        </a>
+        <a href="/icd" class="{{ 'active' if _path == '/icd' }}">
+          <i class="material-icons">manage_search</i> ICD-10 Lookup
+        </a>
+        <a href="/protocols/iv-iron" class="{{ 'active' if '/protocols/iv-iron' in _path }}" style="color:#a78bfa;">
+          <i class="material-icons" style="color:#a78bfa;">vaccines</i> IV Iron Protocol
         </a>
         <a href="/alerts" class="{{ 'active' if '/alerts' in _path }}">
           <i class="material-icons">warning</i> Alerts

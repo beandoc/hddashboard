@@ -8,6 +8,7 @@ Routes:
     POST /acm/{patient_id}/generate  — generate / refresh recommendation
     POST /acm/{patient_id}/decide    — clinician accept / modify / reject
     GET  /acm/audit                  — fleet-wide audit dashboard (staff/admin)
+    POST /acm/train                  — trigger on-demand ACM model retraining
 """
 import json
 import logging
@@ -89,7 +90,7 @@ def _hb_chart_data(records: list) -> dict:
 
 
 @router.get("/audit", response_class=HTMLResponse)
-async def acm_audit(request: Request, db: Session = Depends(get_db)):
+async def acm_audit(request: Request, db: Session = Depends(get_db), train: Optional[str] = None):
     _require_staff_role(request)
     user = get_user(request)
 
@@ -181,7 +182,46 @@ async def acm_audit(request: Request, db: Session = Depends(get_db)):
         "calib":            calib,
         "scatter_data":     json.dumps(scatter_data),
         "esa_response_data":json.dumps(esa_response_data),
+        "train_status":     train,
     })
+
+
+# ── On-demand model training ──────────────────────────────────────────────────
+
+
+@router.post("/train")
+async def acm_train(request: Request, db: Session = Depends(get_db)):
+    """Queue (or run synchronously) a full ACM retrain from application data.
+
+    Tries Celery first so the HTTP response returns immediately.
+    Falls back to a synchronous run when Celery is unavailable (dev mode).
+    Redirects back to the audit page with a status query param.
+    """
+    _require_staff_role(request)
+
+    try:
+        from tasks import task_train_acm_model
+        task_train_acm_model.delay()
+        return RedirectResponse(
+            url="/acm/audit?train=queued",
+            status_code=303,
+        )
+    except Exception:
+        pass
+
+    # Synchronous fallback — blocks until training completes (~10–60 s)
+    try:
+        from ml_acm import train_acm_model
+        result = train_acm_model(db)
+        if result.get("success"):
+            return RedirectResponse(url="/acm/audit?train=done", status_code=303)
+        else:
+            err = result.get("error", "unknown error")
+            logger.error(f"ACM synchronous training failed: {err}")
+            return RedirectResponse(url=f"/acm/audit?train=error", status_code=303)
+    except Exception as e:
+        logger.exception("ACM training endpoint failed")
+        return RedirectResponse(url="/acm/audit?train=error", status_code=303)
 
 
 # ── Per-patient ACM dashboard ─────────────────────────────────────────────────

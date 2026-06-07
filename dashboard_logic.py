@@ -351,6 +351,52 @@ def compute_dashboard(db: Session, month: str = None):
     prev_records = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == prev_month).yield_per(100).all()
     prev_record_map = {r.patient_id: r for r in prev_records}
 
+    # Fetch the most recent monthly record per patient BEYOND the effective month.
+    # Some patients enter data early — their newest record may be weeks ahead of the
+    # cohort's effective month, causing the dashboard to silently miss acute changes
+    # (e.g. Hb 8.5→5.9 drop when effective month is still the previous month).
+    _ahead_sq = (
+        db.query(
+            MonthlyRecord.patient_id,
+            func.max(MonthlyRecord.record_month).label("latest_month"),
+        )
+        .filter(MonthlyRecord.patient_id.in_([p.id for p in active_patients]))
+        .group_by(MonthlyRecord.patient_id)
+        .subquery()
+    )
+    ahead_records_raw = (
+        db.query(MonthlyRecord)
+        .join(
+            _ahead_sq,
+            and_(
+                MonthlyRecord.patient_id == _ahead_sq.c.patient_id,
+                MonthlyRecord.record_month == _ahead_sq.c.latest_month,
+                _ahead_sq.c.latest_month > month,           # only if truly ahead
+            ),
+        )
+        .all()
+    )
+    ahead_record_map: dict = {ar.patient_id: ar for ar in ahead_records_raw}
+
+    # Interim labs from months ahead of the effective month
+    ahead_interims_raw = (
+        db.query(InterimLabRecord)
+        .filter(
+            InterimLabRecord.patient_id.in_([p.id for p in active_patients]),
+            InterimLabRecord.record_month > month,
+        )
+        .order_by(InterimLabRecord.lab_date.asc())
+        .all()
+    )
+    ahead_interim_map: dict = {}
+    for _ai in ahead_interims_raw:
+        if _ai.patient_id not in ahead_interim_map:
+            ahead_interim_map[_ai.patient_id] = {}
+        # last date wins (asc order → later dates overwrite earlier)
+        ahead_interim_map[_ai.patient_id][_ai.parameter] = {
+            "value": _ai.value, "date": _ai.lab_date, "month": _ai.record_month,
+        }
+
     # Fetch all records for the last 6 months for variability and sparklines
     all_6m_records = db.query(MonthlyRecord).filter(
         MonthlyRecord.record_month.in_(six_months)
@@ -528,6 +574,8 @@ def compute_dashboard(db: Session, month: str = None):
             "adherence_flags": [],
             "is_interim": False,
             "interim_details": {},
+            "is_newer_record": False,
+            "data_month": month,
             "alerts": []
         }
 
@@ -676,6 +724,83 @@ def compute_dashboard(db: Session, month: str = None):
             _missing_fields = [k for k, v in _updated_fields.items() if v is None]
             row["missing_fields"] = _missing_fields
             row["has_missing_data"] = bool(_missing_fields)
+
+        # ── Step 6: Apply overrides from records/interims AHEAD of effective month ──
+        # A patient may have entered labs for a future month while the cohort is still
+        # on the effective month.  We surface their newest value so acute changes
+        # (e.g. Hb 8.5 → 5.9) are never silently missed.
+        _ahead_r = ahead_record_map.get(p.id)
+        _ahead_interim = ahead_interim_map.get(p.id, {})
+        _has_ahead = bool(_ahead_r or _ahead_interim)
+
+        if _has_ahead:
+            # Save effective-month Hb BEFORE overriding — needed for drop calculation
+            _eff_month_hb = row["hb"]
+
+            # Apply ahead monthly record fields
+            if _ahead_r:
+                _ahead_month = _ahead_r.record_month
+                if _ahead_r.hb is not None:
+                    row["hb"] = _ahead_r.hb
+                if _ahead_r.albumin is not None:
+                    row["albumin"] = _ahead_r.albumin
+                if _ahead_r.phosphorus is not None:
+                    row["phosphorus"] = _ahead_r.phosphorus
+                if _ahead_r.calcium is not None and _ahead_r.albumin is not None:
+                    row["corrected_ca"] = round(_ahead_r.calcium + 0.8 * (4.0 - _ahead_r.albumin), 2)
+                elif _ahead_r.calcium is not None:
+                    row["corrected_ca"] = _ahead_r.calcium
+                if _ahead_r.tsat is not None:
+                    row["tsat"] = _ahead_r.tsat
+                if _ahead_r.serum_ferritin is not None:
+                    row["ferritin"] = _ahead_r.serum_ferritin
+                if _ahead_r.ipth is not None:
+                    row["ipth"] = _ahead_r.ipth
+                if _ahead_r.vit_d is not None:
+                    row["vit_d"] = _ahead_r.vit_d
+                row["is_newer_record"] = True
+                row["data_month"] = _ahead_month
+
+            # Apply ahead interim labs (override the above if more recent)
+            if _ahead_interim:
+                _ahead_month = max(
+                    (v.get("month") for v in _ahead_interim.values() if v.get("month")),
+                    default=row["data_month"],
+                )
+                for _param, _entry in _ahead_interim.items():
+                    if _param == "hb" and _entry["value"] is not None:
+                        row["hb"] = _entry["value"]
+                    elif _param == "albumin" and _entry["value"] is not None:
+                        row["albumin"] = _entry["value"]
+                    elif _param == "phosphorus" and _entry["value"] is not None:
+                        row["phosphorus"] = _entry["value"]
+                    elif _param == "tsat" and _entry["value"] is not None:
+                        row["tsat"] = _entry["value"]
+                    elif _param == "ferritin" and _entry["value"] is not None:
+                        row["ferritin"] = _entry["value"]
+                row["is_newer_record"] = True
+                row["data_month"] = _ahead_month
+                row["is_interim"] = True
+
+            # Compute drop relative to the effective month (not previous month)
+            # so a jump from 8.5 (May) → 5.9 (June) is correctly caught as 2.6 drop.
+            if _eff_month_hb is not None and row["hb"] is not None:
+                _ahead_drop = round(_eff_month_hb - row["hb"], 2)
+                if _ahead_drop > 1.5:
+                    metrics['hb_drop_alert']['count'] += 1
+                    if p.name not in metrics['hb_drop_alert']['names']:
+                        metrics['hb_drop_alert']['names'].append(p.name)
+                    if "Hb Drop" not in row["alerts"]:
+                        row["alerts"].append("Hb Drop")
+
+            # Re-evaluate missing fields after ahead overrides
+            _ahead_updated = {
+                "Hb": row["hb"], "Albumin": row["albumin"],
+                "Phosphorus": row["phosphorus"], "Calcium": row["corrected_ca"],
+                "TSAT": row["tsat"],
+            }
+            row["missing_fields"] = [k for k, v in _ahead_updated.items() if v is None]
+            row["has_missing_data"] = bool(row["missing_fields"])
 
         # 1. Vascular Access classification
         name = p.name

@@ -146,6 +146,7 @@ class SessionRecord(Base):
     cannulation_attempts    = Column(Integer)                  # 1–10, nullable
     cannulation_difficulty  = Column(String, default="routine")  # routine | difficult | failed
     needle_infiltration     = Column(Boolean, default=False)
+    hemostasis_time_mins    = Column(Float, nullable=True)     # minutes to achieve hemostasis post-session
 
     __table_args__ = (
         Index('ix_session_records_patient_month', 'patient_id', 'record_month'),

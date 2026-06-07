@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dialysis Adequacy — HDF & eKt/V | HD Dashboard</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  {% include "_nav.html" %}
+  <style>
+    :root {
+      --primary: #0ea5e9;
+      --accent: #7c3aed;
+      --bg-main: #f8fafc;
+      --radius: 16px;
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    }
+    body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1e293b; }
+
+    .report-header {
+      background: linear-gradient(135deg, #0c1445 0%, #1e40af 60%, #0ea5e9 100%);
+      color: white; padding: 40px 32px; text-align: center;
+    }
+    .report-header h1 { font-family: 'Outfit', sans-serif; font-size: 2rem; margin: 0; }
+    .report-header p { opacity: 0.8; font-size: 0.95rem; margin: 8px auto 0; max-width: 700px; }
+    .header-badges { display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+    .header-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px; padding: 5px 14px; font-size: 0.78rem; font-weight: 600;
+    }
+
+    .container { max-width: 1200px; margin: -30px auto 60px; padding: 0 20px; position: relative; z-index: 10; }
+
+    .month-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .month-form { display: flex; align-items: center; gap: 10px; }
+    .month-form input[type="month"] {
+      padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 10px;
+      font-family: 'Inter', sans-serif; font-size: 0.88rem; background: white;
+    }
+    .btn-primary {
+      padding: 8px 18px; background: var(--primary); color: white;
+      border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem;
+    }
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px; background: white; color: #475569;
+      text-decoration: none; border-radius: 10px; font-weight: 600;
+      border: 1px solid #e2e8f0; font-size: 0.85rem;
+    }
+    .btn-back:hover { background: #f1f5f9; }
+
+    /* Section tabs */
+    .tabs { display: flex; gap: 4px; background: white; border-radius: 12px; padding: 4px;
+            box-shadow: var(--shadow-lg); margin-bottom: 24px; width: fit-content; }
+    .tab-btn {
+      padding: 10px 20px; border: none; background: transparent; cursor: pointer;
+      border-radius: 9px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.87rem;
+      color: #64748b; transition: all 0.15s;
+    }
+    .tab-btn.active { background: var(--primary); color: white; }
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+
+    /* Stat cards */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: white; padding: 20px 24px; border-radius: var(--radius);
+      box-shadow: var(--shadow-lg); text-align: center; border: 1px solid rgba(0,0,0,0.05);
+    }
+    .stat-val { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 700; }
+    .stat-label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-top: 4px; }
+    .stat-blue .stat-val { color: #0ea5e9; }
+    .stat-green .stat-val { color: #16a34a; }
+    .stat-amber .stat-val { color: #d97706; }
+    .stat-red .stat-val { color: #dc2626; }
+    .stat-purple .stat-val { color: #7c3aed; }
+
+    /* Tables */
+    .table-card { background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg); }
+    .table-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; }
+    .table-header h3 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.05rem; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th {
+      text-align: left; padding: 12px 16px;
+      background: #f8fafc; color: #64748b; font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
+    }
+    .data-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 0.87rem; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #f8fafc; }
+
+    .patient-name { font-weight: 700; color: #0f172a; }
+    .patient-hid { font-size: 0.72rem; color: #94a3b8; }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
+    }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-red { background: #fee2e2; color: #dc2626; }
+    .badge-amber { background: #fef3c7; color: #b45309; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-gray { background: #f1f5f9; color: #64748b; }
+
+    /* eKt/V sparkline cells */
+    .ektv-bars { display: flex; gap: 3px; align-items: flex-end; height: 32px; }
+    .ektv-bar {
+      width: 10px; border-radius: 3px 3px 0 0; transition: all 0.2s;
+      position: relative;
+    }
+    .ektv-bar:hover::after {
+      content: attr(data-val);
+      position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+      background: #0f172a; color: white; padding: 2px 7px; border-radius: 6px;
+      font-size: 0.7rem; white-space: nowrap; pointer-events: none;
+    }
+    .bar-adequate { background: #16a34a; }
+    .bar-inadequate { background: #dc2626; }
+    .bar-null { background: #e2e8f0; }
+
+    .trend-icon { font-size: 1rem; font-weight: 700; }
+    .trend-improving { color: #16a34a; }
+    .trend-declining { color: #dc2626; }
+    .trend-stable { color: #64748b; }
+
+    /* HDF bar chart */
+    .hdf-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+    .hdf-bar-track { flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .hdf-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #7c3aed, #0ea5e9); }
+    .hdf-pct { font-weight: 700; font-size: 0.85rem; color: #7c3aed; min-width: 38px; text-align: right; }
+
+    /* Hours badge */
+    .hrs-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.83rem; font-weight: 600; }
+    .hrs-ok { color: #16a34a; }
+    .hrs-warn { color: #dc2626; }
+
+    [data-theme="dark"] body { background: #0f172a; color: #e2e8f0; }
+    [data-theme="dark"] .stat-card,
+    [data-theme="dark"] .table-card,
+    [data-theme="dark"] .tabs { background: #1e293b; border-color: #334155; }
+    [data-theme="dark"] .data-table th { background: #0f172a; color: #94a3b8; }
+    [data-theme="dark"] .data-table td { border-color: #334155; }
+    [data-theme="dark"] .data-table tr:hover td { background: #0f172a; }
+    [data-theme="dark"] .patient-name { color: #f1f5f9; }
+    [data-theme="dark"] .btn-back { background: #1e293b; color: #94a3b8; border-color: #334155; }
+    [data-theme="dark"] .month-form input { background: #1e293b; color: #e2e8f0; border-color: #475569; }
+
+    @media (max-width: 768px) {
+      .report-header { padding: 24px 16px; }
+      .report-header h1 { font-size: 1.5rem; }
+      .data-table td, .data-table th { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+<div class="report-header">
+  <h1><i class="material-icons" style="vertical-align:middle;font-size:2rem;margin-right:8px;">monitor_heart</i>Dialysis Adequacy</h1>
+  <p>HDF utilization, monthly eKt/V monitoring (KDIGO ≥1.2), and treatment-hour adherence (≥12 h/week)</p>
+  <div class="header-badges">
+    <span class="header-badge"><i class="material-icons" style="font-size:14px;">calendar_month</i> {{ month_str }}</span>
+    <span class="header-badge"><i class="material-icons" style="font-size:14px;">science</i> eKt/V target ≥ 1.2</span>
+    <span class="header-badge"><i class="material-icons" style="font-size:14px;">schedule</i> ≥ 12 h/week conventional HD</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="month-nav">
+    <a href="/analytics" class="btn-back"><i class="material-icons" style="font-size:16px;">arrow_back</i> Analytics</a>
+    <form class="month-form" method="get">
+      <input type="month" name="month" value="{{ month_str }}">
+      <button type="submit" class="btn-primary">Go</button>
+    </form>
+  </div>
+
+  <!-- Audit Measure 1 banner -->
+  {% if ektv.audit_n > 0 %}
+  <div style="background:linear-gradient(135deg,#1e1b4b,#4c1d95);border-radius:14px;padding:18px 24px;margin-bottom:20px;display:flex;gap:28px;flex-wrap:wrap;align-items:center;">
+    <div style="color:rgba(255,255,255,0.55);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;flex-basis:100%;">
+      RA HD Audit Measure 1 — Thrice-weekly patients on dialysis ≥ 1 year (n={{ ektv.audit_n }})
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:'Outfit',sans-serif;font-size:2rem;font-weight:700;color:#a78bfa;">
+        {{ ektv.audit_median_ektv if ektv.audit_median_ektv else '—' }}
+      </div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;">Median eKt/V</div>
+    </div>
+    <div style="width:1px;background:rgba(255,255,255,0.15);align-self:stretch;"></div>
+    <div style="text-align:center;">
+      <div style="font-family:'Outfit',sans-serif;font-size:2rem;font-weight:700;color:{% if ektv.audit_pct_adequate >= 80 %}#4ade80{% elif ektv.audit_pct_adequate >= 60 %}#fbbf24{% else %}#f87171{% endif %};">
+        {{ ektv.audit_pct_adequate }}%
+      </div>
+      <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;">Achieving eKt/V ≥ 1.2</div>
+    </div>
+    <div style="flex:1;font-size:0.78rem;color:rgba(255,255,255,0.55);line-height:1.5;min-width:200px;">
+      eKt/V resolved via Tattersall formula from spKt/V where available, falling back to Daugirdas spKt/V from urea values, then Log-Ratio from URR.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Summary stats -->
+  <div class="stat-grid">
+    <div class="stat-card stat-purple">
+      <div class="stat-val">{{ hdf.unit_hdf_pct }}%</div>
+      <div class="stat-label">Unit HDF Utilization</div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-val">{{ hdf.hdf_sessions }}</div>
+      <div class="stat-label">HDF Sessions</div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-val">{{ hdf.conventional_sessions }}</div>
+      <div class="stat-label">Conventional HD Sessions</div>
+    </div>
+    <div class="stat-card stat-green">
+      <div class="stat-val">{{ ektv.unit_adequacy_pct }}%</div>
+      <div class="stat-label">eKt/V Adequacy (all patients)</div>
+    </div>
+    <div class="stat-card stat-red">
+      <div class="stat-val">{{ ektv.patient_rows | selectattr('current_ektv', 'ne', None) | selectattr('adequate', 'equalto', False) | list | length }}</div>
+      <div class="stat-label">Patients Below eKt/V 1.2</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('hdf-tab', this)">HDF Utilization</button>
+    <button class="tab-btn" onclick="showTab('ektv-tab', this)">eKt/V Monitoring</button>
+  </div>
+
+  <!-- ── Tab 1: HDF Utilization ── -->
+  <div id="hdf-tab" class="tab-section active">
+    <div class="table-card">
+      <div class="table-header">
+        <h3><i class="material-icons" style="vertical-align:middle;margin-right:6px;color:#7c3aed;">filter_alt</i>HDF Utilization per Patient</h3>
+        <span class="badge badge-gray">{{ hdf.patient_rows | length }} patients</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Total Sessions</th>
+              <th>HDF Sessions</th>
+              <th>HDF %</th>
+              <th>Avg hrs/week</th>
+              <th>≥12 h/week</th>
+              <th title="Average filtration (convective) volume per HDF session">Avg Filtration Vol (L)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in hdf.patient_rows %}
+            <tr>
+              <td>
+                <a href="/patients/{{ row.patient_id }}/profile" style="text-decoration:none;">
+                  <div class="patient-name">{{ row.patient_name }}</div>
+                  <div class="patient-hid">{{ row.hid_no }}</div>
+                </a>
+              </td>
+              <td>{{ row.total_sessions }}</td>
+              <td>{{ row.hdf_sessions }}</td>
+              <td>
+                <div class="hdf-bar-wrap">
+                  <div class="hdf-bar-track">
+                    <div class="hdf-bar-fill" style="width:{{ [row.hdf_pct, 100] | min }}%"></div>
+                  </div>
+                  <span class="hdf-pct">{{ row.hdf_pct }}%</span>
+                </div>
+              </td>
+              <td>{{ row.avg_hrs_week }}</td>
+              <td>
+                {% if row.below_12h_target %}
+                  <span class="badge badge-red"><i class="material-icons" style="font-size:12px;">warning</i> {{ row.avg_hrs_week }} h</span>
+                {% else %}
+                  <span class="badge badge-green"><i class="material-icons" style="font-size:12px;">check_circle</i> {{ row.avg_hrs_week }} h</span>
+                {% endif %}
+              </td>
+              <td style="text-align:center;">
+                {% if row.avg_filtration_volume_l %}
+                  <span style="font-weight:600;color:#7c3aed;">{{ row.avg_filtration_volume_l }} L</span>
+                {% elif row.hdf_sessions > 0 %}
+                  <span style="color:#94a3b8;font-size:0.75rem;">not recorded</span>
+                {% else %}
+                  <span style="color:#cbd5e1;">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px;">No session data for {{ month_str }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab 2: eKt/V Monitoring ── -->
+  <div id="ektv-tab" class="tab-section">
+    <div class="table-card">
+      <div class="table-header">
+        <h3><i class="material-icons" style="vertical-align:middle;margin-right:6px;color:#0ea5e9;">science</i>Monthly eKt/V Trend (last 6 months)</h3>
+        <span class="badge badge-blue">Threshold: ≥ {{ ektv.ektv_threshold }}</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Patient</th>
+              {% for m in ektv.months %}
+              <th style="text-align:center;">{{ m[5:] }}</th>
+              {% endfor %}
+              <th>Dialytic eKt/V</th>
+              <th title="Combined eKt/V = eKt/VDialysis + eKt/VKidney (requires Krcr in monthly record)">Combined eKt/V</th>
+              <th title="Equivalent Renal urea Clearance: 1+(10×eKt/V) + Kru; target ≥13 ml/min (thrice-weekly)">EKRc (ml/min)</th>
+              <th title="URR%: actual vs patient-specific threshold for eKt/V≥1.2 (varies by session duration and UF/TW ratio)">URR</th>
+              <th>Trend</th>
+              <th>Months Below</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ektv.patient_rows | sort(attribute='adequate') %}
+            <tr>
+              <td>
+                <a href="/patients/{{ row.patient_id }}/profile" style="text-decoration:none;">
+                  <div class="patient-name">
+                    {{ row.patient_name }}
+                    {% if row.is_audit_patient %}
+                    <span title="Audit Measure 1 population: thrice-weekly, ≥1 year on HD"
+                          style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#7c3aed;vertical-align:middle;margin-left:5px;"></span>
+                    {% endif %}
+                  </div>
+                  <div class="patient-hid">{{ row.hid_no }}{% if row.access_type %} · {{ row.access_type }}{% endif %}</div>
+                </a>
+              </td>
+              {% for v in row.values %}
+              <td style="text-align:center;">
+                {% if v is none %}
+                  <span style="color:#cbd5e1;font-size:0.75rem;">—</span>
+                {% elif v < ektv.ektv_threshold %}
+                  <span style="color:#dc2626;font-weight:700;">{{ "%.2f"|format(v) }}</span>
+                {% else %}
+                  <span style="color:#16a34a;font-weight:600;">{{ "%.2f"|format(v) }}</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+              {# ── Dialytic eKt/V ── #}
+              <td>
+                {% if row.current_ektv is none %}
+                  <span class="badge badge-gray">No data</span>
+                {% elif row.adequate %}
+                  <span class="badge badge-green">{{ "%.2f"|format(row.current_ektv) }}</span>
+                {% else %}
+                  <span class="badge badge-red">{{ "%.2f"|format(row.current_ektv) }}</span>
+                {% endif %}
+                {% if row.current_method and row.current_method != 'unavailable' %}
+                <div style="font-size:0.65rem;color:#94a3b8;margin-top:2px;">
+                  {% if row.current_method == 'measured' %}direct
+                  {% elif row.current_method == 'tattersall' %}Tattersall
+                  {% elif row.current_method == 'daugirdas+tattersall' %}Daugirdas
+                  {% elif row.current_method == 'log_ratio_urr' %}URR log-ratio
+                  {% endif %}
+                </div>
+                {% endif %}
+              </td>
+              {# ── Combined eKt/V (with Kru) ── #}
+              <td>
+                {% if row.combined %}
+                  {% set c = row.combined %}
+                  {% if c.adequate %}
+                    <span class="badge badge-green">{{ "%.2f"|format(c.combined_ektv) }}</span>
+                  {% else %}
+                    <span class="badge badge-red">{{ "%.2f"|format(c.combined_ektv) }}</span>
+                  {% endif %}
+                  <div style="font-size:0.65rem;color:#94a3b8;margin-top:2px;">
+                    +{{ "%.3f"|format(c.ektv_kidney) }} kidney
+                    {% if not c.dialysis_alone_adequate and c.adequate %}
+                      <span style="color:#16a34a;font-weight:700;"> ✓ via combined</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span style="color:#cbd5e1;font-size:0.75rem;">Krcr needed</span>
+                {% endif %}
+              </td>
+              {# ── EKRc ── #}
+              <td>
+                {% if row.ekrc %}
+                  {% set e = row.ekrc %}
+                  {% if e.adequate %}
+                    <span class="badge badge-green">{{ e.total_ekrc }}</span>
+                  {% else %}
+                    <span class="badge badge-red">{{ e.total_ekrc }}</span>
+                  {% endif %}
+                  <div style="font-size:0.65rem;color:#94a3b8;margin-top:2px;">
+                    {{ e.ekrc_dialysis }} dial{% if e.kru_ml_min %} + {{ e.kru_ml_min }} Kru{% endif %}
+                  </div>
+                {% else %}
+                  <span style="color:#cbd5e1;font-size:0.75rem;">—</span>
+                {% endif %}
+              </td>
+              {# ── URR actual vs threshold ── #}
+              <td style="white-space:nowrap;">
+                {% if row.urr_actual is not none %}
+                  {% if row.urr_threshold is not none %}
+                    {% if row.urr_adequate_by_threshold %}
+                      <span class="badge badge-green" title="URR {{ row.urr_actual }}% ≥ threshold {{ row.urr_threshold }}% for eKt/V 1.2">
+                        {{ row.urr_actual }}% <span style="opacity:0.6;font-weight:400;">/ {{ row.urr_threshold }}%</span>
+                      </span>
+                    {% else %}
+                      <span class="badge badge-red" title="URR {{ row.urr_actual }}% below threshold {{ row.urr_threshold }}% for eKt/V 1.2">
+                        {{ row.urr_actual }}% <span style="opacity:0.6;font-weight:400;">/ {{ row.urr_threshold }}%</span>
+                      </span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge badge-gray" title="Session data insufficient to compute patient-specific URR threshold">{{ row.urr_actual }}%</span>
+                  {% endif %}
+                {% else %}
+                  <span style="color:#cbd5e1;font-size:0.75rem;">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.trend == 'improving' %}
+                  <span class="trend-icon trend-improving" title="Improving">▲ Improving</span>
+                {% elif row.trend == 'declining' %}
+                  <span class="trend-icon trend-declining" title="Declining">▼ Declining</span>
+                {% elif row.trend == 'stable' %}
+                  <span class="trend-icon trend-stable">→ Stable</span>
+                {% else %}
+                  <span style="color:#94a3b8;font-size:0.78rem;">—</span>
+                {% endif %}
+              </td>
+              <td style="text-align:center;">
+                {% if row.inadequate_months > 0 %}
+                  <span class="badge badge-red">{{ row.inadequate_months }}</span>
+                {% else %}
+                  <span class="badge badge-green">0</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="99" style="text-align:center;color:#94a3b8;padding:40px;">No monthly records found</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding:16px 20px;background:white;border-radius:12px;border:1px dashed #cbd5e1;font-size:0.82rem;color:#64748b;line-height:1.6;">
+      <i class="material-icons" style="vertical-align:middle;font-size:15px;margin-right:4px;">info</i>
+      <strong>eKt/V resolution hierarchy (RA HD Guideline 2019):</strong>
+      <ol style="margin:8px 0 4px 16px;padding:0;">
+        <li><strong>Direct</strong> — equilibrated Kt/V entered in monthly record</li>
+        <li><strong>Tattersall</strong> — eKt/V = (spKt/V × t) / (t + 35) for AVF/AVG, or (t + 22) for catheter</li>
+        <li><strong>Daugirdas</strong> — spKt/V from pre/post urea + UF volume, then Tattersall applied</li>
+        <li><strong>URR log-ratio</strong> — ln(100/(100−URR)); valid for 4-hour fistula sessions at UF/TW ≈ 0.02</li>
+      </ol>
+      <strong>Combined eKt/V (method A, RA HD 2019):</strong>
+      eKt/VKidney = Krcr × 5500 / (580 × TW); Combined = eKt/VDialysis + eKt/VKidney. Requires Krcr (ml/min) in monthly record. "✓ via combined" marks patients reaching target only when residual function is included.<br>
+      <strong>EKRc (method B, Casino &amp; Lopez):</strong>
+      EKRc = 1 + (10 × eKt/V) + Kru; target ≥ 13 ml/min for thrice-weekly.
+      In the absence of residual function an eKt/V of 1.2 equates exactly to EKRc 13 ml/min.<br>
+      <div style="margin-top:8px;">
+        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#7c3aed;vertical-align:middle;margin-right:4px;"></span>
+        Purple dot = Audit Measure 1 population (thrice-weekly, ≥1 year on HD).
+      </div>
+    </div>
+
+    <div style="margin-top:10px;padding:14px 18px;background:white;border-radius:12px;border:1px dashed #cbd5e1;font-size:0.82rem;color:#64748b;line-height:1.6;">
+      <i class="material-icons" style="vertical-align:middle;font-size:15px;margin-right:4px;">water_drop</i>
+      <strong>HDF Filtration (Convective) Volume — Appendix C, RA HD Guideline 2019:</strong>
+      Average filtration volume = actual UF volume per HDF session.
+      Convective clearance for small solutes (urea) is negligible relative to diffusion.
+      Convection is clinically significant for middle molecules (e.g. β₂-microglobulin).
+      Pre-dilution HDF filtration volumes are adjusted downward by the dilutional effect of upstream replacement fluid.
+    </div>
+
+    {% if urr_table %}
+    <!-- URR Equivalence Reference Table (RA HD Guideline 2019) -->
+    <div style="margin-top:20px;">
+      <div style="padding:12px 20px 0;display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <i class="material-icons" style="color:#0ea5e9;font-size:20px;">table_chart</i>
+        <h3 style="margin:0;font-family:'Outfit',sans-serif;font-size:1.05rem;color:#0f172a;">
+          URR Equivalence Table — Minimum URR% for eKt/V ≥ {{ urr_table.target_ektv }}
+        </h3>
+        <span class="badge badge-blue" style="margin-left:auto;">RA HD Guideline 2019</span>
+      </div>
+      <p style="margin:0 20px 14px;font-size:0.8rem;color:#64748b;">
+        Patient-specific URR threshold computed via Daugirdas spKt/V + Tattersall eKt/V chain for each combination of session duration and UF/TW ratio.
+        A fixed URR ≥ 70% criterion is only valid for a 4-hour fistula patient at UF/TW = 0.02.
+      </p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 0 20px;">
+        {# ── Fistula / AVF ── #}
+        <div class="table-card">
+          <div class="table-header" style="background:linear-gradient(135deg,#ede9fe,#dbeafe);">
+            <h3 style="color:#4c1d95;"><i class="material-icons" style="vertical-align:middle;font-size:16px;">radio_button_checked</i> Fistula / AVF</h3>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Duration</th>
+                  {% for r in urr_table.uf_tw_ratios %}
+                  <th style="text-align:center;">UF/TW {{ r }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in urr_table.fistula_rows %}
+                <tr {% if row.hours == 4.0 %}style="background:#f0fdf4;"{% endif %}>
+                  <td style="font-weight:700;">{{ row.hours }}h{% if row.hours == 4.0 %} <span style="font-size:0.65rem;color:#64748b;">(ref)</span>{% endif %}</td>
+                  {% for r in urr_table.uf_tw_ratios %}
+                  {% set val = row.urr_by_uf_tw[r|string] %}
+                  <td style="text-align:center;font-weight:600;
+                    {% if row.hours == 4.0 and r == 0.02 %}color:#7c3aed;{% else %}color:#0f172a;{% endif %}">
+                    {% if val is not none %}{{ "%.1f"|format(val) }}%
+                    {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+                  </td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {# ── Catheter ── #}
+        <div class="table-card">
+          <div class="table-header" style="background:linear-gradient(135deg,#fef3c7,#fde68a);">
+            <h3 style="color:#92400e;"><i class="material-icons" style="vertical-align:middle;font-size:16px;">device_hub</i> Catheter / CVC</h3>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Duration</th>
+                  {% for r in urr_table.uf_tw_ratios %}
+                  <th style="text-align:center;">UF/TW {{ r }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in urr_table.catheter_rows %}
+                <tr>
+                  <td style="font-weight:700;">{{ row.hours }}h</td>
+                  {% for r in urr_table.uf_tw_ratios %}
+                  {% set val = row.urr_by_uf_tw[r|string] %}
+                  <td style="text-align:center;font-weight:600;color:#0f172a;">
+                    {% if val is not none %}{{ "%.1f"|format(val) }}%
+                    {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+                  </td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p style="margin:0 0 8px;font-size:0.75rem;color:#94a3b8;padding:0 4px;">
+        Highlighted cell (Fistula 4.0h, UF/TW 0.02) = 70.0% — the commonly cited fixed threshold, valid only for that specific patient profile.
+        Catheter patients use Tattersall constant t+22 (vs t+35 for fistula), yielding systematically lower URR thresholds for the same eKt/V target.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

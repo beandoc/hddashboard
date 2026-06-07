@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dry Weight Trajectory | HD Dashboard</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  {% include "_nav.html" %}
+  <style>
+    :root {
+      --primary: #0891b2;
+      --accent: #0ea5e9;
+      --bg-main: #f8fafc;
+      --radius: 16px;
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    }
+    body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1e293b; }
+
+    .report-header {
+      background: linear-gradient(135deg, #134e4a 0%, #0f766e 60%, #0891b2 100%);
+      color: white; padding: 40px 32px; text-align: center;
+    }
+    .report-header h1 { font-family: 'Outfit', sans-serif; font-size: 2rem; margin: 0; }
+    .report-header p { opacity: 0.8; font-size: 0.92rem; margin: 8px auto 0; max-width: 650px; }
+
+    .container { max-width: 1200px; margin: -30px auto 60px; padding: 0 20px; position: relative; z-index: 10; }
+
+    .top-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px; background: white; color: #475569;
+      text-decoration: none; border-radius: 10px; font-weight: 600;
+      border: 1px solid #e2e8f0; font-size: 0.85rem;
+    }
+    .btn-back:hover { background: #f1f5f9; }
+
+    /* Patient selector */
+    .patient-selector {
+      display: flex; align-items: center; gap: 10px; flex: 1; max-width: 400px;
+      background: white; border-radius: 12px; padding: 8px 14px;
+      box-shadow: var(--shadow-lg); border: 1px solid #e2e8f0;
+    }
+    .patient-selector select {
+      flex: 1; border: none; outline: none; font-family: 'Inter', sans-serif;
+      font-size: 0.88rem; color: #0f172a; background: transparent;
+    }
+    .btn-load {
+      padding: 6px 16px; background: var(--primary); color: white;
+      border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.82rem;
+    }
+
+    /* Prompt state */
+    .prompt-card {
+      background: white; border-radius: var(--radius); padding: 60px 32px;
+      box-shadow: var(--shadow-lg); text-align: center;
+    }
+    .prompt-card i { font-size: 3rem; color: #94a3b8; }
+    .prompt-card p { color: #64748b; margin-top: 16px; }
+
+    /* Stat cards */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: white; padding: 20px; border-radius: var(--radius);
+      box-shadow: var(--shadow-lg); text-align: center; border: 1px solid rgba(0,0,0,0.05);
+    }
+    .stat-val { font-family: 'Outfit', sans-serif; font-size: 1.9rem; font-weight: 700; }
+    .stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-top: 4px; }
+    .stat-cyan .stat-val { color: #0891b2; }
+    .stat-green .stat-val { color: #16a34a; }
+    .stat-amber .stat-val { color: #d97706; }
+    .stat-red .stat-val { color: #dc2626; }
+
+    /* Chart card */
+    .chart-card {
+      background: white; border-radius: var(--radius); padding: 24px;
+      box-shadow: var(--shadow-lg); margin-bottom: 24px;
+    }
+    .chart-card h3 { font-family: 'Outfit', sans-serif; margin: 0 0 20px; font-size: 1.05rem; }
+
+    /* Suggested adjustment banner */
+    .suggest-banner {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px; border-radius: 12px; margin-bottom: 24px;
+      font-size: 0.9rem; font-weight: 600;
+    }
+    .suggest-increase { background: #fef9c3; border: 1px solid #fde047; color: #713f12; }
+    .suggest-decrease { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+    .suggest-stable { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+    .suggest-banner i { font-size: 1.4rem; flex-shrink: 0; }
+
+    /* Assessment table */
+    .table-card { background: white; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-lg); }
+    .table-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+    .table-header h3 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.05rem; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th {
+      text-align: left; padding: 11px 14px;
+      background: #f8fafc; color: #64748b; font-size: 0.7rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .data-table td { padding: 13px 14px; border-bottom: 1px solid #f1f5f9; font-size: 0.85rem; }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    /* Unit overview */
+    .unit-section { margin-top: 40px; }
+    .section-title { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; color: #0f172a; }
+    .flag-high { background: #fef3c7; color: #b45309; }
+    .flag-low { background: #eff6ff; color: #1d4ed8; }
+    .flag-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+
+    [data-theme="dark"] body { background: #0f172a; color: #e2e8f0; }
+    [data-theme="dark"] .stat-card,
+    [data-theme="dark"] .chart-card,
+    [data-theme="dark"] .table-card,
+    [data-theme="dark"] .patient-selector,
+    [data-theme="dark"] .prompt-card { background: #1e293b; border-color: #334155; }
+    [data-theme="dark"] .data-table th { background: #0f172a; color: #94a3b8; }
+    [data-theme="dark"] .data-table td { border-color: #334155; }
+    [data-theme="dark"] .section-title,
+    [data-theme="dark"] .patient-selector select { color: #f1f5f9; }
+    [data-theme="dark"] .btn-back { background: #1e293b; color: #94a3b8; border-color: #334155; }
+    [data-theme="dark"] .prompt-card p { color: #94a3b8; }
+
+    @media (max-width: 768px) {
+      .report-header { padding: 24px 16px; }
+      .report-header h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="report-header">
+  <h1><i class="material-icons" style="vertical-align:middle;font-size:2rem;margin-right:8px;">monitor_weight</i>Dry Weight Trajectory</h1>
+  <p>Historical target weight, adjustment drift, BIA/IVC assessments, and clinician-guided suggested targets</p>
+</div>
+
+<div class="container">
+  <div class="top-bar">
+    <a href="/analytics" class="btn-back"><i class="material-icons" style="font-size:16px;">arrow_back</i> Analytics</a>
+    <form method="get" style="display:flex;align-items:center;gap:10px;flex:1;max-width:420px;">
+      <div class="patient-selector">
+        <i class="material-icons" style="color:#94a3b8;font-size:18px;">person_search</i>
+        <select name="patient_id" onchange="this.form.submit()">
+          <option value="">— Select patient —</option>
+          {% for p in active_patients %}
+          <option value="{{ p.id }}" {% if selected_patient and p.id == selected_patient.id %}selected{% endif %}>
+            {{ p.name }} ({{ p.hid_no or '—' }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+
+  {% if selected_patient and trajectory %}
+    {% set t = trajectory %}
+
+    <!-- Suggest banner -->
+    {% if t.current_target and t.suggested_target %}
+      {% if t.suggested_target > t.current_target %}
+      <div class="suggest-banner suggest-increase">
+        <i class="material-icons">trending_up</i>
+        <div>
+          <div>Suggested dry weight increase based on mean IDWG &gt; 2 kg over last 3 months</div>
+          <div style="margin-top:4px;font-size:0.82rem;opacity:0.8;">Current: <strong>{{ t.current_target }} kg</strong> → Suggested: <strong>{{ t.suggested_target }} kg</strong></div>
+        </div>
+      </div>
+      {% elif t.suggested_target < t.current_target %}
+      <div class="suggest-banner suggest-decrease">
+        <i class="material-icons">trending_down</i>
+        <div>
+          <div>Suggested dry weight decrease based on mean IDWG &lt; 0.5 kg over last 3 months</div>
+          <div style="margin-top:4px;font-size:0.82rem;opacity:0.8;">Current: <strong>{{ t.current_target }} kg</strong> → Suggested: <strong>{{ t.suggested_target }} kg</strong></div>
+        </div>
+      </div>
+      {% else %}
+      <div class="suggest-banner suggest-stable">
+        <i class="material-icons">check_circle</i>
+        <div>Dry weight appears appropriate — IDWG within target range. No adjustment suggested.</div>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <!-- Stat cards -->
+    <div class="stat-grid">
+      <div class="stat-card stat-cyan">
+        <div class="stat-val">{{ t.current_target or '—' }} {% if t.current_target %}kg{% endif %}</div>
+        <div class="stat-label">Current Target DW</div>
+      </div>
+      <div class="stat-card {% if t.trend_dir == 'increasing' %}stat-amber{% elif t.trend_dir == 'decreasing' %}stat-green{% else %}stat-cyan{% endif %}">
+        <div class="stat-val">
+          {% if t.drift_kg_month is not none %}
+            {% if t.drift_kg_month >= 0 %}+{% endif %}{{ "%.2f"|format(t.drift_kg_month) }} kg
+          {% else %}—{% endif %}
+        </div>
+        <div class="stat-label">Drift / Month</div>
+      </div>
+      <div class="stat-card stat-cyan">
+        <div class="stat-val">{{ t.history | length }}</div>
+        <div class="stat-label">Monthly Records</div>
+      </div>
+      <div class="stat-card stat-cyan">
+        <div class="stat-val">{{ t.assessments | length }}</div>
+        <div class="stat-label">BIA / IVC Assessments</div>
+      </div>
+    </div>
+
+    <!-- Trajectory chart -->
+    {% if t.history | length > 1 %}
+    <div class="chart-card">
+      <h3><i class="material-icons" style="vertical-align:middle;margin-right:6px;color:#0891b2;">show_chart</i>Target Dry Weight Over Time</h3>
+      <canvas id="dwChart" height="120"></canvas>
+    </div>
+
+    <script>
+    (function() {
+      var labels = {{ t.history | map(attribute='month') | list | tojson }};
+      var dwData = {{ t.history | map(attribute='target_weight') | list | tojson }};
+      var idwgData = {{ t.history | map(attribute='idwg') | list | tojson }};
+      {% if t.suggested_target %}
+      var suggestedLine = new Array(labels.length).fill({{ t.suggested_target }});
+      {% endif %}
+
+      var ctx = document.getElementById('dwChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Target Dry Weight (kg)',
+              data: dwData,
+              borderColor: '#0891b2',
+              backgroundColor: 'rgba(8,145,178,0.08)',
+              borderWidth: 2.5,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              fill: true,
+              tension: 0.3,
+              yAxisID: 'y',
+            },
+            {
+              label: 'IDWG (kg)',
+              data: idwgData,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245,158,11,0.0)',
+              borderWidth: 2,
+              borderDash: [5,4],
+              pointRadius: 4,
+              fill: false,
+              tension: 0.3,
+              yAxisID: 'y2',
+            },
+            {% if t.suggested_target %}
+            {
+              label: 'Suggested Target ({{ t.suggested_target }} kg)',
+              data: suggestedLine,
+              borderColor: '#16a34a',
+              borderWidth: 1.5,
+              borderDash: [8,5],
+              pointRadius: 0,
+              fill: false,
+              yAxisID: 'y',
+            },
+            {% endif %}
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y: {
+              title: { display: true, text: 'Weight (kg)' },
+              position: 'left',
+            },
+            y2: {
+              title: { display: true, text: 'IDWG (kg)' },
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              min: 0,
+            }
+          }
+        }
+      });
+    })();
+    </script>
+    {% endif %}
+
+    <!-- Formal assessments -->
+    {% if t.assessments %}
+    <div class="table-card" style="margin-bottom:24px;">
+      <div class="table-header">
+        <h3><i class="material-icons" style="vertical-align:middle;margin-right:6px;color:#0891b2;">biotech</i>BIA / IVC Assessments</h3>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Rec. DW (kg)</th>
+              <th>BIA Fluid OL (L)</th>
+              <th>BIA OH %</th>
+              <th>Phase Angle</th>
+              <th>IVC Diam. (mm)</th>
+              <th>IVC Collapse %</th>
+              <th>NT-proBNP</th>
+              <th>Edema</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in t.assessments %}
+            <tr>
+              <td>{{ a.date }}</td>
+              <td>{{ a.recommended_dw or '—' }}</td>
+              <td>{{ a.bia_fluid_overload_l or '—' }}</td>
+              <td>{{ a.bia_overhydration_pct or '—' }}</td>
+              <td>{{ a.bia_phase_angle or '—' }}</td>
+              <td>{{ a.ivc_diameter_max or '—' }}</td>
+              <td>{{ a.ivc_collapsibility or '—' }}</td>
+              <td>{{ a.nt_probnp or '—' }}</td>
+              <td>{{ a.edema_status or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Monthly history table -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3><i class="material-icons" style="vertical-align:middle;margin-right:6px;color:#0891b2;">calendar_month</i>Monthly History</h3>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Target DW (kg)</th>
+              <th>IDWG (kg)</th>
+              <th>Pre-HD Weight (kg)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in t.history | reverse %}
+            <tr>
+              <td>{{ h.month }}</td>
+              <td>{{ h.target_weight or '—' }}</td>
+              <td>
+                {% if h.idwg is not none %}
+                  {% if h.idwg > 2.0 %}
+                    <span style="color:#dc2626;font-weight:700;">{{ h.idwg }}</span>
+                  {% elif h.idwg < 0.5 %}
+                    <span style="color:#0891b2;font-weight:700;">{{ h.idwg }}</span>
+                  {% else %}
+                    {{ h.idwg }}
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td>{{ h.last_prehd_weight or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  {% elif selected_patient %}
+    <div class="prompt-card">
+      <i class="material-icons">monitoring</i>
+      <p>No dry weight records found for <strong>{{ selected_patient.name }}</strong>. Start entering monthly records to see trajectory data.</p>
+    </div>
+  {% else %}
+    <div class="prompt-card">
+      <i class="material-icons">person_search</i>
+      <p>Select a patient above to view their dry weight trajectory.</p>
+    </div>
+  {% endif %}
+
+  <!-- Unit overview (always visible) -->
+  {% if unit_overview.flagged %}
+  <div class="unit-section">
+    <div class="section-title">Unit Overview — Patients Flagged for DW Review ({{ month_str }})</div>
+    <div class="table-card">
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Target DW (kg)</th>
+              <th>IDWG (kg)</th>
+              <th>Flag</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in unit_overview.flagged %}
+            <tr>
+              <td>
+                <div style="font-weight:700;">{{ row.patient_name }}</div>
+                <div style="font-size:0.72rem;color:#94a3b8;">{{ row.hid_no }}</div>
+              </td>
+              <td>{{ row.target_dry_weight }}</td>
+              <td>{{ row.idwg or '—' }}</td>
+              <td>
+                {% if row.flag == 'high_idwg' %}
+                  <span class="flag-pill flag-high"><i class="material-icons" style="font-size:11px;">arrow_upward</i> High IDWG</span>
+                {% elif row.flag == 'low_idwg' %}
+                  <span class="flag-pill flag-low"><i class="material-icons" style="font-size:11px;">arrow_downward</i> Low IDWG</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="/analytics/dry-weight?patient_id={{ row.patient_id }}" style="font-size:0.78rem;color:#0891b2;font-weight:600;">View →</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

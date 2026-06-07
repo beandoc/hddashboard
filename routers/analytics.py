@@ -1778,13 +1778,52 @@ async def _legacy_at_risk_trends(parameter: str = "", month: Optional[str] = Non
     from ml_analytics import get_at_risk_trends
     from dashboard_logic import get_effective_month
 
+    # Parameters where lower value = worse (min-threshold); others are max-threshold.
+    _MIN_PARAMS = {"hb", "albumin", "serum_ferritin", "tsat", "single_pool_ktv", "urr"}
+
     def _compute():
+        from sqlalchemy import func as _sqlfunc
         db = SessionLocal()
         try:
             effective_month = month
             if not effective_month:
                 effective_month, _ = get_effective_month(db, None)
-            return get_at_risk_trends(db, parameter, effective_month)
+
+            base_result = get_at_risk_trends(db, parameter, effective_month)
+
+            # Also evaluate the newest month in the database.  Some patients enter
+            # labs early — their newest record may be weeks ahead of the cohort's
+            # effective month, meaning an acute deterioration (e.g. Hb 8.5 → 5.9)
+            # is invisible to the effective-month query.
+            newest_month = (
+                db.query(_sqlfunc.max(MonthlyRecord.record_month)).scalar()
+            )
+            if newest_month and newest_month > effective_month:
+                newer_result = get_at_risk_trends(db, parameter, newest_month)
+                newer_patients = newer_result.get("patients", [])
+                if newer_patients:
+                    base_map = {p["id"]: p for p in base_result.get("patients", [])}
+                    is_min = parameter in _MIN_PARAMS
+                    for np_ in newer_patients:
+                        pid = np_["id"]
+                        newer_trend = np_.get("trend") or []
+                        newer_latest = next(
+                            (v for v in reversed(newer_trend) if v is not None), None
+                        )
+                        if pid in base_map:
+                            base_trend = base_map[pid].get("trend") or []
+                            base_latest = next(
+                                (v for v in reversed(base_trend) if v is not None), None
+                            )
+                            if newer_latest is not None and base_latest is not None:
+                                is_worse = (newer_latest < base_latest) if is_min else (newer_latest > base_latest)
+                                if is_worse:
+                                    base_map[pid] = np_
+                        else:
+                            base_map[pid] = np_
+                    base_result["patients"] = list(base_map.values())
+
+            return base_result
         finally:
             db.close()
 

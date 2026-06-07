@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vascular Access Intelligence | HD Dashboard</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  {% include "_nav.html" %}
+  <style>
+    :root {
+      --primary: #7c3aed;
+      --bg-main: #f8fafc;
+      --radius: 16px;
+      --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+    }
+    body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1e293b; }
+
+    .report-header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 60%, #7c3aed 100%);
+      color: white; padding: 40px 32px; text-align: center;
+    }
+    .report-header h1 { font-family: 'Outfit', sans-serif; font-size: 2rem; margin: 0; }
+    .report-header p { opacity: 0.8; font-size: 0.92rem; margin: 8px auto 0; max-width: 700px; }
+
+    .container { max-width: 1200px; margin: -30px auto 60px; padding: 0 20px; position: relative; z-index: 10; }
+
+    .top-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px; background: white; color: #475569;
+      text-decoration: none; border-radius: 10px; font-weight: 600;
+      border: 1px solid #e2e8f0; font-size: 0.85rem;
+    }
+    .btn-back:hover { background: #f1f5f9; }
+
+    .patient-selector {
+      display: flex; align-items: center; gap: 10px; flex: 1; max-width: 440px;
+      background: white; border-radius: 12px; padding: 8px 14px;
+      box-shadow: var(--shadow-lg); border: 1px solid #e2e8f0;
+    }
+    .patient-selector select {
+      flex: 1; border: none; outline: none; font-family: 'Inter', sans-serif;
+      font-size: 0.88rem; color: #0f172a; background: transparent;
+    }
+
+    .lookback-selector {
+      display: flex; align-items: center; gap: 8px;
+      background: white; border-radius: 12px; padding: 8px 14px;
+      box-shadow: var(--shadow-lg); border: 1px solid #e2e8f0; font-size: 0.85rem;
+    }
+    .lookback-selector select {
+      border: none; outline: none; font-family: 'Inter', sans-serif;
+      font-size: 0.85rem; background: transparent; color: #0f172a;
+    }
+
+    /* Alert strip */
+    .alert-strip { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+    .alert-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 700;
+    }
+    .chip-red { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+    .chip-amber { background: #fef3c7; color: #b45309; border: 1px solid #fde047; }
+    .chip-green { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+
+    /* KPI grid */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .kpi-card {
+      background: white; padding: 18px 16px; border-radius: var(--radius);
+      box-shadow: var(--shadow-lg); text-align: center; border: 1px solid rgba(0,0,0,0.05);
+      position: relative; overflow: hidden;
+    }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .kpi-ok::before { background: #16a34a; }
+    .kpi-warn::before { background: #d97706; }
+    .kpi-danger::before { background: #dc2626; }
+    .kpi-neutral::before { background: #7c3aed; }
+    .kpi-val { font-family: 'Outfit', sans-serif; font-size: 1.7rem; font-weight: 700; }
+    .kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-top: 4px; }
+    .kpi-badge { font-size: 0.65rem; font-weight: 700; padding: 1px 7px; border-radius: 20px; margin-top: 6px; display: inline-block; }
+
+    /* Charts grid */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+    .chart-card {
+      background: white; border-radius: var(--radius); padding: 20px;
+      box-shadow: var(--shadow-lg);
+    }
+    .chart-card h4 { font-family: 'Outfit', sans-serif; margin: 0 0 16px; font-size: 0.95rem;
+                     display: flex; align-items: center; gap: 6px; }
+    .chart-card h4 .alert-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #dc2626;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+    /* Cannulation donut */
+    .donut-wrap { display: flex; align-items: center; gap: 20px; }
+    .donut-canvas { max-width: 160px; }
+    .donut-legend { flex: 1; }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.82rem; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Aneurysm timeline */
+    .aneurysm-timeline { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+    .aneurysm-dot {
+      width: 12px; height: 12px; border-radius: 50%; cursor: default;
+      title: attr(title);
+    }
+    .dot-flag { background: #dc2626; }
+    .dot-clear { background: #d1d5db; }
+
+    /* Prompt */
+    .prompt-card {
+      background: white; border-radius: var(--radius); padding: 60px 32px;
+      box-shadow: var(--shadow-lg); text-align: center;
+    }
+    .prompt-card i { font-size: 3rem; color: #94a3b8; }
+    .prompt-card p { color: #64748b; margin-top: 16px; }
+
+    [data-theme="dark"] body { background: #0f172a; color: #e2e8f0; }
+    [data-theme="dark"] .kpi-card,
+    [data-theme="dark"] .chart-card,
+    [data-theme="dark"] .patient-selector,
+    [data-theme="dark"] .lookback-selector,
+    [data-theme="dark"] .prompt-card { background: #1e293b; border-color: #334155; }
+    [data-theme="dark"] .patient-selector select,
+    [data-theme="dark"] .lookback-selector select { color: #f1f5f9; }
+    [data-theme="dark"] .kpi-label { color: #94a3b8; }
+    [data-theme="dark"] .btn-back { background: #1e293b; color: #94a3b8; border-color: #334155; }
+    [data-theme="dark"] .prompt-card p { color: #94a3b8; }
+
+    @media (max-width: 900px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .report-header { padding: 24px 16px; }
+      .report-header h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="report-header">
+  <h1><i class="material-icons" style="vertical-align:middle;font-size:2rem;margin-right:8px;">device_hub</i>Vascular Access Intelligence</h1>
+  <p>Dynamic venous pressure · Access flow trends · Recirculation · Cannulation difficulty · Hemostasis · Aneurysm tracking</p>
+</div>
+
+<div class="container">
+  <div class="top-bar">
+    <a href="/analytics" class="btn-back"><i class="material-icons" style="font-size:16px;">arrow_back</i> Analytics</a>
+    <form method="get" style="display:contents;">
+      <div class="patient-selector">
+        <i class="material-icons" style="color:#94a3b8;font-size:18px;">person_search</i>
+        <select name="patient_id" onchange="this.form.submit()">
+          <option value="">— Select patient —</option>
+          {% for p in active_patients %}
+          <option value="{{ p.id }}" {% if selected_patient and p.id == selected_patient.id %}selected{% endif %}>
+            {{ p.name }} ({{ p.hid_no or '—' }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if selected_patient %}
+      <input type="hidden" name="patient_id" value="{{ selected_patient.id }}">
+      <div class="lookback-selector">
+        <i class="material-icons" style="color:#94a3b8;font-size:16px;">date_range</i>
+        <select name="lookback" onchange="this.form.submit()">
+          <option value="1" {% if lookback == 1 %}selected{% endif %}>1 month</option>
+          <option value="3" {% if lookback == 3 %}selected{% endif %}>3 months</option>
+          <option value="6" {% if lookback == 6 %}selected{% endif %}>6 months</option>
+        </select>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if selected_patient and intel %}
+    {% set i = intel %}
+
+    <!-- Alert chips -->
+    {% if i.alert_count > 0 %}
+    <div class="alert-strip">
+      {% for a in i.alerts %}
+        {% if a == 'recirculation_elevated' %}
+        <span class="alert-chip chip-red"><i class="material-icons" style="font-size:14px;">warning</i> Recirculation &gt;10%</span>
+        {% elif a == 'access_flow_declining' %}
+        <span class="alert-chip chip-red"><i class="material-icons" style="font-size:14px;">trending_down</i> Access Flow Declining &gt;20%</span>
+        {% elif a == 'venous_pressure_rising' %}
+        <span class="alert-chip chip-amber"><i class="material-icons" style="font-size:14px;">arrow_upward</i> Venous Pressure Rising</span>
+        {% elif a == 'cannulation_difficulty_high' %}
+        <span class="alert-chip chip-amber"><i class="material-icons" style="font-size:14px;">priority_high</i> Cannulation Difficulty ≥25%</span>
+        {% elif a == 'hemostasis_prolonged' %}
+        <span class="alert-chip chip-amber"><i class="material-icons" style="font-size:14px;">hourglass_top</i> Prolonged Hemostasis &gt;20 min</span>
+        {% elif a == 'aneurysm_detected' %}
+        <span class="alert-chip chip-red"><i class="material-icons" style="font-size:14px;">emergency</i> Aneurysm Flagged</span>
+        {% elif a == 'steal_signs_present' %}
+        <span class="alert-chip chip-red"><i class="material-icons" style="font-size:14px;">dangerous</i> Steal Signs Present</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert-strip">
+      <span class="alert-chip chip-green"><i class="material-icons" style="font-size:14px;">check_circle</i> No vascular alerts — {{ i.total_sessions }} sessions reviewed</span>
+    </div>
+    {% endif %}
+
+    <!-- KPI cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card {% if i.recirculation.alert %}kpi-danger{% else %}kpi-ok{% endif %}">
+        <div class="kpi-val" style="color:{% if i.recirculation.alert %}#dc2626{% else %}#16a34a{% endif %};">
+          {{ "%.1f"|format(i.recirculation.latest) if i.recirculation.latest is not none else '—' }}%
+        </div>
+        <div class="kpi-label">Latest Recirculation</div>
+        {% if i.recirculation.latest is not none %}
+        <span class="kpi-badge {% if i.recirculation.alert %}chip-red{% else %}chip-green{% endif %}" style="font-size:0.62rem;{% if i.recirculation.alert %}background:#fee2e2;color:#dc2626;{% else %}background:#dcfce7;color:#15803d;{% endif %}">
+          Threshold: &lt; {{ i.recirculation.threshold }}%
+        </span>
+        {% endif %}
+      </div>
+
+      <div class="kpi-card {% if i.access_flow.alert %}kpi-danger{% else %}kpi-ok{% endif %}">
+        <div class="kpi-val" style="color:{% if i.access_flow.alert %}#dc2626{% else %}#7c3aed{% endif %};">
+          {{ i.access_flow.current_mean|round(0)|int if i.access_flow.current_mean is not none else '—' }}
+        </div>
+        <div class="kpi-label">Access Flow Qa (mL/min)</div>
+        {% if i.access_flow.alert %}
+        <span class="kpi-badge" style="background:#fee2e2;color:#dc2626;font-size:0.62rem;">▼ &gt;20% decline</span>
+        {% elif i.access_flow.current_mean %}
+        <span class="kpi-badge" style="background:#f3e8ff;color:#7c3aed;font-size:0.62rem;">{{ i.access_flow.trend }}</span>
+        {% endif %}
+      </div>
+
+      <div class="kpi-card {% if i.venous_pressure.alert %}kpi-warn{% else %}kpi-ok{% endif %}">
+        <div class="kpi-val" style="color:{% if i.venous_pressure.alert %}#d97706{% else %}#0891b2{% endif %};">
+          {{ i.venous_pressure.mean|round(0)|int if i.venous_pressure.mean is not none else '—' }}
+        </div>
+        <div class="kpi-label">Mean Venous Pressure (mmHg)</div>
+        <span class="kpi-badge" style="background:#f1f5f9;color:#64748b;font-size:0.62rem;">{{ i.venous_pressure.trend }}</span>
+      </div>
+
+      <div class="kpi-card {% if i.hemostasis.alert %}kpi-warn{% else %}kpi-ok{% endif %}">
+        <div class="kpi-val" style="color:{% if i.hemostasis.alert %}#d97706{% else %}#16a34a{% endif %};">
+          {{ i.hemostasis.mean_mins|round(1) if i.hemostasis.mean_mins is not none else '—' }}
+        </div>
+        <div class="kpi-label">Mean Hemostasis (min)</div>
+        {% if i.hemostasis.mean_mins %}
+        <span class="kpi-badge" style="font-size:0.62rem;{% if i.hemostasis.alert %}background:#fef3c7;color:#b45309;{% else %}background:#dcfce7;color:#15803d;{% endif %}">
+          Threshold: {{ i.hemostasis.threshold_mins }} min
+        </span>
+        {% endif %}
+      </div>
+
+      <div class="kpi-card {% if i.cannulation.alert %}kpi-warn{% else %}kpi-ok{% endif %}">
+        <div class="kpi-val" style="color:{% if i.cannulation.alert %}#d97706{% else %}#16a34a{% endif %};">
+          {{ i.cannulation.difficult_rate if i.cannulation.difficult_rate is not none else '—' }}{% if i.cannulation.difficult_rate is not none %}%{% endif %}
+        </div>
+        <div class="kpi-label">Difficult Cannulation Rate</div>
+      </div>
+
+      <div class="kpi-card {% if i.aneurysm.recent_flag %}kpi-danger{% else %}kpi-neutral{% endif %}">
+        <div class="kpi-val" style="color:{% if i.aneurysm.recent_flag %}#dc2626{% else %}#7c3aed{% endif %};">
+          {{ i.aneurysm.flagged_count }}
+        </div>
+        <div class="kpi-label">Aneurysm-flagged Sessions</div>
+        {% if i.aneurysm.steal_count > 0 %}
+        <span class="kpi-badge" style="background:#fee2e2;color:#dc2626;font-size:0.62rem;">+ {{ i.aneurysm.steal_count }} steal signs</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Charts grid -->
+    <div class="charts-grid">
+
+      <!-- Venous pressure -->
+      {% if i.venous_pressure.series %}
+      <div class="chart-card">
+        <h4>
+          <i class="material-icons" style="color:#0891b2;font-size:18px;">show_chart</i> Venous Pressure
+          {% if i.venous_pressure.alert %}<span class="alert-dot"></span>{% endif %}
+        </h4>
+        <canvas id="vpChart" height="160"></canvas>
+      </div>
+      <script>
+      (function(){
+        var labels = {{ i.venous_pressure.series | map(attribute=0) | list | tojson }};
+        var vals = {{ i.venous_pressure.series | map(attribute=1) | list | tojson }};
+        var threshold = new Array(labels.length).fill({{ i.venous_pressure.threshold }});
+        new Chart(document.getElementById('vpChart').getContext('2d'), {
+          type: 'line',
+          data: { labels: labels, datasets: [
+            { label: 'Venous Pressure (mmHg)', data: vals, borderColor: '#0891b2', backgroundColor: 'rgba(8,145,178,0.08)', borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3 },
+            { label: 'High threshold ({{ i.venous_pressure.threshold }})', data: threshold, borderColor: '#dc2626', borderWidth: 1, borderDash: [6,4], pointRadius: 0 }
+          ]},
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 45 } } } }
+        });
+      })();
+      </script>
+      {% else %}
+      <div class="chart-card" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;min-height:200px;">
+        <div style="text-align:center;"><i class="material-icons" style="font-size:2rem;">show_chart</i><p style="margin:8px 0 0;font-size:0.82rem;">No venous pressure data</p></div>
+      </div>
+      {% endif %}
+
+      <!-- Access flow -->
+      {% if i.access_flow.series %}
+      <div class="chart-card">
+        <h4>
+          <i class="material-icons" style="color:#7c3aed;font-size:18px;">water_drop</i> Access Flow Qa
+          {% if i.access_flow.alert %}<span class="alert-dot"></span>{% endif %}
+        </h4>
+        <canvas id="flowChart" height="160"></canvas>
+      </div>
+      <script>
+      (function(){
+        var labels = {{ i.access_flow.series | map(attribute=0) | list | tojson }};
+        var vals = {{ i.access_flow.series | map(attribute=1) | list | tojson }};
+        {% if i.access_flow.baseline_mean %}
+        var baseline = new Array(labels.length).fill({{ i.access_flow.baseline_mean }});
+        {% endif %}
+        var datasets = [
+          { label: 'Access Flow (mL/min)', data: vals, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.07)', borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3 }
+        ];
+        {% if i.access_flow.baseline_mean %}
+        datasets.push({ label: 'Baseline avg', data: baseline, borderColor: '#16a34a', borderWidth: 1, borderDash: [5,4], pointRadius: 0 });
+        {% endif %}
+        new Chart(document.getElementById('flowChart').getContext('2d'), {
+          type: 'line',
+          data: { labels: labels, datasets: datasets },
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 45 } }, y: { title: { display: true, text: 'mL/min' } } } }
+        });
+      })();
+      </script>
+      {% else %}
+      <div class="chart-card" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;min-height:200px;">
+        <div style="text-align:center;"><i class="material-icons" style="font-size:2rem;">water_drop</i><p style="margin:8px 0 0;font-size:0.82rem;">No access flow data</p></div>
+      </div>
+      {% endif %}
+
+      <!-- Recirculation -->
+      {% if i.recirculation.series %}
+      <div class="chart-card">
+        <h4>
+          <i class="material-icons" style="color:#dc2626;font-size:18px;">refresh</i> Recirculation %
+          {% if i.recirculation.alert %}<span class="alert-dot"></span>{% endif %}
+        </h4>
+        <canvas id="recircChart" height="160"></canvas>
+      </div>
+      <script>
+      (function(){
+        var labels = {{ i.recirculation.series | map(attribute=0) | list | tojson }};
+        var vals = {{ i.recirculation.series | map(attribute=1) | list | tojson }};
+        var threshold = new Array(labels.length).fill({{ i.recirculation.threshold }});
+        new Chart(document.getElementById('recircChart').getContext('2d'), {
+          type: 'bar',
+          data: { labels: labels, datasets: [
+            { label: 'Recirculation (%)', data: vals,
+              backgroundColor: vals.map(v => v > {{ i.recirculation.threshold }} ? 'rgba(220,38,38,0.7)' : 'rgba(124,58,237,0.5)'),
+              borderRadius: 4 },
+            { label: 'Alert threshold ({{ i.recirculation.threshold }}%)', data: threshold,
+              type: 'line', borderColor: '#dc2626', borderWidth: 1.5, borderDash: [5,4], pointRadius: 0 }
+          ]},
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 45 } }, y: { title: { display: true, text: '%' }, min: 0 } } }
+        });
+      })();
+      </script>
+      {% else %}
+      <div class="chart-card" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;min-height:200px;">
+        <div style="text-align:center;"><i class="material-icons" style="font-size:2rem;">refresh</i><p style="margin:8px 0 0;font-size:0.82rem;">No recirculation data</p></div>
+      </div>
+      {% endif %}
+
+      <!-- Hemostasis -->
+      {% if i.hemostasis.series %}
+      <div class="chart-card">
+        <h4>
+          <i class="material-icons" style="color:#d97706;font-size:18px;">hourglass_top</i> Hemostasis Time
+          {% if i.hemostasis.alert %}<span class="alert-dot"></span>{% endif %}
+        </h4>
+        <canvas id="hemoChart" height="160"></canvas>
+      </div>
+      <script>
+      (function(){
+        var labels = {{ i.hemostasis.series | map(attribute=0) | list | tojson }};
+        var vals = {{ i.hemostasis.series | map(attribute=1) | list | tojson }};
+        var threshold = new Array(labels.length).fill({{ i.hemostasis.threshold_mins }});
+        new Chart(document.getElementById('hemoChart').getContext('2d'), {
+          type: 'line',
+          data: { labels: labels, datasets: [
+            { label: 'Hemostasis (min)', data: vals, borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,0.08)', borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3 },
+            { label: 'Threshold ({{ i.hemostasis.threshold_mins }} min)', data: threshold, borderColor: '#dc2626', borderWidth: 1, borderDash: [5,4], pointRadius: 0 }
+          ]},
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 8, maxRotation: 45 } }, y: { title: { display: true, text: 'minutes' }, min: 0 } } }
+        });
+      })();
+      </script>
+      {% else %}
+      <div class="chart-card" style="display:flex;align-items:center;justify-content:center;color:#94a3b8;min-height:200px;">
+        <div style="text-align:center;"><i class="material-icons" style="font-size:2rem;">hourglass_top</i><p style="margin:8px 0 0;font-size:0.82rem;">No hemostasis data recorded yet</p></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Cannulation + Aneurysm row -->
+    <div class="charts-grid">
+
+      <!-- Cannulation donut -->
+      <div class="chart-card">
+        <h4><i class="material-icons" style="color:#7c3aed;font-size:18px;">colorize</i> Cannulation Difficulty</h4>
+        {% set counts = i.cannulation.counts %}
+        {% if counts %}
+        <div class="donut-wrap">
+          <div class="donut-canvas">
+            <canvas id="canChart" width="160" height="160"></canvas>
+          </div>
+          <div class="donut-legend">
+            <div class="legend-row"><div class="legend-dot" style="background:#16a34a;"></div>Routine: <strong>{{ counts.routine or 0 }}</strong></div>
+            <div class="legend-row"><div class="legend-dot" style="background:#f59e0b;"></div>Difficult: <strong>{{ counts.difficult or 0 }}</strong></div>
+            <div class="legend-row"><div class="legend-dot" style="background:#dc2626;"></div>Failed: <strong>{{ counts.failed or 0 }}</strong></div>
+            {% if i.cannulation.infiltration_count %}
+            <div class="legend-row" style="margin-top:8px;font-size:0.78rem;color:#64748b;">
+              <i class="material-icons" style="font-size:13px;vertical-align:middle;">warning</i>
+              {{ i.cannulation.infiltration_count }} infiltration(s) recorded
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        <script>
+        (function(){
+          new Chart(document.getElementById('canChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+              labels: ['Routine', 'Difficult', 'Failed'],
+              datasets: [{ data: [{{ counts.routine or 0 }}, {{ counts.difficult or 0 }}, {{ counts.failed or 0 }}],
+                backgroundColor: ['#16a34a','#f59e0b','#dc2626'], borderWidth: 0, hoverOffset: 4 }]
+            },
+            options: { responsive: false, plugins: { legend: { display: false } } }
+          });
+        })();
+        </script>
+        {% else %}
+        <p style="color:#94a3b8;font-size:0.85rem;text-align:center;margin-top:40px;">No cannulation records found</p>
+        {% endif %}
+      </div>
+
+      <!-- Aneurysm timeline -->
+      <div class="chart-card">
+        <h4>
+          <i class="material-icons" style="color:{% if i.aneurysm.recent_flag %}#dc2626{% else %}#64748b{% endif %};font-size:18px;">emergency</i>
+          Aneurysm Timeline
+          {% if i.aneurysm.recent_flag %}<span class="alert-dot"></span>{% endif %}
+        </h4>
+        <p style="font-size:0.8rem;color:#64748b;margin:0 0 12px;">Each dot = one session. Red = aneurysm flagged.</p>
+        <div class="aneurysm-timeline">
+          {% for entry in i.aneurysm.series %}
+          <div class="aneurysm-dot {% if entry.flagged %}dot-flag{% else %}dot-clear{% endif %}"
+               title="{{ entry.date }}{% if entry.flagged %} — Aneurysm flagged{% endif %}"></div>
+          {% else %}
+          <span style="color:#94a3b8;font-size:0.82rem;">No session data</span>
+          {% endfor %}
+        </div>
+        {% if i.aneurysm.steal_count > 0 %}
+        <div style="margin-top:16px;padding:10px 14px;background:#fee2e2;border-radius:10px;font-size:0.82rem;color:#dc2626;font-weight:600;">
+          <i class="material-icons" style="vertical-align:middle;font-size:15px;">dangerous</i>
+          Steal syndrome signs recorded in {{ i.aneurysm.steal_count }} session(s)
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  {% elif selected_patient %}
+    <div class="prompt-card">
+      <i class="material-icons">device_hub</i>
+      <p>No vascular access session data found for <strong>{{ selected_patient.name }}</strong> in the selected period.</p>
+    </div>
+  {% else %}
+    <div class="prompt-card">
+      <i class="material-icons">device_hub</i>
+      <p>Select a patient above to view their vascular access intelligence profile.</p>
+    </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -309,10 +309,13 @@ async def create_interim_lab(
         else:
             entered_by = getattr(user, "username", "Unknown")
 
+    _lab_date = date.fromisoformat(lab_date)
+    _lab_month = lab_date[:7]
+
     interim = InterimLabRecord(
         patient_id=patient_id,
-        lab_date=date.fromisoformat(lab_date),
-        record_month=lab_date[:7],
+        lab_date=_lab_date,
+        record_month=_lab_month,
         parameter=parameter,
         value=value,
         unit=unit,
@@ -321,5 +324,50 @@ async def create_interim_lab(
         entered_by=entered_by
     )
     db.add(interim)
+
+    # Auto-merge interim value into the monthly record for the same month.
+    # This ensures the dashboard, analytics, and Digital Twin all see the
+    # latest known value without any display-layer workarounds.
+    _INTERIM_TO_MONTHLY = {
+        "hb":         "hb",
+        "albumin":    "albumin",
+        "phosphorus": "phosphorus",
+        "tsat":       "tsat",
+        "ferritin":   "serum_ferritin",
+        "calcium":    "calcium",
+        "ipth":       "ipth",
+        "vit_d":      "vit_d",
+        "potassium":  "serum_potassium",
+        "sodium":     "serum_sodium",
+        "crp":        "crp",
+    }
+    _monthly_col = _INTERIM_TO_MONTHLY.get(parameter)
+    if _monthly_col:
+        monthly_r = (
+            db.query(MonthlyRecord)
+            .filter_by(patient_id=patient_id, record_month=_lab_month)
+            .first()
+        )
+        if monthly_r is None:
+            monthly_r = MonthlyRecord(
+                patient_id=patient_id,
+                record_month=_lab_month,
+                entered_by=entered_by,
+            )
+            db.add(monthly_r)
+        setattr(monthly_r, _monthly_col, value)
+        # Only advance interim_source_date if this lab is more recent
+        if (monthly_r.interim_source_date is None
+                or _lab_date > monthly_r.interim_source_date):
+            monthly_r.interim_source_date = _lab_date
+
     db.commit()
+
+    # Invalidate dashboard cache so next load reflects the merged value
+    try:
+        from dashboard_logic import _DASHBOARD_CACHE
+        _DASHBOARD_CACHE.clear()
+    except Exception:
+        pass
+
     return RedirectResponse(url=f"/patients/{patient_id}/profile?msg=lab_saved", status_code=303)

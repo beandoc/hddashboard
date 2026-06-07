@@ -152,6 +152,9 @@ class MonthlyRecord(Base):
     # ── Provenance ────────────────────────────────────────────────────────────
     data_observed_at = Column(DateTime, nullable=True)
     data_entered_at  = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Set when an interim lab auto-merges into this record; identifies which fields
+    # came from a spot-check rather than the comprehensive monthly review.
+    interim_source_date = Column(Date, nullable=True)
 
     feature_vector_hash = Column(String(64), nullable=True, index=True)
 
