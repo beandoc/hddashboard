@@ -168,3 +168,54 @@ def test_admin_backup_includes_variables(client):
     data = response.json()
     assert "variable_definitions" in data
     assert isinstance(data["variable_definitions"], list)
+
+
+def test_at_risk_trends_interim_and_month_override(client):
+    import time
+    from config import serializer
+    from database import Patient, InterimLabRecord, SessionLocal
+    
+    # 1. Create a test patient with interim record for Hb out-of-range (e.g. 5.9)
+    db = SessionLocal()
+    patient = Patient(name="Joyla", hid_no="J001", is_active=True)
+    db.add(patient)
+    db.commit()
+    patient_id = patient.id
+    
+    from datetime import date
+    interim = InterimLabRecord(
+        patient_id=patient_id,
+        parameter="hb",
+        value=5.9,
+        record_month="2026-06",
+        lab_date=date(2026, 6, 5)
+    )
+    db.add(interim)
+    db.commit()
+    db.close()
+    
+    # 2. Query legacy at-risk trends API for parameter=hb and month=2026-06
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+    response = client.get("/analytics/api/at-risk-trends?parameter=hb&month=2026-06")
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "patients" in data
+    patients_list = data["patients"]
+    
+    # Verify patient Joyla is returned in the list (because she is at risk)
+    joyla_entries = [p for p in patients_list if p["name"] == "Joyla"]
+    assert len(joyla_entries) == 1
+    
+    # Verify the trend contains the 5.9 interim lab value for 2026-06
+    joyla_entry = joyla_entries[0]
+    assert joyla_entry["trend"][-1] == 5.9
+    
+    # Clean up
+    db = SessionLocal()
+    db.query(InterimLabRecord).filter(InterimLabRecord.patient_id == patient_id).delete()
+    db.query(Patient).filter(Patient.id == patient_id).delete()
+    db.commit()
+    db.close()
+

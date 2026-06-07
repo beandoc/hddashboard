@@ -13,6 +13,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from services.twin_utils import _safe_float
+from services.twin_adequacy import _watson_volume
 
 logger = logging.getLogger(__name__)
 

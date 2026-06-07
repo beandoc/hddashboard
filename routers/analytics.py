@@ -1781,13 +1781,9 @@ async def _legacy_at_risk_trends(parameter: str = "", month: Optional[str] = Non
     def _compute():
         db = SessionLocal()
         try:
-            # Always run the fallback check — never trust the JS-passed month directly,
-            # because the current month is incomplete until >50% of patients have records.
-            effective_month, _ = get_effective_month(db, None)
-            # But if caller explicitly asked for a historical month (not current), honour it
-            from dashboard_logic import get_current_month_str
-            if month and month < get_current_month_str():
-                effective_month = month
+            effective_month = month
+            if not effective_month:
+                effective_month, _ = get_effective_month(db, None)
             return get_at_risk_trends(db, parameter, effective_month)
         finally:
             db.close()

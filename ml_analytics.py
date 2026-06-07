@@ -654,16 +654,35 @@ def get_at_risk_trends(db: Session, parameter: str, month: str = None) -> Dict:
         .all()
     )
 
-    history_by_patient = {}
-    for h in all_history:
-        if h.patient_id not in history_by_patient:
-            history_by_patient[h.patient_id] = {}
+    # Fetch interim lab overrides for ALL target months to ensure trend is accurate
+    interim_overrides_by_month = {m: {} for m in target_months}
+    if hasattr(InterimLabRecord, 'parameter'):
+        interim_recs = db.query(InterimLabRecord).filter(
+            InterimLabRecord.record_month.in_(target_months),
+            InterimLabRecord.parameter == parameter,
+            InterimLabRecord.patient_id.in_(at_risk_patient_ids),
+        ).order_by(InterimLabRecord.lab_date.asc()).all()
+        for il in interim_recs:
+            interim_overrides_by_month[il.record_month][il.patient_id] = il.value
 
+    history_by_patient = {pid: {} for pid in at_risk_patient_ids}
+    for h in all_history:
         h_val = getattr(h, parameter, None)
         if parameter == "calcium" and h.calcium is not None and h.albumin is not None:
             h_val = h.calcium + 0.8 * (3.5 - h.albumin)
 
+        # Fall back to interim override if MonthlyRecord value is missing
+        if h_val is None:
+            h_val = interim_overrides_by_month.get(h.record_month, {}).get(h.patient_id)
+
         history_by_patient[h.patient_id][h.record_month] = h_val
+
+    # Also overlay any interim overrides for months where there is no MonthlyRecord at all
+    for m in target_months:
+        m_overrides = interim_overrides_by_month.get(m, {})
+        for pid, val in m_overrides.items():
+            if history_by_patient.setdefault(pid, {}).get(m) is None:
+                history_by_patient[pid][m] = val
 
     results = []
     for pid in at_risk_patient_ids:
