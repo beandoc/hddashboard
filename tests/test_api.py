@@ -219,3 +219,16 @@ def test_at_risk_trends_interim_and_month_override(client):
     db.commit()
     db.close()
 
+
+def test_admin_missing_data_endpoint(client):
+    import time
+    from config import serializer
+    token = serializer.dumps(f"admin:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    # Test main page access without patient_id
+    response = client.get("/admin/missing-data")
+    assert response.status_code == 200
+    assert "Audit Missing Data" in response.text
+
+

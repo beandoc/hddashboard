@@ -456,3 +456,110 @@ async def restore_backup(request: Request, file: UploadFile = File(...), db: Ses
         "error": "Restore feature is under development. Please contact support.",
         "success": None,
     })
+
+@router.get("/missing-data", response_class=HTMLResponse)
+async def admin_missing_data(
+    request: Request,
+    patient_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    _require_admin(request)
+    
+    # Get all active patients sorted by name
+    patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    
+    selected_patient = None
+    report = None
+    
+    if patient_id:
+        selected_patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if selected_patient:
+            # 1. Profile fields check
+            profile_missing = []
+            if not selected_patient.age: profile_missing.append("Age")
+            if not selected_patient.height: profile_missing.append("Height")
+            if not selected_patient.dry_weight: profile_missing.append("Dry Weight")
+            if not selected_patient.hd_wef_date: profile_missing.append("HD Start Date (WEF)")
+            
+            acc = selected_patient.vascular_access
+            if not acc:
+                profile_missing.extend(["Access Type", "Access Date (Surgery)", "First Cannulation Date"])
+            else:
+                if not acc.access_type: profile_missing.append("Access Type")
+                if not acc.access_date: profile_missing.append("Access Date (Surgery)")
+                if not acc.date_first_cannulation: profile_missing.append("First Cannulation Date")
+                
+            # 2. Dialysis Session fields check up to May 2026
+            sessions = (
+                db.query(SessionRecord)
+                .filter(
+                    SessionRecord.patient_id == patient_id,
+                    SessionRecord.session_date <= date(2026, 5, 31)
+                )
+                .order_by(SessionRecord.session_date.desc())
+                .all()
+            )
+            
+            session_issues = []
+            for s in sessions:
+                missing_fields = []
+                if not s.blood_flow_rate: missing_fields.append("Prescribed BFR")
+                if not s.actual_blood_flow_rate: missing_fields.append("Actual BFR")
+                if not s.duration_hours: missing_fields.append("Duration (Hours)")
+                if s.weight_pre is None: missing_fields.append("Weight Pre-HD")
+                if s.weight_post is None: missing_fields.append("Weight Post-HD")
+                if s.bp_pre_sys is None: missing_fields.append("BP Pre-HD Systolic")
+                if s.bp_pre_dia is None: missing_fields.append("BP Pre-HD Diastolic")
+                if s.bp_post_sys is None: missing_fields.append("BP Post-HD Systolic")
+                if s.bp_post_dia is None: missing_fields.append("BP Post-HD Diastolic")
+                if s.bp_nadir_sys is None: missing_fields.append("BP Nadir Systolic")
+                
+                if missing_fields:
+                    session_issues.append({
+                        "id": s.id,
+                        "date": s.session_date.strftime('%Y-%m-%d'),
+                        "missing": missing_fields
+                    })
+                    
+            # 3. Monthly Labs check up to May 2026
+            monthly_records = (
+                db.query(MonthlyRecord)
+                .filter(
+                    MonthlyRecord.patient_id == patient_id,
+                    MonthlyRecord.record_month <= "2026-05"
+                )
+                .order_by(MonthlyRecord.record_month.desc())
+                .all()
+            )
+            
+            monthly_issues = []
+            for m in monthly_records:
+                missing_labs = []
+                if not m.hb: missing_labs.append("Hemoglobin (Hb)")
+                if not m.albumin: missing_labs.append("Albumin")
+                if not m.phosphorus: missing_labs.append("Phosphorus")
+                if not m.crp: missing_labs.append("CRP")
+                if not m.single_pool_ktv: missing_labs.append("Kt/V")
+                
+                if missing_labs:
+                    monthly_issues.append({
+                        "month": m.record_month,
+                        "missing": missing_labs
+                    })
+                    
+            report = {
+                "profile_missing": profile_missing,
+                "session_issues": session_issues,
+                "monthly_issues": monthly_issues,
+                "total_sessions_checked": len(sessions),
+                "total_months_checked": len(monthly_records)
+            }
+            
+    return templates.TemplateResponse("admin_missing_data.html", {
+        "request": request,
+        "user": get_user(request),
+        "patients": patients,
+        "selected_patient": selected_patient,
+        "report": report
+    })
+

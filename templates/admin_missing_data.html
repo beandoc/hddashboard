@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missing Data Audit — HD Dashboard</title>
+    <style>
+        :root {
+            --primary: #0ea5e9; --primary-dark: #0284c7;
+            --bg-main: #f8fafc; --radius: 12px;
+            --text-main: #1e293b; --text-muted: #64748b; --text-header: #0f172a;
+            --shadow-md: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+            --danger: #ef4444; --success: #22c55e; --warning: #f59e0b;
+        }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg-main); color: var(--text-main); }
+        h1, h2, h3, .brand { font-family: 'Outfit', sans-serif; }
+
+        header { background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color: white; padding: 20px 32px; display: flex; align-items: center; gap: 16px; }
+        header h1 { margin: 0; font-size: 1.35rem; font-family: 'Outfit', sans-serif; letter-spacing: -0.02em; }
+
+        .container { max-width: 960px; margin: 32px auto; padding: 0 24px 80px; }
+        .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 24px; margin-bottom: 28px; border: 1px solid #e2e8f0; }
+        .card h3 { margin: 0 0 20px; font-size: 1.1em; color: var(--text-header); display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
+
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--text-muted); font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.03em; }
+        select { width: 100%; padding: 12px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; background: #fff; transition: all 0.2s; cursor: pointer; }
+        select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px rgba(14,165,233,0.1); }
+
+        .section-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        
+        .alert-box { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9em; line-height: 1.5; }
+        .alert-box-info { background: #f0f9ff; border: 1.5px solid #bae6fd; color: #0369a1; }
+        .alert-box-warning { background: #fff7ed; border: 1.5px solid #fed7aa; color: #c2410c; }
+        .alert-box-danger { background: #fef2f2; border: 1.5px solid #fecaca; color: #991b1b; }
+        .alert-box-success { background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #166534; }
+
+        .metric-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: #f1f5f9; color: #475569; }
+        .metric-pill-danger { background: #fee2e2; color: #991b1b; }
+        .metric-pill-success { background: #dcfce7; color: #166534; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; margin-top: 10px; }
+        th { text-align: left; padding: 10px 14px; background: #f8fafc; color: var(--text-muted); font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f8fafc; }
+
+        .blocked-model-card { background: #f5f3ff; border: 1.5px solid #ddd6fe; border-radius: 10px; padding: 16px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 12px; }
+        .blocked-model-card i { color: #7c3aed; }
+        .blocked-model-card h4 { margin: 0 0 4px 0; color: #5b21b6; font-size: 0.92rem; font-weight: 700; }
+        .blocked-model-card p { margin: 0; color: #6d28d9; font-size: 0.8rem; line-height: 1.4; }
+
+        @media (max-width: 768px) {
+            header, .page-header { padding: 16px !important; }
+            .container { padding: 0 16px 40px; }
+        }
+    </style>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+</head>
+<body>
+    {% include "_nav.html" %}
+    <nav class="nav-breadcrumb" aria-label="Breadcrumb">
+        <a href="/">Dashboard</a>
+        <span class="bc-sep">/</span>
+        <a href="/admin/users">Admin</a>
+        <span class="bc-sep">/</span>
+        <span class="bc-current">Missing Data Audit</span>
+    </nav>
+
+    <header>
+        <h1><i class="material-icons" style="vertical-align:middle;margin-right:8px">report_problem</i> Critical Missing Data Audit</h1>
+    </header>
+
+    <div class="container">
+        <!-- Patient Selector -->
+        <div class="card">
+            <h3><i class="material-icons">person_search</i> Select Active Patient to Audit</h3>
+            <div class="form-group">
+                <label for="patientSelect">Active Patient</label>
+                <select id="patientSelect" onchange="window.location.href='/admin/missing-data?patient_id=' + this.value">
+                    <option value="">— Select Patient —</option>
+                    {% for p in patients %}
+                    <option value="{{ p.id }}" {{ 'selected' if selected_patient and selected_patient.id == p.id }}>{{ p.name }} (HID: {{ p.hid_no }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        {% if selected_patient %}
+            <!-- Audit Details -->
+            <div class="alert-box alert-box-info">
+                <i class="material-icons">info</i>
+                <div>
+                    <strong>Audit parameters:</strong> Currently showing critical missing data for <strong>{{ selected_patient.name }} (HID: {{ selected_patient.hid_no }})</strong>.
+                    <br/>
+                    <em>Note: Analysis is filtered **up to May 2026**. Current month (June 2026) monthly lab data is excluded from the audit.</em>
+                </div>
+            </div>
+
+            <div class="section-grid">
+                <!-- Profile Data -->
+                <div class="card">
+                    <h3>
+                        <i class="material-icons">contact_page</i> Profile Completeness
+                        <span style="margin-left: auto;">
+                            {% if report.profile_missing %}
+                                <span class="metric-pill metric-pill-danger">{{ report.profile_missing|length }} Missing</span>
+                            {% else %}
+                                <span class="metric-pill metric-pill-success">Complete</span>
+                            {% endif %}
+                        </span>
+                    </h3>
+                    
+                    {% if report.profile_missing %}
+                        <div class="alert-box alert-box-danger" style="margin-bottom: 16px;">
+                            <i class="material-icons">warning</i>
+                            <div>
+                                <strong>Missing fields in patient profile:</strong>
+                                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                                    {% for f in report.profile_missing %}
+                                    <li>{{ f }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="alert-box alert-box-success" style="margin-bottom: 16px;">
+                            <i class="material-icons">check_circle</i>
+                            <div>All critical profile fields (Age, Height, Dry Weight, Access Type, Access Dates) are successfully recorded.</div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Session Logs -->
+                <div class="card">
+                    <h3>
+                        <i class="material-icons">history</i> Dialysis Sessions Audit (up to May 2026)
+                        <span style="margin-left: auto;">
+                            <span class="metric-pill">{{ report.total_sessions_checked }} Checked</span>
+                            {% if report.session_issues %}
+                                <span class="metric-pill metric-pill-danger">{{ report.session_issues|length }} Flagged</span>
+                            {% else %}
+                                <span class="metric-pill metric-pill-success">0 Flagged</span>
+                            {% endif %}
+                        </span>
+                    </h3>
+
+                    {% if report.session_issues %}
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Session Date</th>
+                                        <th>Missing Critical Inputs</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for issue in report.session_issues %}
+                                    <tr>
+                                        <td><strong>{{ issue.date }}</strong></td>
+                                        <td>
+                                            {% for field in issue.missing %}
+                                                <span style="display:inline-block; background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:4px; font-size:0.8em; font-weight:600; margin-right:4px; margin-bottom:4px;">{{ field }}</span>
+                                            {% endfor %}
+                                        </td>
+                                        <td>
+                                            <a href="/sessions/{{ issue.id }}/edit" class="metric-pill" style="text-decoration:none; background:#e0f2fe; color:#0369a1;">
+                                                Edit <i class="material-icons" style="font-size:0.85rem; vertical-align:middle;">edit</i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert-box alert-box-success" style="margin-bottom: 0;">
+                            <i class="material-icons">check_circle</i>
+                            <div>All logged dialysis sessions contain complete physiological, hemodynamic (BP), and access flow measurements.</div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Monthly Labs -->
+                <div class="card">
+                    <h3>
+                        <i class="material-icons">science</i> Monthly Labs Audit (up to May 2026)
+                        <span style="margin-left: auto;">
+                            <span class="metric-pill">{{ report.total_months_checked }} Checked</span>
+                            {% if report.monthly_issues %}
+                                <span class="metric-pill metric-pill-danger">{{ report.monthly_issues|length }} Flagged</span>
+                            {% else %}
+                                <span class="metric-pill metric-pill-success">0 Flagged</span>
+                            {% endif %}
+                        </span>
+                    </h3>
+
+                    {% if report.monthly_issues %}
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Record Month</th>
+                                        <th>Missing Critical Parameters</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for issue in report.monthly_issues %}
+                                    <tr>
+                                        <td><strong>{{ issue.month }}</strong></td>
+                                        <td>
+                                            {% for lab in issue.missing %}
+                                                <span style="display:inline-block; background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:4px; font-size:0.8em; font-weight:600; margin-right:4px; margin-bottom:4px;">{{ lab }}</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert-box alert-box-success" style="margin-bottom: 0;">
+                            <i class="material-icons">check_circle</i>
+                            <div>All retrospective monthly records contain complete lab workups (Hb, Albumin, Phosphorus, CRP, Kt/V).</div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Blocked Clinical Models -->
+                {% set blocked_models = [] %}
+                {% if "Height" in report.profile_missing or "Albumin" in report.labs_missing %}
+                    {% set _ = blocked_models.append({
+                        "name": "MIA Syndrome (GNRI Scoring)",
+                        "desc": "Required inputs: Height, Weight, and Albumin. Blocks nutrition risk stratification and cachexia diagnostics."
+                    }) %}
+                {% endif %}
+                {% if "Access Date (Surgery)" in report.profile_missing or "First Cannulation Date" in report.profile_missing %}
+                    {% set _ = blocked_models.append({
+                        "name": "KDOQI Fistula Maturation Monitor",
+                        "desc": "Required inputs: Access surgery creation date and first cannulation date. Blocks automated maturation delay warnings."
+                    }) %}
+                {% endif %}
+                {% if report.sess_missing_weights or "Dry Weight" in report.profile_missing %}
+                    {% set _ = blocked_models.append({
+                        "name": "IDWG Fluid Velocity Model",
+                        "desc": "Required inputs: Pre-HD and post-HD weights. Blocks interdialytic weight gain velocity rate monitoring."
+                    }) %}
+                {% endif %}
+                {% if report.sess_missing_bp %}
+                    {% set _ = blocked_models.append({
+                        "name": "IDH (Intradialytic Hypotension) Prediction",
+                        "desc": "Required inputs: Systolic, diastolic, and Nadir blood pressures. Blocks the neural network / digital twin simulation from identifying hypotensive events."
+                    }) %}
+                {% endif %}
+
+                {% if blocked_models %}
+                <div class="card" style="border-color:#ddd6fe; background:#faf5ff;">
+                    <h3 style="color:#5b21b6;"><i class="material-icons" style="color:#7c3aed;">extension_off</i> Blocked Clinical & ML Models</h3>
+                    <div style="font-size:0.82rem; color:#6b21a8; margin-bottom:14px; font-weight:500;">
+                        The missing data flagged above directly prevents the following analytics from running for this patient:
+                    </div>
+                    {% for bm in blocked_models %}
+                    <div class="blocked-model-card">
+                        <i class="material-icons">block</i>
+                        <div>
+                            <h4>{{ bm.name }}</h4>
+                            <p>{{ bm.desc }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        {% else %}
+            <!-- Welcome Alert Box -->
+            <div class="alert-box alert-box-info" style="margin-top:20px;">
+                <i class="material-icons">supervisor_account</i>
+                <div>
+                    <strong>Welcome to the Missing Data Auditor.</strong> Select an active patient from the dropdown above to audit their profile attributes, dialysis session values, and monthly lab results.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
