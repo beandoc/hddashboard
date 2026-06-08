@@ -156,6 +156,15 @@ class HospitalisationEvent(Base):
     # Optional link to a matching ClinicalEvent (avoids duplicate data entry)
     clinical_event_id = Column(Integer, ForeignKey("clinical_events.id"), nullable=True, index=True)
 
+    # Severity and clinical indicators
+    severity        = Column(String)
+    icu_admission   = Column(Boolean, default=False)
+    pct             = Column(Float)
+    shock_on_admission = Column(Integer, default=0)
+    inotrope_days   = Column(Float)
+    ventilation_days = Column(Float)
+    transfusion_units = Column(Float)
+
     patient        = relationship("Patient", back_populates="hospitalisations")
     clinical_event = relationship("ClinicalEvent", foreign_keys=[clinical_event_id])
 

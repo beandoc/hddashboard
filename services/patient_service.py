@@ -310,7 +310,16 @@ def sync_hospitalization_to_monthly_record(
     event_date: datetime.date,
     diagnosis: Optional[str] = None,
     icd_code: Optional[str] = None,
-    icd_diagnosis: Optional[str] = None
+    icd_diagnosis: Optional[str] = None,
+    discharge_date: Optional[datetime.date] = None,
+    los_days: Optional[int] = None,
+    severity: Optional[str] = None,
+    icu_admission: Optional[bool] = None,
+    pct: Optional[float] = None,
+    shock_on_admission: Optional[int] = None,
+    inotrope_days: Optional[float] = None,
+    ventilation_days: Optional[float] = None,
+    transfusion_units: Optional[float] = None,
 ) -> MonthlyRecord:
     month_str = event_date.strftime("%Y-%m")
     rec = db.query(MonthlyRecord).filter(
@@ -335,20 +344,35 @@ def sync_hospitalization_to_monthly_record(
     icd_diag_str = (icd_diagnosis or "").strip()
     
     # Check duplicate
-    exists = any(
-        d.get("date") == event_date.isoformat() and 
-        d.get("diagnosis") == diag_str and 
-        d.get("icd_code") == code_str
-        for d in current_details
-    )
-    if not exists and (diag_str or code_str or icd_diag_str):
-        current_details.append({
-            "date": event_date.isoformat(),
-            "diagnosis": diag_str,
-            "icd_code": code_str,
-            "icd_diagnosis": icd_diag_str
-        })
-        rec.hospitalization_details = json.dumps(current_details)
+    existing_idx = None
+    for idx, d in enumerate(current_details):
+        if d.get("date") == event_date.isoformat():
+            existing_idx = idx
+            break
+            
+    hosp_data = {
+        "date": event_date.isoformat(),
+        "discharge_date": discharge_date.isoformat() if discharge_date else None,
+        "los_days": los_days,
+        "diagnosis": diag_str,
+        "icd_code": code_str,
+        "icd_diagnosis": icd_diag_str,
+        "cause_category": "",
+        "severity": severity or "",
+        "icu_admission": bool(icu_admission),
+        "pct": pct,
+        "shock_on_admission": shock_on_admission if shock_on_admission is not None else 0,
+        "inotrope_days": inotrope_days,
+        "ventilation_days": ventilation_days,
+        "transfusion_units": transfusion_units,
+    }
+
+    if existing_idx is not None:
+        current_details[existing_idx].update({k: v for k, v in hosp_data.items() if v is not None or k not in current_details[existing_idx]})
+    else:
+        current_details.append(hosp_data)
+        
+    rec.hospitalization_details = json.dumps(current_details)
         
     # Update flat fields with first entry if empty
     if not rec.hospitalization_date:
@@ -359,5 +383,9 @@ def sync_hospitalization_to_monthly_record(
         rec.hospitalization_icd_code = code_str
     if not rec.hospitalization_icd_diagnosis and icd_diag_str:
         rec.hospitalization_icd_diagnosis = icd_diag_str
+    if not rec.hospitalization_severity and severity:
+        rec.hospitalization_severity = severity
+    if rec.hospitalization_icu_admission is None and icu_admission is not None:
+        rec.hospitalization_icu_admission = icu_admission
         
     return rec

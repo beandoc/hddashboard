@@ -794,15 +794,22 @@ async def add_hospitalisation(
     admission_date: str = Form(...),
     discharge_date: Optional[str] = Form(None),
     los_days: Optional[int] = Form(None),
-    diagnosis: list[str] = Form([]),
-    icd_code: list[str] = Form([]),
-    icd_name: list[str] = Form([]),
+    diagnosis: list[str] = Form([], alias="diagnosis[]"),
+    icd_code: list[str] = Form([], alias="icd_code[]"),
+    icd_name: list[str] = Form([], alias="icd_name[]"),
     notes: str = Form(""),
     clinical_event_id: Optional[str] = Form(None),
     new_event_type: Optional[str] = Form(None),
     new_event_date: Optional[str] = Form(None),
     new_event_severity: Optional[str] = Form(None),
     new_event_notes: Optional[str] = Form(None),
+    severity: Optional[str] = Form(None),
+    icu_admission: Optional[str] = Form(None),
+    pct: Optional[float] = Form(None),
+    shock_on_admission: Optional[int] = Form(None),
+    inotrope_days: Optional[float] = Form(None),
+    ventilation_days: Optional[float] = Form(None),
+    transfusion_units: Optional[float] = Form(None),
 ):
     import json as _json
     user = get_user(request)
@@ -890,6 +897,7 @@ async def add_hospitalisation(
                 linked_event_id = ce.id
         except (ValueError, TypeError):
             pass
+    icu_checked = bool(icu_admission == "1" or icu_admission == "on" or icu_admission is True)
     ev = HospitalisationEvent(
         patient_id=patient_id,
         admission_date=adm,
@@ -902,6 +910,13 @@ async def add_hospitalisation(
         notes=notes_stored or None,
         entered_by=username,
         clinical_event_id=linked_event_id,
+        severity=severity or None,
+        icu_admission=icu_checked,
+        pct=pct,
+        shock_on_admission=shock_on_admission or 0,
+        inotrope_days=inotrope_days,
+        ventilation_days=ventilation_days,
+        transfusion_units=transfusion_units,
     )
     db.add(ev)
 
@@ -912,7 +927,16 @@ async def add_hospitalisation(
         event_date=adm,
         diagnosis=primary_diag or "",
         icd_code=primary_icd or "",
-        icd_diagnosis=""
+        icd_diagnosis="",
+        discharge_date=dis,
+        los_days=los,
+        severity=severity or None,
+        icu_admission=icu_checked,
+        pct=pct,
+        shock_on_admission=shock_on_admission,
+        inotrope_days=inotrope_days,
+        ventilation_days=ventilation_days,
+        transfusion_units=transfusion_units,
     )
 
     db.commit()
@@ -928,11 +952,18 @@ async def edit_hospitalisation(
     admission_date: str = Form(...),
     discharge_date: Optional[str] = Form(None),
     los_days: Optional[int] = Form(None),
-    diagnosis: list[str] = Form([]),
-    icd_code: list[str] = Form([]),
-    icd_name: list[str] = Form([]),
+    diagnosis: list[str] = Form([], alias="diagnosis[]"),
+    icd_code: list[str] = Form([], alias="icd_code[]"),
+    icd_name: list[str] = Form([], alias="icd_name[]"),
     notes: str = Form(""),
     clinical_event_id: Optional[int] = Form(None),
+    severity: Optional[str] = Form(None),
+    icu_admission: Optional[str] = Form(None),
+    pct: Optional[float] = Form(None),
+    shock_on_admission: Optional[int] = Form(None),
+    inotrope_days: Optional[float] = Form(None),
+    ventilation_days: Optional[float] = Form(None),
+    transfusion_units: Optional[float] = Form(None),
 ):
     import json as _json
     user = get_user(request)
@@ -992,17 +1023,30 @@ async def edit_hospitalisation(
     else:
         ev.clinical_event_id = None
 
+    icu_checked = bool(icu_admission == "1" or icu_admission == "on" or icu_admission is True)
     ev.admission_date     = adm
     ev.discharge_date     = dis
     ev.los_days           = los
     ev.primary_diagnosis  = primary_diag or None
     ev.primary_icd        = primary_icd or None
     ev.notes              = notes_stored or None
+    ev.severity           = severity or None
+    ev.icu_admission      = icu_checked
+    ev.pct                = pct
+    ev.shock_on_admission = shock_on_admission or 0
+    ev.inotrope_days      = inotrope_days
+    ev.ventilation_days   = ventilation_days
+    ev.transfusion_units  = transfusion_units
 
     from services.patient_service import sync_hospitalization_to_monthly_record
     sync_hospitalization_to_monthly_record(
         db=db, patient_id=patient_id, event_date=adm,
-        diagnosis=primary_diag or "", icd_code=primary_icd or "", icd_diagnosis=""
+        diagnosis=primary_diag or "", icd_code=primary_icd or "", icd_diagnosis="",
+        discharge_date=dis, los_days=los,
+        severity=severity or None, icu_admission=icu_checked,
+        pct=pct, shock_on_admission=shock_on_admission,
+        inotrope_days=inotrope_days, ventilation_days=ventilation_days,
+        transfusion_units=transfusion_units,
     )
 
     db.commit()

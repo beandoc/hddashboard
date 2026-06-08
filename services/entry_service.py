@@ -685,6 +685,20 @@ def save_monthly_record(
                         existing.primary_diagnosis = h["diagnosis"]
                     if h.get("cause_category") and not existing.cause_category:
                         existing.cause_category = h["cause_category"]
+                    if h.get("severity"):
+                        existing.severity = h["severity"]
+                    if h.get("icu_admission") is not None:
+                        existing.icu_admission = bool(h["icu_admission"])
+                    if h.get("pct") is not None:
+                        existing.pct = h["pct"]
+                    if h.get("shock_on_admission") is not None:
+                        existing.shock_on_admission = h["shock_on_admission"]
+                    if h.get("inotrope_days") is not None:
+                        existing.inotrope_days = h["inotrope_days"]
+                    if h.get("ventilation_days") is not None:
+                        existing.ventilation_days = h["ventilation_days"]
+                    if h.get("transfusion_units") is not None:
+                        existing.transfusion_units = h["transfusion_units"]
                 else:
                     db.add(HospitalisationEvent(
                         patient_id=patient_id,
@@ -696,6 +710,13 @@ def save_monthly_record(
                         cause_category=h.get("cause_category") or None,
                         readmission_within_30d=bool(prior),
                         entered_by=actor,
+                        severity=h.get("severity") or None,
+                        icu_admission=bool(h.get("icu_admission")),
+                        pct=h.get("pct"),
+                        shock_on_admission=h.get("shock_on_admission") or 0,
+                        inotrope_days=h.get("inotrope_days"),
+                        ventilation_days=h.get("ventilation_days"),
+                        transfusion_units=h.get("transfusion_units"),
                     ))
 
         # Save total_protein, triglycerides, hdl_cholesterol into dynamic_data

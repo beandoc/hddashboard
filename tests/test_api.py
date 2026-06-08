@@ -232,3 +232,110 @@ def test_admin_missing_data_endpoint(client):
     assert "Audit Missing Data" in response.text
 
 
+def test_add_and_edit_hospitalisation(client):
+    import time
+    from config import serializer
+    from database import Patient, HospitalisationEvent, MonthlyRecord, TestingSessionLocal
+    import json
+
+    db = TestingSessionLocal()
+    # Create patient
+    p = Patient(name="Dhara Khalash", hid_no="100091954116", is_active=True)
+    db.add(p)
+    db.commit()
+    patient_id = p.id
+    db.close()
+
+    token = serializer.dumps(f"admin:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+
+    # 1. Add hospitalisation
+    post_data = {
+        "admission_date": "2025-06-01",
+        "discharge_date": "2025-06-06",
+        "los_days": 5,
+        "diagnosis[]": ["Pneumonia, unspecified organism"],
+        "icd_code[]": ["J18.9"],
+        "icd_name[]": ["Pneumonia, unspecified organism"],
+        "notes": "atypical pneumonia ? viral",
+        "clinical_event_id": "",
+        "new_event_type": "",
+        "new_event_date": "",
+        "new_event_severity": "",
+        "new_event_notes": "",
+        "severity": "Critical",
+        "icu_admission": "1",
+        "pct": 2.5,
+        "shock_on_admission": 0,
+        "inotrope_days": 0,
+        "ventilation_days": 0,
+        "transfusion_units": 0,
+    }
+    response = client.post(f"/patients/{patient_id}/hospitalisations", data=post_data)
+    assert response.status_code == 303  # redirect to hospitalisations index
+
+    db = TestingSessionLocal()
+    # Verify HospitalisationEvent
+    ev = db.query(HospitalisationEvent).filter(HospitalisationEvent.patient_id == patient_id).first()
+    assert ev is not None
+    assert ev.primary_diagnosis == "Pneumonia, unspecified organism"
+    assert ev.primary_icd == "J18.9"
+    assert ev.severity == "Critical"
+    assert ev.icu_admission is True
+    assert ev.pct == 2.5
+
+    # Verify MonthlyRecord sync
+    rec = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id, MonthlyRecord.record_month == "2025-06").first()
+    assert rec is not None
+    assert rec.hospitalization_this_month is True
+    assert rec.hospitalization_severity == "Critical"
+    assert rec.hospitalization_icu_admission is True
+    details = json.loads(rec.hospitalization_details)
+    assert len(details) == 1
+    assert details[0]["diagnosis"] == "Pneumonia, unspecified organism"
+    assert details[0]["severity"] == "Critical"
+
+    # 2. Edit hospitalisation
+    edit_data = {
+        "admission_date": "2025-06-01",
+        "discharge_date": "2025-06-07",
+        "los_days": 6,
+        "diagnosis[]": ["Pneumonia, unspecified organism", "Acute Kidney Injury"],
+        "icd_code[]": ["J18.9", "N17"],
+        "icd_name[]": ["Pneumonia, unspecified", "AKI"],
+        "notes": "atypical pneumonia + AKI",
+        "clinical_event_id": "",
+        "severity": "Life Threatening",
+        "icu_admission": "1",
+        "pct": 11.5,
+        "shock_on_admission": 1,
+        "inotrope_days": 2,
+        "ventilation_days": 1,
+        "transfusion_units": 1,
+    }
+    response = client.post(f"/patients/{patient_id}/hospitalisations/{ev.id}/edit", data=edit_data)
+    assert response.status_code == 303
+
+    db.refresh(ev)
+    assert ev.los_days == 6
+    assert ev.severity == "Life Threatening"
+    assert ev.pct == 11.5
+    assert ev.shock_on_admission == 1
+    assert ev.ventilation_days == 1
+
+    db.refresh(rec)
+    assert rec.hospitalization_severity == "Life Threatening"
+    details = json.loads(rec.hospitalization_details)
+    assert len(details) == 1
+    assert details[0]["severity"] == "Life Threatening"
+    assert details[0]["pct"] == 11.5
+
+    # Clean up
+    db.delete(ev)
+    db.delete(rec)
+    db.query(Patient).filter(Patient.id == patient_id).delete()
+    db.commit()
+    db.close()
+
+
+
