@@ -21,13 +21,27 @@ from sqlalchemy import inspect, text
 from database import engine
 
 
-# Columns that must exist in monthly_records. Each entry is:
+# Columns that must exist per table. Each entry is:
 #   (column_name, DDL_type_string)
 # Only add columns here that have a corresponding migration; this list is
 # the fallback guard, not a replacement for migrations.
-_REQUIRED_MONTHLY_RECORD_COLUMNS: list[tuple[str, str]] = [
-    ("reticulocyte_count", "FLOAT"),
-]
+_REQUIRED_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "monthly_records": [
+        ("reticulocyte_count", "FLOAT"),
+        ("hemostasis_time_mins", "FLOAT"),
+        ("hospitalization_icu_admission", "BOOLEAN"),
+        ("hospitalization_severity", "VARCHAR"),
+    ],
+    "hospitalisation_events": [
+        ("severity", "VARCHAR"),
+        ("icu_admission", "BOOLEAN"),
+        ("pct", "FLOAT"),
+        ("shock_on_admission", "INTEGER"),
+        ("inotrope_days", "FLOAT"),
+        ("ventilation_days", "FLOAT"),
+        ("transfusion_units", "FLOAT"),
+    ],
+}
 
 
 def _has_table(name: str) -> bool:
@@ -35,26 +49,26 @@ def _has_table(name: str) -> bool:
 
 
 def _ensure_columns() -> None:
-    """Add any missing columns to monthly_records using IF NOT EXISTS."""
+    """Add any missing columns using IF NOT EXISTS for each guarded table."""
     insp = inspect(engine)
-    if not insp.has_table("monthly_records"):
-        return
-
-    existing = {col["name"] for col in insp.get_columns("monthly_records")}
     with engine.begin() as conn:
-        for col_name, col_type in _REQUIRED_MONTHLY_RECORD_COLUMNS:
-            if col_name not in existing:
-                print(
-                    f"[pre_deploy] Schema guard: adding missing column"
-                    f" monthly_records.{col_name} ({col_type}) …"
-                )
-                conn.execute(
-                    text(
-                        f"ALTER TABLE monthly_records"
-                        f" ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+        for table_name, required_cols in _REQUIRED_COLUMNS.items():
+            if not insp.has_table(table_name):
+                continue
+            existing = {col["name"] for col in insp.get_columns(table_name)}
+            for col_name, col_type in required_cols:
+                if col_name not in existing:
+                    print(
+                        f"[pre_deploy] Schema guard: adding missing column"
+                        f" {table_name}.{col_name} ({col_type}) …"
                     )
-                )
-                print(f"[pre_deploy] Schema guard: {col_name} added.")
+                    conn.execute(
+                        text(
+                            f"ALTER TABLE {table_name}"
+                            f" ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                        )
+                    )
+                    print(f"[pre_deploy] Schema guard: {table_name}.{col_name} added.")
 
 
 def main() -> int:
