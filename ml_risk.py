@@ -68,9 +68,90 @@ DETERIORATION_FEATURE_NAMES = [
     "cad",            # Binary: coronary artery disease / IHD
     "chf",            # Binary: congestive heart failure
     "dm",             # Binary: any diabetes mellitus (type 1 or 2)
-    "num_recent_hospitalizations_90d", # Continuous: number of admissions in last 90d
-    "recent_infection_events",         # Continuous: infection event count in last 90d
+    "hosp_severity_score_90d", # Continuous: severity-weighted admission score (last 90d)
+                               #   Life Threatening=3, Critical=2, Moderate=1, Routine=0
+    "recent_infection_events", # Continuous: infection event count in last 90d
 ]
+
+# Severity weights for hospitalization_severity field
+_HOSP_SEVERITY_WEIGHTS: dict = {
+    "Life Threatening": 3.0,
+    "Critical":         2.0,
+    "Moderate":         1.0,
+    "Routine":          0.0,
+}
+
+
+def _admission_severity_score(adm: dict) -> float:
+    """
+    Compute a clinical acuity score for a single admission dict stored in
+    hospitalization_details JSON.
+
+    Base score comes from the severity dropdown:
+      Life Threatening = 3.0 | Critical = 2.0 | Moderate = 1.0 | Routine = 0.0
+
+    Bonuses from objective illness-severity indicators (capped to prevent one
+    feature dominating the total):
+      PCT ≥ 10 ng/mL  → +1.5  (severe sepsis / septic shock)
+      PCT 2–10        → +0.75 (sepsis)
+      PCT 0.5–2       → +0.25 (bacterial infection)
+      Shock on admission      → +1.0
+      Inotropes (per day)     → +0.5/day, max +1.5
+      Mechanical ventilation  → +1.0/day, max +3.0
+      Blood transfusion       → +0.3/unit, max +1.5
+
+    Routine admissions always score 0.0 regardless of bonus fields — they
+    should never contribute to the deterioration risk signal.
+    """
+    sev = adm.get("severity", "")
+    base = _HOSP_SEVERITY_WEIGHTS.get(sev, 1.0) if sev else 1.0
+    if base == 0.0:
+        return 0.0  # Routine — ignore all other signals
+
+    bonus = 0.0
+
+    # Procalcitonin — sepsis severity proxy
+    try:
+        pct = float(adm.get("pct") or 0)
+        if pct >= 10:
+            bonus += 1.5
+        elif pct >= 2:
+            bonus += 0.75
+        elif pct >= 0.5:
+            bonus += 0.25
+    except (TypeError, ValueError):
+        pass
+
+    # Shock on admission
+    try:
+        if int(adm.get("shock_on_admission") or 0):
+            bonus += 1.0
+    except (TypeError, ValueError):
+        pass
+
+    # Inotrope duration (days)
+    try:
+        inotrope_days = float(adm.get("inotrope_days") or 0)
+        bonus += min(1.5, inotrope_days * 0.5)
+    except (TypeError, ValueError):
+        pass
+
+    # Mechanical ventilation (days)
+    try:
+        vent_days = float(adm.get("ventilation_days") or 0)
+        bonus += min(3.0, vent_days * 1.0)
+    except (TypeError, ValueError):
+        pass
+
+    # Blood transfusion (units during admission)
+    try:
+        t_units = float(adm.get("transfusion_units") or 0)
+        bonus += min(1.5, t_units * 0.3)
+    except (TypeError, ValueError):
+        pass
+
+    return base + bonus
+
 
 _MODEL_PATH      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model.joblib")
 _MODEL_META_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deterioration_model_meta.json")
@@ -82,7 +163,7 @@ def get_snapshot_feature_vector(db, patient_id: int, month_str: str) -> Optional
     Calling code should fall back to live feature extraction when this returns None.
     The vector ordering matches _build_feature_vector:
       [hb_alert, hb, alb_alert, albumin, target_score, epo_hypo, age, cad, chf, dm_type,
-       num_recent_hospitalizations_90d, recent_infection_events]
+       hosp_severity_score_90d, recent_infection_events]
     """
     snap = (
         db.query(PatientFeatureSnapshot)
@@ -107,7 +188,7 @@ def get_snapshot_feature_vector(db, patient_id: int, month_str: str) -> Optional
         fv.get("cad", 0),
         fv.get("chf", 0),
         fv.get("dm_type", 0),
-        fv.get("num_recent_hospitalizations_90d", 0.0),
+        fv.get("hosp_severity_score_90d", fv.get("num_recent_hospitalizations_90d", 0.0)),
         fv.get("recent_infection_events", 0.0),
     ]
 
@@ -118,7 +199,7 @@ def _build_feature_vector(
     target_score,
     epo_hypo,
     age, cad, chf, dm_status,
-    num_recent_hospitalizations_90d=0.0,
+    hosp_severity_score_90d=0.0,
     recent_infection_events=0.0,
     is_training=False
 ) -> list:
@@ -128,10 +209,10 @@ def _build_feature_vector(
     """
     # Imputation for inference path only
     if not is_training:
-        hb_val       = hb_val if hb_val is not None else 10.0
-        alb_val      = alb_val if alb_val is not None else 3.5
-        target_score = target_score if target_score is not None else 5.0
-        num_recent_hospitalizations_90d = num_recent_hospitalizations_90d if num_recent_hospitalizations_90d is not None else 0.0
+        hb_val                  = hb_val if hb_val is not None else 10.0
+        alb_val                 = alb_val if alb_val is not None else 3.5
+        target_score            = target_score if target_score is not None else 5.0
+        hosp_severity_score_90d = hosp_severity_score_90d if hosp_severity_score_90d is not None else 0.0
         recent_infection_events = recent_infection_events if recent_infection_events is not None else 0.0
 
     return [
@@ -145,7 +226,7 @@ def _build_feature_vector(
         float(cad or 0),
         float(chf or 0),
         0.0 if str(dm_status or "").strip().lower() in ("", "none", "no", "0", "false", "n") else 1.0,
-        float(num_recent_hospitalizations_90d),
+        float(hosp_severity_score_90d),
         float(recent_infection_events),
     ]
 
@@ -183,24 +264,41 @@ def _extract_record_features_for_training(record, patient, db: Session) -> list:
     end_date = date(year, month, last_day)
     start_date = end_date - timedelta(days=90)
     
-    from database import HospitalisationEvent, ClinicalEvent
-    
-    hosp_dates = set()
-    for h in db.query(HospitalisationEvent.admission_date).filter(
-        HospitalisationEvent.patient_id == patient.id,
-        HospitalisationEvent.admission_date >= start_date,
-        HospitalisationEvent.admission_date <= end_date
-    ).all():
-        hosp_dates.add(h[0])
-    for e in db.query(ClinicalEvent.event_date).filter(
-        ClinicalEvent.patient_id == patient.id,
-        ClinicalEvent.event_type.in_(["Hospitalization", "Admission"]),
-        ClinicalEvent.event_date >= start_date,
-        ClinicalEvent.event_date <= end_date
-    ).all():
-        hosp_dates.add(e[0])
-    num_recent_hospitalizations_90d = float(len(hosp_dates))
-    
+    from database import MonthlyRecord as _MR, ClinicalEvent
+    import json as _json
+
+    # Severity-weighted hospitalization score from past MonthlyRecord rows (≤90d lookback).
+    # Reads hospitalization_details JSON per admission; falls back to flat severity column
+    # for older records that pre-date per-admission JSON, and to weight=1.0 for records
+    # entered before the severity field existed (backward compatible).
+    past_hosp_recs = (
+        db.query(_MR)
+        .filter(
+            _MR.patient_id == patient.id,
+            _MR.record_month < record.record_month,
+            _MR.hospitalization_this_month == True,
+        )
+        .order_by(_MR.record_month.desc())
+        .limit(3)
+        .all()
+    )
+    hosp_severity_score_90d = 0.0
+    for pr in past_hosp_recs:
+        admissions = []
+        if pr.hospitalization_details:
+            try:
+                admissions = _json.loads(pr.hospitalization_details)
+            except Exception:
+                pass
+        if admissions:
+            for adm in admissions:
+                hosp_severity_score_90d += _admission_severity_score(adm)
+        elif pr.hospitalization_severity:
+            # Older record: flat column only, no per-admission JSON
+            hosp_severity_score_90d += _HOSP_SEVERITY_WEIGHTS.get(pr.hospitalization_severity, 1.0)
+        else:
+            hosp_severity_score_90d += 1.0  # pre-severity data: treat as moderate weight
+
     inf_count = db.query(ClinicalEvent).filter(
         ClinicalEvent.patient_id == patient.id,
         (ClinicalEvent.event_type.like("%Infection%") | ClinicalEvent.event_type.in_(["Infection", "Sepsis / Bacteremia", "Catheter / Exit-Site Infection"])),
@@ -210,45 +308,45 @@ def _extract_record_features_for_training(record, patient, db: Session) -> list:
     recent_infection_events = float(inf_count)
 
     return _build_feature_vector(
-        hb_val       = hb,
-        hb_alert     = (hb is not None and hb < 10.0),
-        alb_val      = albumin,
-        alb_alert    = (albumin is not None and albumin < 3.5),
-        target_score = target_score,
-        epo_hypo     = epo_hypo,
-        age          = patient.age,
-        cad          = patient.cad_status,
-        chf          = patient.chf_status,
-        dm_status    = patient.dm_status,
-        num_recent_hospitalizations_90d = num_recent_hospitalizations_90d,
+        hb_val                  = hb,
+        hb_alert                = (hb is not None and hb < 10.0),
+        alb_val                 = albumin,
+        alb_alert               = (albumin is not None and albumin < 3.5),
+        target_score            = target_score,
+        epo_hypo                = epo_hypo,
+        age                     = patient.age,
+        cad                     = patient.cad_status,
+        chf                     = patient.chf_status,
+        dm_status               = patient.dm_status,
+        hosp_severity_score_90d = hosp_severity_score_90d,
         recent_infection_events = recent_infection_events,
-        is_training  = True
+        is_training             = True
     )
 
 
 def _extract_analytics_features_for_inference(
     hb: dict, alb: dict, target: dict,
     epo: dict = None, patient_info: dict = None,
-    num_recent_hospitalizations_90d=0.0,
+    hosp_severity_score_90d=0.0,
     recent_infection_events=0.0,
 ) -> list:
     """Dict path for real-time inference."""
     epo          = epo or {}
     patient_info = patient_info or {}
     return _build_feature_vector(
-        hb_val       = hb.get("current"),
-        hb_alert     = hb.get("alert"),
-        alb_val      = alb.get("current"),
-        alb_alert    = alb.get("risk"),
-        target_score = target.get("score"),
-        epo_hypo     = epo.get("hypo_response"),
-        age          = patient_info.get("age"),
-        cad          = patient_info.get("cad_status"),
-        chf          = patient_info.get("chf_status"),
-        dm_status    = patient_info.get("dm_status"),
-        num_recent_hospitalizations_90d = num_recent_hospitalizations_90d,
+        hb_val                  = hb.get("current"),
+        hb_alert                = hb.get("alert"),
+        alb_val                 = alb.get("current"),
+        alb_alert               = alb.get("risk"),
+        target_score            = target.get("score"),
+        epo_hypo                = epo.get("hypo_response"),
+        age                     = patient_info.get("age"),
+        cad                     = patient_info.get("cad_status"),
+        chf                     = patient_info.get("chf_status"),
+        dm_status               = patient_info.get("dm_status"),
+        hosp_severity_score_90d = hosp_severity_score_90d,
         recent_infection_events = recent_infection_events,
-        is_training  = False
+        is_training             = False
     )
 
 
@@ -367,11 +465,18 @@ def train_deterioration_model(db: Session) -> dict:
                 continue
 
             feats = _extract_record_features_for_training(curr, patient, db)
-            label = int(
+            # A hospitalisation counts as a deterioration event only when it is
+            # not a planned/routine admission (access procedures, day cases, etc.).
+            # "Routine" severity is explicitly excluded so that 4 fistula
+            # interventions do not outscore an ICU admission in the training label.
+            nxt_hosp = (
                 bool(nxt.hospitalization_this_month) or
                 bool(nxt.hospitalization_diagnosis)  or
                 bool(nxt.hospitalization_icd_code)
             )
+            if nxt_hosp and nxt.hospitalization_severity == "Routine":
+                nxt_hosp = False
+            label = int(nxt_hosp)
             X.append(feats)
             y.append(label)
 
@@ -688,34 +793,48 @@ def compute_deterioration_risk(
 
     if model is not None:
         patient_id = (patient_info or {}).get("id")
-        num_recent_hospitalizations_90d = 0.0
+        hosp_severity_score_90d = 0.0
         recent_infection_events = 0.0
-        
+
         if patient_id:
-            from database import SessionLocal as _SL, HospitalisationEvent as _HE, ClinicalEvent as _CE
+            from database import SessionLocal as _SL, MonthlyRecord as _MR2, ClinicalEvent as _CE
             from datetime import date, timedelta
-            
+            import json as _json2
+
             _ev_db = _SL()
             try:
                 today = date.today()
                 start_date = today - timedelta(days=90)
-                
-                hosp_dates = set()
-                for h in _ev_db.query(_HE.admission_date).filter(
-                    _HE.patient_id == patient_id,
-                    _HE.admission_date >= start_date,
-                    _HE.admission_date <= today
-                ).all():
-                    hosp_dates.add(h[0])
-                for e in _ev_db.query(_CE.event_date).filter(
-                    _CE.patient_id == patient_id,
-                    _CE.event_type.in_(["Hospitalization", "Admission"]),
-                    _CE.event_date >= start_date,
-                    _CE.event_date <= today
-                ).all():
-                    hosp_dates.add(e[0])
-                num_recent_hospitalizations_90d = float(len(hosp_dates))
-                
+                # Current month string for upper bound (exclude present record)
+                cur_month = today.strftime("%Y-%m")
+
+                # Severity-weighted score from recent MonthlyRecord rows
+                past_hosp = (
+                    _ev_db.query(_MR2)
+                    .filter(
+                        _MR2.patient_id == patient_id,
+                        _MR2.record_month < cur_month,
+                        _MR2.hospitalization_this_month == True,
+                    )
+                    .order_by(_MR2.record_month.desc())
+                    .limit(3)
+                    .all()
+                )
+                for pr in past_hosp:
+                    admissions = []
+                    if pr.hospitalization_details:
+                        try:
+                            admissions = _json2.loads(pr.hospitalization_details)
+                        except Exception:
+                            pass
+                    if admissions:
+                        for adm in admissions:
+                            hosp_severity_score_90d += _admission_severity_score(adm)
+                    elif pr.hospitalization_severity:
+                        hosp_severity_score_90d += _HOSP_SEVERITY_WEIGHTS.get(pr.hospitalization_severity, 1.0)
+                    else:
+                        hosp_severity_score_90d += 1.0
+
                 inf_count = _ev_db.query(_CE).filter(
                     _CE.patient_id == patient_id,
                     (_CE.event_type.like("%Infection%") | _CE.event_type.in_(["Infection", "Sepsis / Bacteremia", "Catheter / Exit-Site Infection"])),
@@ -724,13 +843,13 @@ def compute_deterioration_risk(
                 ).count()
                 recent_infection_events = float(inf_count)
             except Exception as _q_exc:
-                logger.debug("Failed to query event counts for patient %s: %s", patient_id, _q_exc)
+                logger.debug("Failed to query event data for patient %s: %s", patient_id, _q_exc)
             finally:
                 _ev_db.close()
 
         feats = _extract_analytics_features_for_inference(
             hb_data, alb_data, target_data, epo_data, patient_info,
-            num_recent_hospitalizations_90d=num_recent_hospitalizations_90d,
+            hosp_severity_score_90d=hosp_severity_score_90d,
             recent_infection_events=recent_infection_events
         )
         try:

@@ -1842,21 +1842,29 @@ async def _legacy_patients(q: str = "", db: Session = Depends(get_db)):
 
 
 @router.post("/admin/train-deterioration-model")
-async def admin_train_deterioration_model():
+async def admin_train_deterioration_model(db: Session = Depends(get_db)):
     """
-    Queue an async Celery task to train (or retrain) the logistic regression
-    deterioration risk model against all current MonthlyRecord data.
+    Train (or retrain) the logistic regression deterioration risk model.
 
-    Returns immediately with a queued confirmation.  Poll
-    GET /admin/deterioration-model-status after ~30 seconds to see results.
+    Tries to queue an async Celery task first; if Celery/Redis is unavailable,
+    falls back to running training synchronously within the request.
     """
+    # Try async path first
     try:
         from tasks import task_train_deterioration_model
         task_train_deterioration_model.delay()
+        return JSONResponse(content={"queued": True, "message": "Training job queued. Refresh in ~30 seconds."})
+    except Exception:
+        logger.warning("Celery unavailable — falling back to synchronous training")
+
+    # Synchronous fallback
+    try:
+        from ml_risk import train_deterioration_model
+        result = train_deterioration_model(db)
+        return JSONResponse(content=result)
     except Exception as e:
-        logger.exception("Failed to queue deterioration model training task")
+        logger.exception("Synchronous deterioration model training failed")
         raise HTTPException(status_code=500, detail=str(e))
-    return JSONResponse(content={"queued": True, "message": "Training job queued. Refresh in ~30 seconds."})
 
 
 @router.get("/admin/deterioration-model-status")
@@ -1912,6 +1920,26 @@ async def admin_deterioration_model_status(db: Session = Depends(get_db)):
         status["new_records_since_training"] = new_records
     except Exception:
         status["new_records_since_training"] = None
+
+    # When not trained, surface event counts so the UI can show progress toward threshold
+    if not status.get("trained"):
+        try:
+            all_records = db.query(MonthlyRecord).all()
+            n_events = sum(
+                1 for r in all_records
+                if bool(r.hospitalization_this_month)
+                or bool(r.hospitalization_diagnosis)
+                or bool(r.hospitalization_icd_code)
+            )
+            from ml_risk import DETERIORATION_FEATURE_NAMES
+            n_features   = len(DETERIORATION_FEATURE_NAMES)
+            epf_min      = 5
+            events_needed = n_features * epf_min
+            status["n_events"]      = n_events
+            status["events_needed"] = events_needed
+            status["n_features"]    = n_features
+        except Exception:
+            pass
 
     return JSONResponse(content=status)
 

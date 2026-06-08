@@ -138,6 +138,11 @@ class MonthlyRecord(Base):
     hospitalization_icd_code = Column(String)
     hospitalization_icd_diagnosis = Column(Text)
     hospitalization_details = Column(Text)
+    # Severity classification — used by ML label stratification and risk feature
+    # Values: "Life Threatening" | "Critical" | "Moderate" | "Routine"
+    # Populated from the first (primary) admission row; full per-admission data in hospitalization_details JSON
+    hospitalization_icu_admission = Column(Boolean, nullable=True)
+    hospitalization_severity = Column(String, nullable=True)
 
     # ── Blood Transfusion ─────────────────────────────────────────────────────
     blood_transfusion_units = Column(Integer)

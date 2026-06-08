@@ -153,9 +153,36 @@
       <div class="feature-tags" id="ms-features"></div>
     </div>
 
-    <div id="model-untrained-note" style="display:none" class="info-note">
-      <i class="material-icons">info</i>
-      No model has been trained yet. Click <strong>Train Model</strong> to run the initial training.
+    <div id="model-untrained-note" style="display:none">
+      <div class="info-note" style="margin-bottom:12px;">
+        <i class="material-icons">info</i>
+        <div>
+          No model has been trained yet. Click <strong>Train Model</strong> once enough hospitalization events have been recorded.
+        </div>
+      </div>
+      <div id="event-progress-panel" style="display:none; background:var(--bg-secondary,#f8fafc); border:1px solid var(--border,#e2e8f0); border-radius:10px; padding:14px 16px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.82rem; font-weight:600; color:var(--text-primary,#1e293b);">Hospitalization Events Collected</span>
+          <span id="event-count-label" style="font-size:0.82rem; font-weight:700; color:#0369a1;"></span>
+        </div>
+        <div style="background:#e2e8f0; border-radius:99px; height:8px; overflow:hidden; margin-bottom:10px;">
+          <div id="event-progress-bar" style="height:100%; border-radius:99px; background:linear-gradient(90deg,#3b82f6,#6366f1); transition:width 0.4s;"></div>
+        </div>
+        <div style="font-size:0.78rem; color:var(--text-muted,#64748b); line-height:1.5;">
+          <strong>What counts as an event?</strong> Each monthly record where any of the following is set contributes one training example:
+          <ul style="margin:6px 0 0 18px; padding:0;">
+            <li><code>Hospitalization This Month</code> checkbox is checked</li>
+            <li><code>Hospitalization Diagnosis</code> field has text (e.g. "CHF exacerbation")</li>
+            <li><code>Hospitalization ICD Code</code> field has text (e.g. "I50.9")</li>
+          </ul>
+          <div style="margin-top:6px;">
+            <strong>How hospitalization diagnosis affects training:</strong>
+            The diagnosis text is <em>not</em> used as a model feature — it only signals that a hospitalization occurred.
+            Filling it in (alongside the checkbox) reinforces the positive label and helps the model learn which
+            clinical patterns precede admission. More accurately-labelled events → better-calibrated risk scores.
+          </div>
+        </div>
+      </div>
     </div>
 
     <hr class="divider">
@@ -233,11 +260,28 @@
       .then(function (d) {
         if (!d.trained) {
           badge.innerHTML = '<span class="status-badge status-untrained"><i class="material-icons" style="font-size:0.85rem">warning</i> Not Trained</span>';
-          document.getElementById('model-untrained-note').style.display = 'flex';
-          // Still show new-records hint even when untrained
-          var hint = document.getElementById('new-records-hint');
-          if (hint && d.new_records_since_training != null) {
-            hint.textContent = d.new_records_since_training + ' records available for training';
+          document.getElementById('model-untrained-note').style.display = 'block';
+
+          // Event progress panel
+          if (d.n_events != null && d.events_needed != null) {
+            var pct     = Math.min(100, Math.round(d.n_events / d.events_needed * 100));
+            var needed  = d.events_needed - d.n_events;
+            document.getElementById('event-count-label').textContent = d.n_events + ' / ' + d.events_needed + ' events';
+            document.getElementById('event-progress-bar').style.width = pct + '%';
+            document.getElementById('event-progress-bar').style.background =
+              pct >= 100 ? '#16a34a' : pct >= 50 ? '#f59e0b' : 'linear-gradient(90deg,#3b82f6,#6366f1)';
+            document.getElementById('event-progress-panel').style.display = 'block';
+            var hint = document.getElementById('new-records-hint');
+            if (hint) {
+              hint.textContent = needed > 0
+                ? needed + ' more hospitalization event' + (needed !== 1 ? 's' : '') + ' needed before training is possible'
+                : 'Enough events collected — click Train Model';
+            }
+          } else {
+            var hint = document.getElementById('new-records-hint');
+            if (hint && d.new_records_since_training != null) {
+              hint.textContent = d.new_records_since_training + ' records available for training';
+            }
           }
           return;
         }
@@ -338,9 +382,21 @@
             + (d.message ? ' &middot; ' + d.message : '') + '</span></div>';
           loadModelStatus();
         } else {
+          var errMsg = d.error || d.detail || 'Training failed';
+          var extraHtml = '';
+          if (d.n_events != null && d.events_needed != null) {
+            var stillNeeded = d.events_needed - d.n_events;
+            extraHtml = '<div style="margin-top:8px;font-size:0.78rem;">'
+              + '<strong>Events recorded:</strong> ' + d.n_events + ' &nbsp;|&nbsp; '
+              + '<strong>Events needed:</strong> ' + d.events_needed + ' &nbsp;|&nbsp; '
+              + '<strong>Still needed:</strong> ' + Math.max(0, stillNeeded)
+              + '<br><span style="opacity:0.85">Each monthly record with <em>Hospitalization This Month</em> checked, '
+              + 'or a non-empty <em>Hospitalization Diagnosis</em> / <em>ICD Code</em>, counts as one event.</span>'
+              + '</div>';
+          }
           result.innerHTML = '<div class="info-note" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">'
             + '<i class="material-icons">error</i>'
-            + '<span>' + (d.error || 'Training failed') + '</span></div>';
+            + '<div><span>' + errMsg + '</span>' + extraHtml + '</div></div>';
         }
       })
       .catch(function (err) {

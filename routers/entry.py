@@ -273,6 +273,13 @@ async def save_entry(
     hospitalization_cause_category: list[str] = Form([]),
     hospitalization_secondary_icd: list[str] = Form([]),
     hospitalization_secondary_diagnosis: list[str] = Form([]),
+    hospitalization_severity: list[str] = Form([]),
+    hospitalization_icu_admission: list[str] = Form([]),
+    hospitalization_pct: list[str] = Form([]),
+    hospitalization_shock_on_admission: list[str] = Form([]),
+    hospitalization_inotrope_days: list[str] = Form([]),
+    hospitalization_ventilation_days: list[str] = Form([]),
+    hospitalization_transfusion_units_adm: list[str] = Form([]),
     action: str = Form("save_back")
 ):
     try:

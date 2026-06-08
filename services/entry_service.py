@@ -439,24 +439,49 @@ def save_monthly_record(
             v = data.get(key, [])
             return [v] if isinstance(v, str) else list(v)
 
-        h_dates     = _as_list("hospitalization_date")
-        h_dis_dates = _as_list("hospitalization_discharge_date")
-        h_los       = _as_list("hospitalization_los")
-        h_diags     = _as_list("hospitalization_diagnosis")
-        h_codes     = _as_list("hospitalization_icd_code")
-        h_icds      = _as_list("hospitalization_icd_diagnosis")
-        h_cats      = _as_list("hospitalization_cause_category")
+        h_dates      = _as_list("hospitalization_date")
+        h_dis_dates  = _as_list("hospitalization_discharge_date")
+        h_los        = _as_list("hospitalization_los")
+        h_diags      = _as_list("hospitalization_diagnosis")
+        h_codes      = _as_list("hospitalization_icd_code")
+        h_icds       = _as_list("hospitalization_icd_diagnosis")
+        h_cats       = _as_list("hospitalization_cause_category")
+        h_severities = _as_list("hospitalization_severity")
+        h_pcts       = _as_list("hospitalization_pct")
+        h_shocks     = _as_list("hospitalization_shock_on_admission")
+        h_inotropes  = _as_list("hospitalization_inotrope_days")
+        h_vents      = _as_list("hospitalization_ventilation_days")
+        h_transf     = _as_list("hospitalization_transfusion_units_adm")
+        # ICU checkbox: present in form only when checked, so we resolve by index
+        h_icus_raw   = _as_list("hospitalization_icu_admission")
 
-        # Pad shorter lists so zip doesn't drop items
+        # Pad all lists to max_len so zip stays aligned
         max_len = max(len(h_dates), len(h_diags), len(h_codes), 1)
         def _pad(lst): return lst + [''] * (max_len - len(lst))
-        h_dates, h_dis_dates, h_los, h_diags, h_codes, h_icds, h_cats = (
+        (h_dates, h_dis_dates, h_los, h_diags, h_codes, h_icds, h_cats,
+         h_severities, h_pcts, h_shocks, h_inotropes, h_vents, h_transf) = (
             _pad(h_dates), _pad(h_dis_dates), _pad(h_los),
-            _pad(h_diags), _pad(h_codes), _pad(h_icds), _pad(h_cats)
+            _pad(h_diags), _pad(h_codes), _pad(h_icds), _pad(h_cats),
+            _pad(h_severities), _pad(h_pcts), _pad(h_shocks),
+            _pad(h_inotropes), _pad(h_vents), _pad(h_transf),
         )
 
+        # ICU checkboxes: HTML only submits checked values; pad to max_len with False
+        h_icus = [bool(h_icus_raw[i] == "1" or h_icus_raw[i] is True) if i < len(h_icus_raw) else False
+                  for i in range(max_len)]
+
+        def _f(val):
+            """Parse a float field; return None if blank."""
+            try:
+                v = str(val).strip()
+                return float(v) if v else None
+            except (TypeError, ValueError):
+                return None
+
         hosp_list = []
-        for dt, dd, los, dg, cd, ic, cat in zip(h_dates, h_dis_dates, h_los, h_diags, h_codes, h_icds, h_cats):
+        for dt, dd, los, dg, cd, ic, cat, sev, icu, pct, shock, inot, vent, transf in zip(
+                h_dates, h_dis_dates, h_los, h_diags, h_codes, h_icds, h_cats,
+                h_severities, h_icus, h_pcts, h_shocks, h_inotropes, h_vents, h_transf):
             if not dt.strip():
                 continue  # admission date required
             los_val = None
@@ -469,23 +494,32 @@ def save_monthly_record(
                 except Exception:
                     pass
             hosp_list.append({
-                "date":          dt.strip(),
-                "discharge_date": dd.strip() if dd.strip() else None,
-                "los_days":      los_val,
-                "diagnosis":     dg.strip() if dg else "",
-                "icd_code":      cd.strip() if cd else "",
-                "icd_diagnosis": ic.strip() if ic else "",
-                "cause_category": cat.strip() if cat else "",
+                "date":                dt.strip(),
+                "discharge_date":      dd.strip() if dd.strip() else None,
+                "los_days":            los_val,
+                "diagnosis":           dg.strip() if dg else "",
+                "icd_code":            cd.strip() if cd else "",
+                "icd_diagnosis":       ic.strip() if ic else "",
+                "cause_category":      cat.strip() if cat else "",
+                "severity":            sev.strip() if sev else "",
+                "icu_admission":       icu,
+                "pct":                 _f(pct),
+                "shock_on_admission":  int(shock) if str(shock).strip() in ("0", "1") else 0,
+                "inotrope_days":       _f(inot),
+                "ventilation_days":    _f(vent),
+                "transfusion_units":   _f(transf),
             })
 
         hosp_details_json = json.dumps(hosp_list) if hosp_list else ""
 
         # Populate flat columns from first event so ML training can read them directly
-        hosp_this_month    = bool(hosp_list)
-        hosp_date_flat     = _d(hosp_list[0]["date"])          if hosp_list else None
-        hosp_diag_flat     = hosp_list[0]["diagnosis"]         if hosp_list else None
-        hosp_icd_flat      = hosp_list[0]["icd_code"]          if hosp_list else None
-        hosp_icd_diag_flat = hosp_list[0]["icd_diagnosis"]     if hosp_list else None
+        hosp_this_month      = bool(hosp_list)
+        hosp_date_flat       = _d(hosp_list[0]["date"])          if hosp_list else None
+        hosp_diag_flat       = hosp_list[0]["diagnosis"]         if hosp_list else None
+        hosp_icd_flat        = hosp_list[0]["icd_code"]          if hosp_list else None
+        hosp_icd_diag_flat   = hosp_list[0]["icd_diagnosis"]     if hosp_list else None
+        hosp_severity_flat   = hosp_list[0]["severity"] or None  if hosp_list else None
+        hosp_icu_flat        = hosp_list[0]["icu_admission"]      if hosp_list else None
 
         rec = db.query(MonthlyRecord).filter(
             MonthlyRecord.patient_id == patient_id,
@@ -573,6 +607,8 @@ def save_monthly_record(
             hospitalization_icd_code=hosp_icd_flat if hosp_list else (rec.hospitalization_icd_code if rec else None),
             hospitalization_icd_diagnosis=hosp_icd_diag_flat if hosp_list else (rec.hospitalization_icd_diagnosis if rec else None),
             hospitalization_details=hosp_details_json if hosp_details_json else (rec.hospitalization_details if rec else ""),
+            hospitalization_severity=hosp_severity_flat if hosp_list else (rec.hospitalization_severity if rec else None),
+            hospitalization_icu_admission=hosp_icu_flat if hosp_list else (rec.hospitalization_icu_admission if rec else None),
             blood_transfusion_units=data.get("blood_transfusion_units"),
             transfusion_date=data.get("transfusion_date") or None,
         )
