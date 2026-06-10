@@ -607,10 +607,14 @@ def _extract_idh_features_for_inference(
     # ── Session plan ──────────────────────────────────────────────────────────
     pre_sbp = sp.get("pre_hd_sbp")
     uf_vol  = sp.get("uf_volume")
-    hours   = (sp.get("duration_hours") or 4) + (sp.get("duration_minutes") or 0) / 60.0
+    # twin sends session_duration_h; legacy real-session callers send duration_hours
+    hours   = (sp.get("duration_hours") or sp.get("session_duration_h") or 4) + (sp.get("duration_minutes") or 0) / 60.0
     weight_pre = sp.get("weight_pre")
-    actual_wt = float(weight_pre) if weight_pre is not None else float(pi.get("dry_weight") or 70.0)
-    uf_rate = (uf_vol / actual_wt / hours) if (uf_vol and hours > 0) else None
+    # twin sends weight_pre; fall back through patient_info weight chain
+    actual_wt = float(weight_pre) if weight_pre is not None else float(pi.get("dry_weight") or pi.get("weight") or 70.0)
+    # twin sends explicit uf_rate_ml_kg_h; if present use it directly, else derive from volume
+    explicit_rate = sp.get("uf_rate_ml_kg_h")
+    uf_rate = float(explicit_rate) if explicit_rate is not None else ((uf_vol / actual_wt / hours) if (uf_vol and hours > 0) else None)
     dt      = sp.get("dialysate_temp")
     ds      = sp.get("dialysate_sodium")
     antihyp_prehd = float(sp.get("antihypertensive_prehd") or 0)

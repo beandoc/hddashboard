@@ -145,12 +145,16 @@ def run_scenario(
     # Compute implied UF rate from volume + session duration
     implied_uf_rate = (scen_uf_volume / scen_session_h / weight_for_rate) if scen_session_h > 0 else None
 
-    session_overrides: dict = {}
+    # weight_pre so IDH extractor uses the same weight as the twin (not just dry_weight)
+    session_overrides: dict = {"weight_pre": weight_for_rate}
     if scenario.get("uf_rate_ml_kg_h") is not None:
         session_overrides["uf_rate_ml_kg_h"] = scenario["uf_rate_ml_kg_h"]
-    elif implied_uf_rate is not None and "session_h" in scenario:
-        # Longer session with same UF volume → lower rate → encode cascade
+    elif implied_uf_rate is not None and ("session_h" in scenario or "uf_volume_L" in scenario):
+        # Changed session duration OR UF volume → different effective rate → cascade into IDH
         session_overrides["uf_rate_ml_kg_h"] = round(implied_uf_rate, 2)
+    if "session_h" in scenario:
+        # IDH extractor reads duration_hours; keep in sync
+        session_overrides["duration_hours"] = scen_session_h
     if scenario.get("dialysate_temp") is not None:
         session_overrides["dialysate_temp"] = scenario["dialysate_temp"]
     if scenario.get("dialysate_sodium") is not None:
