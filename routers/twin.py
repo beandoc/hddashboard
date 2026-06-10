@@ -24,6 +24,8 @@ from database import (
 )
 from dependencies import get_user, _require_staff_role
 from ml_twin import run_scenario, build_twin_plotly_data
+from services.twin_validation import validate_scenario, ScenarioValidationError
+from services.twin_utils import sanitize_json_floats
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/twin", tags=["twin"])
@@ -238,6 +240,26 @@ def _build_patient_info(patient: Patient, monthly_records: list, db: Session) ->
     }
 
 
+def _fallback_ktv(records: list, past_sessions: list):
+    """Scan all monthly records for the first valid Daugirdas spKt/V estimate."""
+    from ml_twin import calculate_ktv_daugirdas, _UREA_MG_DL_TO_BUN
+    uf_L      = (past_sessions[0].get("uf_volume") or 1500) / 1000 if past_sessions else 1.5
+    session_h = (past_sessions[0].get("actual_session_time") or 240) / 60 if past_sessions else 4.0
+    for rec in records:
+        pre = rec.get("pre_dialysis_urea")
+        post = rec.get("post_dialysis_urea")
+        wt   = rec.get("last_prehd_weight") or rec.get("weight")
+        if pre and post and wt:
+            ktv = calculate_ktv_daugirdas(
+                pre  * _UREA_MG_DL_TO_BUN,
+                post * _UREA_MG_DL_TO_BUN,
+                session_h, uf_L, wt - uf_L,
+            )
+            if ktv is not None and 0.5 <= ktv <= 4.0:
+                return round(ktv, 2)
+    return None
+
+
 def _build_baseline_session(past_sessions: list) -> dict:
     """Use the most recent session as the baseline session plan."""
     if not past_sessions:
@@ -305,24 +327,7 @@ async def twin_sandbox(
     if records:
         current_ktv = records[0].get("single_pool_ktv")
         if current_ktv is None:
-            from ml_twin import calculate_ktv_daugirdas, _UREA_MG_DL_TO_BUN
-            uf_L = (past_sessions[0].get("uf_volume") or 1500) / 1000 if past_sessions else 1.5
-            session_h = (past_sessions[0].get("actual_session_time") or 240) / 60 if past_sessions else 4.0
-            for rec in records:
-                pre  = rec.get("pre_dialysis_urea")
-                post = rec.get("post_dialysis_urea")
-                wt   = rec.get("last_prehd_weight") or rec.get("weight")
-                if pre and post and wt:
-                    post_wt = wt - uf_L
-                    # Convert urea (mg/dL) → BUN (mg/dL) before Daugirdas formula
-                    ktv = calculate_ktv_daugirdas(
-                        pre  * _UREA_MG_DL_TO_BUN,
-                        post * _UREA_MG_DL_TO_BUN,
-                        session_h, uf_L, post_wt,
-                    )
-                    if ktv is not None and 0.5 <= ktv <= 4.0:
-                        current_ktv = round(ktv, 2)
-                    break
+            current_ktv = _fallback_ktv(records, past_sessions)
         if current_ktv is not None:
             current_ktv = round(float(current_ktv), 2)
 
@@ -365,7 +370,14 @@ async def twin_simulate(
     except Exception:
         raise HTTPException(status_code=422, detail="Request body must be JSON")
 
-    scenario = body.get("scenario", {})
+    raw_scenario = body.get("scenario", {})
+
+    # Validate + clean scenario inputs; 422 on hard-limit violations
+    sim_warnings: list = []
+    try:
+        scenario, sim_warnings = validate_scenario(raw_scenario)
+    except ScenarioValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
     records          = _monthly_records_dicts(db, patient_id)
     past_sessions    = _past_sessions_dicts(db, patient_id)
@@ -392,7 +404,12 @@ async def twin_simulate(
         logger.error(f"Digital Twin simulation failed for patient {patient_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Simulation error: {e}")
 
+    # Sanitize NaN/inf/numpy scalars before persisting and before JSON serialisation
+    result      = sanitize_json_floats(result)
+    plotly_data = sanitize_json_floats(plotly_data)
+
     # Persist simulation run
+    simulation_id = None
     try:
         sim = TwinSimulation(
             patient_id            = patient_id,
@@ -414,10 +431,19 @@ async def twin_simulate(
         )
         db.add(sim)
         db.commit()
+        db.refresh(sim)
+        simulation_id = sim.id
     except Exception as e:
+        db.rollback()
         logger.warning(f"Failed to persist simulation run: {e}")
 
-    return JSONResponse({"plotly": plotly_data, "result": result})
+    return JSONResponse({
+        "plotly":        plotly_data,
+        "result":        result,
+        "simulation_id": simulation_id,
+        "warnings":      sim_warnings,
+        "persisted":     simulation_id is not None,
+    })
 
 
 # ── Simulation history ────────────────────────────────────────────────────────

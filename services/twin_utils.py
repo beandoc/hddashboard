@@ -57,3 +57,35 @@ def _safe_float(v, default: float = float("nan")) -> float:
         return default
 
 
+def sanitize_json_floats(obj):
+    """Recursively replace NaN/±inf with None and numpy scalars with native types.
+
+    Starlette JSONResponse(allow_nan=False) raises on any NaN; PostgreSQL JSONB
+    also rejects NaN.  Call this on the full result dict before persisting or
+    serialising to the client.
+    """
+    import math
+    try:
+        import numpy as _np
+        _numpy_float = _np.floating
+        _numpy_int   = _np.integer
+        _numpy_array = _np.ndarray
+    except ImportError:
+        _numpy_float = type(None)
+        _numpy_int   = type(None)
+        _numpy_array = type(None)
+
+    if isinstance(obj, dict):
+        return {k: sanitize_json_floats(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [sanitize_json_floats(v) for v in obj]
+    if isinstance(obj, _numpy_array):
+        return sanitize_json_floats(obj.tolist())
+    if isinstance(obj, _numpy_float):
+        obj = float(obj)
+    if isinstance(obj, _numpy_int):
+        return int(obj)
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+    return obj
