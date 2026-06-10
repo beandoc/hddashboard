@@ -711,6 +711,31 @@
       </div>
     </div>
 
+    <!-- ── Dialysis Adequacy (Machine Readings) ── -->
+    <div class="card" id="section-adequacy">
+      <div class="card-title"><i class="material-icons" style="color:#0ea5e9;">water_drop</i> Dialysis Adequacy (Machine Readings)</div>
+      <p style="font-size: 0.75rem; color: #0369a1; margin-bottom: 12px; font-style: italic;">
+        Enter values directly from the HD machine to train the Digital Twin on precise session performance.
+      </p>
+      <div class="grid">
+        <div>
+          <label>spKt/V (Single-Pool)</label>
+          <input type="number" name="sp_ktv" step="0.01" inputmode="decimal" placeholder="e.g. 1.17"
+            value="{{ session.sp_ktv if session and session.sp_ktv else '' }}">
+        </div>
+        <div>
+          <label>eKt/V (Equilibrated)</label>
+          <input type="number" name="e_ktv" step="0.01" inputmode="decimal" placeholder="e.g. 1.19"
+            value="{{ session.e_ktv if session and session.e_ktv else '' }}">
+        </div>
+        <div>
+          <label>URR (%)</label>
+          <input type="number" name="urr" step="0.1" inputmode="decimal" placeholder="e.g. 65.0"
+            value="{{ session.urr if session and session.urr else '' }}">
+        </div>
+      </div>
+    </div>
+
     <!-- ── Intradialytic Events & Symptoms ── -->
     <div class="card" id="section-events">
       <div class="card-title">

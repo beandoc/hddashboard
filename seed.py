@@ -38,11 +38,11 @@ def seed():
             hid_no=f'HID{100+i}', 
             name=name, 
             sex=sex, 
+            age=random.randint(35, 75),
             contact_no='998877'+str(i)*4, 
             diagnosis='CKD Stage 5D', 
             access_type=access_options[random.randint(0, 4)], 
-            is_active=True, 
-            created_by='admin'
+            is_active=True
         )
         db.add(p)
         db.commit()

@@ -92,6 +92,11 @@ class SessionRecord(Base):
     access_recirculation_percent = Column(Float)
     access_flow_qa = Column(Float)
 
+    # ── Dialysis Adequacy (Per-Session) ───────────────────────────────────────
+    sp_ktv = Column(Float)
+    e_ktv = Column(Float)
+    urr = Column(Float)
+
     # ── Session Medications ───────────────────────────────────────────────────
     medications_administered = Column(Text)
 

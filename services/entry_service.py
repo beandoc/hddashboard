@@ -215,6 +215,10 @@ def save_monthly_record(
         pre_weight = data.get("last_prehd_weight")
         dry_weight = data.get("target_dry_weight")
 
+        manual_sp_ktv = data.get("single_pool_ktv")
+        manual_e_ktv = data.get("equilibrated_ktv")
+        manual_urr = data.get("urr")
+
         sp_ktv = None
         e_ktv = None
 
@@ -224,7 +228,8 @@ def save_monthly_record(
                 post_u = float(post_urea)
                 if pre_u > 0 and post_u > 0 and pre_u > post_u:
                     R = post_u / pre_u
-                    data["urr"] = round((1 - R) * 100, 1)
+                    if manual_urr is None or str(manual_urr).strip() == "":
+                        data["urr"] = round((1 - R) * 100, 1)
                     if R > 0.03:
                         w = None
                         if dry_weight is not None:
@@ -255,9 +260,24 @@ def save_monthly_record(
             except Exception as ktv_err:
                 logger.error(f"Error calculating Kt/V on backend: {ktv_err}")
 
-        if sp_ktv is not None:
+        # Override with manual inputs if provided
+        if manual_sp_ktv is not None and str(manual_sp_ktv).strip() != "":
+            try:
+                data["single_pool_ktv"] = float(manual_sp_ktv)
+                # Auto eKt/V from manual spKt/V if not provided
+                if (manual_e_ktv is None or str(manual_e_ktv).strip() == "") and data["single_pool_ktv"] > 0:
+                    data["equilibrated_ktv"] = round(0.945 * data["single_pool_ktv"] + 0.04, 2)
+            except ValueError:
+                pass
+        elif sp_ktv is not None:
             data["single_pool_ktv"] = sp_ktv
-        if e_ktv is not None:
+
+        if manual_e_ktv is not None and str(manual_e_ktv).strip() != "":
+            try:
+                data["equilibrated_ktv"] = float(manual_e_ktv)
+            except ValueError:
+                pass
+        elif e_ktv is not None and (manual_sp_ktv is None or str(manual_sp_ktv).strip() == ""):
             data["equilibrated_ktv"] = e_ktv
 
         # 3. Backend Phosphate Binder Daily Dose Calculation (supports multiple binders)

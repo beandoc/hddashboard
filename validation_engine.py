@@ -1,9 +1,10 @@
 
 import statistics
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
 from database import SessionLocal, Patient, MonthlyRecord
-from ml_analytics import predict_hb_trajectory, assess_albumin_decline
+from ml_analytics import predict_hb_trajectory, assess_albumin_decline, predict_mortality_risk
 
 # Disable info logging to keep output clean
 logging.getLogger("ml_analytics").setLevel(logging.ERROR)
@@ -29,7 +30,7 @@ def validate_hb_predictions(db: Session, patient_id: int):
         train_df_newest_first = train_df[::-1]
         
         pred_obj = predict_hb_trajectory(train_df_newest_first)
-        predicted = pred_obj.get("next_predicted")
+        predicted = pred_obj.get("data", {}).get("next_predicted") if pred_obj.get("available") else None
         
         if predicted is not None:
             errors.append(abs(actual - predicted))
@@ -57,7 +58,7 @@ def validate_albumin_predictions(db: Session, patient_id: int):
         train_df_newest_first = train_df[::-1]
         
         pred_obj = assess_albumin_decline(train_df_newest_first)
-        predicted = pred_obj.get("predicted")
+        predicted = pred_obj.get("data", {}).get("predicted") if pred_obj.get("available") else None
         
         if predicted is not None:
             errors.append(abs(actual - predicted))
@@ -97,7 +98,7 @@ def validate_mortality_model(db: Session):
         }
         
         prob_obj = predict_mortality_risk(baseline_df, pt_info)
-        prob = prob_obj.get("risk_probability")
+        prob = prob_obj.get("data", {}).get("prob_1yr") if prob_obj.get("available") else None
         
         # Determine ground truth (1-year mortality)
         died_within_1yr = False

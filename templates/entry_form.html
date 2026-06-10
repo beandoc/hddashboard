@@ -380,19 +380,19 @@
                     </div>
                     <div class="grid">
                         <div class="form-group">
-                            <label>spKt/V (Single-Pool) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto-calculated)</span></label>
-                            <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="Auto from Urea values"
-                                   value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}" readonly>
+                            <label>spKt/V (Single-Pool) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto or Manual Override)</span></label>
+                            <input type="number" step="0.01" name="single_pool_ktv" inputmode="decimal" placeholder="Auto or Manual"
+                                   value="{{ record.single_pool_ktv if record and record.single_pool_ktv else '' }}">
                         </div>
                         <div class="form-group">
-                            <label>eKt/V (Equilibrated) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto-calculated)</span></label>
-                            <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Auto from spKt/V"
-                                   value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}" readonly>
+                            <label>eKt/V (Equilibrated) <span style="font-size:0.75rem;color:#0ea5e9;font-weight:normal;">(Auto or Manual Override)</span></label>
+                            <input type="number" step="0.01" name="equilibrated_ktv" inputmode="decimal" placeholder="Auto or Manual"
+                                   value="{{ record.equilibrated_ktv if record and record.equilibrated_ktv else '' }}">
                         </div>
                         <div class="form-group">
-                            <label>URR — Urea Reduction Ratio (%) <span style="font-size:0.75rem;color:#8b5cf6;margin-left:6px;">(Auto-calculated)</span></label>
-                            <input type="number" step="0.01" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto from Urea values"
-                                   value="{{ record.urr if record and record.urr else '' }}" readonly>
+                            <label>URR — Urea Reduction Ratio (%) <span style="font-size:0.75rem;color:#8b5cf6;margin-left:6px;">(Auto or Manual Override)</span></label>
+                            <input type="number" step="0.01" name="urr" id="calc_urr" inputmode="decimal" placeholder="Auto or Manual"
+                                   value="{{ record.urr if record and record.urr else '' }}">
                         </div>
                     </div>
                 </div>
