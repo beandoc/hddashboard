@@ -21,7 +21,7 @@ import logging
 import math
 from typing import Dict, List, Optional
 
-import numpy as np
+from sqlalchemy.orm import Session
 
 # ── Domain service imports ────────────────────────────────────────────────────
 
@@ -73,7 +73,16 @@ def run_scenario(
         koa_urea         — dialyser KoA (urea)
     """
     from services.nutrition_service import get_7day_rolling_mean_phosphate
-    
+
+    # Normalise the scenario once at the boundary: drop explicit nulls
+    # (null ⇒ "not specified") and coerce values to float so no downstream
+    # module can hit None-arithmetic TypeErrors.  Unparseable values are
+    # dropped rather than crashing — the API layer rejects them with 422.
+    scenario = {
+        k: _safe_float(v) for k, v in (scenario or {}).items() if v is not None
+    }
+    scenario = {k: v for k, v in scenario.items() if not math.isnan(v)}
+
     # Query rolling mean dietary phosphate
     phosphate_data = {"value": 1200.0, "source": "default_1200mg"}
     if db is not None:
@@ -101,7 +110,9 @@ def run_scenario(
     # Convert from total urea (mg/dL) to BUN (mg/dL) — factor cancels in Kt/V ratio
     if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
     if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
-    post_wt  = _safe_float(latest.get("last_prehd_weight") or latest.get("weight"), 70.0)
+    # Pre-HD weight from the latest monthly record; Daugirdas W (post-HD
+    # weight) is derived per-arm inside the adequacy module.
+    pre_wt   = _safe_float(latest.get("last_prehd_weight") or latest.get("weight"), 70.0)
     base_h   = _safe_float(
         baseline_session.get("session_duration_h") or baseline_session.get("session_h"), 4.0
     )
@@ -121,7 +132,7 @@ def run_scenario(
         post_bun           = post_bun if not math.isnan(post_bun) else None,
         baseline_session_h = base_h,
         baseline_uf_L      = base_uf_L,
-        post_weight_kg     = post_wt,
+        pre_weight_kg      = pre_wt,
         scenario_session_h = scenario.get("session_h"),
         scenario_uf_L      = scenario.get("uf_volume_L"),
     )
@@ -130,7 +141,7 @@ def run_scenario(
     # If session_h changes but UF volume is the same, effective UF rate decreases.
     scen_session_h  = scenario.get("session_h", base_h)
     scen_uf_volume  = scenario.get("uf_volume_L", base_uf_L) * 1000  # to mL
-    weight_for_rate = post_wt or 70.0
+    weight_for_rate = pre_wt or 70.0
     # Compute implied UF rate from volume + session duration
     implied_uf_rate = (scen_uf_volume / scen_session_h / weight_for_rate) if scen_session_h > 0 else None
 
@@ -189,7 +200,7 @@ def run_scenario(
         scen_h = scenario.get("session_h", base_h)
         latest_albumin = monthly_data.get("albumin") if monthly_data else None
         fluid_sim = simulate_fluid_volume(
-            weight_kg    = post_wt,
+            weight_kg    = pre_wt,
             session_h    = scen_h,
             uf_volume_ml = scen_uf_vol_ml,
             albumin_g_dl = float(latest_albumin) if latest_albumin else 3.8,

@@ -11,8 +11,6 @@ import logging
 import math
 from typing import Dict, List, Optional
 
-import numpy as np
-
 from services.twin_utils import _safe_float, _UREA_MG_DL_TO_BUN
 
 logger = logging.getLogger(__name__)
@@ -53,16 +51,26 @@ def calculate_ktv_daugirdas(
 
 
 def simulate_ktv(
-    pre_bun:        float,
-    post_bun:       float,
+    pre_bun:        Optional[float],
+    post_bun:       Optional[float],
     baseline_session_h:    float,
     baseline_uf_L:  float,
-    post_weight_kg: float,
+    pre_weight_kg:  float,
     scenario_session_h:    Optional[float] = None,
     scenario_uf_L:  Optional[float] = None,
 ) -> Dict:
     """
     Simulate Kt/V for baseline and a scenario with different session length or UF.
+
+    The baseline spKt/V is the standard Daugirdas value from measured BUN.
+    For the scenario, the diffusive component (-ln(R - 0.008·t)) scales with
+    the treatment-time ratio (Kt/V = K·t/V) and the convective term is
+    recomputed at the scenario UF volume.  Re-evaluating the Daugirdas
+    formula with the *measured* R at a different t would leave the result
+    almost unchanged (only the 0.008·t correction moves) and badly
+    underestimate session-length effects.
+
+    Daugirdas W = post-dialysis weight = pre-HD weight − UF volume.
 
     Returns:
         {
@@ -72,16 +80,28 @@ def simulate_ktv(
             delta_ktv:     float,
         }
     """
-    baseline_ktv = calculate_ktv_daugirdas(
-        pre_bun, post_bun, baseline_session_h, baseline_uf_L, post_weight_kg
-    )
-
     sc_session_h = scenario_session_h if scenario_session_h is not None else baseline_session_h
     sc_uf_L      = scenario_uf_L if scenario_uf_L is not None else baseline_uf_L
 
-    scenario_ktv = calculate_ktv_daugirdas(
-        pre_bun, post_bun, sc_session_h, sc_uf_L, post_weight_kg
+    base_post_wt = (
+        pre_weight_kg - baseline_uf_L
+        if pre_weight_kg is not None and baseline_uf_L is not None
+        else None
     )
+    baseline_ktv = calculate_ktv_daugirdas(
+        pre_bun, post_bun, baseline_session_h, baseline_uf_L, base_post_wt
+    )
+
+    scenario_ktv = None
+    if baseline_ktv is not None and baseline_session_h and baseline_session_h > 0:
+        R            = post_bun / pre_bun
+        diffusive    = -math.log(R - 0.008 * baseline_session_h)
+        scen_post_wt = max(pre_weight_kg - sc_uf_L, 1.0)
+        scenario_ktv = round(
+            diffusive * (sc_session_h / baseline_session_h)
+            + (4 - 3.5 * R) * (sc_uf_L / scen_post_wt),
+            3,
+        )
 
     return {
         "available":     baseline_ktv is not None,
@@ -146,6 +166,18 @@ def simulate_urea_kinetics(
     Computes dialyzer clearance (Kd), eKt/V, and standardised Kt/V for
     both the baseline prescription and the proposed scenario.
 
+    The measured spKt/V anchor (Daugirdas, from the last recorded pre/post
+    urea) is evaluated once at *baseline* conditions — the lab R = post/pre
+    was measured under the baseline prescription.  Each arm then scales the
+    anchor by its effective clearance × time product:
+
+        spKt/V(arm) = spKt/V_measured × (Kd_eff(arm) × t(arm))
+                                      ÷ (Kd_eff(base) × t(base))
+
+    so session-duration and blood-flow changes both move the result in
+    physical proportion (Kt/V = K·t/V).  Without measured BUN the
+    mechanistic estimate Kd_eff·t/V is used directly.
+
     Parameters drawn from baseline dict:
         qb_ml_min        — blood flow rate (default 300)
         qd_ml_min        — dialysate flow rate (default 500)
@@ -155,7 +187,8 @@ def simulate_urea_kinetics(
         koa_urea         — dialyser KoA (default 700)
         idwg_kg          — interdialytic weight gain kg
 
-    Scenario may override any of these.
+    Scenario may override any of these.  Daugirdas W = pre-HD weight − UF
+    (post-dialysis weight).
     """
     from urea_model import calculate_dialyzer_clearance, calculate_std_ktv
 
@@ -167,7 +200,7 @@ def simulate_urea_kinetics(
     sex    = str(patient_info.get("sex") or "m")
     age    = _safe_float(patient_info.get("age"), 50.0)
     height = _safe_float(patient_info.get("height") or patient_info.get("height_cm"), 170.0)
-    
+
     # Use measured BIA volume if available, else Watson
     bia_data = patient_info.get("bia")
     if bia_data and bia_data.get("tbw_l") is not None:
@@ -179,80 +212,92 @@ def simulate_urea_kinetics(
     doppler = patient_info.get("doppler")
     qa = doppler.get("qa") if doppler else None
 
-    def _run(p: dict) -> dict:
-        qb          = _safe_float(p.get("qb_ml_min"), 300.0)
-        qd          = _safe_float(p.get("qd_ml_min"), 500.0)
-        session_h   = _safe_float(p.get("session_h") or p.get("session_duration_h"), 4.0)
-        session_min = session_h * 60.0
-        uf_L        = _safe_float(p.get("uf_volume_L") or p.get("uf_volume", 2500) / 1000, 2.5)
-        koa         = _safe_float(p.get("koa_urea"), 700.0)
-        idwg        = _safe_float(p.get("idwg_kg"), uf_L)
-        spw         = int(p.get("sessions_per_week") or 3)
+    def _uf_litres(p: dict) -> float:
+        """UF in litres: explicit uf_volume_L → uf_volume (mL) → 2.5 default.
+        Each step None-guarded — sessions without a recorded UF volume carry
+        uf_volume=None and must not crash (None/1000)."""
+        uf_l = _safe_float(p.get("uf_volume_L"))
+        if math.isnan(uf_l):
+            uf_ml = _safe_float(p.get("uf_volume"))
+            uf_l = uf_ml / 1000.0 if not math.isnan(uf_ml) else float("nan")
+        return uf_l if not math.isnan(uf_l) and uf_l >= 0 else 2.5
 
+    def _params(p: dict) -> dict:
+        uf_L = _uf_litres(p)
+        return {
+            "qb":        _safe_float(p.get("qb_ml_min"), 300.0),
+            "qd":        _safe_float(p.get("qd_ml_min"), 500.0),
+            "session_h": _safe_float(p.get("session_h") or p.get("session_duration_h"), 4.0),
+            "uf_L":      uf_L,
+            "koa":       _safe_float(p.get("koa_urea"), 700.0),
+            "idwg":      _safe_float(p.get("idwg_kg"), uf_L),
+            "spw":       int(p.get("sessions_per_week") or 3),
+        }
+
+    def _kd(prm: dict) -> Optional[float]:
         try:
-            kd_result = calculate_dialyzer_clearance(
-                koa_invitro  = koa,
-                qb           = qb,
-                qd           = qd,
-                td           = session_min,
-                weight_loss_kg = uf_L,
-            )
-            kd = kd_result["kd"]
-        except Exception:
-            kd = None
+            return calculate_dialyzer_clearance(
+                koa_invitro    = prm["koa"],
+                qb             = prm["qb"],
+                qd             = prm["qd"],
+                td             = prm["session_h"] * 60.0,
+                weight_loss_kg = prm["uf_L"],
+            )["kd"]
+        except Exception as exc:
+            logger.warning("Dialyzer clearance calculation failed: %s", exc)
+            return None
 
-        # Calculate Access Recirculation
-        ar_fraction = 0.0
+    def _ar(qb: float) -> float:
+        """Access recirculation fraction when prescribed Qb exceeds access flow Qa."""
         if qa is not None and qb > qa:
-            ar_fraction = (qb - qa) / qb
-            
+            return (qb - qa) / qb
+        return 0.0
+
+    # ── Baseline reference (computed once, with baseline UF/time) ────────────
+    base_prm    = _params(baseline)
+    kd_base     = _kd(base_prm)
+    ar_base     = _ar(base_prm["qb"])
+    kd_base_eff = kd_base * (1.0 - ar_base) if kd_base else None
+    t_base      = base_prm["session_h"]
+
+    # Measured spKt/V anchor — Daugirdas evaluated at baseline conditions.
+    # Stored values are total urea (mg/dL); convert to BUN.
+    pre_bun  = _safe_float(latest.get("pre_dialysis_urea"))
+    post_bun = _safe_float(latest.get("post_dialysis_urea"))
+    if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
+    if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
+
+    sp_ktv_measured = calculate_ktv_daugirdas(
+        pre_bun if not math.isnan(pre_bun) else None,
+        post_bun if not math.isnan(post_bun) else None,
+        t_base,
+        base_prm["uf_L"],
+        weight - base_prm["uf_L"],
+    )
+
+    def _run(prm: dict) -> dict:
+        kd           = _kd(prm)
+        ar_fraction  = _ar(prm["qb"])
         kd_effective = kd * (1.0 - ar_fraction) if kd else None
+        session_min  = prm["session_h"] * 60.0
 
-        # spKt/V from Daugirdas — stored values are total urea (mg/dL); convert to BUN
-        pre_bun  = _safe_float(latest.get("pre_dialysis_urea"))
-        post_bun = _safe_float(latest.get("post_dialysis_urea"))
-        if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
-        if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
-
-        sp_ktv_daugirdas = calculate_ktv_daugirdas(
-            pre_bun if not math.isnan(pre_bun) else None,
-            post_bun if not math.isnan(post_bun) else None,
-            session_h, uf_L,
-            weight - uf_L,
-        )
-        
-        # Scale spKt/V by effective clearance changes if Qb changes
-        if sp_ktv_daugirdas is not None:
-            baseline_qb = _safe_float(baseline.get("qb_ml_min"), 300.0)
-            baseline_qd = _safe_float(baseline.get("qd_ml_min"), 500.0)
-            baseline_koa = _safe_float(baseline.get("koa_urea"), 700.0)
-            baseline_session_h = _safe_float(baseline.get("session_h") or baseline.get("session_duration_h"), 4.0)
-            try:
-                kd_base_res = calculate_dialyzer_clearance(
-                    koa_invitro  = baseline_koa,
-                    qb           = baseline_qb,
-                    qd           = baseline_qd,
-                    td           = baseline_session_h * 60.0,
-                    weight_loss_kg = uf_L,
+        if sp_ktv_measured is not None:
+            if (kd_effective is not None and kd_base_eff
+                    and kd_base_eff > 0 and t_base > 0):
+                # Kt/V = K·t/V — scale the measured anchor by both the
+                # effective-clearance ratio and the treatment-time ratio.
+                sp_ktv = round(
+                    sp_ktv_measured
+                    * (kd_effective * prm["session_h"])
+                    / (kd_base_eff * t_base),
+                    3,
                 )
-                kd_base = kd_base_res["kd"]
-            except Exception:
-                kd_base = 300.0
-                
-            ar_base = 0.0
-            if qa is not None and baseline_qb > qa:
-                ar_base = (baseline_qb - qa) / baseline_qb
-            kd_base_effective = kd_base * (1.0 - ar_base)
-            
-            if kd_base_effective > 0 and kd_effective is not None:
-                sp_ktv = round(sp_ktv_daugirdas * (kd_effective / kd_base_effective), 3)
             else:
-                sp_ktv = sp_ktv_daugirdas
+                sp_ktv = sp_ktv_measured  # cannot scale — report the anchor
+        elif kd_effective and v_distribution > 0:
+            sp_ktv = round(kd_effective * session_min / (v_distribution * 1000), 3)
         else:
-            if kd_effective and v_distribution > 0:
-                sp_ktv = round(kd_effective * session_min / (v_distribution * 1000), 3)
-            else:
-                sp_ktv = None
+            sp_ktv = None
 
         std_result = None
         if sp_ktv:
@@ -260,12 +305,12 @@ def simulate_urea_kinetics(
                 std_result = calculate_std_ktv(
                     sp_ktv             = sp_ktv,
                     td                 = session_min,
-                    sessions_per_week  = spw,
-                    weight_gain_weekly_l = idwg * spw,
+                    sessions_per_week  = prm["spw"],
+                    weight_gain_weekly_l = prm["idwg"] * prm["spw"],
                     v_watson           = v_distribution,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("stdKt/V calculation failed: %s", exc)
 
         return {
             "kd":           round(kd, 1) if kd else None,
@@ -275,23 +320,20 @@ def simulate_urea_kinetics(
             "e_ktv":        std_result["ektv"] if std_result else None,
             "std_ktv":      std_result["std_ktv_fixed"] if std_result else None,
             "std_ktv_adj":  std_result["std_ktv_adjusted"] if std_result else None,
-            "session_h":    session_h,
-            "qb":           qb,
-            "qd":           qd,
+            "session_h":    prm["session_h"],
+            "qb":           prm["qb"],
+            "qd":           prm["qd"],
         }
 
     # Merge baseline with scenario overrides for simulation
     scenario_params = {**baseline, **{
         k: scenario[k] for k in (
             "session_h", "qb_ml_min", "qd_ml_min", "uf_volume_L", "koa_urea"
-        ) if k in scenario
+        ) if k in scenario and scenario[k] is not None
     }}
-    # Also handle session_h from the generic "session_h" scenario key
-    if "session_h" in scenario:
-        scenario_params["session_h"] = scenario["session_h"]
 
-    base_result = _run(baseline)
-    scen_result = _run(scenario_params)
+    base_result = _run(base_prm)
+    scen_result = _run(_params(scenario_params))
 
     return {
         "available":    True,
