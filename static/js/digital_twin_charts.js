@@ -100,8 +100,9 @@ function renderPhosChart(pd) {
 }
 
 function renderUfCurve(traces, selectedRate, thresholdRate) {
-  window.currentUfTraces = traces;
-  window.currentMortalityThresh = thresholdRate || 4.0;
+  window.TwinState = window.TwinState || {};
+  window.TwinState.ufTraces       = traces;
+  window.TwinState.mortalityThresh = thresholdRate || 4.0;
   const thresh = thresholdRate || 4.0;
   const shapes = [
     {

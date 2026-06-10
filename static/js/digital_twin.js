@@ -267,6 +267,41 @@ function renderDefault() {
 
 // ── Run simulation ──────────────────────────────────────────────────────────
 
+// ── Error/warning banner ─────────────────────────────────────────────────────
+
+function _showBanner(msg, type) {
+  const el = document.getElementById('twin-error-banner');
+  if (!el) return;
+  el.style.display = 'block';
+  if (type === 'error') {
+    el.style.background = '#fee2e2'; el.style.color = '#991b1b';
+    el.style.border = '1px solid #fca5a5';
+  } else {
+    el.style.background = '#fefce8'; el.style.color = '#854d0e';
+    el.style.border = '1px solid #fde68a';
+  }
+  el.textContent = msg;
+}
+
+function _hideBanner() {
+  const el = document.getElementById('twin-error-banner');
+  if (el) el.style.display = 'none';
+}
+
+async function _extractErrorDetail(resp) {
+  try {
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const j = await resp.json();
+      return j.detail || j.message || `HTTP ${resp.status}`;
+    }
+  } catch (_) {}
+  return `HTTP ${resp.status} ${resp.statusText}`;
+}
+
+// ── In-flight request cancellation ───────────────────────────────────────────
+let _activeController = null;
+
 // Baseline slider values snapshotted at page load (after DOM is ready).
 // runSimulation() sends only keys that differ from this snapshot so the
 // server receives a pure empty dict on page-load auto-run (→ baseline).
@@ -288,9 +323,15 @@ function _snapshotSliders() {
 }
 
 async function runSimulation() {
+  // Abort any in-flight request before starting a new one
+  if (_activeController) { _activeController.abort(); }
+  _activeController = new AbortController();
+  const signal = _activeController.signal;
+
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Simulating all 5 domains…';
+  _hideBanner();
 
   const current = {
     esa_weekly_iu:    parseFloat(document.getElementById('esa-slider').value),
@@ -320,9 +361,19 @@ async function runSimulation() {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({scenario}),
+      signal,
     });
-    if (!resp.ok) { alert('Error: ' + (await resp.json()).detail); return; }
+    if (!resp.ok) {
+      const detail = await _extractErrorDetail(resp);
+      _showBanner('Simulation error: ' + detail, 'error');
+      return;
+    }
     const data   = await resp.json();
+
+    // Surface server-side warnings (soft-range violations etc.) as amber banner
+    if (data.warnings && data.warnings.length) {
+      _showBanner('Warnings: ' + data.warnings.join(' · '), 'warn');
+    }
     const plotly = data.plotly || {};
     const result = data.result || {};
 
@@ -376,7 +427,9 @@ async function runSimulation() {
     }
 
   } catch(e) {
-    alert('Network error: ' + e.message);
+    if (e.name !== 'AbortError') {
+      _showBanner('Network error: ' + e.message, 'error');
+    }
   } finally {
     hideLoad(['hb-load','ktv-load','kd-load','idh-load','phos-load','uf-load','shap-load', 'rbv-load']);
     btn.disabled = false;
@@ -539,8 +592,9 @@ function updateUfWarning(val) {
 }
 
 function updateUfChartProposedLine(val) {
-  if (window.currentUfTraces && window.currentUfTraces.length) {
-    renderUfCurve(window.currentUfTraces, val, window.currentMortalityThresh);
+  const ts = window.TwinState || {};
+  if (ts.ufTraces && ts.ufTraces.length) {
+    renderUfCurve(ts.ufTraces, val, ts.mortalityThresh);
   }
 }
 
