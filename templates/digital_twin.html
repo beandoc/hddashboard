@@ -110,15 +110,16 @@
         <div class="baseline-marker">Current: {{ baseline_qb }} mL/min</div>
       </div>
       <div class="param-group">
-        {% set baseline_qd = 500 %}
+        {% set baseline_qd = (baseline_session.qd_ml_min or 500) | int %}
         <div class="param-label">Dialysate flow Qd <span class="val" id="qd-val">{{ baseline_qd }}</span> mL/min</div>
         <input type="range" id="qd-slider" min="300" max="800" step="50" value="{{ baseline_qd }}"
                oninput="document.getElementById('qd-val').textContent=this.value"/>
         <div class="range-bounds"><span>300</span><span>800 mL/min</span></div>
+        <div class="baseline-marker">Current: {{ baseline_qd }} mL/min</div>
       </div>
       <div class="param-group">
-        {% set uf_default = 10.0 %}
-        <div class="param-label">UF rate <span class="val" id="uf-val">{{ uf_default }}</span> mL/kg/h
+        {% set uf_default = (baseline_session.uf_rate_ml_kg_h or 10.0) | float %}
+        <div class="param-label">UF rate <span class="val" id="uf-val">{{ "%.1f"|format(uf_default) }}</span> mL/kg/h
           <span style="font-size:0.65rem;color:#dc2626;font-weight:700;" id="uf-warning-inline"></span>
         </div>
         <input type="range" id="uf-slider" min="3.5" max="16.0" step="0.5" value="{{ uf_default }}"
@@ -541,6 +542,8 @@ const baselineSession = {
   dialysate_temp:     {{ (baseline_session.dialysate_temp or 36.5) | float }},
   dialysate_sodium:   {{ (baseline_session.dialysate_sodium or 138) | int }},
   qb_ml_min:          {{ (baseline_session.qb_ml_min or 300) | int }},
+  qd_ml_min:          {{ (baseline_session.qd_ml_min or 500) | int }},
+  uf_rate_ml_kg_h:    {{ (baseline_session.uf_rate_ml_kg_h or 10.0) | float }},
 };
 const baselinePIntake = defaultResult?.phosphate?.baseline_p_intake || 1200;
 const baselinePbe     = {{ current_pbe }};

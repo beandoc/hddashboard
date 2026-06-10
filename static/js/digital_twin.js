@@ -267,12 +267,13 @@ function renderDefault() {
 
 // ── Run simulation ──────────────────────────────────────────────────────────
 
-async function runSimulation() {
-  const btn = document.getElementById('run-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Simulating all 5 domains…';
+// Baseline slider values snapshotted at page load (after DOM is ready).
+// runSimulation() sends only keys that differ from this snapshot so the
+// server receives a pure empty dict on page-load auto-run (→ baseline).
+let SLIDER_BASELINES = null;
 
-  const scenario = {
+function _snapshotSliders() {
+  SLIDER_BASELINES = {
     esa_weekly_iu:    parseFloat(document.getElementById('esa-slider').value),
     iron_tsat_target: parseFloat(document.getElementById('tsat-slider').value),
     session_h:        parseFloat(document.getElementById('session-slider').value),
@@ -284,6 +285,33 @@ async function runSimulation() {
     p_binder_pbe:     parseFloat(document.getElementById('pbe-slider').value),
     p_intake_mg_day:  parseInt(document.getElementById('pintake-slider').value),
   };
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Simulating all 5 domains…';
+
+  const current = {
+    esa_weekly_iu:    parseFloat(document.getElementById('esa-slider').value),
+    iron_tsat_target: parseFloat(document.getElementById('tsat-slider').value),
+    session_h:        parseFloat(document.getElementById('session-slider').value),
+    qb_ml_min:        parseFloat(document.getElementById('qb-slider').value),
+    qd_ml_min:        parseFloat(document.getElementById('qd-slider').value),
+    uf_rate_ml_kg_h:  parseFloat(document.getElementById('uf-slider').value),
+    dialysate_temp:   parseFloat(document.getElementById('temp-slider').value),
+    dialysate_sodium: parseInt(document.getElementById('na-slider').value),
+    p_binder_pbe:     parseFloat(document.getElementById('pbe-slider').value),
+    p_intake_mg_day:  parseInt(document.getElementById('pintake-slider').value),
+  };
+
+  // Send only keys that differ from the page-load baseline so the server
+  // sees {} on auto-run (pure baseline, no phantom deltas).
+  const base = SLIDER_BASELINES || current;
+  const scenario = {};
+  for (const [k, v] of Object.entries(current)) {
+    if (base[k] === undefined || Math.abs(v - base[k]) > 1e-9) scenario[k] = v;
+  }
 
   showLoad(['hb-load','ktv-load','kd-load','idh-load','phos-load','uf-load','shap-load', 'rbv-load']);
 
@@ -367,11 +395,13 @@ function resetAll() {
   document.getElementById('session-val').textContent = baselineSession.session_duration_h.toFixed(2);
   document.getElementById('qb-slider').value = baselineSession.qb_ml_min;
   document.getElementById('qb-val').textContent = baselineSession.qb_ml_min;
-  document.getElementById('qd-slider').value = 500;
-  document.getElementById('qd-val').textContent = '500';
-  document.getElementById('uf-slider').value = 10.0;
-  document.getElementById('uf-val').textContent = '10.0';
-  updateUfWarning(10.0);
+  const baseQd  = SLIDER_BASELINES ? SLIDER_BASELINES.qd_ml_min : baselineSession.qd_ml_min;
+  const baseUfr = SLIDER_BASELINES ? SLIDER_BASELINES.uf_rate_ml_kg_h : baselineSession.uf_rate_ml_kg_h;
+  document.getElementById('qd-slider').value = baseQd;
+  document.getElementById('qd-val').textContent = baseQd;
+  document.getElementById('uf-slider').value = baseUfr;
+  document.getElementById('uf-val').textContent = baseUfr.toFixed(1);
+  updateUfWarning(baseUfr);
   document.getElementById('temp-slider').value = baselineSession.dialysate_temp;
   document.getElementById('temp-val').textContent = baselineSession.dialysate_temp;
   document.getElementById('na-slider').value = baselineSession.dialysate_sodium;
@@ -555,7 +585,8 @@ function updateKpiAccents(result) {
   }
 }
 
-updateUfWarning(10.0);
+updateUfWarning(baselineSession.uf_rate_ml_kg_h || 10.0);
+_snapshotSliders();   // must happen before first runSimulation() call
 runSimulation();
 
 function switchTwinTab(tabName) {

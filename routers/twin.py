@@ -101,6 +101,7 @@ def _past_sessions_dicts(db: Session, patient_id: int, limit: int = 10) -> list:
             "antihypertensive_prehd": getattr(s, "antihypertensive_prehd", None),
             "intradialytic_meals":  getattr(s, "intradialytic_meals", None),
             "blood_flow_rate":      getattr(s, "blood_flow_rate", None),
+            "dialysate_flow":        getattr(s, "dialysate_flow", None),
             "arterial_line_pressure": getattr(s, "arterial_line_pressure", None),
             "venous_line_pressure":   getattr(s, "venous_line_pressure", None),
         })
@@ -261,20 +262,56 @@ def _fallback_ktv(records: list, past_sessions: list):
 
 
 def _build_baseline_session(past_sessions: list) -> dict:
-    """Use the most recent session as the baseline session plan."""
+    """Use the most recent session as the baseline session plan.
+
+    Real patient values are derived here so the twin starts from actual
+    prescription, not hardcoded defaults.  Qd and UF rate use the median
+    of up to the last 10 sessions so a single anomalous session doesn't
+    skew the baseline.
+    """
     if not past_sessions:
         return {}
     s = past_sessions[0]
+    session_duration_h = (s.get("actual_session_time") or 240) / 60
+
+    # Median Qd over up to last 10 sessions (fall back to 500 if unavailable)
+    qd_values = [
+        float(x["dialysate_flow"]) for x in past_sessions
+        if x.get("dialysate_flow") is not None
+    ]
+    qd_ml_min = round(sorted(qd_values)[len(qd_values) // 2]) if qd_values else 500.0
+
+    # Median UF rate (mL/kg/h) over last 10 sessions
+    uf_rate_values = []
+    for x in past_sessions:
+        uf_vol = x.get("uf_volume")
+        wt     = x.get("weight_pre")
+        dur_h  = (x.get("actual_session_time") or 240) / 60
+        if uf_vol and wt and dur_h > 0:
+            rate = float(uf_vol) / float(wt) / dur_h
+            if 3.5 <= rate <= 16.0:
+                uf_rate_values.append(rate)
+    if uf_rate_values:
+        uf_rate_ml_kg_h = round(sorted(uf_rate_values)[len(uf_rate_values) // 2], 1)
+    else:
+        uf_vol = s.get("uf_volume") or 2000
+        wt     = s.get("weight_pre") or 70
+        uf_rate_ml_kg_h = round(max(3.5, min(16.0, uf_vol / wt / session_duration_h)), 1)
+
     return {
         "pre_hd_sbp":             s.get("pre_hd_sbp"),
         "uf_volume":              s.get("uf_volume"),
-        "dialysate_temp":         s.get("dialysate_temp", 36.5),
-        "dialysate_sodium":       s.get("dialysate_sodium", 138),
+        "dialysate_temp":         s.get("dialysate_temp") or 36.5,
+        "dialysate_sodium":       s.get("dialysate_sodium") or 138,
         "idwg_kg":                s.get("idwg_kg"),
-        "session_duration_h":     (s.get("actual_session_time") or 240) / 60,
+        "session_duration_h":     session_duration_h,
+        "duration_hours":         session_duration_h,
+        "weight_pre":             s.get("weight_pre"),
         "antihypertensive_prehd": s.get("antihypertensive_prehd", False),
         "intradialytic_meals":    s.get("intradialytic_meals", False),
-        "qb_ml_min":              s.get("blood_flow_rate", 300.0),
+        "qb_ml_min":              s.get("blood_flow_rate") or 300.0,
+        "qd_ml_min":              qd_ml_min,
+        "uf_rate_ml_kg_h":        uf_rate_ml_kg_h,
         "arterial_line_pressure": s.get("arterial_line_pressure"),
         "venous_line_pressure":   s.get("venous_line_pressure"),
     }
