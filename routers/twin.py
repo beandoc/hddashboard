@@ -20,6 +20,7 @@ from database import (
     Patient,
     SessionRecord,
     TwinSimulation,
+    InterimLabRecord,
     get_db,
 )
 from dependencies import get_user, _require_staff_role
@@ -104,6 +105,7 @@ def _past_sessions_dicts(db: Session, patient_id: int, limit: int = 10) -> list:
             "dialysate_flow":        getattr(s, "dialysate_flow", None),
             "arterial_line_pressure": getattr(s, "arterial_line_pressure", None),
             "venous_line_pressure":   getattr(s, "venous_line_pressure", None),
+            "sp_ktv":                 getattr(s, "sp_ktv", None),
         })
     return result
 
@@ -359,16 +361,52 @@ async def twin_sandbox(
         if current_pbe <= 0.0:
             current_pbe = 3.0
 
-    # spKt/V: prefer recorded monthly value → compute from most recent record with pre/post urea
+    # spKt/V: prefer machine-derived recorded value (Interim, Session, Monthly) over calculated fallback
     current_ktv = None
-    if records:
-        current_ktv = records[0].get("single_pool_ktv")
-        if current_ktv is None:
-            current_ktv = _fallback_ktv(records, past_sessions)
-        if current_ktv is not None:
-            current_ktv = round(float(current_ktv), 2)
+    ktv_is_recorded = False
 
-    ktv_is_recorded = bool(records and records[0].get("single_pool_ktv"))
+    latest_interim = (
+        db.query(InterimLabRecord)
+        .filter(
+            InterimLabRecord.patient_id == patient_id,
+            InterimLabRecord.parameter == "sp_ktv",
+            InterimLabRecord.value != None
+        )
+        .order_by(InterimLabRecord.lab_date.desc())
+        .first()
+    )
+
+    candidates = []
+    if latest_interim:
+        candidates.append((latest_interim.lab_date, latest_interim.value))
+    
+    for s in past_sessions:
+        if s.get("sp_ktv") and s.get("session_date"):
+            from datetime import datetime
+            try:
+                s_date = datetime.strptime(s["session_date"], "%Y-%m-%d").date()
+                candidates.append((s_date, s["sp_ktv"]))
+            except Exception:
+                pass
+
+    if records and records[0].get("single_pool_ktv") and records[0].get("record_month"):
+        from datetime import datetime
+        try:
+            m_date = datetime.strptime(records[0]["record_month"], "%Y-%m").date()
+            candidates.append((m_date, records[0]["single_pool_ktv"]))
+        except Exception:
+            pass
+
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        current_ktv = candidates[0][1]
+        ktv_is_recorded = True
+
+    if current_ktv is None:
+        current_ktv = _fallback_ktv(records, past_sessions)
+        
+    if current_ktv is not None:
+        current_ktv = round(float(current_ktv), 2)
 
     return templates.TemplateResponse("digital_twin.html", {
         "request":          request,
