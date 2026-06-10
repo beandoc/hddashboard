@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, Text,
+    Column, Index, Integer, String, Float, Boolean, DateTime, Text,
     ForeignKey, UniqueConstraint, LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -216,6 +216,8 @@ class TwinSimulation(Base):
 
     # Clinician notes / decision to adopt scenario
     adopted             = Column(Boolean, nullable=True, default=False)
+    adopted_at          = Column(DateTime, nullable=True)
+    adopted_by          = Column(String(100), nullable=True)
     clinician_notes     = Column(Text, nullable=True)
 
     # Outcome tracking (back-filled)
@@ -223,6 +225,11 @@ class TwinSimulation(Base):
     fluid_volume_params = Column(JSONB, nullable=True)
 
     patient = relationship("Patient", foreign_keys=[patient_id])
+
+    __table_args__ = (
+        Index("ix_twin_patient_created", "patient_id", "created_at"),
+        Index("ix_twin_created_by", "created_by"),
+    )
 
 
 class PatientFeatureSnapshot(Base):

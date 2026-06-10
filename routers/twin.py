@@ -483,6 +483,71 @@ async def twin_simulate(
     })
 
 
+# ── Adopt a simulation scenario ──────────────────────────────────────────────
+
+
+@router.post("/{patient_id}/simulations/{sim_id}/adopt")
+async def twin_adopt(
+    patient_id: int,
+    sim_id:     int,
+    request:    Request,
+    db:         Session = Depends(get_db),
+):
+    """Mark a simulation as adopted (clinician decided to implement the scenario).
+
+    Request body (all optional):
+        adopted:          bool   — True to adopt, False to un-adopt
+        clinician_notes:  str    — free-text rationale (max 2000 chars)
+    """
+    from datetime import datetime as _dt
+
+    _require_staff_role(request)
+    user = get_user(request)
+    _get_patient_or_404(db, patient_id)
+
+    sim = (
+        db.query(TwinSimulation)
+        .filter(
+            TwinSimulation.id == sim_id,
+            TwinSimulation.patient_id == patient_id,
+        )
+        .first()
+    )
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    adopted = bool(body.get("adopted", True))
+    notes   = body.get("clinician_notes", "")
+    if notes and len(notes) > 2000:
+        raise HTTPException(status_code=422, detail="clinician_notes exceeds 2000 characters")
+
+    try:
+        sim.adopted          = adopted
+        sim.adopted_at       = _dt.utcnow() if adopted else None
+        sim.adopted_by       = (getattr(user, "username", str(user)) if user else "unknown") if adopted else None
+        sim.clinician_notes  = notes or sim.clinician_notes
+        db.add(sim)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to record adoption for sim %s: %s", sim_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to record adoption")
+
+    # Best-effort: backfill outcomes if actual data is already available
+    try:
+        from services.twin_feedback import backfill_twin_outcomes
+        backfill_twin_outcomes(db, patient_id=patient_id)
+    except Exception as exc:
+        logger.debug("Outcome backfill skipped: %s", exc)
+
+    return JSONResponse({"adopted": adopted, "sim_id": sim_id})
+
+
 # ── Simulation history ────────────────────────────────────────────────────────
 
 
