@@ -98,14 +98,18 @@ def simulate_ktv(
 
     scenario_ktv = None
     if baseline_ktv is not None and baseline_session_h and baseline_session_h > 0:
-        R            = post_bun / pre_bun
-        diffusive    = -math.log(R - 0.008 * baseline_session_h)
-        scen_post_wt = max(pre_weight_kg - sc_uf_L, 1.0)
-        scenario_ktv = round(
-            diffusive * (sc_session_h / baseline_session_h)
-            + (4 - 3.5 * R) * (sc_uf_L / scen_post_wt),
-            3,
-        )
+        if pre_bun is not None and post_bun is not None and pre_bun > 0:
+            R            = post_bun / pre_bun
+            diffusive    = -math.log(max(R - 0.008 * baseline_session_h, 0.001))
+            scen_post_wt = max(pre_weight_kg - sc_uf_L, 1.0)
+            scenario_ktv = round(
+                diffusive * (sc_session_h / baseline_session_h)
+                + (4 - 3.5 * R) * (sc_uf_L / scen_post_wt),
+                3,
+            )
+        else:
+            # Fallback scaling if BUN is missing but machine spKt/V anchor exists
+            scenario_ktv = round(baseline_ktv * (sc_session_h / baseline_session_h), 3)
 
     return {
         "available":     baseline_ktv is not None,
