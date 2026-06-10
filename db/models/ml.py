@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Index, Integer, String, Float, Boolean, DateTime, Text,
+    Column, Index, Integer, String, Float, Boolean, Date, DateTime, Text,
     ForeignKey, UniqueConstraint, LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -260,3 +260,87 @@ class PatientFeatureSnapshot(Base):
     )
 
     patient = relationship("Patient", foreign_keys=[patient_id])
+
+
+class DiaSenseCalibration(Base):
+    """Per-session DiaSense optical-sensor calibration record.
+
+    One row per HD session where DiaSense optical data was captured.
+    Stores the measured plasma-refill coefficient (diasense_k_r), RBV nadir,
+    UF target vs actual, intradialytic BP trend, post-HD symptoms, and
+    post-HD BCM readings so the Digital Twin can use patient-specific
+    physiology instead of the generic weight-scaled k_r estimate.
+
+    The most recent row per patient is used by run_scenario() as k_r_override
+    in simulate_fluid_volume(), replacing the default 0.006 mL/min/mmHg/kg
+    population estimate with a measured, session-derived value.
+    """
+    __tablename__ = "diasense_calibrations"
+
+    id                      = Column(Integer, primary_key=True, index=True)
+    patient_id              = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    session_date            = Column(Date, nullable=False)
+    diasense_session_id     = Column(String(64), nullable=True)   # e.g. "AGD09_HA1_213320"
+
+    # ── k_r calibration ──────────────────────────────────────────────────────
+    diasense_k_r            = Column(Float, nullable=True)        # mL/min/mmHg measured from RBV curve
+    k_r_estimated           = Column(Float, nullable=True)        # weight × 0.006 at time of session
+
+    # ── RBV nadir from optical sensor ────────────────────────────────────────
+    rbv_nadir_pct           = Column(Float, nullable=True)        # max RBV drop %
+    rbv_nadir_time_min      = Column(Float, nullable=True)        # session minute when nadir occurred
+    rbv_breach              = Column(Boolean, default=False)      # True if nadir > 8% (Abohtyra threshold)
+    plasma_refill_rate_ml_min = Column(Float, nullable=True)      # mean J_refill mL/min
+
+    # ── UF target vs actual ──────────────────────────────────────────────────
+    uf_target_ml            = Column(Float, nullable=True)        # prescribed UF volume (mL)
+    uf_actual_ml            = Column(Float, nullable=True)        # weight-derived actual removal mL
+    uf_rate_ml_kg_h         = Column(Float, nullable=True)        # actual UF rate mL/kg/h
+    uf_achievement_pct      = Column(Float, nullable=True)        # uf_actual / uf_target × 100
+
+    # ── Session parameters ───────────────────────────────────────────────────
+    session_duration_min    = Column(Float, nullable=True)
+    weight_pre_kg           = Column(Float, nullable=True)
+    dry_weight_kg           = Column(Float, nullable=True)
+    albumin_g_dl            = Column(Float, nullable=True)
+
+    # ── Intradialytic BP trend ────────────────────────────────────────────────
+    # JSON array: [{time_min, sbp, dbp, map, pulse}, …]
+    bp_trend_json           = Column(Text, nullable=True)
+    bp_nadir_sys            = Column(Float, nullable=True)
+    bp_nadir_map            = Column(Float, nullable=True)
+    bp_nadir_time_min       = Column(Float, nullable=True)
+    idh_observed            = Column(Boolean, default=False)
+
+    # ── Post-HD symptoms ─────────────────────────────────────────────────────
+    post_hd_dyspnea_likert  = Column(Integer, nullable=True)
+    post_hd_fatigue_likert  = Column(Integer, nullable=True)
+    post_hd_cramps          = Column(Boolean, nullable=True)
+    post_hd_nausea          = Column(Boolean, nullable=True)
+    post_hd_headache        = Column(Boolean, nullable=True)
+
+    # ── Post-HD BCM (ResearchRecord test_type ILIKE '%BCM%' / '%BIA%') ───────
+    bcm_post_fluid_overload_l   = Column(Float, nullable=True)
+    bcm_post_tbw_l              = Column(Float, nullable=True)
+    bcm_post_phase_angle        = Column(Float, nullable=True)
+    bcm_delta_overhydration_l   = Column(Float, nullable=True)   # pre minus post BCM overload
+
+    # ── Optical sensor summary ────────────────────────────────────────────────
+    he_od_mean              = Column(Float, nullable=True)
+    ha_od_mean              = Column(Float, nullable=True)
+    delta_od_mean           = Column(Float, nullable=True)
+    he_od_slope_per_hr      = Column(Float, nullable=True)       # OD/hour hemoconcentration trend
+    grade2plus_count        = Column(Integer, nullable=True)     # rows with hemoconcentration grade ≥ 2
+    # Sampled RBV curve [{t_min, rbv_drop_pct}, …] — every 5th point
+    rbv_curve_json          = Column(Text, nullable=True)
+
+    # ── Audit ────────────────────────────────────────────────────────────────
+    notes                   = Column(Text, nullable=True)
+    created_at              = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_by              = Column(String(100), nullable=True)
+
+    patient = relationship("Patient", foreign_keys=[patient_id])
+
+    __table_args__ = (
+        Index("ix_diasense_patient_date", "patient_id", "session_date"),
+    )

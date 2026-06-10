@@ -225,6 +225,101 @@ def _solve_safe_uf_rate(
     return lo
 
 
+def calibrate_k_r_from_rbv_curve(
+    rbv_drop_series: list,
+    time_min_series: list,
+    uf_rate_ml_min: float,
+    weight_kg: float,
+    albumin_g_dl: float = 3.8,
+    hematocrit: float = 0.35,
+) -> Dict:
+    """Back-calculate the plasma-refill coefficient k_r from a measured RBV curve.
+
+    Uses optical-sensor RBV_drop% data (e.g. from DiaSense) to infer k_r via
+    mass balance at the nadir point, avoiding the population estimate
+    (weight × 0.006) which can be 2× off for individual patients.
+
+    Method
+    ------
+    At the RBV nadir (time T, drop D%):
+        UF_removed   = uf_rate × T
+        ΔV_p (net)   = V_p0 × D/100
+        Refill        = UF_removed − ΔV_p
+        mean_j_refill = Refill / T
+
+    After the first 75 mL of UF, hydrostatic pressure → 0 (Starling baseline
+    3.0 mmHg / 0.04 mmHg/mL).  Driving force is then purely oncotic:
+        driving_force = σ × P_oncotic(albumin_concentrated)
+
+    k_r_measured = mean_j_refill / driving_force
+
+    Parameters
+    ----------
+    rbv_drop_series : list of float — RBV drop % at each time point (0 = baseline)
+    time_min_series : list of float — corresponding session minutes
+    uf_rate_ml_min  : actual UF rate (mL/min) during session
+    weight_kg       : patient weight (kg)
+    albumin_g_dl    : serum albumin (g/dL)
+    hematocrit      : fractional haematocrit
+
+    Returns
+    -------
+    dict with keys:
+        k_r_measured          float — calibrated k_r (mL/min/mmHg)
+        k_r_estimated         float — weight-based population estimate
+        rbv_nadir_pct         float — max RBV drop observed (%)
+        rbv_nadir_time_min    float — session minute when nadir occurred
+        rbv_breach            bool  — nadir > 8% (Abohtyra warning zone)
+        plasma_refill_rate_ml_min  float — mean J_refill (mL/min)
+        uf_removed_at_nadir   float — UF volume removed by nadir time (mL)
+        v_plasma_initial_ml   float
+        success               bool  — False if insufficient data
+        error                 str   — present only when success is False
+    """
+    if not rbv_drop_series or not time_min_series or len(rbv_drop_series) < 3:
+        return {"success": False, "error": "Insufficient RBV data points"}
+    if uf_rate_ml_min <= 0 or weight_kg <= 0:
+        return {"success": False, "error": "Invalid uf_rate or weight"}
+
+    # Find the nadir — the maximum observed RBV drop
+    max_drop_pct = max(rbv_drop_series)
+    nadir_idx    = rbv_drop_series.index(max_drop_pct)
+    nadir_t      = time_min_series[nadir_idx]
+
+    if nadir_t <= 0 or max_drop_pct <= 0:
+        return {"success": False, "error": "No positive RBV drop detected"}
+
+    vp0            = _initial_plasma_volume(weight_kg, hematocrit)
+    uf_at_nadir    = uf_rate_ml_min * nadir_t
+    vp_nadir       = vp0 * (1.0 - max_drop_pct / 100.0)
+    net_vp_drop    = vp0 - vp_nadir
+    total_refill   = uf_at_nadir - net_vp_drop
+    mean_j_refill  = total_refill / nadir_t if nadir_t > 0 else 0.0
+
+    # Mean albumin concentration over the session (at midpoint V_p)
+    vp_mean        = (vp0 + vp_nadir) / 2.0
+    alb_conc_mean  = albumin_g_dl * (vp0 / max(vp_mean, vp0 * 0.5))
+    oncotic_mean   = _oncotic_pressure(alb_conc_mean)
+    # Hydrostatic → 0 after first 75 mL of UF; for typical sessions (UF > 100 mL)
+    # this approximation holds well from the first quarter onward.
+    driving_force  = _SIGMA * oncotic_mean
+
+    k_r_measured  = mean_j_refill / driving_force if driving_force > 0 else weight_kg * _K_R_PER_KG
+    k_r_estimated = weight_kg * _K_R_PER_KG
+
+    return {
+        "success":                   True,
+        "k_r_measured":              round(k_r_measured, 5),
+        "k_r_estimated":             round(k_r_estimated, 5),
+        "rbv_nadir_pct":             round(max_drop_pct, 3),
+        "rbv_nadir_time_min":        round(nadir_t, 1),
+        "rbv_breach":                max_drop_pct > 8.0,
+        "plasma_refill_rate_ml_min": round(mean_j_refill, 3),
+        "uf_removed_at_nadir":       round(uf_at_nadir, 1),
+        "v_plasma_initial_ml":       round(vp0, 1),
+    }
+
+
 def build_fluid_volume_plotly(result: Dict) -> Dict:
     """Convert simulate_fluid_volume() output to a Plotly-ready trace dict."""
     if not result.get("available"):

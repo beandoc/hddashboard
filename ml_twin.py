@@ -51,6 +51,7 @@ def run_scenario(
     monthly_data:        dict,
     monthly_records_3mo: list,
     scenario:            dict,
+    current_ktv:         Optional[float] = None,
     db:                  Optional[Session] = None,
 ) -> Dict:
     """
@@ -135,6 +136,7 @@ def run_scenario(
         pre_weight_kg      = pre_wt,
         scenario_session_h = scenario.get("session_h"),
         scenario_uf_L      = scenario.get("uf_volume_L"),
+        current_ktv        = current_ktv,
     )
 
     # ── 3. IDH risk — cascade: longer session → lower effective UF rate ───────
@@ -186,6 +188,7 @@ def run_scenario(
         scenario     = scenario,
         patient_info = patient_info,
         records      = records,
+        current_ktv  = current_ktv,
     )
 
     # ── 6. Phosphate kinetics (Module 5) ──────────────────────────────────────
@@ -197,20 +200,71 @@ def run_scenario(
     )
 
     # ── 7. Two-compartment fluid/volume model (Abohtyra 2018) ─────────────────
+    # If the patient has a DiaSense optical-sensor calibration on record, use
+    # the measured k_r (diasense_k_r) instead of the population estimate
+    # (weight × 0.006 mL/min/mmHg/kg).  This closes the sensor → twin loop:
+    # every session's RBV curve refines the patient-specific refill coefficient
+    # used by the next simulation.
     fluid_volume = {}
     try:
         from fluid_volume_model import simulate_fluid_volume, build_fluid_volume_plotly
+
         scen_uf_vol_ml = scenario.get("uf_volume_L", base_uf_L) * 1000
-        scen_h = scenario.get("session_h", base_h)
+        scen_h         = scenario.get("session_h", base_h)
         latest_albumin = monthly_data.get("albumin") if monthly_data else None
+
+        # Fetch most-recent DiaSense k_r for this patient
+        diasense_k_r: Optional[float] = None
+        diasense_meta: dict = {}
+        if db is not None:
+            try:
+                from database import DiaSenseCalibration
+                cal = (
+                    db.query(DiaSenseCalibration)
+                    .filter(
+                        DiaSenseCalibration.patient_id == patient_id,
+                        DiaSenseCalibration.diasense_k_r.isnot(None),
+                    )
+                    .order_by(DiaSenseCalibration.session_date.desc())
+                    .first()
+                )
+                if cal is not None:
+                    diasense_k_r = cal.diasense_k_r
+                    diasense_meta = {
+                        "session_date":           str(cal.session_date),
+                        "diasense_session_id":    cal.diasense_session_id,
+                        "k_r_measured":           round(cal.diasense_k_r, 5),
+                        "k_r_estimated":          round(cal.k_r_estimated, 5) if cal.k_r_estimated else None,
+                        "rbv_nadir_pct":          cal.rbv_nadir_pct,
+                        "rbv_nadir_time_min":     cal.rbv_nadir_time_min,
+                        "rbv_breach":             cal.rbv_breach,
+                        "uf_target_ml":           cal.uf_target_ml,
+                        "uf_actual_ml":           cal.uf_actual_ml,
+                        "uf_achievement_pct":     cal.uf_achievement_pct,
+                        "uf_rate_ml_kg_h":        cal.uf_rate_ml_kg_h,
+                        "plasma_refill_rate_ml_min": cal.plasma_refill_rate_ml_min,
+                        "post_hd_cramps":         cal.post_hd_cramps,
+                        "post_hd_nausea":         cal.post_hd_nausea,
+                        "post_hd_dyspnea_likert": cal.post_hd_dyspnea_likert,
+                        "post_hd_fatigue_likert": cal.post_hd_fatigue_likert,
+                        "bcm_post_fluid_overload_l": cal.bcm_post_fluid_overload_l,
+                        "bcm_delta_overhydration_l": cal.bcm_delta_overhydration_l,
+                        "idh_observed":           cal.idh_observed,
+                        "grade2plus_count":       cal.grade2plus_count,
+                    }
+            except Exception as _cal_exc:
+                logger.debug("DiaSense calibration lookup skipped: %s", _cal_exc)
+
         fluid_sim = simulate_fluid_volume(
             weight_kg    = pre_wt,
             session_h    = scen_h,
             uf_volume_ml = scen_uf_vol_ml,
             albumin_g_dl = float(latest_albumin) if latest_albumin else 3.8,
+            k_r_override = diasense_k_r,
         )
         fluid_volume = build_fluid_volume_plotly(fluid_sim)
         fluid_volume["raw"] = fluid_sim
+        fluid_volume["diasense"] = diasense_meta
     except Exception as _fv_exc:
         logger.debug("Fluid volume model skipped: %s", _fv_exc)
 

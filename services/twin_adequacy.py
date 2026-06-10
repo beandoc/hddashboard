@@ -58,6 +58,7 @@ def simulate_ktv(
     pre_weight_kg:  float,
     scenario_session_h:    Optional[float] = None,
     scenario_uf_L:  Optional[float] = None,
+    current_ktv:    Optional[float] = None,
 ) -> Dict:
     """
     Simulate Kt/V for baseline and a scenario with different session length or UF.
@@ -88,9 +89,12 @@ def simulate_ktv(
         if pre_weight_kg is not None and baseline_uf_L is not None
         else None
     )
-    baseline_ktv = calculate_ktv_daugirdas(
-        pre_bun, post_bun, baseline_session_h, baseline_uf_L, base_post_wt
-    )
+    if current_ktv is not None:
+        baseline_ktv = current_ktv
+    else:
+        baseline_ktv = calculate_ktv_daugirdas(
+            pre_bun, post_bun, baseline_session_h, baseline_uf_L, base_post_wt
+        )
 
     scenario_ktv = None
     if baseline_ktv is not None and baseline_session_h and baseline_session_h > 0:
@@ -159,6 +163,7 @@ def simulate_urea_kinetics(
     scenario: dict,
     patient_info: dict,
     records: List[Dict],
+    current_ktv: Optional[float] = None,
 ) -> Dict:
     """
     Module 4 — Extended urea kinetics using urea_model.py.
@@ -267,13 +272,16 @@ def simulate_urea_kinetics(
     if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
     if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
 
-    sp_ktv_measured = calculate_ktv_daugirdas(
-        pre_bun if not math.isnan(pre_bun) else None,
-        post_bun if not math.isnan(post_bun) else None,
-        t_base,
-        base_prm["uf_L"],
-        weight - base_prm["uf_L"],
-    )
+    if current_ktv is not None:
+        sp_ktv_measured = current_ktv
+    else:
+        sp_ktv_measured = calculate_ktv_daugirdas(
+            pre_bun if not math.isnan(pre_bun) else None,
+            post_bun if not math.isnan(post_bun) else None,
+            t_base,
+            base_prm["uf_L"],
+            weight - base_prm["uf_L"],
+        )
 
     def _run(prm: dict) -> dict:
         kd           = _kd(prm)

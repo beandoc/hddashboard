@@ -27,9 +27,13 @@ function renderBayesInfo(result) {
 
   // Credible interval for k_gain (most clinically meaningful)
   if (ci.k_gain) {
-    ciLabelEl.textContent = 'ESA response k_gain: ' + ci.k_gain;
+    if (ci.k_gain.startsWith("0.0000")) {
+      ciLabelEl.innerHTML = `<span style="color:#dc2626; font-weight:700; background:#fee2e2; padding:2px 6px; border-radius:4px;">⚠️ ESA response k_gain: ${ci.k_gain} (ESA hyporesponsive or above target)</span>`;
+    } else {
+      ciLabelEl.innerHTML = 'ESA response k_gain: ' + ci.k_gain;
+    }
   } else {
-    ciLabelEl.textContent = '';
+    ciLabelEl.innerHTML = '';
   }
 
   infoEl.style.display = '';

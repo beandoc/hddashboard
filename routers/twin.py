@@ -21,6 +21,7 @@ from database import (
     SessionRecord,
     TwinSimulation,
     InterimLabRecord,
+    DiaSenseCalibration,
     get_db,
 )
 from dependencies import get_user, _require_staff_role
@@ -262,6 +263,56 @@ def _fallback_ktv(records: list, past_sessions: list):
                 return round(ktv, 2)
     return None
 
+def _resolve_current_ktv(db: Session, patient_id: int, records: list, past_sessions: list):
+    current_ktv = None
+    ktv_is_recorded = False
+
+    latest_interim = (
+        db.query(InterimLabRecord)
+        .filter(
+            InterimLabRecord.patient_id == patient_id,
+            InterimLabRecord.parameter == "sp_ktv",
+            InterimLabRecord.value != None
+        )
+        .order_by(InterimLabRecord.lab_date.desc())
+        .first()
+    )
+
+    candidates = []
+    if latest_interim:
+        candidates.append((latest_interim.lab_date, latest_interim.value))
+    
+    for s in past_sessions:
+        if s.get("sp_ktv") and s.get("session_date"):
+            from datetime import datetime
+            try:
+                s_date = datetime.strptime(s["session_date"], "%Y-%m-%d").date()
+                candidates.append((s_date, s["sp_ktv"]))
+            except Exception:
+                pass
+
+    if records and records[0].get("single_pool_ktv") and records[0].get("record_month"):
+        from datetime import datetime
+        try:
+            m_date = datetime.strptime(records[0]["record_month"], "%Y-%m").date()
+            candidates.append((m_date, records[0]["single_pool_ktv"]))
+        except Exception:
+            pass
+
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        current_ktv = candidates[0][1]
+        ktv_is_recorded = True
+
+    if current_ktv is None:
+        current_ktv = _fallback_ktv(records, past_sessions)
+        
+    if current_ktv is not None:
+        current_ktv = round(float(current_ktv), 2)
+        
+    return current_ktv, ktv_is_recorded
+
+
 
 def _build_baseline_session(past_sessions: list) -> dict:
     """Use the most recent session as the baseline session plan.
@@ -362,51 +413,7 @@ async def twin_sandbox(
             current_pbe = 3.0
 
     # spKt/V: prefer machine-derived recorded value (Interim, Session, Monthly) over calculated fallback
-    current_ktv = None
-    ktv_is_recorded = False
-
-    latest_interim = (
-        db.query(InterimLabRecord)
-        .filter(
-            InterimLabRecord.patient_id == patient_id,
-            InterimLabRecord.parameter == "sp_ktv",
-            InterimLabRecord.value != None
-        )
-        .order_by(InterimLabRecord.lab_date.desc())
-        .first()
-    )
-
-    candidates = []
-    if latest_interim:
-        candidates.append((latest_interim.lab_date, latest_interim.value))
-    
-    for s in past_sessions:
-        if s.get("sp_ktv") and s.get("session_date"):
-            from datetime import datetime
-            try:
-                s_date = datetime.strptime(s["session_date"], "%Y-%m-%d").date()
-                candidates.append((s_date, s["sp_ktv"]))
-            except Exception:
-                pass
-
-    if records and records[0].get("single_pool_ktv") and records[0].get("record_month"):
-        from datetime import datetime
-        try:
-            m_date = datetime.strptime(records[0]["record_month"], "%Y-%m").date()
-            candidates.append((m_date, records[0]["single_pool_ktv"]))
-        except Exception:
-            pass
-
-    if candidates:
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        current_ktv = candidates[0][1]
-        ktv_is_recorded = True
-
-    if current_ktv is None:
-        current_ktv = _fallback_ktv(records, past_sessions)
-        
-    if current_ktv is not None:
-        current_ktv = round(float(current_ktv), 2)
+    current_ktv, ktv_is_recorded = _resolve_current_ktv(db, patient_id, records, past_sessions)
 
     return templates.TemplateResponse("digital_twin.html", {
         "request":          request,
@@ -463,6 +470,8 @@ async def twin_simulate(
         raise HTTPException(status_code=422, detail="No monthly records available for simulation")
 
     try:
+        current_ktv, _ = _resolve_current_ktv(db, patient_id, records, past_sessions)
+        
         result = run_scenario(
             patient_id          = patient_id,
             records             = records,
@@ -472,6 +481,7 @@ async def twin_simulate(
             monthly_data        = records[0],
             monthly_records_3mo = records[:3],
             scenario            = scenario,
+            current_ktv         = current_ktv,
             db                  = db,
         )
         plotly_data = build_twin_plotly_data(result)
@@ -616,3 +626,248 @@ async def twin_history(
         }
         for s in sims
     ])
+
+
+# ── DiaSense optical-sensor calibration ingest ───────────────────────────────
+
+
+@router.post("/{patient_id}/diasense/ingest")
+async def twin_diasense_ingest(
+    patient_id: int,
+    request:    Request,
+    db:         Session = Depends(get_db),
+):
+    """Ingest a DiaSense optical-sensor session and persist a calibration row.
+
+    Closes the sensor → digital-twin loop:
+      optical RBV curve  →  k_r_measured  →  stored in diasense_calibrations
+      next run_scenario  →  fetches k_r    →  passes as k_r_override to fluid model
+
+    Expected JSON body
+    ------------------
+    {
+      "diasense_session_id": "AGD09_HA1_213320",   // optional
+      "session_date":        "2026-05-29",
+      "session_duration_min": 240,
+      "weight_pre_kg":       39.0,
+      "dry_weight_kg":       38.0,
+      "albumin_g_dl":        3.8,           // optional, default 3.8
+      "hematocrit":          0.35,          // optional, default 0.35
+      "uf_target_ml":        700,
+      "uf_actual_ml":        700,           // weight-derived or machine readout
+      "uf_rate_ml_kg_h":     4.49,          // optional, computed if absent
+
+      // RBV curve — every ~2-min row from DiaSense CSV
+      "rbv_curve": [
+        {"t_min": 0.06,  "rbv_drop_pct": 0.0},
+        {"t_min": 2.06,  "rbv_drop_pct": 0.815},
+        ...
+      ],
+
+      // Intradialytic BP trend — optional, from machine or BPM log
+      "bp_trend": [
+        {"time_min": 0,   "sbp": 160, "dbp": 100, "map": 120, "pulse": 103},
+        ...
+      ],
+
+      // Post-HD symptoms — optional
+      "post_hd_dyspnea_likert": 2,
+      "post_hd_fatigue_likert": 3,
+      "post_hd_cramps":         false,
+      "post_hd_nausea":         false,
+      "post_hd_headache":       false,
+
+      // Post-HD BCM/BIA — optional (also auto-fetched from ResearchRecord if absent)
+      "bcm_post_fluid_overload_l": 0.4,
+      "bcm_post_tbw_l":            21.5,
+      "bcm_post_phase_angle":      5.1,
+      "bcm_delta_overhydration_l": 0.6,
+
+      // Optical sensor summary — optional, used for display only
+      "he_od_mean":          0.475,
+      "ha_od_mean":          0.494,
+      "delta_od_mean":       -0.019,
+      "he_od_slope_per_hr":  0.041,
+      "grade2plus_count":    0,
+
+      "idh_observed": false,
+      "notes":        ""
+    }
+    """
+    from datetime import date as _date
+    from fluid_volume_model import calibrate_k_r_from_rbv_curve
+
+    _require_staff_role(request)
+    user = get_user(request)
+    _get_patient_or_404(db, patient_id)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Request body must be JSON")
+
+    # ── Required fields ───────────────────────────────────────────────────────
+    try:
+        session_date = _date.fromisoformat(body["session_date"])
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=422, detail="session_date (YYYY-MM-DD) is required")
+
+    rbv_curve_raw = body.get("rbv_curve", [])
+    if not isinstance(rbv_curve_raw, list) or len(rbv_curve_raw) < 3:
+        raise HTTPException(status_code=422, detail="rbv_curve must be a list with ≥ 3 rows")
+
+    weight_pre = float(body.get("weight_pre_kg") or 0)
+    uf_target  = float(body.get("uf_target_ml")  or 0)
+    session_min = float(body.get("session_duration_min") or 0)
+    if weight_pre <= 0 or uf_target <= 0 or session_min <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="weight_pre_kg, uf_target_ml, and session_duration_min are required and must be > 0",
+        )
+
+    # ── Parse RBV curve ───────────────────────────────────────────────────────
+    try:
+        rbv_drop_series = [float(r["rbv_drop_pct"]) for r in rbv_curve_raw]
+        time_min_series = [float(r["t_min"])         for r in rbv_curve_raw]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"rbv_curve row error: {exc}")
+
+    uf_actual   = float(body.get("uf_actual_ml") or uf_target)
+    albumin     = float(body.get("albumin_g_dl") or 3.8)
+    hematocrit  = float(body.get("hematocrit")   or 0.35)
+    dry_weight  = float(body.get("dry_weight_kg") or (weight_pre - uf_target / 1000))
+    uf_rate_ml_min = uf_actual / session_min
+
+    # ── k_r calibration ───────────────────────────────────────────────────────
+    cal_result = calibrate_k_r_from_rbv_curve(
+        rbv_drop_series = rbv_drop_series,
+        time_min_series = time_min_series,
+        uf_rate_ml_min  = uf_rate_ml_min,
+        weight_kg       = weight_pre,
+        albumin_g_dl    = albumin,
+        hematocrit      = hematocrit,
+    )
+    if not cal_result.get("success"):
+        raise HTTPException(status_code=422, detail=f"k_r calibration failed: {cal_result.get('error')}")
+
+    # ── UF achievement ────────────────────────────────────────────────────────
+    uf_achievement = round((uf_actual / uf_target) * 100, 1) if uf_target > 0 else None
+    uf_rate_ml_kg_h_val = body.get("uf_rate_ml_kg_h") or round(
+        (uf_actual / session_min * 60) / weight_pre, 3
+    )
+
+    # ── BP trend nadir ────────────────────────────────────────────────────────
+    bp_trend = body.get("bp_trend") or []
+    bp_nadir_sys_val = bp_nadir_map_val = bp_nadir_t_val = None
+    if bp_trend:
+        sbp_vals = [(r.get("sbp"), r.get("map"), r.get("time_min")) for r in bp_trend if r.get("sbp")]
+        if sbp_vals:
+            bp_nadir_row = min(sbp_vals, key=lambda x: x[0])
+            bp_nadir_sys_val = bp_nadir_row[0]
+            bp_nadir_map_val = bp_nadir_row[1]
+            bp_nadir_t_val   = bp_nadir_row[2]
+
+    # ── Auto-fetch post-HD BCM from ResearchRecord if not supplied ────────────
+    bcm_post_fo  = body.get("bcm_post_fluid_overload_l")
+    bcm_post_tbw = body.get("bcm_post_tbw_l")
+    bcm_phase    = body.get("bcm_post_phase_angle")
+    bcm_delta    = body.get("bcm_delta_overhydration_l")
+    if bcm_post_fo is None:
+        try:
+            from db.models.research import ResearchRecord
+            bcm_rec = (
+                db.query(ResearchRecord)
+                .filter(
+                    ResearchRecord.patient_id == patient_id,
+                    ResearchRecord.test_type.ilike("%BCM%"),
+                    ResearchRecord.test_date >= session_date,
+                )
+                .order_by(ResearchRecord.test_date.asc())
+                .first()
+            )
+            if bcm_rec and bcm_rec.data:
+                import json as _json
+                bcm_data = _json.loads(bcm_rec.data)
+                bcm_post_fo  = bcm_data.get("fluid_overload") or bcm_data.get("overhydration_l")
+                bcm_post_tbw = bcm_data.get("tbw_liters") or bcm_post_tbw
+                bcm_phase    = bcm_data.get("phase_angle") or bcm_phase
+        except Exception as _bcm_exc:
+            logger.debug("BCM auto-fetch skipped: %s", _bcm_exc)
+
+    # ── Sampled RBV curve for storage (every 5th point) ───────────────────────
+    sampled = [
+        {"t_min": time_min_series[i], "rbv_drop_pct": rbv_drop_series[i]}
+        for i in range(0, len(time_min_series), 5)
+    ]
+
+    # ── Persist ───────────────────────────────────────────────────────────────
+    try:
+        cal = DiaSenseCalibration(
+            patient_id              = patient_id,
+            session_date            = session_date,
+            diasense_session_id     = body.get("diasense_session_id"),
+            diasense_k_r            = cal_result["k_r_measured"],
+            k_r_estimated           = cal_result["k_r_estimated"],
+            rbv_nadir_pct           = cal_result["rbv_nadir_pct"],
+            rbv_nadir_time_min      = cal_result["rbv_nadir_time_min"],
+            rbv_breach              = cal_result["rbv_breach"],
+            plasma_refill_rate_ml_min = cal_result["plasma_refill_rate_ml_min"],
+            uf_target_ml            = uf_target,
+            uf_actual_ml            = uf_actual,
+            uf_rate_ml_kg_h         = uf_rate_ml_kg_h_val,
+            uf_achievement_pct      = uf_achievement,
+            session_duration_min    = session_min,
+            weight_pre_kg           = weight_pre,
+            dry_weight_kg           = dry_weight,
+            albumin_g_dl            = albumin,
+            bp_trend_json           = json.dumps(bp_trend) if bp_trend else None,
+            bp_nadir_sys            = bp_nadir_sys_val,
+            bp_nadir_map            = bp_nadir_map_val,
+            bp_nadir_time_min       = bp_nadir_t_val,
+            idh_observed            = bool(body.get("idh_observed", False)),
+            post_hd_dyspnea_likert  = body.get("post_hd_dyspnea_likert"),
+            post_hd_fatigue_likert  = body.get("post_hd_fatigue_likert"),
+            post_hd_cramps          = body.get("post_hd_cramps"),
+            post_hd_nausea          = body.get("post_hd_nausea"),
+            post_hd_headache        = body.get("post_hd_headache"),
+            bcm_post_fluid_overload_l  = bcm_post_fo,
+            bcm_post_tbw_l             = bcm_post_tbw,
+            bcm_post_phase_angle       = bcm_phase,
+            bcm_delta_overhydration_l  = bcm_delta,
+            he_od_mean              = body.get("he_od_mean"),
+            ha_od_mean              = body.get("ha_od_mean"),
+            delta_od_mean           = body.get("delta_od_mean"),
+            he_od_slope_per_hr      = body.get("he_od_slope_per_hr"),
+            grade2plus_count        = body.get("grade2plus_count"),
+            rbv_curve_json          = json.dumps(sampled),
+            notes                   = body.get("notes"),
+            created_by              = getattr(user, "username", str(user)) if user else "unknown",
+        )
+        db.add(cal)
+        db.commit()
+        db.refresh(cal)
+    except Exception as exc:
+        db.rollback()
+        logger.error("Failed to persist DiaSense calibration for patient %s: %s", patient_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to persist calibration")
+
+    return JSONResponse({
+        "calibration_id":            cal.id,
+        "patient_id":                patient_id,
+        "session_date":              str(session_date),
+        "diasense_k_r":              cal_result["k_r_measured"],
+        "k_r_estimated":             cal_result["k_r_estimated"],
+        "k_r_ratio":                 round(cal_result["k_r_measured"] / cal_result["k_r_estimated"], 3),
+        "rbv_nadir_pct":             cal_result["rbv_nadir_pct"],
+        "rbv_nadir_time_min":        cal_result["rbv_nadir_time_min"],
+        "rbv_breach":                cal_result["rbv_breach"],
+        "plasma_refill_rate_ml_min": cal_result["plasma_refill_rate_ml_min"],
+        "uf_target_ml":              uf_target,
+        "uf_actual_ml":              uf_actual,
+        "uf_achievement_pct":        uf_achievement,
+        "uf_rate_ml_kg_h":           uf_rate_ml_kg_h_val,
+        "message": (
+            "k_r calibrated and stored — next simulation for this patient will use "
+            f"diasense_k_r={cal_result['k_r_measured']:.5f} mL/min/mmHg as k_r_override."
+        ),
+    })

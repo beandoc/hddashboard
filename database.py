@@ -62,6 +62,7 @@ from db.models import (
     PatientFeatureSnapshot,
     ACMRecommendation,
     TwinSimulation,
+    DiaSenseCalibration,
 )
 
 __all__ = [
@@ -115,5 +116,6 @@ __all__ = [
     "PatientFeatureSnapshot",
     "ACMRecommendation",
     "TwinSimulation",
+    "DiaSenseCalibration",
 ]
 

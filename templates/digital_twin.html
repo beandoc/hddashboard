@@ -229,9 +229,13 @@
 
     <!-- Hb trajectory -->
     <div class="chart-card">
-      <div class="chart-title">
-        Hemoglobin Trajectory (3 months)
+      <div class="chart-title">Hemoglobin Trajectory (3 months)
         <span style="font-size:0.72rem;color:var(--muted);font-weight:400;">Bayesian · Target 10–11.5 g/dL</span>
+        {% if current_hb and (current_hb < 10.0 or current_hb > 11.5) %}
+          <span style="background:#fee2e2; color:#dc2626; font-size:0.65rem; font-weight:700; padding:2px 6px; border-radius:4px; margin-left:6px; vertical-align:middle;">
+            ⚠️ Out of Range ({{ current_hb }})
+          </span>
+        {% endif %}
       </div>
       <div id="hb-chart" style="height:240px;"><div class="chart-placeholder">Adjust ESA / Iron sliders and click ▶ Run</div></div>
       <!-- Bayesian confidence footer -->
@@ -407,6 +411,16 @@
             <div style="font-size:1.55rem;font-weight:900;color:var(--green);font-family:'Outfit',sans-serif;margin-top:2px;" id="rbv-optimal-val">—</div>
             <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;line-height:1.4;">
               Maximum rate that keeps the simulated intravascular blood volume above the critical nadir threshold (8% to 10% reduction, Abohtyra 2018).
+            </div>
+          </div>
+          <div style="margin-top:2px;">
+            <div style="font-size:0.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;">Last Session UF Rate</div>
+            <div style="font-size:1.15rem;font-weight:700;color:var(--text);font-family:'Outfit',sans-serif;margin-top:2px;">
+              {% if baseline_session.uf_rate_ml_kg_h %}
+                {{ "%.1f"|format(baseline_session.uf_rate_ml_kg_h) }} <span style="font-size:0.75rem;color:var(--muted);">mL/kg/h</span>
+              {% else %}
+                —
+              {% endif %}
             </div>
           </div>
         </div>
