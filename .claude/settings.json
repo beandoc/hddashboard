@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_twin_adequacy_math.py tests/test_twin_upgrade.py -x -q)",
+      "Bash(python -m pytest tests/test_twin_adequacy_math.py tests/test_twin_upgrade.py -q)"
+    ]
+  }
+}
