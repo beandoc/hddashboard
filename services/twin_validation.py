@@ -18,28 +18,30 @@ from services.twin_utils import _safe_float
 
 # ── Hard limits (reject entirely — impossible physiology) ────────────────────
 HARD_LIMITS: Dict[str, Tuple[float, float]] = {
-    "session_h":        (0.5,   12.0),
-    "qb_ml_min":        (50.0,  600.0),
-    "qd_ml_min":        (100.0, 1200.0),
-    "uf_volume_L":      (0.0,   8.0),
-    "uf_rate_ml_kg_h":  (0.0,   25.0),
-    "dialysate_temp":   (33.0,  39.0),
-    "dialysate_sodium": (120.0, 160.0),
-    "esa_weekly_iu":    (0.0,   60_000.0),
-    "iron_tsat_target": (0.0,   100.0),
-    "p_binder_pbe":     (0.0,   30.0),
-    "p_intake_mg_day":  (0.0,   6_000.0),
-    "koa_urea":         (200.0, 2_500.0),
+    "session_h":            (0.5,   12.0),
+    "qb_ml_min":            (50.0,  600.0),
+    "qd_ml_min":            (100.0, 1200.0),
+    "uf_volume_L":          (0.0,   8.0),
+    "uf_rate_ml_kg_h":      (0.0,   25.0),
+    "dialysate_temp":       (33.0,  39.0),
+    "dialysate_sodium":     (120.0, 160.0),
+    "esa_weekly_iu":        (0.0,   60_000.0),
+    "desidustat_weekly_iu": (0.0,   25_000.0),  # 300 mg OD × 7 × 20 ≈ 42 000; clinical ceiling ~150 mg OD
+    "iron_tsat_target":     (0.0,   100.0),
+    "p_binder_pbe":         (0.0,   30.0),
+    "p_intake_mg_day":      (0.0,   6_000.0),
+    "koa_urea":             (200.0, 2_500.0),
 }
 
 # ── Soft ranges (warn but allow) ─────────────────────────────────────────────
 SOFT_RANGES: Dict[str, Tuple[float, float, str]] = {
-    "session_h":        (3.0,  5.5,  "Session <3 h or >5.5 h is outside typical HD practice"),
-    "qb_ml_min":        (200.0, 450.0, "Blood flow <200 or >450 mL/min is outside typical range"),
-    "uf_rate_ml_kg_h":  (3.5,  10.0, "UF rate >10 mL/kg/h exceeds KDOQI safety threshold"),
-    "dialysate_temp":   (35.0, 37.0, "Dialysate temperature outside 35–37 °C may cause haemodynamic instability"),
-    "dialysate_sodium": (135.0,145.0,"Dialysate Na outside 135–145 mEq/L risks dysnatraemia"),
-    "esa_weekly_iu":    (0.0,  30_000.0, "ESA dose >30 000 IU/week is unusually high; verify intent"),
+    "session_h":            (3.0,   5.5,      "Session <3 h or >5.5 h is outside typical HD practice"),
+    "qb_ml_min":            (200.0, 450.0,    "Blood flow <200 or >450 mL/min is outside typical range"),
+    "uf_rate_ml_kg_h":      (3.5,   10.0,     "UF rate >10 mL/kg/h exceeds KDOQI safety threshold"),
+    "dialysate_temp":       (35.0,  37.0,     "Dialysate temperature outside 35–37 °C may cause haemodynamic instability"),
+    "dialysate_sodium":     (135.0, 145.0,    "Dialysate Na outside 135–145 mEq/L risks dysnatraemia"),
+    "esa_weekly_iu":        (0.0,   30_000.0, "ESA dose >30 000 IU/week is unusually high; verify intent"),
+    "desidustat_weekly_iu": (0.0,   15_000.0, "Desidustat equivalent >15 000 IU/week corresponds to >250 mg OD; verify intent"),
 }
 
 # ── Allowed keys (unknown keys dropped silently with a warning) ───────────────

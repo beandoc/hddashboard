@@ -60,7 +60,8 @@ def run_scenario(
     A single prescription change propagates across Hb, Kt/V, phosphate, and IDH.
 
     scenario keys (all optional):
-        esa_weekly_iu    — ESA dose IU/week SC
+        esa_weekly_iu         — ESA dose IU/week SC (set 0 to simulate stopping ESA)
+        desidustat_weekly_iu  — Desidustat IU equivalent/week (set 0 to simulate stopping Desidustat)
         iron_tsat_target — target TSAT % after iron repletion
         session_h        — session duration hours
         qb_ml_min        — blood flow rate mL/min
@@ -121,10 +122,11 @@ def run_scenario(
 
     # ── 1. Hb kinetics ────────────────────────────────────────────────────────
     hb_sim = simulate_hb_trajectory(
-        records          = records,
-        esa_scenario_iu  = scenario.get("esa_weekly_iu"),
-        iron_boost_tsat  = scenario.get("iron_tsat_target"),
-        horizon_months   = 3,
+        records                = records,
+        esa_scenario_iu        = scenario.get("esa_weekly_iu"),
+        desidustat_scenario_iu = scenario.get("desidustat_weekly_iu"),
+        iron_boost_tsat        = scenario.get("iron_tsat_target"),
+        horizon_months         = 3,
     )
 
     # ── 2. Daugirdas spKt/V (simple, requires BUN) ────────────────────────────

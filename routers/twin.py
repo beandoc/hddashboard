@@ -419,13 +419,15 @@ async def twin_sandbox(
         .all()
     )
 
-    # Current ESA dose (for slider default)
+    # Current ESA dose (for slider default) and Desidustat dose (for display)
     current_iu = None
+    current_desd_iu = 0
     current_pbe = 3.0
     if records:
-        from ml_esa import _resolve_weekly_iu_sc
+        from ml_esa import resolve_esa_weekly_iu, resolve_desidustat_weekly_iu
         from phosphate_model import calculate_record_pbe
-        current_iu = _resolve_weekly_iu_sc(records[0])
+        current_iu = resolve_esa_weekly_iu(records[0])
+        current_desd_iu = resolve_desidustat_weekly_iu(records[0]) or 0
         current_pbe = calculate_record_pbe(records[0])
         if current_pbe <= 0.0:
             current_pbe = 3.0
@@ -443,6 +445,7 @@ async def twin_sandbox(
         "default_result":   json.dumps(default_result),
         "sim_history":      sim_history,
         "current_iu":          current_iu or 0,
+        "current_desd_iu":     current_desd_iu,
         "current_pbe":         current_pbe,
         "current_tsat":        records[0].get("tsat") if records else 25,
         "current_hb":          records[0].get("hb") if records else None,

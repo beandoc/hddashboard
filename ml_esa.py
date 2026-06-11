@@ -317,38 +317,64 @@ def _resolve_weekly_iu_sc(record: dict) -> Optional[float]:
 
 def _resolve_pk_corrected_iu(record: dict) -> Optional[float]:
     """
-    Weekly SC IU × pk_correction_factor — use this for the ODE's epo_norm instead
-    of plain weekly_iu.
+    Weekly SC IU × pk_correction_factor — use this for the ODE's epo_norm.
 
-    For epoetin weekly the result is identical to _resolve_weekly_iu_sc (factor=1.0).
-    For Mircera monthly the result is ~5.45× higher, so the per-patient ODE fitter
-    will converge to a proportionally lower k_epo, correctly capturing that Mircera's
-    long half-life (t½=134 h) delivers far more monthly AUC per equivalent IU than
-    pulsatile weekly epoetin.
+    Returns the SUM of ESA and Desidustat contributions so that patients on
+    concurrent or transitioning therapies are modelled correctly by the ODE fitter.
 
-    Desidustat (oral, t½ ≈ 8 h, dosed BD/TIW) behaves similarly to frequent-dose
-    epoetin — pk_correction_factor ≈ 1.0 is appropriate.
+    For ESA: weekly_iu × pk_factor (Mircera ≈5.45, Darbepoetin ≈2.02, Epoetin 1.0).
+    For Desidustat: pk_factor = 1.0 (oral, t½ ≈8 h, TIW ≈ weekly-epoetin AUC profile).
+    """
+    esa_pk: Optional[float] = None
+    dose_str = record.get("epo_mircera_dose")
+    if dose_str:
+        parsed = normalize_epo_dose(dose_str)
+        if parsed.get("confidence") == "high" and parsed.get("weekly_iu_sc") is not None:
+            esa_pk = parsed["weekly_iu_sc"] * parsed["pk_correction_factor"]
+    if esa_pk is None:
+        stored = record.get("epo_weekly_units")
+        if stored is not None:
+            esa_pk = float(stored)
 
-    Falls back to plain weekly_iu (factor=1.0) when the dose string is unparseable,
-    preserving the existing behaviour for manually-entered epo_weekly_units.
+    # Desidustat: pk_factor = 1.0 (short t½, frequent dosing ≈ weekly-epoetin AUC profile)
+    desd_pk: Optional[float] = None
+    desd = record.get("desidustat_dose")
+    if desd:
+        iu = _parse_desidustat_weekly_iu(desd)
+        if iu is not None:
+            desd_pk = iu
+
+    if esa_pk is None and desd_pk is None:
+        return None
+    return (esa_pk or 0.0) + (desd_pk or 0.0)
+
+
+def resolve_esa_weekly_iu(record: dict) -> Optional[float]:
+    """ESA-only weekly SC IU (Mircera/darbepoetin/epoetin). Excludes Desidustat.
+
+    Use this when you need to override ESA and Desidustat independently in the
+    digital twin scenario sandbox (e.g. 'stop Desidustat, keep Mircera').
     """
     dose_str = record.get("epo_mircera_dose")
     if dose_str:
         parsed = normalize_epo_dose(dose_str)
         if parsed.get("confidence") == "high" and parsed.get("weekly_iu_sc") is not None:
-            return parsed["weekly_iu_sc"] * parsed["pk_correction_factor"]
-
+            return parsed["weekly_iu_sc"]
     stored = record.get("epo_weekly_units")
     if stored is not None:
         return float(stored)
+    return None
 
-    # Desidustat: pk_factor = 1.0 (short t½, frequent dosing ≈ weekly-epoetin AUC profile)
+
+def resolve_desidustat_weekly_iu(record: dict) -> Optional[float]:
+    """Desidustat-only weekly SC IU equivalent. Excludes ESA.
+
+    Use this when you need to override ESA and Desidustat independently in the
+    digital twin scenario sandbox (e.g. 'stop Desidustat, keep Mircera').
+    """
     desd = record.get("desidustat_dose")
     if desd:
-        iu = _parse_desidustat_weekly_iu(desd)
-        if iu is not None:
-            return iu
-
+        return _parse_desidustat_weekly_iu(desd)
     return None
 
 

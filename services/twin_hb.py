@@ -57,14 +57,14 @@ def _calibrate_hb_kinetics(records: List[Dict]) -> Dict:
         confidence_label — human-readable UI string
         pi_half_width    — 80% posterior predictive half-width per month
     """
-    from ml_esa import _resolve_weekly_iu_sc
+    from ml_esa import resolve_esa_weekly_iu, resolve_desidustat_weekly_iu
 
     pairs = []
     recs  = [r for r in records if r.get("hb") is not None]
     for i in range(len(recs) - 1):
         newer, older = recs[i], recs[i + 1]
         delta_hb = _safe_float(newer.get("hb")) - _safe_float(older.get("hb"))
-        iu_sc    = _resolve_weekly_iu_sc(older) or 0.0
+        iu_sc    = (resolve_esa_weekly_iu(older) or 0.0) + (resolve_desidustat_weekly_iu(older) or 0.0)
         weight   = _safe_float(older.get("last_prehd_weight") or older.get("weight"), 70.0)
         iu_norm  = iu_sc / weight if weight > 0 else 0.0
         tsat_new = _safe_float(newer.get("tsat"), float("nan"))
@@ -171,10 +171,11 @@ def _calibrate_hb_kinetics(records: List[Dict]) -> Dict:
 
 
 def simulate_hb_trajectory(
-    records:          List[Dict],
-    esa_scenario_iu:  Optional[float] = None,
-    iron_boost_tsat:  Optional[float] = None,
-    horizon_months:   int = 3,
+    records:                List[Dict],
+    esa_scenario_iu:        Optional[float] = None,
+    desidustat_scenario_iu: Optional[float] = None,
+    iron_boost_tsat:        Optional[float] = None,
+    horizon_months:         int = 3,
 ) -> Dict:
     """
     Simulate Hb trajectory under a hypothetical ESA and/or iron protocol.
@@ -184,10 +185,12 @@ def simulate_hb_trajectory(
     as a shaded band on the Hb chart.
 
     Args:
-        records:          Patient monthly records, newest-first.
-        esa_scenario_iu:  Proposed weekly SC IU dose. None = keep current.
-        iron_boost_tsat:  Target TSAT % after IV iron repletion. None = keep current.
-        horizon_months:   Simulation horizon (1–6 months).
+        records:                Patient monthly records, newest-first.
+        esa_scenario_iu:        Proposed ESA weekly SC IU. None = keep current.
+        desidustat_scenario_iu: Proposed Desidustat weekly IU equivalent. None = keep current.
+                                Pass 0 to simulate stopping Desidustat entirely.
+        iron_boost_tsat:        Target TSAT % after IV iron repletion. None = keep current.
+        horizon_months:         Simulation horizon (1–6 months).
 
     Returns:
         {
@@ -199,7 +202,7 @@ def simulate_hb_trajectory(
             confidence: "patient-calibrated" | "bayes-informed" | "prior-only",
         }
     """
-    from ml_esa import _resolve_weekly_iu_sc
+    from ml_esa import resolve_esa_weekly_iu, resolve_desidustat_weekly_iu
 
     if not records or records[0].get("hb") is None:
         return {"available": False, "error": "No baseline Hb available"}
@@ -209,8 +212,10 @@ def simulate_hb_trajectory(
     weight  = _safe_float(rec.get("last_prehd_weight") or rec.get("weight"), 70.0)
     tsat0   = _safe_float(rec.get("tsat"), 25.0)
 
-    current_iu   = _resolve_weekly_iu_sc(rec) or 0.0
-    current_norm = current_iu / weight if weight > 0 else 0.0
+    current_esa_iu  = resolve_esa_weekly_iu(rec) or 0.0
+    current_desd_iu = resolve_desidustat_weekly_iu(rec) or 0.0
+    current_iu      = current_esa_iu + current_desd_iu
+    current_norm    = current_iu / weight if weight > 0 else 0.0
 
     params    = _calibrate_hb_kinetics(records)
     k_gain    = params["k_gain"]
@@ -222,8 +227,10 @@ def simulate_hb_trajectory(
     k_iron_std   = params.get("k_iron_std", _PRIOR_K_IRON_VAR ** 0.5)
     pi_half_base = params.get("pi_half_width", 0.32)  # 80% PI half-width per month
 
-    # Scenario inputs
-    scenario_iu    = esa_scenario_iu if esa_scenario_iu is not None else current_iu
+    # Scenario inputs — each drug independently overridable; None = keep current
+    scenario_esa   = esa_scenario_iu          if esa_scenario_iu          is not None else current_esa_iu
+    scenario_desd  = desidustat_scenario_iu   if desidustat_scenario_iu   is not None else current_desd_iu
+    scenario_iu    = scenario_esa + scenario_desd
     scenario_norm  = scenario_iu / weight if weight > 0 else 0.0
     scenario_tsat  = iron_boost_tsat if iron_boost_tsat is not None else tsat0
     tsat_delta     = scenario_tsat - tsat0
@@ -278,12 +285,16 @@ def simulate_hb_trajectory(
             "n_pairs": n,
         },
         "scenario": {
-            "esa_weekly_iu": scenario_iu,
-            "tsat_target":   scenario_tsat,
+            "esa_weekly_iu":        scenario_esa,
+            "desidustat_weekly_iu": scenario_desd,
+            "total_epo_equiv_iu":   scenario_iu,
+            "tsat_target":          scenario_tsat,
         },
         "baseline": {
-            "esa_weekly_iu": current_iu,
-            "tsat_current":  tsat0,
+            "esa_weekly_iu":        current_esa_iu,
+            "desidustat_weekly_iu": current_desd_iu,
+            "total_epo_equiv_iu":   current_iu,
+            "tsat_current":         tsat0,
         },
     }
 

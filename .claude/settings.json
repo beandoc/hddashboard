@@ -6,7 +6,26 @@
       "Bash(xargs ls)",
       "Bash(python scripts/validate_twin_retrospective.py --help)",
       "Bash(python -c ' *)",
-      "Bash(python scripts/validate_twin_retrospective.py --patients 13 6 11 19 22 --cutoff 2026-03-01 --out reports/twin_validation_march2026.csv --verbose)"
+      "Bash(python scripts/validate_twin_retrospective.py --patients 13 6 11 19 22 --cutoff 2026-03-01 --out reports/twin_validation_march2026.csv --verbose)",
+      "Bash(python -c \"from services.interim_hb_service import merge_hb_sequence; print\\('import ok'\\)\")",
+      "Bash(curl -s http://localhost:8000/patients)",
+      "Bash(curl -s \"http://localhost:8000/entry?patient_id=13&month=2026-06\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s \"http://localhost:8000/entry/13?month=2026-06\")",
+      "Bash(curl -s \"http://localhost:8000/api/next/monthly-records?patient_id=13&limit=3\")",
+      "Bash(curl -sv \"http://localhost:8000/api/next/monthly-records?patient_id=13&limit=3\")",
+      "Bash(curl -s \"http://localhost:8000/twin/13/history\")",
+      "Bash(python3 -c \"import sys,json; print\\(json.load\\(sys.stdin\\)\\)\")",
+      "Bash(curl -sc /tmp/hd_cookies.txt \"http://localhost:8000/login\")",
+      "Bash(cd \"/Users/sachinsrivastava/Downloads/HD Dashboard\" && CSRF=$\\(curl -sc /tmp/hd_cookies.txt \"http://localhost:8000/login\" | grep -o 'name=\"csrf_token\" value=\"[^\"]*\"' | grep -o 'value=\"[^\"]*\"' | cut -d'\"' -f2\\); echo \"csrf: $CSRF\" *)",
+      "Read(//private/tmp/**)",
+      "Bash(python -m alembic upgrade head)",
+      "Bash(python -m alembic current)",
+      "Bash(python -m pytest tests/test_clinical_logic.py -k \"esa\" -q)",
+      "Bash(python -m pytest tests/test_clinical_logic.py -q)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(python3)"
     ]
   }
 }
