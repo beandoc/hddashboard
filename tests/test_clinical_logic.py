@@ -584,8 +584,101 @@ def test_multiple_phosphate_binders_and_pbe_calculation(db):
         db=db
     )
     
-    # Check that baseline PBE used in the simulation matches our calculated baseline PBE
     assert res["phosphate"]["baseline_pbe"] == 3.2
+
+
+def test_esa_modification_date_simulation_merge(db):
+    from services.entry_service import save_monthly_record
+    from services.interim_hb_service import merge_hb_sequence
+    from ml_acm import _row_to_dict
+    import datetime
+
+    p = Patient(name="ESA Mod Patient", hid_no="T012", is_active=True)
+    db.add(p)
+    db.commit()
+
+    # 1. Prior month record with Mircera 100mcg
+    data_prior = {
+        "month_str": "2026-05",
+        "esa_type": "Mircera (CERA)",
+        "epo_mircera_dose": "Mircera (CERA) 100mcg Every 2 Weeks",
+        "epo_weekly_units": 14000.0,
+        "hb": 10.5,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+    rec_prior = save_monthly_record(db, p.id, data_prior, actor="testadmin")
+
+    # 2. Current month record with updated Mircera 75mcg and modified_at = 2026-06-09
+    data_curr = {
+        "month_str": "2026-06",
+        "esa_type": "Mircera (CERA)",
+        "epo_mircera_dose": "Mircera (CERA) 75mcg Every 2 Weeks",
+        "epo_weekly_units": 10500.0,
+        "esa_modified_at": "2026-06-09",
+        "hb": 11.0,
+        "albumin": 3.8,
+        "calcium": 9.0,
+        "phosphorus": 4.5,
+        "serum_ferritin": 450.0,
+        "serum_creatinine": 12.0,
+        "serum_potassium": 4.8,
+        "serum_sodium": 140.0,
+    }
+    rec_curr = save_monthly_record(db, p.id, data_curr, actor="testadmin")
+
+    # Verify db persistence
+    assert rec_curr.esa_modified_at == datetime.date(2026, 6, 9)
+
+    # 3. Fetch from DB newest-first to mock the lists
+    recs = [rec_curr, rec_prior]
+    monthly_dicts = [_row_to_dict(r) for r in recs]
+    
+    # CASE A: d = 2026-06-28 (which is >= mod_date 2026-06-09)
+    # The June base monthly record retains the new dose (75mcg)
+    merged_a = merge_hb_sequence(monthly_dicts, [])
+    assert len(merged_a) == 3
+    merged_asc_a = list(reversed(merged_a))
+    
+    # May 28th
+    assert merged_asc_a[0]["record_month"] == "2026-05"
+    assert merged_asc_a[0]["epo_mircera_dose"] == "Mircera (CERA) 100mcg Every 2 Weeks"
+    # June 9th (Synthetic)
+    assert merged_asc_a[1]["record_month"] == "2026-06"
+    assert merged_asc_a[1]["record_date"] == "2026-06-09"
+    assert merged_asc_a[1]["epo_mircera_dose"] == "Mircera (CERA) 75mcg Every 2 Weeks"
+    assert merged_asc_a[1]["is_interim"] is True
+    # June 28th (Base monthly)
+    assert merged_asc_a[2]["record_month"] == "2026-06"
+    assert merged_asc_a[2]["record_date"] == "2026-06-28"
+    assert merged_asc_a[2]["epo_mircera_dose"] == "Mircera (CERA) 75mcg Every 2 Weeks"
+    assert merged_asc_a[2]["is_interim"] is False
+
+    # CASE B: d = 2026-06-01 (which is < mod_date 2026-06-09)
+    # The June base monthly record gets overwritten with the old dose (100mcg)
+    monthly_dicts_b = [_row_to_dict(r) for r in recs]
+    monthly_dicts_b[0]["record_date"] = "2026-06-01"  # explicitly set record_date so d = 2026-06-01
+    
+    merged_b = merge_hb_sequence(monthly_dicts_b, [])
+    assert len(merged_b) == 3
+    merged_asc_b = list(reversed(merged_b))
+    
+    # June 1st (Base monthly)
+    assert merged_asc_b[1]["record_month"] == "2026-06"
+    assert merged_asc_b[1]["record_date"] == "2026-06-01"
+    assert merged_asc_b[1]["epo_mircera_dose"] == "Mircera (CERA) 100mcg Every 2 Weeks" # Overwritten!
+    assert merged_asc_b[1]["is_interim"] is False
+    # June 9th (Synthetic)
+    assert merged_asc_b[2]["record_month"] == "2026-06"
+    assert merged_asc_b[2]["record_date"] == "2026-06-09"
+    assert merged_asc_b[2]["epo_mircera_dose"] == "Mircera (CERA) 75mcg Every 2 Weeks" # Modified dose!
+    assert merged_asc_b[2]["is_interim"] is True
+
 
 
 

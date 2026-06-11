@@ -251,8 +251,51 @@ def _parse_epo_dose(dose_str: Optional[str]) -> Optional[float]:
     return normalize_epo_dose(dose_str).get("weekly_iu_sc")
 
 
+# ── Desidustat (HIF-PHI) IU approximation ────────────────────────────────────
+#
+# Desidustat (Oxemia) is an oral HIF prolyl-hydroxylase inhibitor — mechanistically
+# different from injectable ESAs but produces the same erythropoietic outcome.
+# The ODE requires a numeric epo_norm signal; without this the model sees epo_norm=0
+# and fits a spuriously high k_prod, making per-patient calibration unreliable.
+#
+# Approximation basis (DREAM-ND RCT, Agarwal et al. JASN 2021):
+#   Desidustat 100 mg TIW maintained median Hb ≈10.5 g/dL, comparable to
+#   epoetin ~6 000 IU/week SC.
+#   Per-mg-per-dose estimate: 6 000 IU/wk ÷ (100 mg × 3 doses/wk) ≈ 20 IU/wk per mg·dose.
+#
+# The ODE fits k_epo per-patient from observed Hb, so the absolute scale is
+# self-correcting once ≥3 monthly records are available.  The approximation only
+# needs to be non-zero and proportional to dose.
+
+_DESIDUSTAT_IU_PER_MG_DOSE: float = 20.0   # IU/week per (mg × doses/week)
+
+
+def _parse_desidustat_weekly_iu(dose_str: str) -> Optional[float]:
+    """Convert a Desidustat dose string to weekly SC IU equivalent for the ODE."""
+    if not dose_str:
+        return None
+    s = dose_str.lower()
+    numbers = re.findall(r'\d+(?:\.\d+)?', s)
+    if not numbers:
+        return None
+    mg = float(numbers[0])
+    if "once daily" in s or " od" in s or "daily" in s:
+        doses_per_week = 7.0
+    elif "twice" in s or " bd" in s or "biw" in s or "2x" in s:
+        doses_per_week = 2.0
+    else:
+        doses_per_week = 3.0   # TIW is the most common schedule (DREAM-ND)
+    return round(mg * doses_per_week * _DESIDUSTAT_IU_PER_MG_DOSE, 2)
+
+
 def _resolve_weekly_iu_sc(record: dict) -> Optional[float]:
-    """Return weekly SC IU equivalent from a record dict."""
+    """Return weekly SC IU equivalent from a record dict.
+
+    Priority order:
+      1. Parsed epo_mircera_dose string (Mircera / darbepoetin / epoetin).
+      2. Manually entered epo_weekly_units.
+      3. Desidustat dose string — approximated to IU equivalent (see module note).
+    """
     dose_str = record.get("epo_mircera_dose")
     if dose_str:
         parsed = normalize_epo_dose(dose_str)
@@ -261,7 +304,14 @@ def _resolve_weekly_iu_sc(record: dict) -> Optional[float]:
 
     stored = record.get("epo_weekly_units")
     if stored is not None:
-        return float(stored)  # Manual units are entered as SC IU directly
+        return float(stored)
+
+    desd = record.get("desidustat_dose")
+    if desd:
+        iu = _parse_desidustat_weekly_iu(desd)
+        if iu is not None:
+            return iu
+
     return None
 
 
@@ -276,6 +326,9 @@ def _resolve_pk_corrected_iu(record: dict) -> Optional[float]:
     long half-life (t½=134 h) delivers far more monthly AUC per equivalent IU than
     pulsatile weekly epoetin.
 
+    Desidustat (oral, t½ ≈ 8 h, dosed BD/TIW) behaves similarly to frequent-dose
+    epoetin — pk_correction_factor ≈ 1.0 is appropriate.
+
     Falls back to plain weekly_iu (factor=1.0) when the dose string is unparseable,
     preserving the existing behaviour for manually-entered epo_weekly_units.
     """
@@ -287,7 +340,15 @@ def _resolve_pk_corrected_iu(record: dict) -> Optional[float]:
 
     stored = record.get("epo_weekly_units")
     if stored is not None:
-        return float(stored)   # plain IU — no drug-type info, factor defaults to 1.0
+        return float(stored)
+
+    # Desidustat: pk_factor = 1.0 (short t½, frequent dosing ≈ weekly-epoetin AUC profile)
+    desd = record.get("desidustat_dose")
+    if desd:
+        iu = _parse_desidustat_weekly_iu(desd)
+        if iu is not None:
+            return iu
+
     return None
 
 

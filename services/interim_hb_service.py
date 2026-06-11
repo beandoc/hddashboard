@@ -113,13 +113,63 @@ def merge_hb_sequence(
     # ── Build (date, dict) pairs for all entries ──────────────────────────────
     pairs: List[tuple] = []   # (date, dict, is_interim)
 
-    for rec in monthly_dicts:
+    # Drug-change groups: (modification_date_field, dose_fields_to_rewind_on_early_base)
+    _MOD_GROUPS = [
+        ("esa_modified_at",              ["epo_mircera_dose", "epo_weekly_units", "esa_type", "desidustat_dose"]),
+        ("desidustat_modified_at",       ["desidustat_dose"]),
+        ("phosphate_binder_modified_at", ["phosphate_binder_dose_mg", "phosphate_binder_type",
+                                          "phosphate_binder_freq", "phosphate_binder_details"]),
+    ]
+
+    for idx, rec in enumerate(monthly_dicts):
         d = _record_date(rec)
         if d is None:
             continue
         entry = dict(rec)
         entry["record_date"] = str(d)
         entry.setdefault("is_interim", False)
+
+        prior_rec = monthly_dicts[idx + 1] if idx + 1 < len(monthly_dicts) else None
+
+        for mod_field, dose_fields in _MOD_GROUPS:
+            mod_val = rec.get(mod_field)
+            if not mod_val:
+                continue
+            try:
+                mod_date = _date.fromisoformat(str(mod_val)[:10])
+            except ValueError:
+                continue
+
+            # Synthetic entry starts as a copy of the current monthly record (new doses).
+            synthetic = dict(rec)
+            synthetic["record_date"] = str(mod_date)
+            synthetic["is_interim"] = True
+            synthetic["hb"] = None   # no Hb measurement at a dose-change event
+
+            # For any OTHER drug group whose change date is AFTER this synthetic
+            # entry's date, that drug's dose hadn't changed yet — rewind those
+            # fields to the prior month's values in this synthetic entry.
+            for other_mod_field, other_dose_fields in _MOD_GROUPS:
+                if other_mod_field == mod_field:
+                    continue
+                other_mod_val = rec.get(other_mod_field)
+                if other_mod_val:
+                    try:
+                        other_mod_date = _date.fromisoformat(str(other_mod_val)[:10])
+                        if other_mod_date > mod_date:
+                            for field in other_dose_fields:
+                                synthetic[field] = prior_rec.get(field) if prior_rec else None
+                    except ValueError:
+                        pass
+
+            if d < mod_date:
+                # Monthly anchor pre-dates the change: patient was on the OLD dose
+                # from month start until mod_date.  Rewind those fields in the anchor.
+                for field in dose_fields:
+                    entry[field] = prior_rec.get(field) if prior_rec else None
+
+            pairs.append((mod_date, synthetic, True))
+
         pairs.append((d, entry, False))
 
     for rec in interim_hbs:
@@ -150,9 +200,24 @@ def merge_hb_sequence(
             # record.  The interim dict's own fields (hb, record_date, is_interim,
             # step_days, notes) override the monthly anchor where present.
             filled = {**last_monthly, **entry}
-            # Never let interim hb be overwritten by the monthly anchor's hb —
-            # the interim value is the reason this entry exists.
-            filled["hb"] = entry["hb"]
+            # Real interim labs carry their own Hb; synthetic dose-change entries
+            # carry hb=None — forward-fill from the most-recent monthly anchor.
+            if entry.get("hb") is not None:
+                filled["hb"] = entry["hb"]
+            else:
+                filled["hb"] = last_monthly.get("hb")
+
+            # Synthetic dose-change entries explicitly carry their new dose values —
+            # enforce them over whatever the monthly anchor had for all three drug groups.
+            _DOSE_FIELDS = [
+                "epo_mircera_dose", "epo_weekly_units", "esa_type", "desidustat_dose",
+                "phosphate_binder_dose_mg", "phosphate_binder_type",
+                "phosphate_binder_freq", "phosphate_binder_details",
+            ]
+            for field in _DOSE_FIELDS:
+                if field in entry and entry[field] is not None:
+                    filled[field] = entry[field]
+
             filled["is_interim"] = True
             merged_oldest_first.append(filled)
 

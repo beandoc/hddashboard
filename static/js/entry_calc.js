@@ -279,15 +279,20 @@ function toggleDesidustatSection() {
     const group = document.getElementById('desidustat_group');
     if (!group) return;
 
+    const modGroup = document.getElementById('desidustat_mod_date_group');
     if (val === 'Yes') {
         group.style.display = 'block';
+        if (modGroup) modGroup.style.display = 'block';
         restoreDesidustatFields();
     } else {
         group.style.display = 'none';
+        if (modGroup) modGroup.style.display = 'none';
         const mgEl   = document.getElementById('desidustat_mg');
         const freqEl = document.getElementById('desidustat_freq');
+        const modEl  = document.getElementById('desidustat_modified_at');
         if (mgEl)   mgEl.value   = '';
         if (freqEl) freqEl.value = '';
+        if (modEl)  modEl.value  = '';
         syncDesidustatDose();
     }
 }

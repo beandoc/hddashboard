@@ -53,28 +53,46 @@ def _monthly_records_dicts(db: Session, patient_id: int, limit: int = 12) -> lis
     )
     return [
         {
-            "hb":                 rec.hb,
-            "serum_ferritin":     rec.serum_ferritin,
-            "tsat":               rec.tsat,
-            "albumin":            rec.albumin,
-            "single_pool_ktv":    rec.single_pool_ktv,
-            "crp":                getattr(rec, "crp", None),
-            "last_prehd_weight":  rec.last_prehd_weight,
-            "weight":             rec.last_prehd_weight,
-            "epo_mircera_dose":   rec.epo_mircera_dose,
-            "epo_weekly_units":   rec.epo_weekly_units,
-            "iv_iron_dose":       rec.iv_iron_dose,
-            "pre_dialysis_urea":  rec.pre_dialysis_urea,
-            "post_dialysis_urea": rec.post_dialysis_urea,
-            "phosphorus":         rec.phosphorus,
-            "ufr":                rec.ufr,
-            "record_month":       rec.record_month,
-            "phosphate_binder_type": rec.phosphate_binder_type,
-            "phosphate_binder_dose_mg": rec.phosphate_binder_dose_mg,
-            "phosphate_binder_details": getattr(rec, "phosphate_binder_details", None),
+            "hb":                   rec.hb,
+            "serum_ferritin":       rec.serum_ferritin,
+            "tsat":                 rec.tsat,
+            "albumin":              rec.albumin,
+            "single_pool_ktv":      rec.single_pool_ktv,
+            "crp":                  getattr(rec, "crp", None),
+            "last_prehd_weight":    rec.last_prehd_weight,
+            "weight":               rec.last_prehd_weight,
+            "epo_mircera_dose":     rec.epo_mircera_dose,
+            "epo_weekly_units":     rec.epo_weekly_units,
+            "desidustat_dose":      getattr(rec, "desidustat_dose", None),
+            "esa_type":             getattr(rec, "esa_type", None),
+            "esa_modified_at":      getattr(rec, "esa_modified_at", None),
+            "desidustat_modified_at":       getattr(rec, "desidustat_modified_at", None),
+            "phosphate_binder_modified_at": getattr(rec, "phosphate_binder_modified_at", None),
+            "iv_iron_dose":         rec.iv_iron_dose,
+            "pre_dialysis_urea":    rec.pre_dialysis_urea,
+            "post_dialysis_urea":   rec.post_dialysis_urea,
+            "phosphorus":           rec.phosphorus,
+            "ufr":                  rec.ufr,
+            "record_month":         rec.record_month,
+            "phosphate_binder_type":     rec.phosphate_binder_type,
+            "phosphate_binder_dose_mg":  rec.phosphate_binder_dose_mg,
+            "phosphate_binder_freq":     getattr(rec, "phosphate_binder_freq", None),
+            "phosphate_binder_details":  getattr(rec, "phosphate_binder_details", None),
         }
         for rec in recs
     ]
+
+
+def _merged_records_for_twin(db: Session, patient_id: int, limit: int = 12) -> list:
+    """Monthly records merged with interim Hb entries and synthetic dose-change entries.
+
+    Uses merge_hb_sequence so the twin ODE sees mid-month ESA/Desidustat/phosphate
+    binder changes and interim Hb observations rather than flat end-of-month snapshots.
+    """
+    from services.interim_hb_service import get_interim_hbs, merge_hb_sequence
+    monthly = _monthly_records_dicts(db, patient_id, limit=limit)
+    interim = get_interim_hbs(db, patient_id, limit=limit * 3)
+    return merge_hb_sequence(monthly, interim)
 
 
 def _past_sessions_dicts(db: Session, patient_id: int, limit: int = 10) -> list:
@@ -461,6 +479,7 @@ async def twin_simulate(
     except ScenarioValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+    # Raw monthly records for patient_info / baseline building (needs end-of-month anchors).
     records          = _monthly_records_dicts(db, patient_id)
     past_sessions    = _past_sessions_dicts(db, patient_id)
     patient_info     = _build_patient_info(patient, records, db)
@@ -469,12 +488,15 @@ async def twin_simulate(
     if not records:
         raise HTTPException(status_code=422, detail="No monthly records available for simulation")
 
+    # Merged sequence (interim Hb + synthetic dose-change entries) for ODE fitting.
+    ode_records = _merged_records_for_twin(db, patient_id)
+
     try:
         current_ktv, _ = _resolve_current_ktv(db, patient_id, records, past_sessions)
         
         result = run_scenario(
             patient_id          = patient_id,
-            records             = records,
+            records             = ode_records,
             patient_info        = patient_info,
             baseline_session    = baseline_session,
             past_sessions       = past_sessions,

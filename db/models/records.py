@@ -56,6 +56,8 @@ class MonthlyRecord(Base):
     epo_mircera_dose = Column(String)
     epo_weekly_units = Column(Float)
     desidustat_dose = Column(String)
+    esa_modified_at = Column(Date, nullable=True)
+    desidustat_modified_at = Column(Date, nullable=True)
 
     # ── Iron Panel ────────────────────────────────────────────────────────────
     serum_ferritin = Column(Float)
@@ -78,6 +80,7 @@ class MonthlyRecord(Base):
     phosphate_binder_dose_mg = Column(Float)
     phosphate_binder_freq = Column(String)
     phosphate_binder_details = Column(Text)
+    phosphate_binder_modified_at = Column(Date, nullable=True)
 
     # ── Electrolytes & Acid-Base ──────────────────────────────────────────────
     serum_sodium = Column(Float)

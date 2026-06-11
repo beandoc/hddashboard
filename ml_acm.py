@@ -383,6 +383,8 @@ def _row_to_dict(rec) -> Dict:
         "target_dry_weight":   rec.target_dry_weight,
         "epo_mircera_dose":    rec.epo_mircera_dose,
         "epo_weekly_units":    rec.epo_weekly_units,
+        "esa_modified_at":     getattr(rec, "esa_modified_at", None),
+        "desidustat_dose":     getattr(rec, "desidustat_dose", None),
         "iv_iron_dose":        rec.iv_iron_dose,
         "transfusion_units":    getattr(rec, "blood_transfusion_units", None),
         "reticulocyte_count":   getattr(rec, "reticulocyte_count", None),
