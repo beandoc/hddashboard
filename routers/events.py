@@ -340,6 +340,9 @@ async def create_interim_lab(
         "potassium":  "serum_potassium",
         "sodium":     "serum_sodium",
         "crp":        "crp",
+        "sp_ktv":     "single_pool_ktv",
+        "e_ktv":      "equilibrated_ktv",
+        "urr":        "urr",
     }
     _monthly_col = _INTERIM_TO_MONTHLY.get(parameter)
     if _monthly_col:

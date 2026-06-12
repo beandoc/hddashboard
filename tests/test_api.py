@@ -173,10 +173,10 @@ def test_admin_backup_includes_variables(client):
 def test_at_risk_trends_interim_and_month_override(client):
     import time
     from config import serializer
-    from database import Patient, InterimLabRecord, SessionLocal
+    from database import Patient, InterimLabRecord
     
     # 1. Create a test patient with interim record for Hb out-of-range (e.g. 5.9)
-    db = SessionLocal()
+    db = TestingSessionLocal()
     patient = Patient(name="Joyla", hid_no="J001", is_active=True)
     db.add(patient)
     db.commit()
@@ -213,7 +213,7 @@ def test_at_risk_trends_interim_and_month_override(client):
     assert joyla_entry["trend"][-1] == 5.9
     
     # Clean up
-    db = SessionLocal()
+    db = TestingSessionLocal()
     db.query(InterimLabRecord).filter(InterimLabRecord.patient_id == patient_id).delete()
     db.query(Patient).filter(Patient.id == patient_id).delete()
     db.commit()
@@ -235,7 +235,7 @@ def test_admin_missing_data_endpoint(client):
 def test_add_and_edit_hospitalisation(client):
     import time
     from config import serializer
-    from database import Patient, HospitalisationEvent, MonthlyRecord, TestingSessionLocal
+    from database import Patient, HospitalisationEvent, MonthlyRecord
     import json
 
     db = TestingSessionLocal()
@@ -271,7 +271,7 @@ def test_add_and_edit_hospitalisation(client):
         "ventilation_days": 0,
         "transfusion_units": 0,
     }
-    response = client.post(f"/patients/{patient_id}/hospitalisations", data=post_data)
+    response = client.post(f"/patients/{patient_id}/hospitalisations", data=post_data, follow_redirects=False)
     assert response.status_code == 303  # redirect to hospitalisations index
 
     db = TestingSessionLocal()
@@ -313,7 +313,7 @@ def test_add_and_edit_hospitalisation(client):
         "ventilation_days": 1,
         "transfusion_units": 1,
     }
-    response = client.post(f"/patients/{patient_id}/hospitalisations/{ev.id}/edit", data=edit_data)
+    response = client.post(f"/patients/{patient_id}/hospitalisations/{ev.id}/edit", data=edit_data, follow_redirects=False)
     assert response.status_code == 303
 
     db.refresh(ev)
@@ -333,6 +333,63 @@ def test_add_and_edit_hospitalisation(client):
     # Clean up
     db.delete(ev)
     db.delete(rec)
+    db.query(Patient).filter(Patient.id == patient_id).delete()
+    db.commit()
+    db.close()
+
+
+def test_save_interim_sp_ktv(client):
+    import time
+    from config import serializer
+    from database import Patient, MonthlyRecord, InterimLabRecord
+    
+    db = TestingSessionLocal()
+    patient = Patient(name="Test KTV Patient", hid_no="KTV001", is_active=True)
+    db.add(patient)
+    db.commit()
+    patient_id = patient.id
+    db.close()
+    
+    token = serializer.dumps(f"staff:testadmin:{int(time.time())}")
+    client.cookies.set("hd_session", token)
+    
+    from config import _csrf_signer
+    csrf_token = _csrf_signer.sign(f"interim-{patient_id}").decode()
+    
+    post_data = {
+        "lab_date": "2026-06-12",
+        "parameter": "sp_ktv",
+        "value": 1.45,
+        "unit": "",
+        "trigger": "Routine Recheck",
+        "notes": "Testing interim sp_ktv save",
+        "csrf_token": csrf_token,
+    }
+    
+    response = client.post(f"/events/patients/{patient_id}/interim-labs/new", data=post_data, follow_redirects=False)
+    assert response.status_code == 303  # redirect
+    
+    # Verify in DB
+    db = TestingSessionLocal()
+    # Check InterimLabRecord
+    interim = db.query(InterimLabRecord).filter(
+        InterimLabRecord.patient_id == patient_id,
+        InterimLabRecord.parameter == "sp_ktv"
+    ).first()
+    assert interim is not None
+    assert interim.value == 1.45
+    
+    # Check MonthlyRecord
+    monthly = db.query(MonthlyRecord).filter(
+        MonthlyRecord.patient_id == patient_id,
+        MonthlyRecord.record_month == "2026-06"
+    ).first()
+    assert monthly is not None
+    assert monthly.single_pool_ktv == 1.45
+    
+    # Clean up
+    db.delete(interim)
+    db.delete(monthly)
     db.query(Patient).filter(Patient.id == patient_id).delete()
     db.commit()
     db.close()

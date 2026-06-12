@@ -374,18 +374,18 @@ def sync_hospitalization_to_monthly_record(
         
     rec.hospitalization_details = json.dumps(current_details)
         
-    # Update flat fields with first entry if empty
-    if not rec.hospitalization_date:
-        rec.hospitalization_date = event_date
-    if not rec.hospitalization_diagnosis and diag_str:
-        rec.hospitalization_diagnosis = diag_str
-    if not rec.hospitalization_icd_code and code_str:
-        rec.hospitalization_icd_code = code_str
-    if not rec.hospitalization_icd_diagnosis and icd_diag_str:
-        rec.hospitalization_icd_diagnosis = icd_diag_str
-    if not rec.hospitalization_severity and severity:
-        rec.hospitalization_severity = severity
-    if rec.hospitalization_icu_admission is None and icu_admission is not None:
-        rec.hospitalization_icu_admission = icu_admission
+    # Update flat fields using the first (primary) hospitalization entry
+    if current_details:
+        primary = current_details[0]
+        try:
+            from datetime import datetime as _dt
+            rec.hospitalization_date = _dt.strptime(primary["date"], "%Y-%m-%d").date() if isinstance(primary["date"], str) else primary["date"]
+        except Exception:
+            rec.hospitalization_date = event_date
+        rec.hospitalization_diagnosis = primary.get("diagnosis") or None
+        rec.hospitalization_icd_code = primary.get("icd_code") or None
+        rec.hospitalization_icd_diagnosis = primary.get("icd_diagnosis") or None
+        rec.hospitalization_severity = primary.get("severity") or None
+        rec.hospitalization_icu_admission = primary.get("icu_admission")
         
     return rec
