@@ -576,9 +576,45 @@
                 { name: "pleural_effusion", label: "Pleural Effusion Present", type: "select", options: ["No", "Yes - Right", "Yes - Left", "Yes - Bilateral"] }
             ],
             "AUTONOMIC_TEST": [
-                { name: "hrv", label: "Heart Rate Variability (ms)", type: "number" },
-                { name: "valsalva_ratio", label: "Valsalva Ratio", type: "number", step: "0.01" },
-                { name: "orthostatic_drop", label: "Orthostatic SBP Drop (mmHg)", type: "number" }
+                { name: "hutt_header", label: "I. Head-Up Tilt Table Test (HUTT) / हेड-अप टिल्ट टेबल टेस्ट", type: "header" },
+                { name: "hutt_pre_sbp", label: "Baseline / Pre-Tilt SBP (mmHg)", type: "number", step: "1" },
+                { name: "hutt_pre_dbp", label: "Baseline / Pre-Tilt DBP (mmHg)", type: "number", step: "1" },
+                { name: "hutt_pre_hr", label: "Baseline / Pre-Tilt HR (bpm)", type: "number", step: "1" },
+                
+                { name: "hutt_3m_sbp", label: "3 Min Post-Tilt SBP (mmHg)", type: "number", step: "1" },
+                { name: "hutt_3m_dbp", label: "3 Min Post-Tilt DBP (mmHg)", type: "number", step: "1" },
+                { name: "hutt_3m_hr", label: "3 Min Post-Tilt HR (bpm)", type: "number", step: "1" },
+                
+                { name: "hutt_3m_delta_sbp", label: "3 Min SBP Change (Δ SBP mmHg)", type: "number", step: "0.1" },
+                { name: "hutt_3m_delta_dbp", label: "3 Min DBP Change (Δ DBP mmHg)", type: "number", step: "0.1" },
+                { name: "hutt_3m_delta_hr", label: "3 Min HR Change (Δ HR bpm)", type: "number", step: "0.1" },
+                
+                { name: "hutt_10m_sbp", label: "10 Min Post-Tilt SBP (mmHg)", type: "number", step: "1" },
+                { name: "hutt_10m_dbp", label: "10 Min Post-Tilt DBP (mmHg)", type: "number", step: "1" },
+                { name: "hutt_10m_hr", label: "10 Min Post-Tilt HR (bpm)", type: "number", step: "1" },
+                
+                { name: "hutt_10m_delta_sbp", label: "10 Min SBP Change (Δ SBP mmHg)", type: "number", step: "0.1" },
+                { name: "hutt_10m_delta_dbp", label: "10 Min DBP Change (Δ DBP mmHg)", type: "number", step: "0.1" },
+                { name: "hutt_10m_delta_hr", label: "10 Min HR Change (Δ HR bpm)", type: "number", step: "0.1" },
+
+                { name: "hrdb_header", label: "II. Heart Rate Deep Breathing (HRDB) / हार्ट रेट डीप ब्रीदिंग", type: "header" },
+                { name: "hrdb_ei_ratio", label: "E:I Ratio (Normal >1.20)", type: "number", step: "0.01" },
+                { name: "hrdb_longest_rr_expiration", label: "Longest R-R Interval (Expiration) (ms)", type: "number", step: "1" },
+                { name: "hrdb_shortest_rr_inspiration", label: "Shortest R-R Interval (Inspiration) (ms)", type: "number", step: "1" },
+
+                { name: "valsalva_header", label: "III. Valsalva Maneuver / वाल्साल्वा पैंतरेबाज़ी", type: "header" },
+                { name: "valsalva_ratio", label: "Valsalva Ratio (Normal >1.20)", type: "number", step: "0.01" },
+
+                { name: "ssr_header", label: "IV. Sympathetic Skin Response (SSR) / सिम्पैथेटिक स्किन रिस्पॉन्स", type: "header" },
+                { name: "ssr_hand_latency_r", label: "Hand Latency - Right (s) (Normal <2.0s)", type: "number", step: "0.1" },
+                { name: "ssr_hand_latency_l", label: "Hand Latency - Left (s) (Normal <2.0s)", type: "number", step: "0.1" },
+                { name: "ssr_hand_amplitude_r", label: "Hand Amplitude - Right (mV) (Normal >1.0mV)", type: "number", step: "0.01" },
+                { name: "ssr_hand_amplitude_l", label: "Hand Amplitude - Left (mV) (Normal >1.0mV)", type: "number", step: "0.01" },
+                
+                { name: "ssr_foot_latency_r", label: "Foot Latency - Right (s) (Normal <2.5s)", type: "number", step: "0.1" },
+                { name: "ssr_foot_latency_l", label: "Foot Latency - Left (s) (Normal <2.5s)", type: "number", step: "0.1" },
+                { name: "ssr_foot_amplitude_r", label: "Foot Amplitude - Right (mV) (Normal >0.5mV)", type: "number", step: "0.01" },
+                { name: "ssr_foot_amplitude_l", label: "Foot Amplitude - Left (mV) (Normal >0.5mV)", type: "number", step: "0.01" }
             ],
             "EDMONTON_FRAIL_SCALE": [
                 { name: "efs_cognition", label: "Cognition (Clock Test)", type: "select", options: [
