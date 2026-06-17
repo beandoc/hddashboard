@@ -225,6 +225,55 @@
 
         <hr style="border:none; border-top:2px dashed #e2e8f0; margin: 40px 0;">
 
+        <!-- ── Circuit Pressure Alerts ───────────────────────────────────── -->
+        {% if pressure_alerts %}
+        <div style="margin-bottom:36px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+                <h2 style="color:var(--text-header);display:flex;align-items:center;gap:8px;">
+                    <i class="material-icons" style="color:#ef4444;">monitor_heart</i>
+                    Circuit Pressure Alerts
+                    <span style="display:inline-block;padding:2px 10px;border-radius:20px;background:#fee2e2;color:#991b1b;font-size:0.72rem;font-weight:700;margin-left:4px;">{{ pressure_alerts|length }} patient{% if pressure_alerts|length != 1 %}s{% endif %}</span>
+                </h2>
+                <a href="/analytics/pressure-trends" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#1e293b;color:#94a3b8;text-decoration:none;border-radius:8px;font-size:0.8rem;font-weight:600;border:1px solid #334155;">
+                    <i class="material-icons" style="font-size:1rem;">open_in_new</i> Full Pressure Dashboard
+                </a>
+            </div>
+            <p style="font-size:0.82rem;color:#64748b;margin-bottom:16px;">
+                Arterial and/or venous line pressures trending outside safe range across recent sessions.
+                Likely access stenosis — consider duplex surveillance or fistulogram referral.
+            </p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                {% for sig in pressure_alerts %}
+                <div style="background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.07);padding:16px 20px;border-left:4px solid {% if sig.max_risk == 'alert' %}#ef4444{% else %}#f59e0b{% endif %};">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                        <div>
+                            <span style="font-weight:700;font-size:0.95rem;color:#0f172a;">{{ sig.patient_name }}</span>
+                            <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:20px;font-size:0.65rem;font-weight:700;background:{% if sig.max_risk == 'alert' %}#fee2e2;color:#991b1b{% else %}#fef9c3;color:#92400e{% endif %};">
+                                {{ sig.max_risk | upper }}
+                            </span>
+                            <div style="margin-top:6px;display:flex;gap:16px;font-size:0.8rem;color:#475569;">
+                                {% if sig.art_mean is not none %}<span>Art: <strong>{{ sig.art_mean | round(0) | int }} mmHg</strong></span>{% endif %}
+                                {% if sig.ven_mean is not none %}<span>Ven: <strong>{{ sig.ven_mean | round(0) | int }} mmHg</strong></span>{% endif %}
+                                {% if sig.tmp_mean is not none %}<span>TMP: <strong>{{ sig.tmp_mean | round(0) | int }} mmHg</strong></span>{% endif %}
+                                <span style="color:#94a3b8;">{{ sig.sessions_n }} sessions</span>
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
+                            {% for flag in sig.flags[:2] %}
+                            <span style="font-size:0.72rem;color:{% if 'COMBINED' in flag or 'suspected' in flag %}#991b1b{% else %}#92400e{% endif %};">
+                                ⚠ {{ flag }}
+                            </span>
+                            {% endfor %}
+                            <a href="/analytics/patients/{{ sig.patient_id }}" style="font-size:0.75rem;color:#6366f1;text-decoration:none;margin-top:4px;">View trends →</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <hr style="border:none; border-top:2px dashed #e2e8f0; margin: 40px 0;">
+        {% endif %}
+
         <!-- Manual Dispatch Gateway -->
         <h2 style="color: var(--text-header); margin-bottom: 20px;">WhatsApp Manual Gateway</h2>
         

@@ -1078,6 +1078,38 @@ async def mortality_risk_list(
     })
 
 
+@router.get("/pressure-trends", response_class=HTMLResponse)
+async def pressure_trends(request: Request, db: Session = Depends(get_db)):
+    """Fleet-wide circuit pressure trend dashboard.
+
+    Shows arterial/venous/TMP signals across recent sessions for all active
+    patients and surfaces early access failure risk flags.
+    """
+    _require_analytics_access(request)
+    from dashboard_logic import _fetch_recent_n_sessions
+    from services.pressure_analysis import compute_fleet_pressure_signals
+
+    active = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
+    recent_sessions = _fetch_recent_n_sessions(db, [p.id for p in active], n=8)
+
+    signals = compute_fleet_pressure_signals(db, active, recent_sessions)
+
+    alert_count   = sum(1 for s in signals if s.max_risk == "alert")
+    warning_count = sum(1 for s in signals if s.max_risk == "warning")
+    combined_count = sum(1 for s in signals if s.combined_risk)
+
+    return templates.TemplateResponse("pressure_trends.html", {
+        "request":        request,
+        "user":           get_user(request),
+        "signals":        signals,
+        "total_patients": len(active),
+        "with_data":      len(signals),
+        "alert_count":    alert_count,
+        "warning_count":  warning_count,
+        "combined_count": combined_count,
+    })
+
+
 @router.get("", response_class=HTMLResponse)
 async def analytics_hub(request: Request, db: Session = Depends(get_db)):
     _require_analytics_access(request)

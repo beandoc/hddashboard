@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Concordance — ACM | HD Dashboard</title>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <style>
+        :root {
+            --bg:       #0f172a;
+            --card:     #1e293b;
+            --border:   #334155;
+            --text:     #e2e8f0;
+            --muted:    #94a3b8;
+            --accept:   #22c55e;
+            --modify:   #f59e0b;
+            --reject:   #ef4444;
+            --pending:  #6366f1;
+            --radius:   14px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+        .page-hero {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+            padding: 36px 32px 48px;
+            border-bottom: 1px solid #3730a3;
+        }
+        .page-hero h1 { font-family: 'Outfit', sans-serif; font-size: 1.75rem; font-weight: 700; }
+        .page-hero p  { color: #a5b4fc; font-size: 0.9rem; margin-top: 6px; max-width: 620px; }
+
+        .container { max-width: 1200px; margin: -28px auto 60px; padding: 0 24px; position: relative; z-index: 10; }
+
+        /* Summary cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-val { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; }
+        .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+        .stat-sub   { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+        /* Section headers */
+        .section { margin-bottom: 36px; }
+        .section-head {
+            display: flex; align-items: center; gap: 10px;
+            font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700;
+            margin-bottom: 16px; padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .section-head i { color: #818cf8; }
+
+        /* Tables */
+        .data-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+        .data-table th { text-align: left; padding: 12px 16px; background: #1a2744; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .data-table td { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 0.88rem; vertical-align: middle; }
+        .data-table tr:hover td { background: #263352; }
+
+        /* Rate bar */
+        .rate-bar-wrap { display: flex; align-items: center; gap: 8px; }
+        .rate-bar { flex: 1; height: 8px; border-radius: 4px; background: #334155; overflow: hidden; }
+        .rate-bar-fill { height: 100%; border-radius: 4px; }
+        .rate-label { font-size: 0.8rem; font-weight: 700; min-width: 38px; text-align: right; }
+
+        /* Decision badges */
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+        .badge-accept  { background: rgba(34,197,94,.15);  color: var(--accept); }
+        .badge-modify  { background: rgba(245,158,11,.15); color: var(--modify); }
+        .badge-reject  { background: rgba(239,68,68,.15);  color: var(--reject); }
+        .badge-pending { background: rgba(99,102,241,.15); color: var(--pending); }
+
+        /* Donut chart (CSS-only) */
+        .donut-wrap { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+        .donut { position: relative; width: 140px; height: 140px; flex-shrink: 0; }
+        .donut svg { transform: rotate(-90deg); }
+        .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .donut-center-val { font-size: 1.4rem; font-weight: 800; font-family: 'Outfit', sans-serif; }
+        .donut-center-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; }
+        .donut-legend { display: flex; flex-direction: column; gap: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+        /* Monthly trend bars */
+        .trend-chart { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; overflow-x: auto; }
+        .bar-group-row { display: flex; align-items: flex-end; gap: 4px; min-width: 600px; }
+        .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 2px; }
+        .bar-month { font-size: 0.65rem; color: var(--muted); margin-top: 6px; transform: rotate(-30deg); transform-origin: top center; white-space: nowrap; }
+        .bar-stack { display: flex; flex-direction: column-reverse; width: 100%; border-radius: 4px 4px 0 0; overflow: hidden; }
+        .bar-seg { width: 100%; }
+
+        /* Outcome comparison */
+        .outcome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+        .outcome-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+        .outcome-card h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .outcome-delta { font-size: 1.8rem; font-weight: 800; font-family: 'Outfit', sans-serif; }
+        .delta-pos { color: var(--accept); }
+        .delta-neg { color: var(--reject); }
+        .delta-neu { color: var(--muted); }
+        .outcome-meta { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); }
+        .empty-state i { font-size: 3rem; opacity: 0.4; display: block; margin-bottom: 12px; }
+
+        /* Back button */
+        .btn-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: rgba(255,255,255,.07); color: var(--muted); text-decoration: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; margin-bottom: 24px; border: 1px solid var(--border); transition: background 0.15s; }
+        .btn-back:hover { background: rgba(255,255,255,.12); }
+
+        @media (max-width: 640px) {
+            .page-hero { padding: 24px 16px 36px; }
+            .container { padding: 0 12px; margin-top: -20px; }
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="page-hero">
+    <h1><i class="material-icons" style="vertical-align:middle;margin-right:8px;font-size:1.5rem;">verified_user</i>Clinical Concordance</h1>
+    <p>How often clinicians agree, modify, or reject the ACM's anemia recommendations — broken down by clinician, month, ESA action, and Hb zone.</p>
+</div>
+
+<div class="container">
+    <a href="/acm/audit" class="btn-back"><i class="material-icons" style="font-size:1rem;">arrow_back</i> ACM Audit</a>
+
+    {% if total == 0 %}
+    <div class="empty-state">
+        <i class="material-icons">hourglass_empty</i>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px;">No decided recommendations yet</div>
+        <div>Once clinicians start accepting, modifying, or rejecting ACM recommendations, concordance data will appear here.</div>
+    </div>
+    {% else %}
+
+    <!-- Summary cards -->
+    <div class="summary-grid">
+        <div class="stat-card">
+            <div class="stat-val" style="color:#818cf8;">{{ total }}</div>
+            <div class="stat-label">Total Decisions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--accept);">{{ accept_rate }}%</div>
+            <div class="stat-label">Accept Rate</div>
+            <div class="stat-sub">{{ accept_count }} accepted</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--modify);">{{ modify_rate }}%</div>
+            <div class="stat-label">Modify Rate</div>
+            <div class="stat-sub">{{ modify_count }} modified</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--reject);">{{ reject_rate }}%</div>
+            <div class="stat-label">Reject Rate</div>
+            <div class="stat-sub">{{ reject_count }} rejected</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--pending);">{{ pending_count }}</div>
+            <div class="stat-label">Pending Review</div>
+        </div>
+    </div>
+
+    <!-- Donut + legend -->
+    {% set donut_r = 54 %}
+    {% set donut_c = 70 %}
+    {% set donut_circ = 339 %}
+    {% set accept_dash = (accept_count / total * donut_circ) | round(1) %}
+    {% set modify_dash = (modify_count / total * donut_circ) | round(1) %}
+    {% set reject_dash = (reject_count / total * donut_circ) | round(1) %}
+    <div class="section">
+        <div class="section-head"><i class="material-icons">donut_large</i> Decision Breakdown</div>
+        <div class="donut-wrap">
+            <div class="donut">
+                <svg width="140" height="140" viewBox="0 0 140 140">
+                    <circle cx="{{ donut_c }}" cy="{{ donut_c }}" r="{{ donut_r }}" fill="none" stroke="#334155" stroke-width="18"/>
+                    <!-- Accept segment -->
+                    <circle cx="{{ donut_c }}" cy="{{ donut_c }}" r="{{ donut_r }}" fill="none" stroke="#22c55e" stroke-width="18"
+                        stroke-dasharray="{{ accept_dash }} {{ donut_circ }}"
+                        stroke-dashoffset="0"/>
+                    <!-- Modify segment -->
+                    <circle cx="{{ donut_c }}" cy="{{ donut_c }}" r="{{ donut_r }}" fill="none" stroke="#f59e0b" stroke-width="18"
+                        stroke-dasharray="{{ modify_dash }} {{ donut_circ }}"
+                        stroke-dashoffset="-{{ accept_dash }}"/>
+                    <!-- Reject segment -->
+                    <circle cx="{{ donut_c }}" cy="{{ donut_c }}" r="{{ donut_r }}" fill="none" stroke="#ef4444" stroke-width="18"
+                        stroke-dasharray="{{ reject_dash }} {{ donut_circ }}"
+                        stroke-dashoffset="-{{ (accept_dash|float + modify_dash|float) | round(1) }}"/>
+                </svg>
+                <div class="donut-center">
+                    <div class="donut-center-val">{{ accept_rate }}%</div>
+                    <div class="donut-center-lbl">Accept</div>
+                </div>
+            </div>
+            <div class="donut-legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:var(--accept);"></div>
+                    <div><span style="font-weight:700;">{{ accept_count }}</span> Accepted ({{ accept_rate }}%)</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:var(--modify);"></div>
+                    <div><span style="font-weight:700;">{{ modify_count }}</span> Modified ({{ modify_rate }}%)</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:var(--reject);"></div>
+                    <div><span style="font-weight:700;">{{ reject_count }}</span> Rejected ({{ reject_rate }}%)</div>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:var(--pending);"></div>
+                    <div><span style="font-weight:700;">{{ pending_count }}</span> Pending Review</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly trend -->
+    {% if monthly_trend %}
+    <div class="section">
+        <div class="section-head"><i class="material-icons">bar_chart</i> Monthly Trend</div>
+        {% set max_total = monthly_trend | map(attribute='total') | max %}
+        <div class="trend-chart">
+            <div class="bar-group-row">
+                {% for m in monthly_trend %}
+                {% set bar_h = ((m.total / max_total) * 140) | round | int %}
+                {% set a_h = ((m.accept / m.total) * bar_h) | round | int %}
+                {% set mo_h = ((m.modify / m.total) * bar_h) | round | int %}
+                {% set re_h = (bar_h - a_h - mo_h) %}
+                <div class="bar-col">
+                    <div class="bar-stack" style="height:{{ bar_h }}px;">
+                        <div class="bar-seg" style="height:{{ a_h }}px;background:var(--accept);"></div>
+                        <div class="bar-seg" style="height:{{ mo_h }}px;background:var(--modify);"></div>
+                        <div class="bar-seg" style="height:{{ re_h | max(0) }}px;background:var(--reject);"></div>
+                    </div>
+                    <div class="bar-month">{{ m.month }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            <div style="display:flex;gap:16px;margin-top:16px;font-size:0.75rem;color:var(--muted);">
+                <span><span style="display:inline-block;width:10px;height:10px;background:var(--accept);border-radius:2px;margin-right:4px;"></span>Accept</span>
+                <span><span style="display:inline-block;width:10px;height:10px;background:var(--modify);border-radius:2px;margin-right:4px;"></span>Modify</span>
+                <span><span style="display:inline-block;width:10px;height:10px;background:var(--reject);border-radius:2px;margin-right:4px;"></span>Reject</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Per-clinician breakdown -->
+    {% if clinician_rows %}
+    <div class="section">
+        <div class="section-head"><i class="material-icons">people</i> Per-Clinician Breakdown</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Clinician</th>
+                    <th>Total</th>
+                    <th>Accept</th>
+                    <th>Modify</th>
+                    <th>Reject</th>
+                    <th style="min-width:160px;">Accept Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in clinician_rows %}
+                <tr>
+                    <td style="font-weight:600;">{{ row.name }}</td>
+                    <td>{{ row.total }}</td>
+                    <td><span class="badge badge-accept">{{ row.accept }}</span></td>
+                    <td><span class="badge badge-modify">{{ row.modify }}</span></td>
+                    <td><span class="badge badge-reject">{{ row.reject }}</span></td>
+                    <td>
+                        <div class="rate-bar-wrap">
+                            <div class="rate-bar">
+                                <div class="rate-bar-fill" style="width:{{ row.accept_rate }}%;background:var(--accept);"></div>
+                            </div>
+                            <span class="rate-label" style="color:var(--accept);">{{ row.accept_rate }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- ESA action vs decision -->
+    {% if esa_rows %}
+    <div class="section">
+        <div class="section-head"><i class="material-icons">medication</i> ESA Action vs Decision</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:14px;">Which ESA recommendations get accepted vs overridden most often.</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ESA Action</th>
+                    <th>Total</th>
+                    <th>Accept</th>
+                    <th>Modify</th>
+                    <th>Reject</th>
+                    <th style="min-width:160px;">Accept Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in esa_rows %}
+                <tr>
+                    <td>
+                        <span style="text-transform:capitalize;font-weight:600;">{{ row.action }}</span>
+                    </td>
+                    <td>{{ row.total }}</td>
+                    <td><span class="badge badge-accept">{{ row.accept }}</span></td>
+                    <td><span class="badge badge-modify">{{ row.modify }}</span></td>
+                    <td><span class="badge badge-reject">{{ row.reject }}</span></td>
+                    <td>
+                        <div class="rate-bar-wrap">
+                            <div class="rate-bar">
+                                <div class="rate-bar-fill" style="width:{{ row.accept_rate }}%;background:{% if row.accept_rate >= 70 %}var(--accept){% elif row.accept_rate >= 40 %}var(--modify){% else %}var(--reject){% endif %};"></div>
+                            </div>
+                            <span class="rate-label" style="color:{% if row.accept_rate >= 70 %}var(--accept){% elif row.accept_rate >= 40 %}var(--modify){% else %}var(--reject){% endif %};">{{ row.accept_rate }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Hb zone vs decision -->
+    {% if hb_zone_rows %}
+    <div class="section">
+        <div class="section-head"><i class="material-icons">bloodtype</i> Hb Zone vs Decision</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:14px;">Whether the patient's Hb status at time of recommendation affects clinician trust in the ACM.</p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Hb Status</th>
+                    <th>Total</th>
+                    <th>Accept</th>
+                    <th>Modify</th>
+                    <th>Reject</th>
+                    <th style="min-width:160px;">Accept Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in hb_zone_rows %}
+                <tr>
+                    <td>
+                        <span style="text-transform:capitalize;font-weight:600;">{{ row.zone | replace('_', ' ') }}</span>
+                    </td>
+                    <td>{{ row.total }}</td>
+                    <td><span class="badge badge-accept">{{ row.accept }}</span></td>
+                    <td><span class="badge badge-modify">{{ row.modify }}</span></td>
+                    <td><span class="badge badge-reject">{{ row.reject }}</span></td>
+                    <td>
+                        <div class="rate-bar-wrap">
+                            <div class="rate-bar">
+                                <div class="rate-bar-fill" style="width:{{ row.accept_rate }}%;background:{% if row.accept_rate >= 70 %}var(--accept){% elif row.accept_rate >= 40 %}var(--modify){% else %}var(--reject){% endif %};"></div>
+                            </div>
+                            <span class="rate-label" style="color:{% if row.accept_rate >= 70 %}var(--accept){% elif row.accept_rate >= 40 %}var(--modify){% else %}var(--reject){% endif %};">{{ row.accept_rate }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Outcome comparison -->
+    {% if outcome_summary %}
+    <div class="section">
+        <div class="section-head"><i class="material-icons">trending_up</i> Outcome Comparison (Δ Hb at 1 Month)</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:14px;">Mean change in Hb one month after the decision, back-filled from observed records. Positive = Hb improved.</p>
+        <div class="outcome-grid">
+            {% for decision, data in outcome_summary.items() %}
+            <div class="outcome-card">
+                <h3>
+                    <span class="badge badge-{{ decision }}">{{ decision | capitalize }}</span>
+                    Outcomes
+                </h3>
+                <div class="outcome-delta {% if data.mean_delta > 0 %}delta-pos{% elif data.mean_delta < 0 %}delta-neg{% else %}delta-neu{% endif %}">
+                    {% if data.mean_delta > 0 %}+{% endif %}{{ data.mean_delta }} g/dL
+                </div>
+                <div class="outcome-meta">Mean Δ Hb · n={{ data.n }} patients</div>
+                <div style="margin-top:12px;display:flex;gap:12px;font-size:0.8rem;">
+                    <span style="color:var(--accept);">↑ {{ data.improved }} improved</span>
+                    <span style="color:var(--reject);">↓ {{ data.worsened }} worsened</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <p style="font-size:0.75rem;color:var(--muted);margin-top:12px;">
+            Only includes recommendations where subsequent monthly Hb was recorded. Causal interpretation requires adjusting for patient case-mix.
+        </p>
+    </div>
+    {% endif %}
+
+    {% endif %} {# end if total == 0 #}
+</div>
+</body>
+</html>

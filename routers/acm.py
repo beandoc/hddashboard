@@ -186,6 +186,143 @@ async def acm_audit(request: Request, db: Session = Depends(get_db), train: Opti
     })
 
 
+# ── Clinical Concordance Dashboard ───────────────────────────────────────────
+
+
+@router.get("/concordance", response_class=HTMLResponse)
+async def concordance_dashboard(request: Request, db: Session = Depends(get_db)):
+    """Fleet-wide clinician–model agreement dashboard.
+
+    Queries ACMRecommendation for all decided records and breaks down
+    accept / modify / reject rates by clinician, month, ESA action, and
+    Hb zone. Also compares observed Hb outcomes by decision type.
+    """
+    _require_staff_role(request)
+    user = get_user(request)
+
+    from collections import Counter, defaultdict
+
+    all_recs = db.query(ACMRecommendation).all()
+    decided  = [r for r in all_recs if r.clinician_decision]
+    total    = len(decided)
+
+    # ── Overall decision breakdown ─────────────────────────────────────────
+    decision_counts = Counter(r.clinician_decision for r in decided)
+    accept_rate = round(decision_counts.get("accept", 0) / total * 100) if total else 0
+    modify_rate = round(decision_counts.get("modify", 0) / total * 100) if total else 0
+    reject_rate = round(decision_counts.get("reject", 0) / total * 100) if total else 0
+
+    pending_count = sum(1 for r in all_recs if not r.clinician_decision)
+
+    # ── Per-clinician breakdown ────────────────────────────────────────────
+    by_clinician: dict = defaultdict(Counter)
+    for r in decided:
+        cid = r.clinician_id or "unknown"
+        by_clinician[cid][r.clinician_decision] += 1
+
+    clinician_rows = []
+    for cid, counts in sorted(by_clinician.items(), key=lambda x: -sum(x[1].values())):
+        total_c = sum(counts.values())
+        clinician_rows.append({
+            "name":        cid,
+            "total":       total_c,
+            "accept":      counts.get("accept", 0),
+            "modify":      counts.get("modify", 0),
+            "reject":      counts.get("reject", 0),
+            "accept_rate": round(counts.get("accept", 0) / total_c * 100) if total_c else 0,
+        })
+
+    # ── Monthly trend ──────────────────────────────────────────────────────
+    monthly: dict = defaultdict(Counter)
+    for r in decided:
+        if r.recommendation_month:
+            monthly[r.recommendation_month][r.clinician_decision] += 1
+
+    monthly_trend = []
+    for month in sorted(monthly.keys())[-12:]:  # last 12 months
+        counts  = monthly[month]
+        total_m = sum(counts.values())
+        monthly_trend.append({
+            "month":       month,
+            "accept":      counts.get("accept", 0),
+            "modify":      counts.get("modify", 0),
+            "reject":      counts.get("reject", 0),
+            "accept_rate": round(counts.get("accept", 0) / total_m * 100) if total_m else 0,
+            "total":       total_m,
+        })
+
+    # ── ESA action vs decision ─────────────────────────────────────────────
+    esa_decision: dict = defaultdict(Counter)
+    for r in decided:
+        if r.esa_action:
+            esa_decision[r.esa_action][r.clinician_decision] += 1
+
+    esa_rows = []
+    for action, counts in sorted(esa_decision.items(), key=lambda x: -sum(x[1].values())):
+        total_e = sum(counts.values())
+        esa_rows.append({
+            "action":      action,
+            "total":       total_e,
+            "accept":      counts.get("accept", 0),
+            "modify":      counts.get("modify", 0),
+            "reject":      counts.get("reject", 0),
+            "accept_rate": round(counts.get("accept", 0) / total_e * 100) if total_e else 0,
+        })
+
+    # ── Hb zone vs decision ────────────────────────────────────────────────
+    hb_zone_decision: dict = defaultdict(Counter)
+    for r in decided:
+        if r.hb_status:
+            hb_zone_decision[r.hb_status][r.clinician_decision] += 1
+
+    hb_zone_rows = []
+    for zone, counts in sorted(hb_zone_decision.items(), key=lambda x: -sum(x[1].values())):
+        total_z = sum(counts.values())
+        hb_zone_rows.append({
+            "zone":        zone,
+            "total":       total_z,
+            "accept":      counts.get("accept", 0),
+            "modify":      counts.get("modify", 0),
+            "reject":      counts.get("reject", 0),
+            "accept_rate": round(counts.get("accept", 0) / total_z * 100) if total_z else 0,
+        })
+
+    # ── Outcome comparison: mean delta Hb by decision ─────────────────────
+    outcome_buckets: dict = defaultdict(list)
+    for r in decided:
+        if r.observed_hb_1mo is not None and r.current_hb is not None:
+            delta = round(r.observed_hb_1mo - r.current_hb, 2)
+            outcome_buckets[r.clinician_decision].append(delta)
+
+    outcome_summary = {}
+    for decision, deltas in outcome_buckets.items():
+        if deltas:
+            outcome_summary[decision] = {
+                "n":          len(deltas),
+                "mean_delta": round(sum(deltas) / len(deltas), 2),
+                "improved":   sum(1 for d in deltas if d > 0),
+                "worsened":   sum(1 for d in deltas if d < 0),
+            }
+
+    return templates.TemplateResponse("concordance_dashboard.html", {
+        "request":        request,
+        "user":           user,
+        "total":          total,
+        "pending_count":  pending_count,
+        "accept_count":   decision_counts.get("accept", 0),
+        "modify_count":   decision_counts.get("modify", 0),
+        "reject_count":   decision_counts.get("reject", 0),
+        "accept_rate":    accept_rate,
+        "modify_rate":    modify_rate,
+        "reject_rate":    reject_rate,
+        "clinician_rows": clinician_rows,
+        "monthly_trend":  monthly_trend,
+        "esa_rows":       esa_rows,
+        "hb_zone_rows":   hb_zone_rows,
+        "outcome_summary":outcome_summary,
+    })
+
+
 # ── On-demand model training ──────────────────────────────────────────────────
 
 

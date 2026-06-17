@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Pressure Trends | HD Dashboard</title>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <style>
+        :root {
+            --bg:      #0f172a;
+            --card:    #1e293b;
+            --border:  #334155;
+            --text:    #e2e8f0;
+            --muted:   #94a3b8;
+            --alert:   #ef4444;
+            --warn:    #f59e0b;
+            --ok:      #22c55e;
+            --art-col: #818cf8;   /* indigo — arterial */
+            --ven-col: #34d399;   /* emerald — venous */
+            --tmp-col: #fb923c;   /* orange — TMP */
+            --radius:  12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+
+        /* ── Page hero ── */
+        .page-hero {
+            background: linear-gradient(135deg, #0c1445 0%, #1e1b4b 100%);
+            padding: 36px 32px 52px;
+            border-bottom: 1px solid #312e81;
+        }
+        .page-hero h1 { font-family: 'Outfit', sans-serif; font-size: 1.75rem; font-weight: 700; }
+        .page-hero p  { color: #a5b4fc; font-size: 0.88rem; margin-top: 6px; max-width: 680px; }
+
+        .container { max-width: 1200px; margin: -28px auto 60px; padding: 0 24px; position: relative; z-index: 5; }
+
+        /* ── Summary cards ── */
+        .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 32px; }
+        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; text-align: center; }
+        .stat-val  { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 800; }
+        .stat-lbl  { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
+        /* ── Section ── */
+        .section { margin-bottom: 36px; }
+        .sec-head { display: flex; align-items: center; gap: 10px; font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .sec-head i { opacity: 0.7; }
+
+        /* ── Patient cards ── */
+        .patient-grid { display: flex; flex-direction: column; gap: 12px; }
+        .pt-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        .pt-card.risk-alert  { border-left: 4px solid var(--alert); }
+        .pt-card.risk-warning{ border-left: 4px solid var(--warn);  }
+        .pt-card.risk-ok     { border-left: 4px solid var(--ok);    }
+
+        .pt-name  { font-weight: 700; font-size: 0.95rem; }
+        .pt-meta  { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
+
+        /* ── Pressure row ── */
+        .pressure-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .p-block { }
+        .p-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+        .p-label .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .p-value { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; }
+        .p-trend { font-size: 0.75rem; margin-top: 3px; }
+        .trend-up   { color: var(--alert); }
+        .trend-down { color: var(--ok);    }
+        .trend-flat { color: var(--muted); }
+
+        /* ── Sparkline (CSS bar chart, 8 sessions) ── */
+        .sparkline { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-top: 8px; }
+        .spark-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; }
+
+        /* ── Flag badges ── */
+        .flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; grid-column: 1 / -1; }
+        .flag-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
+        }
+        .flag-alert   { background: rgba(239,68,68,.15);  color: var(--alert); }
+        .flag-warning { background: rgba(245,158,11,.15); color: var(--warn);  }
+
+        /* ── Risk badge on patient name ── */
+        .risk-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 700; margin-left: 6px; vertical-align: middle; }
+        .rb-alert   { background: rgba(239,68,68,.2);  color: var(--alert); }
+        .rb-warning { background: rgba(245,158,11,.2); color: var(--warn);  }
+        .rb-ok      { background: rgba(34,197,94,.12); color: var(--ok);    }
+
+        /* ── Legend ── */
+        .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.8rem; margin-bottom: 20px; color: var(--muted); }
+        .leg-item { display: flex; align-items: center; gap: 6px; }
+        .leg-dot  { width: 10px; height: 10px; border-radius: 50%; }
+
+        /* ── Threshold guide ── */
+        .threshold-guide { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; font-size: 0.8rem; color: var(--muted); }
+        .threshold-guide table { width: 100%; border-collapse: collapse; }
+        .threshold-guide th { text-align: left; padding: 6px 12px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border); }
+        .threshold-guide td { padding: 8px 12px; border-bottom: 1px solid rgba(51,65,85,.5); }
+        .threshold-guide tr:last-child td { border-bottom: none; }
+
+        /* ── Empty state ── */
+        .empty { text-align: center; padding: 60px 24px; color: var(--muted); }
+        .empty i { font-size: 3rem; opacity: 0.35; display: block; margin-bottom: 12px; }
+
+        /* ── Back link ── */
+        .btn-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(255,255,255,.06); color: var(--muted); text-decoration: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; margin-bottom: 22px; border: 1px solid var(--border); }
+        .btn-back:hover { background: rgba(255,255,255,.10); }
+
+        @media (max-width: 768px) {
+            .pt-card { grid-template-columns: 1fr; }
+            .pressure-grid { grid-template-columns: 1fr 1fr; }
+            .stat-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 480px) {
+            .pressure-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<div class="page-hero">
+    <h1><i class="material-icons" style="vertical-align:middle;font-size:1.5rem;margin-right:8px;">monitor_heart</i>Circuit Pressure Trends</h1>
+    <p>Arterial line, venous line, and transmembrane pressure aggregated across recent sessions. Rising or extreme values are an early signal of access stenosis or failure — surfaced here before an acute event occurs.</p>
+</div>
+
+<div class="container">
+    <a href="/analytics" class="btn-back"><i class="material-icons" style="font-size:1rem;">arrow_back</i> Analytics Hub</a>
+
+    <!-- Summary cards -->
+    <div class="stat-row">
+        <div class="stat-card">
+            <div class="stat-val" style="color:#818cf8;">{{ with_data }}</div>
+            <div class="stat-lbl">Patients with Pressure Data</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--alert);">{{ alert_count }}</div>
+            <div class="stat-lbl">Alert Level</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--warn);">{{ warning_count }}</div>
+            <div class="stat-lbl">Warning Level</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--alert);">{{ combined_count }}</div>
+            <div class="stat-lbl">Combined Risk (Art+Ven)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" style="color:var(--muted);">{{ total_patients - with_data }}</div>
+            <div class="stat-lbl">No Pressure Data Entered</div>
+        </div>
+    </div>
+
+    {% if signals | length == 0 %}
+    <div class="empty">
+        <i class="material-icons">sensors_off</i>
+        <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:6px;">No pressure data recorded yet</div>
+        <div>Circuit pressures are entered on the session record form.<br>Once data exists for at least 3 sessions per patient, trend signals will appear here.</div>
+    </div>
+    {% else %}
+
+    <!-- Legend -->
+    <div class="legend">
+        <span class="leg-item"><span class="leg-dot" style="background:var(--art-col);"></span>Arterial pressure (negative = suction)</span>
+        <span class="leg-item"><span class="leg-dot" style="background:var(--ven-col);"></span>Venous pressure (positive = return)</span>
+        <span class="leg-item"><span class="leg-dot" style="background:var(--tmp-col);"></span>Transmembrane pressure</span>
+    </div>
+
+    <!-- Alert-level patients -->
+    {% set alert_patients = signals | selectattr('max_risk', 'equalto', 'alert') | list %}
+    {% if alert_patients %}
+    <div class="section">
+        <div class="sec-head"><i class="material-icons" style="color:var(--alert);">warning</i> Alert — Immediate Review Required ({{ alert_patients | length }})</div>
+        <div class="patient-grid">
+            {% for sig in alert_patients %}
+            {{ _render_patient_card(sig) }}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Warning-level patients -->
+    {% set warn_patients = signals | selectattr('max_risk', 'equalto', 'warning') | list %}
+    {% if warn_patients %}
+    <div class="section">
+        <div class="sec-head"><i class="material-icons" style="color:var(--warn);">report_problem</i> Warning — Monitor Closely ({{ warn_patients | length }})</div>
+        <div class="patient-grid">
+            {% for sig in warn_patients %}
+            {{ _render_patient_card(sig) }}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Stable patients -->
+    {% set ok_patients = signals | selectattr('max_risk', 'equalto', 'ok') | list %}
+    {% if ok_patients %}
+    <div class="section">
+        <div class="sec-head"><i class="material-icons" style="color:var(--ok);">check_circle</i> Stable ({{ ok_patients | length }})</div>
+        <div class="patient-grid">
+            {% for sig in ok_patients %}
+            {{ _render_patient_card(sig) }}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Threshold reference -->
+    <div class="section">
+        <div class="sec-head"><i class="material-icons">info</i> Threshold Reference (KDOQI 2019)</div>
+        <div class="threshold-guide">
+            <table>
+                <thead><tr><th>Measurement</th><th>Warning</th><th>Alert</th><th>Trend Signal</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><span style="color:var(--art-col);font-weight:700;">Arterial Pressure</span></td>
+                        <td>≤ −200 mmHg</td>
+                        <td>≤ −220 mmHg</td>
+                        <td>Slope ≤ −8 mmHg/session (worsening inflow)</td>
+                    </tr>
+                    <tr>
+                        <td><span style="color:var(--ven-col);font-weight:700;">Venous Pressure</span></td>
+                        <td>≥ 180 mmHg</td>
+                        <td>≥ 210 mmHg</td>
+                        <td>Slope ≥ +8 mmHg/session (outflow rising)</td>
+                    </tr>
+                    <tr>
+                        <td><span style="color:var(--tmp-col);font-weight:700;">TMP</span></td>
+                        <td>≥ 250 mmHg</td>
+                        <td>≥ 300 mmHg</td>
+                        <td>Sustained elevation suggests circuit obstruction</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Combined</strong></td>
+                        <td colspan="3">Both arterial AND venous in alert range → highest risk, refer for duplex/fistulogram</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+
+{# ── Reusable patient card macro ─────────────────────────────────────────── #}
+{% macro _render_patient_card(sig) %}
+{% set risk = sig.max_risk %}
+
+{# ── Sparkline helpers: scale values to 0–32px bar height ── #}
+{% macro spark(values, color) %}
+{% if values %}
+{% set vmin = values | min %}
+{% set vmax = values | max %}
+{% set vrange = (vmax - vmin) if vmax != vmin else 1 %}
+<div class="sparkline">
+    {% for v in values %}
+    {% set h = (((v - vmin) / vrange) * 28 + 4) | round | int %}
+    <div class="spark-bar" style="height:{{ h }}px;background:{{ color }};opacity:0.8;"></div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">No data</div>
+{% endif %}
+{% endmacro %}
+
+<div class="pt-card risk-{{ risk }}">
+    <!-- Left: patient info -->
+    <div>
+        <div class="pt-name">
+            {{ sig.patient_name }}
+            <span class="risk-badge rb-{{ risk }}">{{ risk | upper }}</span>
+        </div>
+        <div class="pt-meta">{{ sig.sessions_n }} sessions with pressure data</div>
+
+        <!-- Flag badges -->
+        {% if sig.flags %}
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">
+            {% for flag in sig.flags %}
+            <span class="flag-badge {% if 'COMBINED' in flag or 'suspected' in flag %}flag-alert{% else %}flag-warning{% endif %}">
+                <i class="material-icons" style="font-size:0.8rem;">{% if 'COMBINED' in flag %}crisis_alert{% else %}warning{% endif %}</i>
+                {{ flag }}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div style="margin-top:12px;">
+            <a href="/analytics/patients/{{ sig.patient_id }}" style="font-size:0.78rem;color:#818cf8;text-decoration:none;">
+                View Patient Analytics →
+            </a>
+        </div>
+    </div>
+
+    <!-- Right: pressure metrics -->
+    <div class="pressure-grid">
+
+        <!-- Arterial -->
+        <div class="p-block">
+            <div class="p-label"><span class="dot" style="background:var(--art-col);"></span>Arterial</div>
+            {% if sig.art_mean is not none %}
+            <div class="p-value" style="color:{% if sig.arterial_risk == 'alert' %}var(--alert){% elif sig.arterial_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
+                {{ sig.art_mean | round(0) | int }} mmHg
+            </div>
+            {% if sig.art_slope is not none %}
+            <div class="p-trend {% if sig.art_slope < -4 %}trend-up{% elif sig.art_slope > 2 %}trend-down{% else %}trend-flat{% endif %}">
+                {% if sig.art_slope < 0 %}↓{% else %}↑{% endif %} {{ sig.art_slope | abs }} mmHg/sess
+            </div>
+            {% endif %}
+            {{ spark(sig.art_values, 'var(--art-col)') }}
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
+            {% endif %}
+        </div>
+
+        <!-- Venous -->
+        <div class="p-block">
+            <div class="p-label"><span class="dot" style="background:var(--ven-col);"></span>Venous</div>
+            {% if sig.ven_mean is not none %}
+            <div class="p-value" style="color:{% if sig.venous_risk == 'alert' %}var(--alert){% elif sig.venous_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
+                {{ sig.ven_mean | round(0) | int }} mmHg
+            </div>
+            {% if sig.ven_slope is not none %}
+            <div class="p-trend {% if sig.ven_slope > 4 %}trend-up{% elif sig.ven_slope < -2 %}trend-down{% else %}trend-flat{% endif %}">
+                {% if sig.ven_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.ven_slope | abs }} mmHg/sess
+            </div>
+            {% endif %}
+            {{ spark(sig.ven_values, 'var(--ven-col)') }}
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
+            {% endif %}
+        </div>
+
+        <!-- TMP -->
+        <div class="p-block">
+            <div class="p-label"><span class="dot" style="background:var(--tmp-col);"></span>TMP</div>
+            {% if sig.tmp_mean is not none %}
+            <div class="p-value" style="color:{% if sig.tmp_risk == 'alert' %}var(--alert){% elif sig.tmp_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
+                {{ sig.tmp_mean | round(0) | int }} mmHg
+            </div>
+            {% if sig.tmp_slope is not none %}
+            <div class="p-trend {% if sig.tmp_slope > 8 %}trend-up{% elif sig.tmp_slope < -8 %}trend-down{% else %}trend-flat{% endif %}">
+                {% if sig.tmp_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.tmp_slope | abs }} mmHg/sess
+            </div>
+            {% endif %}
+            {{ spark(sig.tmp_values, 'var(--tmp-col)') }}
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endmacro %}
+
+</body>
+</html>

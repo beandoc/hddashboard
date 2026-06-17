@@ -67,10 +67,22 @@ async def alert_center(request: Request, month: Optional[str] = None, db: Sessio
         PatientReminder.is_completed == False
     ).order_by(PatientReminder.reminder_date).all()
 
+    # 4. Circuit pressure alerts (early access failure detection)
+    pressure_alerts = []
+    try:
+        from dashboard_logic import _fetch_recent_n_sessions
+        from services.pressure_analysis import compute_fleet_pressure_signals
+        recent_sessions = _fetch_recent_n_sessions(db, [p.id for p in active], n=8)
+        pressure_signals = compute_fleet_pressure_signals(db, active, recent_sessions)
+        pressure_alerts = [s for s in pressure_signals if s.max_risk in ("alert", "warning")]
+    except Exception:
+        logger.exception("Pressure alert computation failed — skipping section")
+
     return templates.TemplateResponse("alerts.html", {
         "request": request, "alert_links": alert_links,
         "schedule_links": schedule_links,
         "clinical_reminders": clinical_reminders,
+        "pressure_alerts": pressure_alerts,
         "patients": active,
         "month_str": month_str,
         "month_label": month_label,
