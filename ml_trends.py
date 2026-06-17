@@ -307,7 +307,10 @@ def _hb_trajectory_severity(current: Optional[float]) -> str:
 
 def _hb_trajectory_message(
     severity: str, current: float, predicted: float,
-    prev_hb: float, has_transfusion: bool, transfusion_months: list
+    prev_hb: float, has_transfusion: bool, transfusion_months: list,
+    p_value: Optional[float] = None,
+    slope: Optional[float] = None,
+    n_points: Optional[int] = None,
 ) -> str:
     """Generate human-readable clinical message for Hb trajectory."""
     transfusion_note = (
@@ -337,16 +340,91 @@ def _hb_trajectory_message(
         )
 
     if severity in ("high", "watch") and alert_predicted:
-        if predicting_improvement:
+        stat_significant = p_value is not None and p_value < 0.05
+        large_decline = slope is not None and slope < -0.15  # >0.15 g/dL/month is clinically meaningful
+        sufficient_data = n_points is not None and n_points >= 4
+
+        # Clinically meaningful improvement scales with how far the patient is below target.
+        # Rule: ≥15% of the gap to 10 g/dL (min 0.2 g/dL), OR crossing the 10.0 g/dL threshold.
+        # e.g. Hb 6→7 (gap 4.0): need ≥0.60; Hb 7→7.5 (gap 3.0): need ≥0.45; Hb 9.7→10.0: crosses target.
+        delta = (predicted - current) if (predicted is not None and current is not None) else 0.0
+        gap_to_target = max(10.0 - (current or 0.0), 0.0)
+        min_delta = max(gap_to_target * 0.15, 0.2)
+        crosses_target = (current is not None and current < 10.0 and predicted is not None and predicted >= 10.0)
+        meaningful_improvement = crosses_target or delta >= min_delta
+        # Any visible upward movement (>0.1 g/dL) even if insufficient to be "meaningful"
+        any_rise = delta > 0.1
+
+        if severity == "high":
+            # Hb < 9.0 g/dL — the current level itself demands action; trend direction modifies the message only.
+            if current < 8.0:
+                if meaningful_improvement:
+                    return (
+                        f"Hb critically low at {current} g/dL — ESA and iron review required. "
+                        f"Model projects improvement to {predicted:.1f} g/dL; target is ≥10 g/dL.{transfusion_note}"
+                    )
+                if stat_significant and large_decline and sufficient_data:
+                    return (
+                        f"Hb critically low at {current} g/dL with a significant declining trend — predicted {predicted:.1f} g/dL. "
+                        f"Escalate urgently.{transfusion_note}"
+                    )
+                if any_rise:
+                    return (
+                        f"Hb critically low at {current} g/dL — predicted rise to {predicted:.1f} g/dL is inadequate (target ≥10 g/dL). "
+                        f"Active ESA and iron review required.{transfusion_note}"
+                    )
+                return (
+                    f"Hb critically low at {current} g/dL — essentially flat despite ESA therapy. "
+                    f"Immediate review of ESA dose, iron stores, and adherence required.{transfusion_note}"
+                )
+            else:
+                # Hb 8.0–9.0
+                if meaningful_improvement:
+                    return (
+                        f"Hb at {current} g/dL — below target. Predicted improvement to {predicted:.1f} g/dL; "
+                        f"still below 10 g/dL. Review ESA efficacy and iron.{transfusion_note}"
+                    )
+                if stat_significant and large_decline and sufficient_data:
+                    return (
+                        f"Hb at {current} g/dL with a significant declining trend — escalate ESA dose.{transfusion_note}"
+                    )
+                if any_rise:
+                    return (
+                        f"Hb at {current} g/dL — predicted rise to {predicted:.1f} g/dL is below the expected response. "
+                        f"Review ESA dose and iron stores.{transfusion_note}"
+                    )
+                return (
+                    f"Hb at {current} g/dL — below target with inadequate ESA response. "
+                    f"Review ESA dose and iron stores.{transfusion_note}"
+                )
+
+        # severity == "watch": Hb 9.0–10.0 — gate urgency on trend statistics.
+        if meaningful_improvement:
             return (
-                f"Hb low at {current} g/dL — predicted slight improvement to {predicted:.1f} g/dL, but remains below target. Monitor closely.{transfusion_note}"
-                if predicted is not None else
-                f"Hb low at {current} g/dL — predicted to remain low. Monitor closely.{transfusion_note}"
+                f"Hb at {current} g/dL — below target. Predicted improvement to {predicted:.1f} g/dL"
+                f"{'; crosses 10 g/dL target' if crosses_target else '; monitor to confirm'}. "
+                f"Continue current regimen.{transfusion_note}"
             )
+        if stat_significant and large_decline and sufficient_data:
+            return (
+                f"Hb at {current} g/dL (below target) with a statistically significant declining trend → {predicted:.1f} g/dL. "
+                f"Review and escalate ESA dose.{transfusion_note}"
+            )
+        # Flat or non-significant trend — do not over-alarm.
+        p_note = f"p={p_value:.2f}" if p_value is not None else "trend uncertain"
+        n_note = f"n={n_points}" if n_points is not None else "limited data"
         return (
-            f"Hb low at {current} g/dL and predicted to decline further to {predicted:.1f} g/dL — escalate urgently.{transfusion_note}"
+            f"Hb at {current} g/dL — below target. Predicted {predicted:.1f} g/dL next month "
+            f"({p_note}, {n_note} — trend not significant). Continue current regimen and reassess.{transfusion_note}"
             if predicted is not None else
-            f"Hb low at {current} g/dL — predicted to decline. Escalate urgently.{transfusion_note}"
+            f"Hb at {current} g/dL — below target. Monitor closely and reassess.{transfusion_note}"
+        )
+
+    # Below target now, but predicted to cross 10.0 g/dL — good trajectory not captured above
+    if severity in ("high", "watch") and predicted is not None and predicted >= 10.0:
+        return (
+            f"Hb at {current} g/dL — predicted to reach {predicted:.1f} g/dL next month, "
+            f"crossing the 10 g/dL target. Continue current regimen.{transfusion_note}"
         )
 
     if alert_predicted:
@@ -425,7 +503,12 @@ def predict_hb_trajectory(df: List[Dict]) -> Dict:
     ols   = _linear_trend_with_ci(xs, ys)
 
     predicted = kal.get("next_predicted") or ols.get("next_predicted")
-    message = _hb_trajectory_message(_severity, current, predicted, prev_hb, has_transfusion, transfusion_months)
+    message = _hb_trajectory_message(
+        _severity, current, predicted, prev_hb, has_transfusion, transfusion_months,
+        p_value=ols.get("p_value"),
+        slope=kal.get("slope") or ols.get("slope"),
+        n_points=kal.get("n_points") or ols.get("n_points"),
+    )
 
     return {
         "available": True,

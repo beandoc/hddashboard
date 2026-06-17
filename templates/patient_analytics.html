@@ -320,8 +320,10 @@
           <h3>Hb Trajectory</h3>
           {% if hb.severity == 'critical' %}
             <span class="status-pill danger" style="animation:pulse-red 1.2s ease-in-out infinite;background:#7f1d1d;color:#fff;">CRITICAL</span>
-          {% elif hb.severity in ('high', 'watch') %}
+          {% elif hb.severity == 'high' %}
             <span class="status-pill danger">High Risk</span>
+          {% elif hb.severity == 'watch' %}
+            <span class="status-pill warning">Below Target</span>
           {% elif hb.alert %}
             <span class="status-pill warning">Watch</span>
           {% else %}
