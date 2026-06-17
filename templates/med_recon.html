@@ -16,25 +16,36 @@
         header { background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%); color: white; padding: 20px 32px; }
         .header-content { max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
         .header-content h1 { font-family: 'Outfit', sans-serif; margin: 0; font-size: 1.8rem; }
-        
+
         .container { max-width: 1000px; margin: 20px auto 60px; padding: 0 20px; }
-        
+
         .med-card { background: white; border-radius: var(--radius); padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05); }
         .med-card h2 { font-family: 'Outfit', sans-serif; margin-top: 0; font-size: 1.4rem; display: flex; align-items: center; gap: 10px; }
-        
+
         .med-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
-        .med-item { display: grid; grid-template-columns: 1fr 100px 100px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; align-items: center; }
+        .med-item { display: grid; grid-template-columns: 1fr 120px 120px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; align-items: center; }
         .med-name { font-weight: 700; color: #1e293b; font-size: 1.1rem; }
         .med-details { color: #64748b; font-size: 0.9rem; }
         .med-freq { font-weight: 600; color: var(--primary); text-align: center; background: white; border-radius: 6px; padding: 4px; }
-        
+        .med-dose { text-align: center; font-weight: 600; color: #1e293b; }
+
+        .empty-state { color: #94a3b8; font-style: italic; padding: 20px 0; text-align: center; font-size: 0.95rem; }
+
         .recon-flag { margin-top: 25px; padding: 15px; border-radius: 12px; display: flex; align-items: flex-start; gap: 12px; font-size: 0.9rem; line-height: 1.5; }
         .flag-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
         .flag-warn { background: #fffbeb; color: #b45309; border: 1px solid #fef3c7; }
         .flag-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
 
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+        .badge-esa { background: #fef3c7; color: #92400e; }
+        .badge-mbd { background: #f0fdf4; color: #14532d; }
+        .badge-htn { background: #eff6ff; color: #1d4ed8; }
+        .badge-hif { background: #fdf4ff; color: #6b21a8; }
+
         .print-btn { background: white; color: var(--primary); border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .print-btn:hover { background: #f1f5f9; }
+
+        .section-divider { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 20px; }
 
         @media print {
             .app-nav, .print-btn, .nav-breadcrumb { display: none !important; }
@@ -78,78 +89,141 @@
     </div>
 </header>
 
+{% set has_record = record is not none %}
+{% set period = record.record_month if has_record else 'Latest' %}
+
 <div class="container">
+
+    {# ── Anemia / ESA ─────────────────────────────────────────────────────────── #}
     <div class="med-card">
-        <h2><i class="material-icons" style="color:var(--primary)">medication</i> Current Active Regimen ({{ record.record_month if record else 'Latest' }})</h2>
-        
-        {% if meds %}
+        <h2><i class="material-icons" style="color:var(--accent-orange)">medication</i> Anemia Medications
+            <span style="font-size:0.85rem; font-weight:400; color:#64748b; margin-left:4px;">({{ period }})</span>
+        </h2>
         <div class="med-list">
-            {% for m in meds %}
-            <div class="med-item">
-                <div>
-                    <div class="med-name">{{ m.name }}</div>
-                    <div class="med-details">Class: Clinical Antihypertensive</div>
-                </div>
-                <div style="text-align:center; font-weight:600;">{{ m.dose }}</div>
-                <div class="med-freq">{{ m.freq }}</div>
-            </div>
-            {% endfor %}
-            
-            {% if record.esa_type %}
+            {% if has_record and record.esa_type %}
             <div class="med-item" style="border-left: 4px solid var(--accent-orange);">
                 <div>
                     <div class="med-name">{{ record.esa_type }}</div>
-                    <div class="med-details">ESA Therapy</div>
+                    <div class="med-details">
+                        ESA Therapy
+                        {% if record.epo_weekly_units %} · {{ record.epo_weekly_units | int }} IU/week equivalent{% endif %}
+                        {% if record.esa_modified_at %} · <em>Dose adjusted {{ record.esa_modified_at.strftime('%d %b %Y') }}</em>{% endif %}
+                    </div>
                 </div>
-                <div style="text-align:center; font-weight:600;">{{ record.epo_mircera_dose or record.desidustat_dose }}</div>
-                <div class="med-freq">Weekly</div>
+                <div class="med-dose">{{ record.epo_mircera_dose or '—' }} mcg</div>
+                <div class="med-freq"><span class="badge badge-esa">ESA</span></div>
             </div>
             {% endif %}
 
-            {% if record.iv_iron_product %}
-            <div class="med-item" style="border-left: 4px solid var(--accent-orange);">
+            {% if has_record and record.desidustat_dose %}
+            <div class="med-item" style="border-left: 4px solid #a855f7;">
                 <div>
-                    <div class="med-name">{{ record.iv_iron_product }}</div>
-                    <div class="med-details">IV Iron Replacement</div>
+                    <div class="med-name">Desidustat (Oxemia)</div>
+                    <div class="med-details">
+                        HIF-PHI · Oral
+                        {% if record.desidustat_modified_at %} · <em>Dose adjusted {{ record.desidustat_modified_at.strftime('%d %b %Y') }}</em>{% endif %}
+                    </div>
                 </div>
-                <div style="text-align:center; font-weight:600;">{{ record.iv_iron_dose }} mg</div>
-                <div class="med-freq">Once</div>
+                <div class="med-dose">{{ record.desidustat_dose }}</div>
+                <div class="med-freq"><span class="badge badge-hif">HIF-PHI</span></div>
             </div>
             {% endif %}
 
-            {% if record.phosphate_binder_type %}
+            {% if not has_record or (not record.esa_type and not record.desidustat_dose) %}
+            <p class="empty-state">No ESA or HIF-PHI recorded for this period.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── MBD (Vit D + Phosphate Binders) ─────────────────────────────────────── #}
+    <div class="med-card">
+        <h2><i class="material-icons" style="color:var(--accent-green)">science</i> Mineral & Bone Disease (MBD)</h2>
+        <div class="med-list">
+            {% if has_record and record.vitamin_d_analog_dose %}
             <div class="med-item" style="border-left: 4px solid var(--accent-green);">
                 <div>
-                    <div class="med-name">{{ record.phosphate_binder_type }}</div>
-                    <div class="med-details">Phosphate Binder</div>
+                    <div class="med-name">{{ record.vitamin_d_analog_dose }}</div>
+                    <div class="med-details">Vitamin D Analogue</div>
                 </div>
-                <div style="text-align:center; font-weight:600;">Regimen</div>
-                <div class="med-freq">TDS</div>
+                <div class="med-dose">—</div>
+                <div class="med-freq"><span class="badge badge-mbd">Vit D</span></div>
             </div>
             {% endif %}
-        </div>
 
-        <div class="recon-flag flag-info">
-            <i class="material-icons">info</i>
-            <div>
-                <strong>Clinical Note:</strong> This reconciliation includes Antihypertensives, ESAs, Iron, and Mineral Metabolism drugs. 
-                Always verify OTC medications and supplements during patient interview.
+            {% set pb_list = [] %}
+            {% if has_record and record.phosphate_binder_details %}
+                {% set pb_raw = record.phosphate_binder_details %}
+                {# If it's a JSON string it will be rendered as-is; we parse in the route and pass pb_list #}
+            {% endif %}
+
+            {% for pb in pb_list_parsed %}
+            <div class="med-item" style="border-left: 4px solid var(--accent-green);">
+                <div>
+                    <div class="med-name">{{ pb.name }}</div>
+                    <div class="med-details">Phosphate Binder · {{ pb.strength }} mg per dose</div>
+                </div>
+                <div class="med-dose">{{ pb.strength }} mg</div>
+                <div class="med-freq">{{ pb.freq }}</div>
             </div>
-        </div>
+            {% else %}
+                {% if has_record and record.phosphate_binder_type %}
+                <div class="med-item" style="border-left: 4px solid var(--accent-green);">
+                    <div>
+                        <div class="med-name">{{ record.phosphate_binder_type }}</div>
+                        <div class="med-details">Phosphate Binder
+                            {% if record.pb_strength %} · {{ record.pb_strength | int }} mg per dose{% endif %}
+                        </div>
+                    </div>
+                    <div class="med-dose">{{ record.phosphate_binder_dose_mg | int if record.phosphate_binder_dose_mg else '—' }} mg/day</div>
+                    <div class="med-freq">{{ record.phosphate_binder_freq or '—' }}</div>
+                </div>
+                {% endif %}
+            {% endfor %}
 
-        {% if meds|length > 3 %}
-        <div class="recon-flag flag-warn">
-            <i class="material-icons">warning</i>
-            <div>
-                <strong>Polypharmacy Flag:</strong> Patient is on {{ meds|length }} antihypertensive agents. 
-                Monitor for intradialytic hypotension and consider dose tapering if pre-HD BP is consistently < 120/80 mmHg.
-            </div>
+            {% if not has_record or (not record.vitamin_d_analog_dose and not record.phosphate_binder_type) %}
+            <p class="empty-state">No MBD medications recorded for this period.</p>
+            {% endif %}
         </div>
-        {% endif %}
+    </div>
 
-        {% else %}
-        <p style="color:#94a3b8; font-style:italic; padding:40px 0; text-align:center;">No structured medication data found for this period.</p>
-        {% endif %}
+    {# ── Antihypertensives ────────────────────────────────────────────────────── #}
+    <div class="med-card">
+        <h2><i class="material-icons" style="color:var(--primary)">medication</i> Antihypertensive Drugs</h2>
+        <div class="med-list">
+            {% if meds %}
+                {% for m in meds %}
+                <div class="med-item" style="border-left: 4px solid var(--primary);">
+                    <div>
+                        <div class="med-name">{{ m.name }}</div>
+                        <div class="med-details">Antihypertensive</div>
+                    </div>
+                    <div class="med-dose">{{ m.dose or '—' }}</div>
+                    <div class="med-freq">{{ m.freq or '—' }}</div>
+                </div>
+                {% endfor %}
+
+                {% if meds|length > 3 %}
+                <div class="recon-flag flag-warn">
+                    <i class="material-icons">warning</i>
+                    <div>
+                        <strong>Polypharmacy Flag:</strong> Patient is on {{ meds|length }} antihypertensive agents.
+                        Monitor for intradialytic hypotension and consider dose tapering if pre-HD BP is consistently &lt; 120/80 mmHg.
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+            <p class="empty-state">No antihypertensive medications recorded for this period.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Summary clinical note ────────────────────────────────────────────────── #}
+    <div class="recon-flag flag-info" style="margin-bottom:30px;">
+        <i class="material-icons">info</i>
+        <div>
+            <strong>Clinical Note:</strong> This reconciliation reflects structured data entered in the monthly record.
+            Always verify OTC medications, supplements, and any recently prescribed agents during patient interview.
+        </div>
     </div>
 
     {% if user and user.role in ['admin', 'doctor'] %}

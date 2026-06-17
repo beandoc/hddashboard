@@ -480,22 +480,29 @@ async def patient_med_recon(patient_id: int, request: Request, db: Session = Dep
     import json
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient: raise HTTPException(status_code=404)
-    
-    # Get latest monthly record
+
     record = db.query(MonthlyRecord).filter(MonthlyRecord.patient_id == patient_id).order_by(MonthlyRecord.record_month.desc()).first()
-    
+
     meds = []
     if record and record.antihypertensive_details:
         try:
             meds = json.loads(record.antihypertensive_details)
-        except:
+        except Exception:
             meds = []
-            
+
+    pb_list_parsed = []
+    if record and record.phosphate_binder_details:
+        try:
+            pb_list_parsed = json.loads(record.phosphate_binder_details)
+        except Exception:
+            pb_list_parsed = []
+
     return templates.TemplateResponse("med_recon.html", {
         "request": request,
         "patient": patient,
         "record": record,
         "meds": meds,
+        "pb_list_parsed": pb_list_parsed,
         "user": get_user(request)
     })
 
