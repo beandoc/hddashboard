@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Entry Activity Monitor — HD Dashboard</title>
+    <style>
+        :root {
+            --primary: #0ea5e9; --primary-dark: #0284c7;
+            --bg: #f8fafc; --card: #fff;
+            --text: #1e293b; --muted: #64748b; --header: #0f172a;
+            --border: #e2e8f0; --radius: 12px;
+            --shadow: 0 4px 15px -1px rgb(0 0 0 / 0.08);
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+        h1,h2,h3 { font-family: 'Outfit', sans-serif; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 28px 24px 80px; }
+
+        /* ── KPI cards ── */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .kpi { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; border-top: 3px solid var(--accent, #0ea5e9); }
+        .kpi .label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
+        .kpi .value { font-size: 2rem; font-weight: 800; color: var(--header); line-height: 1; }
+        .kpi .sub   { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+
+        /* ── filter bar ── */
+        .filter-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+        .filter-bar form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .filter-bar label { font-size: 0.8rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+        .filter-bar select, .filter-bar input {
+            padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+            font-size: 0.85rem; background: var(--card); color: var(--text); min-width: 160px;
+        }
+        .filter-bar button {
+            padding: 8px 18px; background: var(--primary); color: #fff;
+            border: none; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer;
+        }
+        .filter-bar button:hover { background: var(--primary-dark); }
+        .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+
+        /* ── cards ── */
+        .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 24px; }
+        .card-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; font-weight: 700; color: var(--header); margin: 0 0 18px; }
+        .card-title .material-icons { font-size: 1.1rem; color: var(--primary); }
+
+        /* ── user summary table ── */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+        th { text-align: left; padding: 9px 14px; background: #f1f5f9; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+        td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f8fafc; }
+        .num { font-weight: 700; font-size: 1rem; }
+        .zero { color: #cbd5e1; }
+
+        /* ── type pills ── */
+        .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; margin: 1px; }
+
+        /* ── heatmap ── */
+        .heatmap-wrap { overflow-x: auto; }
+        .heatmap { border-collapse: collapse; font-size: 0.78rem; min-width: 100%; }
+        .heatmap th { padding: 5px 8px; text-align: center; color: var(--muted); font-weight: 600; white-space: nowrap; }
+        .heatmap td { width: 36px; height: 36px; text-align: center; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
+        .hm-actor { text-align: left !important; white-space: nowrap; padding-right: 12px; font-weight: 600; color: var(--header); min-width: 120px; }
+        .hm-0  { background: #f1f5f9; color: #cbd5e1; }
+        .hm-1  { background: #bfdbfe; color: #1e40af; }
+        .hm-2  { background: #93c5fd; color: #1e3a8a; }
+        .hm-3  { background: #60a5fa; color: #fff; }
+        .hm-4  { background: #3b82f6; color: #fff; }
+        .hm-5  { background: #1d4ed8; color: #fff; }
+
+        /* ── type breakdown ── */
+        .type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+        .type-card { border-radius: 10px; padding: 16px 18px; border-left: 4px solid; }
+        .type-card .type-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; margin-bottom: 4px; }
+        .type-card .type-count { font-size: 1.8rem; font-weight: 800; }
+
+        /* ── activity log table ── */
+        .log-table td:nth-child(1) { font-weight: 600; font-size: 0.82rem; }
+        .log-table td:nth-child(3) { font-family: monospace; font-size: 0.8rem; color: var(--muted); }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+
+        /* ── bar chart ── */
+        .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.82rem; }
+        .bar-label { width: 140px; text-align: right; color: var(--muted); flex-shrink: 0; font-size: 0.75rem; }
+        .bar-track { flex: 1; background: #f1f5f9; border-radius: 6px; height: 22px; overflow: hidden; }
+        .bar-fill  { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 0.72rem; font-weight: 700; min-width: 24px; transition: width 0.4s; }
+
+        .section-sep { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+        @media (max-width: 900px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .kpi-grid { grid-template-columns: 1fr 1fr; }
+            .container { padding: 16px 12px 60px; }
+        }
+    </style>
+    <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
+    <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+</head>
+<body>
+{% include "_nav.html" %}
+
+<nav class="nav-breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Dashboard</a>
+    <span class="bc-sep">/</span>
+    <a href="/admin/users">Admin</a>
+    <span class="bc-sep">/</span>
+    <span class="bc-current">Activity Monitor</span>
+</nav>
+
+<div class="container">
+
+    <!-- Page header -->
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+        <div>
+            <h2 style="margin:0; font-size:1.5rem; color:var(--header); display:flex; align-items:center; gap:8px;">
+                <span class="material-icons" style="color:var(--primary); font-size:1.4rem;">monitoring</span>
+                Data Entry Activity Monitor
+            </h2>
+            <p style="margin:4px 0 0; font-size:0.82rem; color:var(--muted);">
+                Track staff data-entry work across sessions, labs, and clinical records.
+                Showing <strong>{{ since.strftime('%d %b') }}–{{ today.strftime('%d %b %Y') }}</strong>
+                {% if filter_user %}· filtered to <strong>{{ filter_user }}</strong>{% endif %}
+            </p>
+        </div>
+        <a href="/admin/activity/export-csv?days={{ days }}&filter_user={{ filter_user }}"
+           style="display:inline-flex; align-items:center; gap:6px; padding:8px 16px; background:#f1f5f9; border-radius:8px; font-size:0.82rem; font-weight:600; color:var(--muted); text-decoration:none;">
+            <span class="material-icons" style="font-size:1rem;">download</span> Export CSV
+        </a>
+    </div>
+
+    <!-- ── Filters ─────────────────────────────────────────────────────────── -->
+    <div class="filter-bar card" style="padding:14px 18px; margin-bottom:24px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <form method="GET" action="/admin/activity" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; width:100%;">
+            <label>Period:</label>
+            <select name="days">
+                {% for d, label in [(1,'Today only'),(7,'Last 7 days'),(14,'Last 14 days'),(30,'Last 30 days')] %}
+                <option value="{{ d }}" {% if days == d %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <label style="margin-left:8px;">Staff user:</label>
+            <select name="filter_user">
+                <option value="">All staff</option>
+                {% for u in all_users_list %}
+                <option value="{{ u }}" {% if filter_user == u %}selected{% endif %}>{{ u }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">
+                <span class="material-icons" style="font-size:0.95rem; vertical-align:middle;">filter_list</span>
+                Apply
+            </button>
+            {% if filter_user or days != 7 %}
+            <a href="/admin/activity" style="font-size:0.8rem; color:var(--muted); text-decoration:none; margin-left:4px;">✕ Clear</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
+    <div class="kpi-grid">
+        <div class="kpi" style="--accent:#0ea5e9;">
+            <div class="label">Entries Today</div>
+            <div class="value">{{ kpi_today }}</div>
+            <div class="sub">across all entry types</div>
+        </div>
+        <div class="kpi" style="--accent:#6366f1;">
+            <div class="label">Entries This Period</div>
+            <div class="value">{{ kpi_period }}</div>
+            <div class="sub">last {{ kpi_days }} day{{ 's' if kpi_days != 1 }}</div>
+        </div>
+        <div class="kpi" style="--accent:#10b981;">
+            <div class="label">Active Staff</div>
+            <div class="value">{{ kpi_users }}</div>
+            <div class="sub">made entries in period</div>
+        </div>
+        <div class="kpi" style="--accent:#f59e0b;">
+            <div class="label">Avg / Day</div>
+            <div class="value">{{ (kpi_period / kpi_days) | round(1) }}</div>
+            <div class="sub">entries per calendar day</div>
+        </div>
+    </div>
+
+    <!-- ── Entry Type Breakdown ─────────────────────────────────────────────── -->
+    <div class="card">
+        <p class="card-title">
+            <span class="material-icons">pie_chart</span>
+            Entry Type Breakdown — Last {{ days }} Day{{ 's' if days != 1 }}
+        </p>
+        {% set max_type = type_totals.values() | map(attribute='count') | max | default(1) %}
+        <div style="display:flex; flex-direction:column; gap:10px;">
+        {% for label, info in type_totals.items() %}
+        {% set pct = ((info.count / max_type) * 100) | int if max_type > 0 else 0 %}
+        <div class="bar-row">
+            <div class="bar-label">{{ label }}</div>
+            <div class="bar-track">
+                <div class="bar-fill" style="width:{{ [pct,4]|max }}%; background:{{ info.color }};">
+                    {{ info.count }}
+                </div>
+            </div>
+            <div style="width:36px; text-align:right; font-weight:700; font-size:0.82rem; color:var(--header);">{{ info.count }}</div>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+
+    <!-- ── Per-User Summary ─────────────────────────────────────────────────── -->
+    <div class="card">
+        <p class="card-title">
+            <span class="material-icons">group</span>
+            Per-Staff Summary
+        </p>
+        {% if user_summary %}
+        <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Staff / Username</th>
+                    <th style="text-align:center;">Today</th>
+                    <th style="text-align:center;">This Period</th>
+                    <th>Breakdown (period)</th>
+                    <th>Last Active</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in user_summary %}
+            <tr>
+                <td>
+                    <a href="/admin/activity?days={{ days }}&filter_user={{ u.actor }}"
+                       style="font-weight:700; color:var(--primary); text-decoration:none;">
+                        <span class="material-icons" style="font-size:0.9rem; vertical-align:middle; margin-right:4px;">person</span>{{ u.actor }}
+                    </a>
+                </td>
+                <td style="text-align:center;">
+                    {% if u.total_today > 0 %}
+                    <span class="num" style="color:#0ea5e9;">{{ u.total_today }}</span>
+                    {% else %}
+                    <span class="zero">—</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:center;">
+                    <span class="num">{{ u.total_period }}</span>
+                </td>
+                <td>
+                    {% for type_name, cnt in u.breakdown.items() %}
+                    {% set colors = {
+                        'Session Record':     '#e0e7ff:#4338ca',
+                        'Monthly Lab Record': '#e0f2fe:#0369a1',
+                        'Interim Labs':       '#d1fae5:#065f46',
+                        'Clinical Event':     '#fef3c7:#92400e',
+                        'Hospitalisation':    '#fee2e2:#991b1b'
+                    } %}
+                    {% set cs = colors.get(type_name, '#f1f5f9:#475569').split(':') %}
+                    <span class="pill" style="background:{{ cs[0] }}; color:{{ cs[1] }};">
+                        {{ type_name }}: {{ cnt }}
+                    </span>
+                    {% endfor %}
+                </td>
+                <td style="font-size:0.8rem; color:var(--muted);">
+                    {{ u.last_active or '—' }}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:32px; color:var(--muted);">
+            <span class="material-icons" style="font-size:2.5rem; display:block; margin-bottom:10px; opacity:0.3;">inbox</span>
+            No entries found for this period.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Activity Heatmap ─────────────────────────────────────────────────── -->
+    {% if heatmap %}
+    <div class="card">
+        <p class="card-title">
+            <span class="material-icons">calendar_view_week</span>
+            Daily Activity Heatmap
+            <span style="font-size:0.72rem; font-weight:400; color:var(--muted); margin-left:8px;">entries per staff per day</span>
+        </p>
+        <div class="heatmap-wrap">
+        <table class="heatmap">
+            <thead>
+                <tr>
+                    <th class="hm-actor">Staff</th>
+                    {% for lbl in date_labels %}
+                    <th>{{ lbl }}</th>
+                    {% endfor %}
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for actor, counts in heatmap.items() %}
+            <tr>
+                <td class="hm-actor">
+                    <a href="/admin/activity?days={{ days }}&filter_user={{ actor }}"
+                       style="color:var(--header); text-decoration:none;">{{ actor }}</a>
+                </td>
+                {% for c in counts %}
+                {% if c == 0 %}
+                <td class="hm-0" title="0">—</td>
+                {% elif c <= 2 %}
+                <td class="hm-1" title="{{ c }}">{{ c }}</td>
+                {% elif c <= 5 %}
+                <td class="hm-2" title="{{ c }}">{{ c }}</td>
+                {% elif c <= 10 %}
+                <td class="hm-3" title="{{ c }}">{{ c }}</td>
+                {% elif c <= 20 %}
+                <td class="hm-4" title="{{ c }}">{{ c }}</td>
+                {% else %}
+                <td class="hm-5" title="{{ c }}">{{ c }}</td>
+                {% endif %}
+                {% endfor %}
+                <td style="font-weight:700; color:var(--header); padding-left:12px;">
+                    {{ counts | sum }}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <!-- legend -->
+        <div style="display:flex; align-items:center; gap:8px; margin-top:14px; font-size:0.72rem; color:var(--muted);">
+            <span>Intensity:</span>
+            <span style="background:#f1f5f9; padding:2px 8px; border-radius:4px; color:#cbd5e1;">0</span>
+            <span style="background:#bfdbfe; padding:2px 8px; border-radius:4px; color:#1e40af;">1–2</span>
+            <span style="background:#93c5fd; padding:2px 8px; border-radius:4px; color:#1e3a8a;">3–5</span>
+            <span style="background:#60a5fa; padding:2px 8px; border-radius:4px; color:#fff;">6–10</span>
+            <span style="background:#3b82f6; padding:2px 8px; border-radius:4px; color:#fff;">11–20</span>
+            <span style="background:#1d4ed8; padding:2px 8px; border-radius:4px; color:#fff;">20+</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Recent Activity Log ──────────────────────────────────────────────── -->
+    <div class="card">
+        <p class="card-title">
+            <span class="material-icons">receipt_long</span>
+            Recent Activity Log
+            <span style="font-size:0.72rem; font-weight:400; color:var(--muted); margin-left:8px;">most recent 200 entries</span>
+        </p>
+
+        <!-- client-side filter -->
+        <div style="margin-bottom:12px;">
+            <input type="text" id="logSearch" placeholder="Filter by username or entry type…"
+                   oninput="filterLog(this.value)"
+                   style="padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:0.85rem; width:280px; background:var(--bg);">
+        </div>
+
+        {% if recent_log %}
+        <div class="table-wrap">
+        <table id="logTable" class="log-table">
+            <thead>
+                <tr>
+                    <th>Staff</th>
+                    <th>Entry Type</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% set type_badge_colors = {
+                'Session Record':     'background:#e0e7ff;color:#4338ca',
+                'Monthly Lab Record': 'background:#e0f2fe;color:#0369a1',
+                'Interim Labs':       'background:#d1fae5;color:#065f46',
+                'Clinical Event':     'background:#fef3c7;color:#92400e',
+                'Hospitalisation':    'background:#fee2e2;color:#991b1b'
+            } %}
+            {% for actor, ts, label in recent_log %}
+            <tr>
+                <td>{{ actor }}</td>
+                <td>
+                    <span class="badge" style="{{ type_badge_colors.get(label, 'background:#f1f5f9;color:#475569') }}">
+                        {{ label }}
+                    </span>
+                </td>
+                <td>{{ ts.strftime('%d %b %Y, %H:%M') if ts else '—' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:32px; color:var(--muted);">
+            <span class="material-icons" style="font-size:2.5rem; display:block; margin-bottom:10px; opacity:0.3;">search_off</span>
+            No activity records found for this period.
+        </div>
+        {% endif %}
+    </div>
+
+</div><!-- /container -->
+
+<script>
+function filterLog(q) {
+    const rows = document.querySelectorAll('#logTable tbody tr');
+    const lq = q.toLowerCase();
+    rows.forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(lq) ? '' : 'none';
+    });
+}
+</script>
+</body>
+</html>

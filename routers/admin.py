@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func, cast, Date as SADate
 from sqlalchemy.exc import IntegrityError
 from typing import Optional
 import json
@@ -9,8 +9,11 @@ import logging
 import re
 import secrets
 
-from datetime import date, datetime
-from database import get_db, User, Patient, MonthlyRecord, SessionRecord, InterimLabRecord, ClinicalEvent, engine
+from datetime import date, datetime, timedelta
+from database import (
+    get_db, User, Patient, MonthlyRecord, SessionRecord, InterimLabRecord,
+    ClinicalEvent, HospitalisationEvent, engine,
+)
 from config import templates, pwd_context
 from dependencies import get_user, _require_admin
 
@@ -562,4 +565,211 @@ async def admin_missing_data(
         "selected_patient": selected_patient,
         "report": report
     })
+
+
+# ── Data Entry Activity Monitor ───────────────────────────────────────────────
+
+@router.get("/activity", response_class=HTMLResponse)
+async def admin_activity(
+    request: Request,
+    days: int = 7,
+    filter_user: str = "",
+    db: Session = Depends(get_db),
+):
+    """Staff data-entry activity monitor — daily / weekly breakdown by user."""
+    _require_admin(request)
+
+    if days not in (1, 7, 14, 30):
+        days = 7
+
+    today = date.today()
+    since = today - timedelta(days=days - 1)
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    def _rows(model, ts_col, actor_col):
+        """Return list of (actor, date, count) within the window."""
+        rows = (
+            db.query(
+                actor_col.label("actor"),
+                cast(ts_col, SADate).label("day"),
+                func.count().label("cnt"),
+            )
+            .filter(cast(ts_col, SADate) >= since)
+            .group_by(actor_col, cast(ts_col, SADate))
+            .all()
+        )
+        return rows
+
+    sr  = _rows(SessionRecord,       SessionRecord.timestamp,        SessionRecord.entered_by)
+    mr  = _rows(MonthlyRecord,       MonthlyRecord.timestamp,        MonthlyRecord.entered_by)
+    il  = _rows(InterimLabRecord,    InterimLabRecord.created_at,    InterimLabRecord.entered_by)
+    ce  = _rows(ClinicalEvent,       ClinicalEvent.created_at,       ClinicalEvent.created_by)
+    he  = _rows(HospitalisationEvent, HospitalisationEvent.created_at, HospitalisationEvent.entered_by)
+
+    ENTRY_TYPES = [
+        ("Session Record",      sr,  "#6366f1"),
+        ("Monthly Lab Record",  mr,  "#0ea5e9"),
+        ("Interim Labs",        il,  "#10b981"),
+        ("Clinical Event",      ce,  "#f59e0b"),
+        ("Hospitalisation",     he,  "#ef4444"),
+    ]
+
+    # ── collect all active actors ─────────────────────────────────────────────
+    all_actors: set[str] = set()
+    for _, rows, _ in ENTRY_TYPES:
+        for r in rows:
+            if r.actor:
+                all_actors.add(r.actor)
+
+    # ── date range list ───────────────────────────────────────────────────────
+    date_range = [since + timedelta(days=i) for i in range(days)]
+
+    # ── per-user, per-day grid  {actor: {date: {type: count}}} ───────────────
+    grid: dict = {}
+    for label, rows, color in ENTRY_TYPES:
+        for r in rows:
+            actor = r.actor or "unknown"
+            if filter_user and actor != filter_user:
+                continue
+            grid.setdefault(actor, {}).setdefault(str(r.day), {})
+            grid[actor][str(r.day)][label] = grid[actor][str(r.day)].get(label, 0) + r.cnt
+
+    # ── user summary: total this period & today ───────────────────────────────
+    user_summary: list[dict] = []
+    today_str = str(today)
+    for actor in sorted(all_actors):
+        if filter_user and actor != filter_user:
+            continue
+        days_data = grid.get(actor, {})
+        total_period = sum(
+            sum(types.values()) for types in days_data.values()
+        )
+        total_today = sum(days_data.get(today_str, {}).values())
+        breakdown_period: dict[str, int] = {}
+        for day_types in days_data.values():
+            for t, c in day_types.items():
+                breakdown_period[t] = breakdown_period.get(t, 0) + c
+        last_active = max(days_data.keys()) if days_data else None
+        user_summary.append({
+            "actor": actor,
+            "total_today": total_today,
+            "total_period": total_period,
+            "breakdown": breakdown_period,
+            "last_active": last_active,
+        })
+    user_summary.sort(key=lambda x: x["total_period"], reverse=True)
+
+    # ── heatmap data: {actor: [count per day in date_range]} ─────────────────
+    heatmap: dict[str, list[int]] = {}
+    for actor in all_actors:
+        if filter_user and actor != filter_user:
+            continue
+        heatmap[actor] = [
+            sum(grid.get(actor, {}).get(str(d), {}).values())
+            for d in date_range
+        ]
+
+    # ── KPI totals ────────────────────────────────────────────────────────────
+    kpi_today   = sum(s["total_today"]  for s in user_summary)
+    kpi_period  = sum(s["total_period"] for s in user_summary)
+    kpi_users   = len([s for s in user_summary if s["total_period"] > 0])
+    type_totals = {}
+    for label, rows, color in ENTRY_TYPES:
+        cnt = sum(
+            r.cnt for r in rows
+            if (not filter_user or r.actor == filter_user)
+        )
+        type_totals[label] = {"count": cnt, "color": color}
+
+    # ── recent detailed log (last 200 rows across all sources) ────────────────
+    def _recent(ts_col, actor_col, label: str):
+        q = (
+            db.query(actor_col.label("actor"), ts_col.label("ts"))
+            .filter(cast(ts_col, SADate) >= since)
+        )
+        if filter_user:
+            q = q.filter(actor_col == filter_user)
+        return [(r.actor or "—", r.ts, label) for r in q.order_by(ts_col.desc()).limit(60)]
+
+    recent_log = (
+        _recent(SessionRecord.timestamp,           SessionRecord.entered_by,           "Session Record")
+        + _recent(MonthlyRecord.timestamp,         MonthlyRecord.entered_by,           "Monthly Lab Record")
+        + _recent(InterimLabRecord.created_at,     InterimLabRecord.entered_by,        "Interim Labs")
+        + _recent(ClinicalEvent.created_at,        ClinicalEvent.created_by,           "Clinical Event")
+        + _recent(HospitalisationEvent.created_at, HospitalisationEvent.entered_by,    "Hospitalisation")
+    )
+    recent_log.sort(key=lambda x: x[1] or datetime.min, reverse=True)
+    recent_log = recent_log[:200]
+
+    all_users_list = sorted(all_actors)
+
+    return templates.TemplateResponse("admin_activity.html", {
+        "request": request,
+        "user": get_user(request),
+        "days": days,
+        "filter_user": filter_user,
+        "since": since,
+        "today": today,
+        "date_range": [str(d) for d in date_range],
+        "date_labels": [d.strftime("%d %b") for d in date_range],
+        "kpi_today": kpi_today,
+        "kpi_period": kpi_period,
+        "kpi_users": kpi_users,
+        "kpi_days": days,
+        "user_summary": user_summary,
+        "heatmap": heatmap,
+        "type_totals": type_totals,
+        "recent_log": recent_log,
+        "all_users_list": all_users_list,
+        "entry_types": [(label, color) for label, _, color in ENTRY_TYPES],
+    })
+
+
+@router.get("/activity/export-csv")
+async def admin_activity_export_csv(
+    request: Request,
+    days: int = 7,
+    filter_user: str = "",
+    db: Session = Depends(get_db),
+):
+    """Download the activity log as a CSV file."""
+    _require_admin(request)
+
+    if days not in (1, 7, 14, 30):
+        days = 7
+
+    today = date.today()
+    since = today - timedelta(days=days - 1)
+
+    def _recent_csv(ts_col, actor_col, label: str):
+        q = (
+            db.query(actor_col.label("actor"), ts_col.label("ts"))
+            .filter(cast(ts_col, SADate) >= since)
+        )
+        if filter_user:
+            q = q.filter(actor_col == filter_user)
+        return [(r.actor or "—", r.ts, label) for r in q.order_by(ts_col.desc()).limit(500)]
+
+    rows = (
+        _recent_csv(SessionRecord.timestamp,           SessionRecord.entered_by,           "Session Record")
+        + _recent_csv(MonthlyRecord.timestamp,         MonthlyRecord.entered_by,           "Monthly Lab Record")
+        + _recent_csv(InterimLabRecord.created_at,     InterimLabRecord.entered_by,        "Interim Labs")
+        + _recent_csv(ClinicalEvent.created_at,        ClinicalEvent.created_by,           "Clinical Event")
+        + _recent_csv(HospitalisationEvent.created_at, HospitalisationEvent.entered_by,    "Hospitalisation")
+    )
+    rows.sort(key=lambda x: x[1] or datetime.min, reverse=True)
+
+    import io, csv
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Staff Username", "Entry Type", "Timestamp"])
+    for actor, ts, label in rows:
+        w.writerow([actor, label, ts.strftime("%Y-%m-%d %H:%M:%S") if ts else ""])
+
+    filename = f"activity_{since}_{today}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
