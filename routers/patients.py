@@ -316,7 +316,15 @@ async def patient_profile(patient_id: int, request: Request, db: Session = Depen
         try: anti_meds = json.loads(latest_monthly.antihypertensive_details)
         except: pass
 
-    sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc()).limit(5).all()
+    _raw_sessions = db.query(SessionRecord).filter(SessionRecord.patient_id == patient_id).order_by(SessionRecord.session_date.desc(), SessionRecord.id.desc()).limit(25).all()
+    _seen: set = set()
+    sessions = []
+    for _s in _raw_sessions:
+        if _s.session_date not in _seen:
+            _seen.add(_s.session_date)
+            sessions.append(_s)
+            if len(sessions) >= 5:
+                break
     interims = db.query(InterimLabRecord).filter(InterimLabRecord.patient_id == patient_id).order_by(InterimLabRecord.lab_date.desc()).limit(5).all()
     events = db.query(ClinicalEvent).filter(ClinicalEvent.patient_id == patient_id).order_by(ClinicalEvent.event_date.desc()).limit(8).all()
 

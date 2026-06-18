@@ -129,11 +129,24 @@ async def create_session(
     needle_infiltration: bool = Form(False)
 ):
     _validate_ml_required_fields(blood_flow_rate, duration_hours, weight_pre, weight_post)
+    # Server-side duplicate guard — redirect to edit if a session already exists on this date.
+    try:
+        from datetime import datetime as _dt
+        _sdate = _dt.strptime(session_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session date format")
+    existing = db.query(SessionRecord).filter(
+        SessionRecord.patient_id == patient_id,
+        SessionRecord.session_date == _sdate,
+    ).order_by(SessionRecord.id.desc()).first()
+    if existing:
+        return RedirectResponse(url=f"/sessions/{existing.id}/edit", status_code=303)
     try:
         kwargs = locals().copy()
-        # Remove dependencies
         kwargs.pop("request", None)
         kwargs.pop("db", None)
+        kwargs.pop("_sdate", None)
+        kwargs.pop("existing", None)
         rec = session_service.create_session_record(db, patient_id, kwargs)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

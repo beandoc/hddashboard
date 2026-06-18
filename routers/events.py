@@ -254,18 +254,18 @@ async def create_event(
             if discharge_diagnosis:
                 open_hosp.notes = (open_hosp.notes or "") + f"\nDischarge Dx: {discharge_diagnosis}"
 
+    back = request.headers.get("referer", "/events")
+    sep = "&" if "?" in back else "?"
     try:
         db.commit()
     except Exception as exc:
         db.rollback()
         logger.error("create_event failed: %s", exc, exc_info=True)
-        back = request.headers.get("referer", "/events")
-        sep = "&" if "?" in back else "?"
         return RedirectResponse(
             url=f"{back}{sep}event_error=Failed+to+save+event.+Please+try+again.",
             status_code=303,
         )
-    return RedirectResponse(url="/events?event_saved=1", status_code=303)
+    return RedirectResponse(url=f"{back}{sep}event_saved=1", status_code=303)
 
 @router.post("/{event_id}/delete")
 async def delete_event(

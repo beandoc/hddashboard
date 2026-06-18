@@ -36,7 +36,7 @@ def _compute_gnri(alb_val: float, weight_val: float, height: float, sex: str) ->
         idw = height - 100 - (h_diff / 2.5)
     if idw <= 0:
         return None
-    w_ratio = min(1.0, weight_val / idw) if weight_val > idw else (weight_val / idw)
+    w_ratio = min(1.0, weight_val / idw)
     return (14.89 * alb_val) + (41.7 * w_ratio)
 
 
@@ -226,7 +226,7 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
                     nut_score = 2
                     events.append({"icon": "🥩", "color": "#ef4444", "text": f"Major Malnutrition Risk (GNRI {gnri:.1f})"})
                 elif gnri < 92:
-                    nut_score = 2
+                    nut_score = 1
                     events.append({"icon": "🥩", "color": "#f59e0b", "text": f"Moderate Malnutrition Risk (GNRI {gnri:.1f})"})
                 elif gnri < 98:
                     nut_score = 1
@@ -358,9 +358,10 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
         data_available["events"] = True
         missing_fields["events"] = []
 
-        # Completeness per month
-        m_total = sum(1 for d in data_available.values() if d)
-        scored_domains = [k for k in ("nutrition", "inflammation", "atherosclerosis", "dialysis") if data_available.get(k)]
+        # Completeness per month — lab domains only (events is always present, so excluded)
+        LAB_DOMAINS = ("nutrition", "inflammation", "atherosclerosis", "dialysis")
+        m_total = sum(1 for k in LAB_DOMAINS if data_available.get(k))
+        scored_domains = [k for k in LAB_DOMAINS if data_available.get(k)]
         entry_total = sum(scores.get(k, 0) for k in scored_domains)
         timeline.append({
             "label": m,
@@ -369,14 +370,15 @@ def analyze_mia_cascade(db, patient_id: int, prefetched_records = None, recent_s
             "missing_fields": missing_fields,
             "values": values,
             "events": events,
-            "completeness_pct": round((m_total / 5) * 100),
+            "completeness_pct": round((m_total / 4) * 100),
             "total": entry_total,
             "domains_with_data": len(scored_domains),
         })
 
     # Summary Stats
-    total_data_points = sum(1 for t in timeline for d in t["data_available"].values() if d)
-    completeness = (total_data_points / (len(timeline) * 5)) * 100 if timeline else 0
+    _LAB_DOMAINS = ("nutrition", "inflammation", "atherosclerosis", "dialysis")
+    total_data_points = sum(1 for t in timeline for k in _LAB_DOMAINS if t["data_available"].get(k))
+    completeness = (total_data_points / (len(timeline) * 4)) * 100 if timeline else 0
 
     alert = any(t["total"] >= 4 for t in timeline[-2:]) if timeline else False
     if alert:
@@ -801,6 +803,14 @@ def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessi
         alerts.append("Significant Access Recirculation (>10%) detected.")
         risk_score += 3
 
+    # Capture access-specific risk before adding demographic context scores.
+    # cascade_detected must only fire on actual access problems — demographics
+    # alone (elderly + DM = +3) would otherwise trip the threshold on every
+    # such patient regardless of fistula status.
+    access_risk_score = risk_score
+    maturation_failure = any("Maturation Failure" in a for a in alerts)
+    cascade_detected = access_risk_score >= 3 or maturation_failure
+
     # ── 3. Correlation with Demographics ──────────────────────────────────────
     if p.age and p.age >= 65:
         risk_score += 1
@@ -813,9 +823,6 @@ def analyze_avf_maturation(db, patient_id: int, patient_obj = None, recent_sessi
     if p.handgrip_strength and p.handgrip_strength < 20:
         risk_score += 2
         events.append({"text": f"Sarcopenia (Handgrip {p.handgrip_strength} kg) linked to fistula failure."})
-
-    maturation_failure = any("Maturation Failure" in a for a in alerts)
-    cascade_detected = risk_score >= 3 or maturation_failure
 
     default_message = "Vascular access functioning within parameters." if has_access_data else "Access dates not recorded — enter surgery and first cannulation dates in the patient profile."
 
@@ -974,9 +981,16 @@ def analyze_pds(db: Session, patient_id: int, prefetched_reports = None, recent_
 
         ufr = None
         if sess:
-            duration = (sess.duration_hours or 0) + (sess.duration_minutes or 0) / 60
-            if sess.weight_pre and sess.weight_post and duration > 0:
-                ufr = round(((sess.weight_pre - sess.weight_post) * 1000) / duration, 1)
+            # Prefer the pre-computed uf_rate (mL/kg/hr stored at session creation).
+            # Fall back to deriving from weights + duration if not stored, using the same
+            # KDOQI formula: (fluid_removed_mL) / (weight_pre_kg × duration_hr).
+            ufr = sess.uf_rate
+            if ufr is None:
+                duration = (sess.duration_hours or 0) + (sess.duration_minutes or 0) / 60
+                if sess.weight_pre and sess.weight_post and duration > 0 and sess.weight_pre > 0:
+                    ufr = round(
+                        ((sess.weight_pre - sess.weight_post) * 1000) / (duration * sess.weight_pre), 1
+                    )
 
         report_dict = {
             "date": str(rep.session_date or rep.reported_at.date()),

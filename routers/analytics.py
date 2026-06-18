@@ -7,7 +7,7 @@ import logging
 
 from datetime import date, datetime, timedelta
 from database import get_db, SessionLocal, Patient, ClinicalEvent, SessionRecord, MonthlyRecord, MLModelMetrics
-from config import templates
+from config import templates, _csrf_signer
 from dependencies import get_user, _require_analytics_access
 from dashboard_logic import compute_dashboard, get_current_month_str, get_effective_month
 # Heavy ML modules are deferred to first use so they don't block startup.
@@ -1501,14 +1501,22 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
             .order_by(MonthlyRecord.record_month.asc())
             .all()
         )
-        recent_sessions = (
+        _raw = (
             db.query(SessionRecord)
             .options(joinedload(SessionRecord.symptom_report))
             .filter(SessionRecord.patient_id == patient_id)
-            .order_by(SessionRecord.session_date.desc())
-            .limit(30)
+            .order_by(SessionRecord.session_date.desc(), SessionRecord.id.desc())
+            .limit(90)
             .all()
         )
+        _seen_dates: set = set()
+        recent_sessions = []
+        for _s in _raw:
+            if _s.session_date not in _seen_dates:
+                _seen_dates.add(_s.session_date)
+                recent_sessions.append(_s)
+                if len(recent_sessions) >= 30:
+                    break
         prefetched_reports = (
             db.query(PatientSymptomReport)
             .filter(PatientSymptomReport.patient_id == patient_id)
@@ -1593,10 +1601,12 @@ async def patient_analytics_page(patient_id: int, request: Request, db: Session 
 
     current_month_str = get_current_month_str()
     doctor_note = next((r for r in prefetched_records if r.record_month == current_month_str), None)
+    csrf_token = _csrf_signer.sign("events-new").decode()
 
     return templates.TemplateResponse("patient_analytics.html", {
         "request": request, "patient": patient, "analytics": analytics,
         "pt_events": pt_events, "event_types": EVENT_TYPES, "event_type_groups": EVENT_TYPE_GROUPS,
+        "csrf_token": csrf_token,
         "bfr_analytics": bfr_analytics, "idwg_analytics": idwg_analytics, "recent_sessions": recent_sessions_20,
         "pds_analytics": pds_analytics,
         "mia_cascade": mia_cascade,
