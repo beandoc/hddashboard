@@ -265,6 +265,64 @@ function renderDefault() {
   updateGuardrailsFromSliders();
 }
 
+// ── Data-availability hints ───────────────────────────────────────────────────
+// Surfaces which cards were blanked and why (missing backend variables), plus
+// the provenance of the weight used.  Keeps the twin honest: a missing input
+// produces a hint, never a fabricated default.
+function renderDataHints(result) {
+  const box  = document.getElementById('twin-data-hints');
+  const list = document.getElementById('twin-data-hints-list');
+  const wsrc = document.getElementById('twin-weight-source');
+  if (!box || !list) return;
+
+  const hints = [];
+  const domains = {
+    'Anemia / Hb':          result?.hb_sim,
+    'Dialysis adequacy':    result?.ktv_extended,
+    'Phosphate':            result?.phosphate,
+    'IDH risk':             result?.idh_sim,
+    'Plasma refill (RBV)':  result?.fluid_volume,
+    'Hemodynamics':         result?.hemodynamics,
+  };
+  for (const [label, d] of Object.entries(domains)) {
+    if (d && d.available === false && d.hint) hints.push(`<strong>${label}:</strong> ${d.hint}`);
+  }
+  (result?.hb_sim?.hints || []).forEach(h => hints.push(`<strong>Iron axis:</strong> ${h}`));
+
+  // Weight provenance
+  const wsLabels = {
+    monthly_prehd_weight: 'latest monthly pre-HD weight',
+    session_pre_weight:   'most recent session pre-weight',
+    target_dry_weight:    'target dry weight (no recent measured weight)',
+  };
+  if (wsrc) {
+    if (result?.weight_used_kg != null) {
+      const src = wsLabels[result?.weight_source] || result?.weight_source || '—';
+      wsrc.textContent = `Weight used: ${result.weight_used_kg} kg (source: ${src}).`;
+    } else {
+      wsrc.textContent = 'Weight unavailable — weight-dependent cards are blanked.';
+    }
+  }
+
+  box.style.display = (hints.length || result?.weight_used_kg == null) ? 'block' : 'none';
+  list.innerHTML = hints.map(h => `<li>${h}</li>`).join('');
+
+  // Blank KPI values whose domain is unavailable so no stale number lingers.
+  const setDash = id => { const e = document.getElementById(id); if (e) e.textContent = '—'; };
+  if (result?.ktv_extended?.available === false) { setDash('kpi-ktv'); setDash('kpi-ektv'); }
+  if (result?.phosphate?.available  === false) setDash('kpi-phos');
+  if (result?.idh_sim?.available    === false) setDash('kpi-idh-delta');
+
+  // Iron (TSAT) slider: disable when the iron axis cannot be simulated.
+  const ironOff = result?.hb_sim?.iron_axis_available === false;
+  const tsat = document.getElementById('tsat-slider');
+  if (tsat) {
+    tsat.disabled = ironOff;
+    tsat.style.opacity = ironOff ? '0.45' : '';
+    tsat.title = ironOff ? 'TSAT not recorded — iron axis disabled' : '';
+  }
+}
+
 // ── Run simulation ──────────────────────────────────────────────────────────
 
 // ── Error/warning banner ─────────────────────────────────────────────────────
@@ -380,8 +438,8 @@ async function runSimulation() {
     // Hb
     if (plotly.hb_traces?.length) renderHbChart(plotly.hb_traces);
 
-    // RBV
-    if (plotly.fluid_volume) renderRbvChart(plotly.fluid_volume);
+    // RBV (only when the model actually produced a curve)
+    if (plotly.fluid_volume && plotly.fluid_volume.rbv_trace) renderRbvChart(plotly.fluid_volume);
 
     // Kt/V adequacy — mechanistic ktv_extended sp_ktv keeps chart and KPI on the same source
     const std = plotly.std_ktv_bar_data || {};
@@ -405,6 +463,9 @@ async function runSimulation() {
 
     // KPIs + IDH
     updateKPIs(plotly, result);
+
+    // Data-availability hints (blanked cards + weight provenance)
+    renderDataHints(result);
 
     // Cascade summary
     renderCascade(plotly.cascade || result.cascade);

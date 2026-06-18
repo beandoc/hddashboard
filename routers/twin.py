@@ -43,6 +43,57 @@ def _get_patient_or_404(db: Session, patient_id: int) -> Patient:
     return p
 
 
+# Tokens that mean "comorbidity absent" in the free-text/enum columns.
+# Kept identical to ml_idh's decoder so the twin and the IDH model agree on
+# whether a flag is present (avoids the dm_status='None' → "diabetic" bug).
+_ABSENT_TOKENS = {"", "none", "no", "0", "false", "n"}
+
+
+def _flag_present(value) -> bool:
+    """Canonical truthiness for comorbidity fields stored as bool OR free-text.
+
+    `dm_status` is a string enum whose default is the literal "None"; a naive
+    `value != "no"` test classifies every non-diabetic as diabetic.  This
+    mirrors ml_idh._extract_idh_features_for_inference so both layers agree.
+    """
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in _ABSENT_TOKENS
+
+
+def _resolve_weight(monthly_records: list, past_sessions: list, patient: Patient):
+    """Resolve the patient's working weight from the best available source.
+
+    Priority: latest monthly pre-HD weight → most recent session pre-weight →
+    target dry weight.  Returns (weight_kg | None, source).  Never fabricates a
+    default — a None result tells the caller the variable is genuinely missing
+    so the dependent card can blank out with a hint instead of using 70 kg.
+    """
+    for rec in (monthly_records or []):
+        w = rec.get("last_prehd_weight") or rec.get("weight")
+        if w:
+            try:
+                return float(w), "monthly_prehd_weight"
+            except (TypeError, ValueError):
+                pass
+    for s in (past_sessions or []):
+        w = s.get("weight_pre")
+        if w:
+            try:
+                return float(w), "session_pre_weight"
+            except (TypeError, ValueError):
+                pass
+    dw = getattr(patient, "dry_weight", None)
+    if dw:
+        try:
+            return float(dw), "target_dry_weight"
+        except (TypeError, ValueError):
+            pass
+    return None, "missing"
+
+
 def _monthly_records_dicts(db: Session, patient_id: int, limit: int = 12) -> list:
     recs = (
         db.query(MonthlyRecord)
@@ -96,6 +147,17 @@ def _merged_records_for_twin(db: Session, patient_id: int, limit: int = 12) -> l
 
 
 def _past_sessions_dicts(db: Session, patient_id: int, limit: int = 10) -> list:
+    """Most-recent sessions as dicts, wired to the ACTUAL SessionRecord columns.
+
+    Keys use the canonical ORM column names so downstream consumers (the
+    ml_idh feature extractor and the baseline builder) read real values instead
+    of silently defaulting via getattr() on attribute names that do not exist
+    on the model (the previous `actual_session_time` / `dialysate_temp` /
+    `antihypertensive_prehd` / `intradialytic_meals` keys were always None).
+
+      • session_duration_min — derived from duration_hours + duration_minutes
+      • idwg_kg              — derived: this pre-weight − previous post-weight
+    """
     sessions = (
         db.query(SessionRecord)
         .filter(SessionRecord.patient_id == patient_id)
@@ -104,32 +166,59 @@ def _past_sessions_dicts(db: Session, patient_id: int, limit: int = 10) -> list:
         .all()
     )
     result = []
-    for s in sessions:
+    for idx, s in enumerate(sessions):
+        # Treatment duration (minutes) from the real columns; None when unrecorded.
+        dur_h, dur_min = s.duration_hours, s.duration_minutes
+        if dur_h is not None or dur_min is not None:
+            session_min = float(dur_h or 0) * 60.0 + float(dur_min or 0)
+        elif s.scheduled_treatment_duration is not None:
+            try:
+                session_min = float(s.scheduled_treatment_duration)
+            except (TypeError, ValueError):
+                session_min = None
+        else:
+            session_min = None
+        if session_min is not None and session_min <= 0:
+            session_min = None
+
+        # IDWG = this session's pre-weight − previous (older) session's post-weight.
+        older = sessions[idx + 1] if idx + 1 < len(sessions) else None
+        idwg = None
+        if older is not None and older.weight_post is not None and s.weight_pre is not None:
+            idwg = round(max(0.0, float(s.weight_pre) - float(older.weight_post)), 2)
+
         result.append({
-            "session_date":         str(s.session_date) if s.session_date else None,
-            "pre_hd_sbp":           getattr(s, "bp_pre_sys", None),
-            "pre_hd_dbp":           getattr(s, "bp_pre_dia", None),
-            "bp_nadir_sys":         getattr(s, "bp_nadir_sys", None),
-            "idh_episode":          getattr(s, "idh_episode", None),
-            "uf_volume":            getattr(s, "uf_volume", None),
-            "actual_session_time":  getattr(s, "actual_session_time", None),
-            "idwg_kg":              getattr(s, "idwg_kg", None),
-            "weight_pre":           getattr(s, "weight_pre", None),
-            "weight_post":          getattr(s, "weight_post", None),
-            "dialysate_temp":       getattr(s, "dialysate_temp", None),
-            "dialysate_sodium":     getattr(s, "dialysate_sodium", None),
-            "antihypertensive_prehd": getattr(s, "antihypertensive_prehd", None),
-            "intradialytic_meals":  getattr(s, "intradialytic_meals", None),
-            "blood_flow_rate":      getattr(s, "blood_flow_rate", None),
-            "dialysate_flow":        getattr(s, "dialysate_flow", None),
-            "arterial_line_pressure": getattr(s, "arterial_line_pressure", None),
-            "venous_line_pressure":   getattr(s, "venous_line_pressure", None),
-            "sp_ktv":                 getattr(s, "sp_ktv", None),
+            "session_date":                 str(s.session_date) if s.session_date else None,
+            "bp_pre_sys":                    s.bp_pre_sys,
+            "bp_pre_dia":                    s.bp_pre_dia,
+            "bp_nadir_sys":                  s.bp_nadir_sys,
+            "idh_episode":                   s.idh_episode,
+            "uf_volume":                     s.uf_volume,
+            "actual_uf_volume":              s.actual_uf_volume,
+            "session_duration_min":          session_min,
+            "duration_hours":                s.duration_hours,
+            "duration_minutes":              s.duration_minutes,
+            "idwg_kg":                       idwg,
+            "weight_pre":                    s.weight_pre,
+            "weight_post":                   s.weight_post,
+            "dialysate_temperature":         s.dialysate_temperature,
+            "dialysate_sodium":              s.dialysate_sodium,
+            "antihypertensive_taken_prehd":  s.antihypertensive_taken_prehd,
+            "intradialytic_meals_eaten":     s.intradialytic_meals_eaten,
+            "blood_flow_rate":               s.blood_flow_rate,
+            "actual_blood_flow_rate":        s.actual_blood_flow_rate,
+            "dialysate_flow":                s.dialysate_flow,
+            "arterial_line_pressure":        s.arterial_line_pressure,
+            "venous_line_pressure":          s.venous_line_pressure,
+            "muscle_cramps":                 s.muscle_cramps,
+            "nausea_vomiting":               s.nausea_vomiting,
+            "sp_ktv":                        s.sp_ktv,
         })
     return result
 
 
-def _build_patient_info(patient: Patient, monthly_records: list, db: Session) -> dict:
+def _build_patient_info(patient: Patient, monthly_records: list, db: Session,
+                        past_sessions: list = None) -> dict:
     from db.models.records import DryWeightAssessment
     from db.models.clinical import AccessSurveillanceRecord
     from db.models.research import ResearchRecord
@@ -240,25 +329,47 @@ def _build_patient_info(patient: Patient, monthly_records: list, db: Session) ->
             "finding":      latest_doppler.finding,
         }
         
-    # Comorbidities
-    cm = patient.comorbidity_profile
-    dm = getattr(cm, "dm_status", "no") != "no" if cm else False
-    chf = getattr(cm, "chf_status", False) if cm else False
-    cad = getattr(cm, "cad_status", False) if cm else False
+    # Comorbidities — decode with the canonical resolver (dm_status is a string
+    # enum whose default is "None"; the old `!= "no"` test mislabelled every
+    # non-diabetic as diabetic).
+    cm   = patient.comorbidity_profile
+    card = patient.cardiac
+    dm   = _flag_present(getattr(cm, "dm_status",  None)) if cm else False
+    chf  = _flag_present(getattr(cm, "chf_status", None)) if cm else False
+    cad  = _flag_present(getattr(cm, "cad_status", None)) if cm else False
+
+    # Working weight resolved from the best available source (no 70 kg default).
+    resolved_weight, weight_source = _resolve_weight(monthly_records, past_sessions, patient)
 
     return {
         "id":           patient.id,
         "age":          patient.age,
         "sex":          patient.sex,
         "height":       patient.height,
+        # Canonical booleans (fixed decode) — for display / non-IDH use.
         "dm":           dm,
         "chf":          chf,
         "cad":          cad,
+        # Raw fields the ml_idh extractor expects by name (it canonicalises
+        # internally).  Without these the model silently saw all-zero
+        # comorbidities and EF=60 default regardless of the real chart.
+        "dm_status":             getattr(cm, "dm_status",  None) if cm else None,
+        "chf_status":            getattr(cm, "chf_status", None) if cm else None,
+        "cad_status":            getattr(cm, "cad_status", None) if cm else None,
+        "history_of_pvd":        getattr(cm, "history_of_pvd", None) if cm else None,
+        "af_status":             getattr(cm, "af_status",  None) if cm else None,
+        "liver_disease":         getattr(cm, "liver_disease", None) if cm else None,
+        "ejection_fraction":     getattr(card, "ejection_fraction", None) if card else None,
+        "diastolic_dysfunction": getattr(card, "diastolic_dysfunction", None) if card else None,
+        "hd_frequency":          getattr(patient, "hd_frequency", None),
+        "hd_wef_date":           getattr(patient, "hd_wef_date", None),
+        "dry_weight":            getattr(patient, "dry_weight", None),
         "albumin":      latest.get("albumin"),
-        "weight":       latest.get("last_prehd_weight") or latest.get("weight"),
+        "weight":       resolved_weight,
+        "weight_source": weight_source,
         "bia":          bia_dict,
         "doppler":      doppler_dict,
-        "cardiac_output": patient.cardiac.cardiac_output if patient.cardiac else None,
+        "cardiac_output": card.cardiac_output if card else None,
     }
 
 
@@ -266,7 +377,8 @@ def _fallback_ktv(records: list, past_sessions: list):
     """Scan all monthly records for the first valid Daugirdas spKt/V estimate."""
     from ml_twin import calculate_ktv_daugirdas, _UREA_MG_DL_TO_BUN
     uf_L      = (past_sessions[0].get("uf_volume") or 1500) / 1000 if past_sessions else 1.5
-    session_h = (past_sessions[0].get("actual_session_time") or 240) / 60 if past_sessions else 4.0
+    _sdmin    = past_sessions[0].get("session_duration_min") if past_sessions else None
+    session_h = (_sdmin / 60.0) if _sdmin else 4.0
     for rec in records:
         pre = rec.get("pre_dialysis_urea")
         post = rec.get("post_dialysis_urea")
@@ -343,44 +455,49 @@ def _build_baseline_session(past_sessions: list) -> dict:
     if not past_sessions:
         return {}
     s = past_sessions[0]
-    session_duration_h = (s.get("actual_session_time") or 240) / 60
 
-    # Median Qd over up to last 10 sessions (fall back to 500 if unavailable)
+    # Treatment duration (hours) from the real columns; None when unrecorded so
+    # the dependent cards can flag it rather than silently assuming 4 h.
+    sdmin = s.get("session_duration_min")
+    session_duration_h = (sdmin / 60.0) if sdmin else None
+
+    # Median Qd over up to the last 10 sessions; None if never recorded.
     qd_values = [
         float(x["dialysate_flow"]) for x in past_sessions
         if x.get("dialysate_flow") is not None
     ]
-    qd_ml_min = round(sorted(qd_values)[len(qd_values) // 2]) if qd_values else 500.0
+    qd_ml_min = round(sorted(qd_values)[len(qd_values) // 2]) if qd_values else None
 
-    # Median UF rate (mL/kg/h) over last 10 sessions
+    # Median UF rate (mL/kg/h) — each session uses ITS OWN recorded duration and
+    # pre-weight; None when no session has the inputs to compute it (no 70 kg
+    # / 4 h fabrication that previously invented a rate).
     uf_rate_values = []
     for x in past_sessions:
         uf_vol = x.get("uf_volume")
         wt     = x.get("weight_pre")
-        dur_h  = (x.get("actual_session_time") or 240) / 60
-        if uf_vol and wt and dur_h > 0:
-            rate = float(uf_vol) / float(wt) / dur_h
+        dmin   = x.get("session_duration_min")
+        if uf_vol and wt and dmin and dmin > 0:
+            rate = float(uf_vol) / float(wt) / (dmin / 60.0)
             if 3.5 <= rate <= 16.0:
                 uf_rate_values.append(rate)
-    if uf_rate_values:
-        uf_rate_ml_kg_h = round(sorted(uf_rate_values)[len(uf_rate_values) // 2], 1)
-    else:
-        uf_vol = s.get("uf_volume") or 2000
-        wt     = s.get("weight_pre") or 70
-        uf_rate_ml_kg_h = round(max(3.5, min(16.0, uf_vol / wt / session_duration_h)), 1)
+    uf_rate_ml_kg_h = (
+        round(sorted(uf_rate_values)[len(uf_rate_values) // 2], 1)
+        if uf_rate_values else None
+    )
 
     return {
-        "pre_hd_sbp":             s.get("pre_hd_sbp"),
+        "session_date":           s.get("session_date"),
+        "pre_hd_sbp":             s.get("bp_pre_sys"),
         "uf_volume":              s.get("uf_volume"),
-        "dialysate_temp":         s.get("dialysate_temp") or 36.5,
-        "dialysate_sodium":       s.get("dialysate_sodium") or 138,
+        "dialysate_temp":         s.get("dialysate_temperature"),
+        "dialysate_sodium":       s.get("dialysate_sodium"),
         "idwg_kg":                s.get("idwg_kg"),
         "session_duration_h":     session_duration_h,
         "duration_hours":         session_duration_h,
         "weight_pre":             s.get("weight_pre"),
-        "antihypertensive_prehd": s.get("antihypertensive_prehd", False),
-        "intradialytic_meals":    s.get("intradialytic_meals", False),
-        "qb_ml_min":              s.get("blood_flow_rate") or 300.0,
+        "antihypertensive_prehd": s.get("antihypertensive_taken_prehd"),
+        "intradialytic_meals":    s.get("intradialytic_meals_eaten"),
+        "qb_ml_min":              s.get("blood_flow_rate"),
         "qd_ml_min":              qd_ml_min,
         "uf_rate_ml_kg_h":        uf_rate_ml_kg_h,
         "arterial_line_pressure": s.get("arterial_line_pressure"),
@@ -485,7 +602,7 @@ async def twin_simulate(
     # Raw monthly records for patient_info / baseline building (needs end-of-month anchors).
     records          = _monthly_records_dicts(db, patient_id)
     past_sessions    = _past_sessions_dicts(db, patient_id)
-    patient_info     = _build_patient_info(patient, records, db)
+    patient_info     = _build_patient_info(patient, records, db, past_sessions)
     baseline_session = _build_baseline_session(past_sessions)
 
     if not records:

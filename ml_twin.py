@@ -112,34 +112,84 @@ def run_scenario(
     # Convert from total urea (mg/dL) to BUN (mg/dL) — factor cancels in Kt/V ratio
     if not math.isnan(pre_bun):  pre_bun  *= _UREA_MG_DL_TO_BUN
     if not math.isnan(post_bun): post_bun *= _UREA_MG_DL_TO_BUN
-    # Pre-HD weight from the latest monthly record; Daugirdas W (post-HD
-    # weight) is derived per-arm inside the adequacy module.
-    pre_wt   = _safe_float(latest.get("last_prehd_weight") or latest.get("weight"), 70.0)
+
+    # Working weight: use the value the assembly layer already resolved
+    # (monthly pre-HD weight → recent session pre-weight → dry weight).  No
+    # 70 kg fabrication — pre_wt stays NaN when genuinely unknown so the
+    # weight-dependent domains can blank out with a hint.
+    pre_wt   = _safe_float(patient_info.get("weight"))
+    if math.isnan(pre_wt):
+        pre_wt = _safe_float(latest.get("last_prehd_weight") or latest.get("weight"))
+    weight_missing = math.isnan(pre_wt)
+
     base_h   = _safe_float(
-        baseline_session.get("session_duration_h") or baseline_session.get("session_h"), 4.0
+        baseline_session.get("session_duration_h") or baseline_session.get("session_h")
     )
+    duration_missing = math.isnan(base_h)
+    if duration_missing:
+        base_h = 4.0  # neutral value for any arithmetic; adequacy/fluid are gated separately
     base_uf_L = _safe_float(baseline_session.get("uf_volume"), 2500) / 1000
 
+    # ── Data-availability gate ────────────────────────────────────────────────
+    # Each domain declares the inputs it cannot compute without.  When a hard
+    # input is missing the domain returns a blank result carrying `missing` and
+    # `hint` instead of a number built on a fabricated default.
+    albumin_present  = (latest.get("albumin") is not None) or (patient_info.get("albumin") is not None)
+    tsat_present     = latest.get("tsat") is not None
+    phos_present     = latest.get("phosphorus") is not None
+    sbp_present      = baseline_session.get("pre_hd_sbp") is not None
+    ufvol_present    = baseline_session.get("uf_volume") is not None
+    height_present   = (patient_info.get("height") or patient_info.get("height_cm")) is not None
+    ktv_present      = (current_ktv is not None) or (not math.isnan(pre_bun) and not math.isnan(post_bun))
+
+    def _blank(missing: list, hint: str) -> dict:
+        return {"available": False, "missing": missing, "hint": hint}
+
+    data_availability: Dict[str, dict] = {}
+
     # ── 1. Hb kinetics ────────────────────────────────────────────────────────
+    # Iron axis requires a real baseline TSAT.  When TSAT is unrecorded the iron
+    # slider is neutralised (iron_boost_tsat=None ⇒ no fabricated repletion
+    # effect off an assumed 25%) and the card carries a hint.
     hb_sim = simulate_hb_trajectory(
         records                = records,
         esa_scenario_iu        = scenario.get("esa_weekly_iu"),
         desidustat_scenario_iu = scenario.get("desidustat_weekly_iu"),
-        iron_boost_tsat        = scenario.get("iron_tsat_target"),
+        iron_boost_tsat        = scenario.get("iron_tsat_target") if tsat_present else None,
         horizon_months         = 3,
     )
+    if isinstance(hb_sim, dict) and hb_sim.get("available"):
+        hb_sim["iron_axis_available"] = tsat_present
+        if not tsat_present:
+            hb_sim.setdefault("hints", []).append(
+                "TSAT not recorded — iron-repletion simulation disabled; showing ESA-only "
+                "trajectory. Enter a TSAT value to enable the iron axis."
+            )
+    data_availability["anemia"] = {
+        "available": bool(isinstance(hb_sim, dict) and hb_sim.get("available")),
+        "missing":   [] if (isinstance(hb_sim, dict) and hb_sim.get("available")) else ["baseline Hb"],
+        "iron_axis": tsat_present,
+    }
 
-    # ── 2. Daugirdas spKt/V (simple, requires BUN) ────────────────────────────
-    ktv_sim = simulate_ktv(
-        pre_bun            = pre_bun if not math.isnan(pre_bun) else None,
-        post_bun           = post_bun if not math.isnan(post_bun) else None,
-        baseline_session_h = base_h,
-        baseline_uf_L      = base_uf_L,
-        pre_weight_kg      = pre_wt,
-        scenario_session_h = scenario.get("session_h"),
-        scenario_uf_L      = scenario.get("uf_volume_L"),
-        current_ktv        = current_ktv,
-    )
+    # ── 2. Daugirdas spKt/V (simple, requires a measured anchor or pre/post urea)
+    if ktv_present and not weight_missing:
+        ktv_sim = simulate_ktv(
+            pre_bun            = pre_bun if not math.isnan(pre_bun) else None,
+            post_bun           = post_bun if not math.isnan(post_bun) else None,
+            baseline_session_h = base_h,
+            baseline_uf_L      = base_uf_L,
+            pre_weight_kg      = pre_wt,
+            scenario_session_h = scenario.get("session_h"),
+            scenario_uf_L      = scenario.get("uf_volume_L"),
+            current_ktv        = current_ktv,
+        )
+    else:
+        _miss = (["recorded spKt/V or pre+post-dialysis urea"] if not ktv_present else []) \
+              + (["pre-HD weight"] if weight_missing else [])
+        ktv_sim = _blank(_miss,
+            "Adequacy needs a recorded spKt/V (or pre & post-dialysis urea) and a pre-HD weight.")
+    data_availability["adequacy"] = {"available": bool(ktv_present and not weight_missing),
+                                     "missing": [] if (ktv_present and not weight_missing) else ktv_sim.get("missing", [])}
 
     # ── 3. IDH risk — cascade: longer session → lower effective UF rate ───────
     # If session_h changes but UF volume is the same, effective UF rate decreases.
@@ -166,40 +216,60 @@ def run_scenario(
     if scenario.get("uf_volume_L") is not None:
         session_overrides["uf_volume"] = scenario["uf_volume_L"] * 1000
 
-    idh_sim = simulate_idh_risk(
-        patient_info        = patient_info,
-        baseline_session    = baseline_session,
-        past_sessions       = past_sessions,
-        monthly_data        = monthly_data,
-        monthly_records_3mo = monthly_records_3mo,
-        scenario_overrides  = session_overrides,
-    )
-
-    # ── 4. UF rate sweep (IDH heatmap) ────────────────────────────────────────
-    uf_curve = simulate_uf_rate_idh_curve(
-        patient_info        = patient_info,
-        baseline_session    = baseline_session,
-        past_sessions       = past_sessions,
-        monthly_data        = monthly_data,
-        monthly_records_3mo = monthly_records_3mo,
-    )
+    idh_inputs_ok = (not weight_missing) and sbp_present
+    if idh_inputs_ok:
+        idh_sim = simulate_idh_risk(
+            patient_info        = patient_info,
+            baseline_session    = baseline_session,
+            past_sessions       = past_sessions,
+            monthly_data        = monthly_data,
+            monthly_records_3mo = monthly_records_3mo,
+            scenario_overrides  = session_overrides,
+        )
+        # ── 4. UF rate sweep (IDH heatmap) ────────────────────────────────────
+        uf_curve = simulate_uf_rate_idh_curve(
+            patient_info        = patient_info,
+            baseline_session    = baseline_session,
+            past_sessions       = past_sessions,
+            monthly_data        = monthly_data,
+            monthly_records_3mo = monthly_records_3mo,
+        )
+    else:
+        _miss = (["pre-HD weight"] if weight_missing else []) + (["pre-HD SBP"] if not sbp_present else [])
+        idh_sim  = _blank(_miss, "IDH risk needs a pre-HD weight and a recorded pre-HD systolic BP.")
+        uf_curve = _blank(_miss, "UF-rate sweep needs a pre-HD weight and a recorded pre-HD systolic BP.")
+    data_availability["idh"] = {"available": bool(idh_inputs_ok),
+                                "missing": [] if idh_inputs_ok else idh_sim.get("missing", [])}
 
     # ── 5. Extended urea kinetics (Module 4) ──────────────────────────────────
-    ktv_extended = simulate_urea_kinetics(
-        baseline     = baseline_session,
-        scenario     = scenario,
-        patient_info = patient_info,
-        records      = records,
-        current_ktv  = current_ktv,
-    )
+    if ktv_present and not weight_missing:
+        ktv_extended = simulate_urea_kinetics(
+            baseline     = baseline_session,
+            scenario     = scenario,
+            patient_info = patient_info,
+            records      = records,
+            current_ktv  = current_ktv,
+        )
+    else:
+        ktv_extended = _blank(
+            ktv_sim.get("missing", []),
+            "Urea kinetics need a recorded spKt/V (or pre & post-dialysis urea) and a pre-HD weight.")
 
     # ── 6. Phosphate kinetics (Module 5) ──────────────────────────────────────
-    phosphate = simulate_phosphate(
-        baseline     = baseline_session,
-        scenario     = scenario,
-        patient_info = patient_info,
-        records      = records,
-    )
+    # Requires a measured serum phosphorus to anchor the 2-pool steady state;
+    # without it the RK4 would run off an assumed 5.0 mg/dL.
+    if phos_present:
+        phosphate = simulate_phosphate(
+            baseline     = baseline_session,
+            scenario     = scenario,
+            patient_info = patient_info,
+            records      = records,
+        )
+    else:
+        phosphate = _blank(["measured serum phosphorus"],
+            "Phosphate kinetics need a measured serum phosphorus to anchor the model.")
+    data_availability["phosphate"] = {"available": bool(phos_present),
+                                      "missing": [] if phos_present else ["measured serum phosphorus"]}
 
     # ── 7. Two-compartment fluid/volume model (Abohtyra 2018) ─────────────────
     # If the patient has a DiaSense optical-sensor calibration on record, use
@@ -207,13 +277,24 @@ def run_scenario(
     # (weight × 0.006 mL/min/mmHg/kg).  This closes the sensor → twin loop:
     # every session's RBV curve refines the patient-specific refill coefficient
     # used by the next simulation.
+    fluid_inputs_ok = (not weight_missing) and albumin_present and ufvol_present and (not duration_missing)
     fluid_volume = {}
+    if not fluid_inputs_ok:
+        _miss = (["pre-HD weight"] if weight_missing else []) \
+              + (["serum albumin"] if not albumin_present else []) \
+              + (["prescribed UF volume"] if not ufvol_present else []) \
+              + (["session duration"] if duration_missing else [])
+        fluid_volume = _blank(_miss,
+            "The plasma-refilling (RBV) model needs pre-HD weight, serum albumin, "
+            "prescribed UF volume and session duration.")
     try:
+        if not fluid_inputs_ok:
+            raise RuntimeError("fluid inputs unavailable")
         from fluid_volume_model import simulate_fluid_volume, build_fluid_volume_plotly
 
         scen_uf_vol_ml = scenario.get("uf_volume_L", base_uf_L) * 1000
         scen_h         = scenario.get("session_h", base_h)
-        latest_albumin = monthly_data.get("albumin") if monthly_data else None
+        latest_albumin = (monthly_data.get("albumin") if monthly_data else None) or patient_info.get("albumin")
 
         # Fetch most-recent DiaSense k_r for this patient
         diasense_k_r: Optional[float] = None
@@ -285,18 +366,20 @@ def run_scenario(
     doppler = patient_info.get("doppler")
     qa = doppler.get("qa") if doppler else None
     
-    # Estimate baseline Cardiac Output (CO)
-    sex_co = str(patient_info.get("sex") or "m")
-    age_co = _safe_float(patient_info.get("age"), 50.0)
-    height_co = _safe_float(patient_info.get("height") or patient_info.get("height_cm"), 170.0)
-    weight_co = _safe_float(patient_info.get("weight"), 70.0)
-    co = patient_info.get("cardiac_output")
-    if co is None:
-        co = _estimate_cardiac_output(sex_co, age_co, height_co, weight_co)
-    
+    # Baseline Cardiac Output (CO): measured if available, else estimated from
+    # BSA — which needs real weight AND height (no 70 kg / 170 cm fabrication).
+    co_measured = patient_info.get("cardiac_output")
+    hemo_inputs_ok = (not weight_missing) and height_present
+    co = co_measured
+    if co is None and hemo_inputs_ok:
+        sex_co    = str(patient_info.get("sex") or "m")
+        age_co    = _safe_float(patient_info.get("age"), 50.0)
+        height_co = _safe_float(patient_info.get("height") or patient_info.get("height_cm"))
+        co = _estimate_cardiac_output(sex_co, age_co, height_co, pre_wt)
+
     shunt_ratio = None
     cardiac_strain = "unknown"
-    if qa is not None:
+    if qa is not None and co:
         qa_l_min = qa / 1000.0
         shunt_ratio = qa_l_min / co
         if qa > 1500.0 or shunt_ratio > 0.30:
@@ -305,14 +388,21 @@ def run_scenario(
             cardiac_strain = "low"
         else:
             cardiac_strain = "moderate"
-            
+
     hemodynamics = {
-        "estimated_co": round(co, 2),
-        "co_is_measured": patient_info.get("cardiac_output") is not None,
-        "shunt_ratio":  round(shunt_ratio, 3) if shunt_ratio is not None else None,
+        "available":      co is not None,
+        "estimated_co":   round(co, 2) if co is not None else None,
+        "co_is_measured": co_measured is not None,
+        "shunt_ratio":    round(shunt_ratio, 3) if shunt_ratio is not None else None,
         "cardiac_strain": cardiac_strain,
-        "qa": qa,
+        "qa":             qa,
+        "hint": (None if co is not None else
+                 "Cardiac output estimate needs pre-HD weight and height (or a measured value)."),
     }
+    data_availability["hemodynamics"] = {"available": co is not None,
+                                         "missing": [] if co is not None else (
+                                             (["pre-HD weight"] if weight_missing else []) +
+                                             (["height"] if not height_present else []))}
 
     return {
         "patient_id":   patient_id,
@@ -329,6 +419,9 @@ def run_scenario(
         "bia":          patient_info.get("bia"),
         "doppler":      patient_info.get("doppler"),
         "dietary_phosphate_source": source,
+        "weight_used_kg":    None if weight_missing else round(pre_wt, 1),
+        "weight_source":     patient_info.get("weight_source"),
+        "data_availability": data_availability,
     }
 
 
