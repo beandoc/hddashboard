@@ -1639,14 +1639,22 @@ async def patient_session_trends_page(patient_id: int, request: Request, limit: 
     if not patient:
         raise HTTPException(status_code=404)
 
-    recent_sessions = (
+    _raw_sessions = (
         db.query(SessionRecord)
         .options(joinedload(SessionRecord.symptom_report))
         .filter(SessionRecord.patient_id == patient_id)
-        .order_by(SessionRecord.session_date.desc())
-        .limit(limit)
+        .order_by(SessionRecord.session_date.desc(), SessionRecord.id.desc())
+        .limit(limit * 3)
         .all()
     )
+    _seen_dates: set = set()
+    recent_sessions = []
+    for _s in _raw_sessions:
+        if _s.session_date not in _seen_dates:
+            _seen_dates.add(_s.session_date)
+            recent_sessions.append(_s)
+            if len(recent_sessions) >= limit:
+                break
 
     session_dicts = [
         {

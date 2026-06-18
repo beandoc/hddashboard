@@ -13,6 +13,7 @@ HARD_LIMITS: Dict[str, tuple] = {
     "serum_potassium":  (1.5,  10.0),   # mEq/L — outside = incompatible with life
     "serum_sodium":     (100,  180),    # mEq/L
     "tsat":             (0.0, 100.0),   # % — transferrin saturation cannot exceed 100%
+    "target_dry_weight": (15.0, 250.0), # kg — catches decimal-shift errors (e.g. 4.8 instead of 48)
 }
 
 # Values outside typical clinical targets — likely entered correctly but flagged for review.
