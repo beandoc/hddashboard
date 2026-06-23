@@ -295,6 +295,117 @@
             display: flex;
             gap: 15px;
         }
+
+        /* ── Benchmark & Recommendations ── */
+        .benchmark-block {
+            margin-top: 28px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+        }
+        .benchmark-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+        .benchmark-bar-wrap {
+            position: relative;
+            height: 10px;
+            background: linear-gradient(to right, #10b981 0%, #10b981 33%, #f59e0b 33%, #f59e0b 60%, #ef4444 60%, #ef4444 100%);
+            border-radius: 8px;
+            margin-bottom: 6px;
+        }
+        .benchmark-needle {
+            position: absolute;
+            top: -5px;
+            width: 4px;
+            height: 20px;
+            background: #1e293b;
+            border-radius: 2px;
+            transform: translateX(-50%);
+            transition: left 0.6s ease;
+        }
+        .benchmark-ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .benchmark-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .status-green  { background: #dcfce7; color: #166534; }
+        .status-amber  { background: #fef3c7; color: #92400e; }
+        .status-orange { background: #ffedd5; color: #9a3412; }
+        .status-red    { background: #fee2e2; color: #991b1b; }
+
+        .rec-section {
+            margin-top: 24px;
+        }
+        .rec-section-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .rec-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .rec-card .rec-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1rem;
+        }
+        .rec-card .rec-body strong {
+            display: block;
+            font-size: 0.82rem;
+            color: var(--text-main);
+            margin-bottom: 3px;
+        }
+        .rec-card .rec-body p {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin: 0;
+            line-height: 1.5;
+        }
+        .rec-card .rec-impact {
+            font-size: 0.68rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+            margin-top: 6px;
+            display: inline-block;
+        }
+        .impact-high   { background: #dcfce7; color: #166534; }
+        .impact-medium { background: #fef3c7; color: #92400e; }
+        .impact-low    { background: #f1f5f9; color: #475569; }
         @media (max-width: 768px) {
           header { padding: 40px 20px 60px !important; }
           header h1 { font-size: 2rem !important; }
@@ -339,6 +450,7 @@
                         <option value="month" selected>Monthly</option>
                         <option value="year">Yearly</option>
                     </select>
+                    <small id="quantityLabel" style="color: var(--text-muted); display: block; margin-top: 5px; font-size: 0.75rem;">Enter monthly quantities in each section below</small>
                 </div>
             </div>
 
@@ -346,18 +458,46 @@
                 <div class="section-title">
                     <i class="material-icons">groups</i> Patient Load
                 </div>
+
+                <!-- HD patients -->
+                <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:10px;">
+                    Haemodialysis (HD)
+                </div>
+                <div class="form-grid" style="margin-bottom:18px;">
+                    <div class="form-group">
+                        <label>Total HD Patients</label>
+                        <input type="number" id="totalPatients" min="0" value="{{ active_count or 120 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>HD Patients (3×/week)</label>
+                        <input type="number" id="patients3x" min="0" value="{{ (active_count * 0.7)|round|int if active_count else 80 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>HD Patients (2×/week)</label>
+                        <input type="number" id="patients2x" min="0" value="{{ (active_count * 0.3)|round|int if active_count else 40 }}">
+                    </div>
+                </div>
+
+                <!-- HDF patients -->
+                <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:10px; padding-top:12px; border-top:1px dashed #e2e8f0;">
+                    Haemodiafiltration (HDF)
+                </div>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Total Patients</label>
-                        <input type="number" id="totalPatients" value="{{ active_count or 120 }}">
+                        <label>HDF Patients (3×/week)</label>
+                        <input type="number" id="hdfPatients3x" min="0" value="0">
                     </div>
                     <div class="form-group">
-                        <label>Patients (3x/week)</label>
-                        <input type="number" id="patients3x" value="{{ (active_count * 0.7)|round|int if active_count else 80 }}">
+                        <label>HDF Patients (2×/week)</label>
+                        <input type="number" id="hdfPatients2x" min="0" value="0">
                     </div>
                     <div class="form-group">
-                        <label>Patients (2x/week)</label>
-                        <input type="number" id="patients2x" value="{{ (active_count * 0.3)|round|int if active_count else 40 }}">
+                        <label>Substitution Volume</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="hdfSubstVol" min="0" value="20">
+                            <span class="unit">L/session</span>
+                        </div>
+                        <small style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; display:block;">Post-dilution: 15–25 L · Pre-dilution: 50–80 L</small>
                     </div>
                 </div>
             </div>
@@ -371,14 +511,14 @@
                     <div class="form-group">
                         <label>Electricity</label>
                         <div class="input-wrapper">
-                            <input type="number" id="elecQty" value="0">
+                            <input type="number" id="elecQty" min="0" value="0">
                             <span class="unit">kWh</span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Water</label>
                         <div class="input-wrapper">
-                            <input type="number" id="waterQty" value="0">
+                            <input type="number" id="waterQty" min="0" value="0">
                             <span class="unit">m³</span>
                         </div>
                     </div>
@@ -394,14 +534,14 @@
                     <div class="form-group">
                         <label>Incinerated (Red/Yellow)</label>
                         <div class="input-wrapper">
-                            <input type="number" id="wasteQty" value="0">
+                            <input type="number" id="wasteQty" min="0" value="0">
                             <span class="unit">kg</span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Recycled Waste</label>
                         <div class="input-wrapper">
-                            <input type="number" id="recWasteQty" value="0">
+                            <input type="number" id="recWasteQty" min="0" value="0">
                             <span class="unit">kg</span>
                         </div>
                     </div>
@@ -417,28 +557,28 @@
                     <div class="form-group">
                         <label>Bus</label>
                         <div class="input-wrapper">
-                            <input type="number" id="busQty" value="0">
+                            <input type="number" id="busQty" min="0" value="0">
                             <span class="unit">km</span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Car</label>
                         <div class="input-wrapper">
-                            <input type="number" id="carQty" value="0">
+                            <input type="number" id="carQty" min="0" value="0">
                             <span class="unit">km</span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Auto Rickshaw</label>
                         <div class="input-wrapper">
-                            <input type="number" id="autoQty" value="0">
+                            <input type="number" id="autoQty" min="0" value="0">
                             <span class="unit">km</span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Two-Wheeler</label>
                         <div class="input-wrapper">
-                            <input type="number" id="bikeQty" value="0">
+                            <input type="number" id="bikeQty" min="0" value="0">
                             <span class="unit">km</span>
                         </div>
                     </div>
@@ -453,46 +593,100 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Dialyser</label>
-                        <input type="number" id="dialyserQty" value="0">
+                        <input type="number" id="dialyserQty" min="0" value="0">
                     </div>
                     <div class="form-group">
-                        <label>Blood Tubing</label>
-                        <input type="number" id="tubingQty" value="0">
+                        <label>HD Blood Tubing</label>
+                        <input type="number" id="tubingQty" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>HDF Bloodline Set</label>
+                        <input type="number" id="hdfSetQty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>Heparin Vial</label>
-                        <input type="number" id="heparinQty" value="0">
+                        <input type="number" id="heparinQty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>AV Fistula Needle</label>
-                        <input type="number" id="avQty" value="0">
+                        <input type="number" id="avQty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>Normal Saline (1L)</label>
-                        <input type="number" id="salineQty" value="0">
+                        <input type="number" id="salineQty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>EPO Injection</label>
-                        <input type="number" id="epoQty" value="0">
+                        <input type="number" id="epoQty" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Mircera 100 mcg</label>
+                        <input type="number" id="mircera100Qty" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Mircera 75 mcg</label>
+                        <input type="number" id="mircera75Qty" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Mircera 50 mcg</label>
+                        <input type="number" id="mircera50Qty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>HD Catheter Set</label>
-                        <input type="number" id="hdQty" value="0">
+                        <input type="number" id="hdQty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>Gown/Personal PPE</label>
-                        <input type="number" id="gownQty" value="0">
+                        <input type="number" id="gownQty" min="0" value="0">
                     </div>
-                    <!-- Hidden advanced items for precision but available in JS -->
-                    <input type="hidden" id="tpQty" value="0">
-                    <input type="hidden" id="syringeQty" value="0">
-                    <input type="hidden" id="ivQty" value="0">
-                    <input type="hidden" id="plasmaQty" value="0">
-                    <input type="hidden" id="testQty" value="0">
-                    <input type="hidden" id="maskQty" value="0">
-                    <input type="hidden" id="sheetQty" value="0">
-                    <input type="hidden" id="chlorQty" value="0">
-                    <input type="hidden" id="darboQty" value="0">
+                </div>
+
+                <!-- Advanced consumables -->
+                <div style="margin-top: 15px;">
+                    <button type="button" onclick="toggleAdvanced()" style="background: none; border: 1px dashed #cbd5e1; color: var(--text-muted); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 6px;">
+                        <i class="material-icons" style="font-size: 1rem;" id="advIcon">expand_more</i>
+                        <span id="advLabel">Show additional consumables</span>
+                    </button>
+                    <div id="advancedConsumables" style="display: none; margin-top: 15px;">
+                        <div class="form-grid">
+                        <div class="form-group">
+                            <label>Transfusion Pack (TP)</label>
+                            <input type="number" id="tpQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Syringe</label>
+                            <input type="number" id="syringeQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>IV Set</label>
+                            <input type="number" id="ivQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Plasma Bag</label>
+                            <input type="number" id="plasmaQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Test Kit</label>
+                            <input type="number" id="testQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Surgical Mask</label>
+                            <input type="number" id="maskQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Bed Sheet</label>
+                            <input type="number" id="sheetQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Chlorine Tablet</label>
+                            <input type="number" id="chlorQty" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Darbepoetin (Darbo)</label>
+                            <input type="number" id="darboQty" min="0" value="0">
+                        </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -513,6 +707,7 @@
                         <div class="lbl">Annual CO₂e Footprint</div>
                         <div class="val" id="resAnnual">0.0</div>
                         <div style="font-size: 0.9rem; font-weight: 500;">Kilograms per Year</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7; margin-top: 4px;">(<span id="resTonnes">0.00</span> tonnes CO₂e)</div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px;">
@@ -526,6 +721,22 @@
                             <div style="font-size: 1.4rem; font-weight: 800; color: #b45309;" id="resTrees">0</div>
                             <div style="font-size: 0.6rem; color: var(--text-muted);">To offset annually</div>
                         </div>
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 15px; text-align: center;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Per Patient (3x/wk)</div>
+                            <div style="font-size: 1.4rem; font-weight: 800; color: #7c3aed;" id="resP3x">0</div>
+                            <div style="font-size: 0.6rem; color: var(--text-muted);">kg CO₂e/year</div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 15px; text-align: center;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Per Patient (2x/wk)</div>
+                            <div style="font-size: 1.4rem; font-weight: 800; color: #0891b2;" id="resP2x">0</div>
+                            <div style="font-size: 0.6rem; color: var(--text-muted);">kg CO₂e/year</div>
+                        </div>
+                    </div>
+
+                    <!-- HDF modality split — shown only when HDF patients > 0 -->
+                    <div id="modalitySplit" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:12px 16px; margin-bottom:18px; font-size:0.78rem; color:#0c4a6e;">
+                        <div style="font-weight:700; margin-bottom:6px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:#0369a1;">Modality Mix</div>
+                        <div id="modalitySplitText"></div>
                     </div>
 
                     <div id="breakdownList">
@@ -536,9 +747,29 @@
                         <canvas id="footprintChart"></canvas>
                     </div>
 
+                    <!-- Benchmark + Recommendations -->
+                    <div class="benchmark-block">
+                        <div class="benchmark-label">Per-Session Emissions — Maharashtra HD Benchmark</div>
+                        <div class="benchmark-bar-wrap">
+                            <div class="benchmark-needle" id="benchmarkNeedle" style="left:0%"></div>
+                        </div>
+                        <div class="benchmark-ticks">
+                            <span>0</span><span>4 kg</span><span>8 kg</span><span>12 kg</span><span>18+ kg</span>
+                        </div>
+                        <div id="benchmarkStatus"></div>
+                    </div>
+
+                    <div class="rec-section" id="recSection" style="display:none;">
+                        <div class="rec-section-title">Clinical &amp; Operational Recommendations</div>
+                        <div id="recCards"></div>
+                        <div style="margin-top:10px; padding:10px 14px; background:#f0fdf4; border-radius:10px; border-left:3px solid #10b981; font-size:0.75rem; color:#166534;">
+                            <strong>Prioritised for your unit:</strong> based on your top emission categories above. All recommendations are achievable without capital infrastructure changes.
+                        </div>
+                    </div>
+
                     <div class="eco-tip">
                         <i class="material-icons" style="color: #f59e0b;">lightbulb</i>
-                        <div>
+                        <div id="ecoTipText">
                             <strong>Reduction Tip:</strong> Switching to a high-flux dialyser with reuse protocol can reduce consumable footprint by up to 40% in this unit.
                         </div>
                     </div>
@@ -565,76 +796,99 @@
 
     function updateLabels() {
         const timeframe = document.getElementById('timeframe').value;
-        const labels = document.querySelectorAll('.unit-label');
-        labels.forEach(l => {
-            if (timeframe === 'day') l.innerText = 'Daily Quantity';
-            else if (timeframe === 'year') l.innerText = 'Yearly Quantity';
-            else l.innerText = 'Monthly Quantity';
-        });
+        const label = document.getElementById('quantityLabel');
+        if (!label) return;
+        if (timeframe === 'day') label.innerText = 'Enter daily quantities in each section below';
+        else if (timeframe === 'year') label.innerText = 'Enter yearly quantities in each section below';
+        else label.innerText = 'Enter monthly quantities in each section below';
     }
 
     function calculateCF() {
         const centre = document.getElementById('centerName').value || '—';
         const timeframe = document.getElementById('timeframe').value;
         const totalPatients = parseInt(document.getElementById('totalPatients').value) || 0;
-        const patients3x = parseInt(document.getElementById('patients3x').value) || 0;
-        const patients2x = parseInt(document.getElementById('patients2x').value) || 0;
-        
-        const sessionsPerWeek = (patients3x * 3) + (patients2x * 2);
+        const patients3x  = parseInt(document.getElementById('patients3x').value)  || 0;
+        const patients2x  = parseInt(document.getElementById('patients2x').value)  || 0;
+        const hdfPts3x    = parseInt(document.getElementById('hdfPatients3x').value) || 0;
+        const hdfPts2x    = parseInt(document.getElementById('hdfPatients2x').value) || 0;
+        const hdfSubstVol = parseFloat(document.getElementById('hdfSubstVol').value) || 0;
+
+        const hdSessionsPerWeek  = (patients3x * 3) + (patients2x * 2);
+        const hdfSessionsPerWeek = (hdfPts3x * 3) + (hdfPts2x * 2);
+        const sessionsPerWeek    = hdSessionsPerWeek + hdfSessionsPerWeek;
+
         let convertFactor = (timeframe === 'day' ? 365 : timeframe === 'year' ? 1 : 12);
 
         const v = (id) => parseFloat(document.getElementById(id).value) || 0;
-        
+
         // India-specific emission factors (kg CO2e per unit)
         const electricity = v('elecQty') * 0.82 * convertFactor;
-        const water = v('waterQty') * 0.344 * convertFactor;
-        const waste = (v('wasteQty') * 2.85 + v('recWasteQty') * 0.1) * convertFactor;
-        
-        // Travel Factors (kg CO2e per km)
+
+        // Metered water (m³ entered) covers all HD + HDF dialysate.
+        // HDF substitution water is additional ultrapure water on top of dialysate —
+        // calculated from sessions × L/session, annualised directly (not via convertFactor).
+        const waterMetered   = v('waterQty') * 0.344 * convertFactor;
+        const hdfSubstAnnual = (hdfSessionsPerWeek * 52) * (hdfSubstVol / 1000) * 0.344;
+        const water          = waterMetered + hdfSubstAnnual;
+
+        const waste    = v('wasteQty') * 2.85 * convertFactor;
+        const recWaste = v('recWasteQty') * 0 * convertFactor;
+
+        // Travel (kg CO2e per km)
         const travel = (
-            v('busQty') * 0.04 + 
-            v('carQty') * 0.17 + 
-            v('autoQty') * 0.08 + 
+            v('busQty') * 0.04 +
+            v('carQty') * 0.17 +
+            v('autoQty') * 0.08 +
             v('bikeQty') * 0.06
         ) * convertFactor;
-        
+
         // Consumables (kg CO2e per unit)
+        // HDF bloodline set (0.80): heavier than HD tubing (0.60) — extra ports,
+        // thicker walls, dialysate inlet/outlet connectors for substitution fluid.
         const consumables = (
-            v('dialyserQty') * 0.45 + 
-            v('tubingQty') * 0.60 + 
-            v('tpQty') * 0.015 +
-            v('heparinQty') * 0.15 + // Adjusted from 51.52 (likely error in source) to realistic 0.15
-            v('avQty') * 0.03 + 
-            v('syringeQty') * 0.02 +
-            v('ivQty') * 0.30 + 
-            v('plasmaQty') * 0.45 +
-            v('salineQty') * 0.28 +
-            v('testQty') * 0.10 + 
-            v('maskQty') * 0.02 + 
-            v('gownQty') * 0.45 +
-            v('sheetQty') * 0.27 + 
-            v('chlorQty') * 0.15 + 
-            v('epoQty') * 0.50 +
-            v('darboQty') * 0.50 + 
-            v('hdQty') * 0.15
+            v('dialyserQty') * 0.45 +
+            v('tubingQty')   * 0.60 +
+            v('hdfSetQty')   * 0.80 +
+            v('tpQty')       * 0.015 +
+            v('heparinQty')  * 0.15 +
+            v('avQty')       * 0.03 +
+            v('syringeQty')  * 0.0203 +
+            v('ivQty')       * 0.30 +
+            v('plasmaQty')   * 0.45 +
+            v('salineQty')   * 0.28 +
+            v('testQty')     * 0.102 +
+            v('maskQty')     * 0.0215 +
+            v('gownQty')     * 0.45 +
+            v('sheetQty')    * 0.27 +
+            v('chlorQty')    * 0.15 +
+            v('epoQty')      * 0.50 +
+            v('darboQty')    * 0.50 +
+            v('mircera100Qty') * 0.60 +
+            v('mircera75Qty')  * 0.60 +
+            v('mircera50Qty')  * 0.60 +
+            v('hdQty')       * 0.15
         ) * convertFactor;
 
-        const totalAnnual = electricity + water + waste + travel + consumables;
+        const totalAnnual    = electricity + water + waste + recWaste + travel + consumables;
         const sessionsPerYear = sessionsPerWeek * 52;
-        const perSession = sessionsPerYear > 0 ? (totalAnnual / sessionsPerYear) : 0;
-        
-        // Offset: 1 tree absorbs ~20kg CO2/year
-        const trees = Math.ceil(totalAnnual / 20);
+        const perSession     = sessionsPerYear > 0 ? (totalAnnual / sessionsPerYear) : 0;
+        const perPatient3x   = perSession * 156;
+        const perPatient2x   = perSession * 104;
+
+        // Offset: 1 tree absorbs ~22 kg CO2/year (IPCC tropical plantation)
+        const trees = Math.ceil(totalAnnual / 22);
 
         calculationResults = {
-            centre, timeframe, totalPatients, patients3x, patients2x,
-            totalAnnual, perSession, trees,
-            breakdown: { 
-                Energy: electricity, 
-                Water: water, 
-                Waste: waste, 
-                Travel: travel, 
-                Consumables: consumables 
+            centre, timeframe, totalPatients,
+            patients3x, patients2x, hdfPts3x, hdfPts2x, hdfSubstVol,
+            hdSessionsPerWeek, hdfSessionsPerWeek,
+            totalAnnual, perSession, perPatient3x, perPatient2x, trees,
+            breakdown: {
+                Energy: electricity,
+                Water: water,
+                Waste: waste + recWaste,
+                Travel: travel,
+                Consumables: consumables
             },
             inputs: {
                 elec: v('elecQty'), water: v('waterQty'), waste: v('wasteQty'),
@@ -651,8 +905,25 @@
         document.getElementById('resultSummary').style.display = 'block';
         
         document.getElementById('resAnnual').innerText = r.totalAnnual.toLocaleString(undefined, {maximumFractionDigits: 1});
+        document.getElementById('resTonnes').innerText = (r.totalAnnual / 1000).toFixed(2);
         document.getElementById('resSession').innerText = r.perSession.toFixed(1);
         document.getElementById('resTrees').innerText = r.trees.toLocaleString();
+        document.getElementById('resP3x').innerText = r.perPatient3x.toFixed(0);
+        document.getElementById('resP2x').innerText = r.perPatient2x.toFixed(0);
+
+        // Modality split — only visible when HDF patients are entered
+        const hdfPresent = (r.hdfPts3x + r.hdfPts2x) > 0;
+        document.getElementById('modalitySplit').style.display = hdfPresent ? 'block' : 'none';
+        if (hdfPresent) {
+            const totalSess = r.hdSessionsPerWeek + r.hdfSessionsPerWeek;
+            const hdPct  = totalSess > 0 ? ((r.hdSessionsPerWeek  / totalSess) * 100).toFixed(0) : 0;
+            const hdfPct = totalSess > 0 ? ((r.hdfSessionsPerWeek / totalSess) * 100).toFixed(0) : 0;
+            document.getElementById('modalitySplitText').innerHTML =
+                `HD: <strong>${r.hdSessionsPerWeek}</strong> sessions/wk (${r.patients3x} × 3x + ${r.patients2x} × 2x) — <strong>${hdPct}%</strong> of sessions` +
+                `&nbsp;&nbsp;|&nbsp;&nbsp;` +
+                `HDF: <strong>${r.hdfSessionsPerWeek}</strong> sessions/wk (${r.hdfPts3x} × 3x + ${r.hdfPts2x} × 2x) — <strong>${hdfPct}%</strong> of sessions` +
+                (r.hdfSubstVol ? ` · ${r.hdfSubstVol} L substitution fluid/session` : '');
+        }
 
         const colors = {
             Energy: '#10b981',
@@ -679,6 +950,18 @@
         }
 
         updateChart(r.breakdown, colors);
+
+        const tips = {
+            Energy: 'Energy is your largest emission source. Consider solar panels or energy-efficient RO systems to cut electricity consumption.',
+            Water: 'Water treatment is your top cost. Optimising RO recovery rates and reusing dialysate concentrate rinse water can reduce water footprint.',
+            Waste: 'Biomedical waste incineration is your dominant source. Segregation and safe recycling of packaging waste can lower this significantly.',
+            Travel: 'Transport is your biggest contributor. Grouping patient schedules to reduce individual trip distances can help.',
+            Consumables: 'Consumables dominate your footprint. Switching to high-flux dialysers with a reuse protocol can reduce this by up to 40%.'
+        };
+        const topCategory = Object.entries(r.breakdown).sort((a, b) => b[1] - a[1])[0][0];
+        document.getElementById('ecoTipText').innerHTML = `<strong>Reduction Tip:</strong> ${tips[topCategory]}`;
+
+        renderRecommendations(r.breakdown, r.perSession);
     }
 
     function updateChart(breakdown, colors) {
@@ -747,8 +1030,21 @@
         doc.text(`${r.totalAnnual.toFixed(1)} kg`, 30, 82);
         doc.text(`${r.perSession.toFixed(1)} kg`, 120, 82);
 
+        // Per-patient boxes
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(20, 100, 80, 30, 3, 3, 'F');
+        doc.roundedRect(110, 100, 80, 30, 3, 3, 'F');
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(9);
+        doc.text('PER PATIENT (3x/WEEK)', 30, 113);
+        doc.text('PER PATIENT (2x/WEEK)', 120, 113);
+        doc.setTextColor(...primary);
+        doc.setFontSize(16);
+        doc.text(`${r.perPatient3x.toFixed(0)} kg/yr`, 30, 123);
+        doc.text(`${r.perPatient2x.toFixed(0)} kg/yr`, 120, 123);
+
         // Breakdown Table
-        let y = 110;
+        let y = 140;
         doc.setTextColor(...primary);
         doc.setFontSize(16);
         doc.text('Sustainability Breakdown', 20, y);
@@ -790,6 +1086,13 @@
         doc.text('1. Consumables represent ' + ((r.breakdown.Consumables/r.totalAnnual)*100).toFixed(0) + '% of your footprint. Evaluate dialyser reuse.', 25, y + 18);
         doc.text('2. Offset this centre\'s annual impact by planting ' + r.trees + ' trees in the local area.', 25, y + 24);
 
+        // Academic disclaimer
+        y += 45;
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.text('For academic and quality improvement purposes only. Values based on EcoRenal reference emission factors.', 20, y);
+
         // Footer
         doc.setFillColor(...primary);
         doc.rect(0, 275, 210, 22, 'F');
@@ -801,7 +1104,158 @@
         doc.save(`EcoRenal_Report_${r.centre.replace(/\s+/g, '_')}.pdf`);
     }
 
-    updateLabels();
+    // ── Benchmark thresholds: kg CO₂e per HD session, Maharashtra context ──
+    // Based on: global HD LCA literature (3–15 kg/session), Indian grid factor 0.82,
+    // and typical Maharashtra unit energy intensity.
+    const BENCH = [
+        { max: 4,   label: 'Excellent',      cls: 'status-green',  msg: 'Your unit is among the lowest-impact HD centres. Maintain current practices.' },
+        { max: 8,   label: 'Good',           cls: 'status-green',  msg: 'Within the normal range for Indian HD units. Targeted improvements can push this lower.' },
+        { max: 12,  label: 'Above Average',  cls: 'status-amber',  msg: 'Slightly above the typical Indian HD range. Review the top categories below.' },
+        { max: 18,  label: 'High Impact',    cls: 'status-orange', msg: 'Above normal for Maharashtra. Structured reduction is recommended this quarter.' },
+        { max: 9999,label: 'Very High',      cls: 'status-red',    msg: 'Significantly above benchmark. Priority action needed — start with the highest category.' },
+    ];
+
+    // ── Per-category recommendation bank (Maharashtra HD unit — no solar, no patient pooling) ──
+    const RECS = {
+        Energy: [
+            {
+                icon: '🌡️', iconBg: '#dbeafe',
+                title: 'Cool dialysate protocol: set temperature to 35–36°C',
+                body: 'Standard 37°C dialysate requires continuous machine heating. Reducing to 35.5°C cuts dialysis machine heater energy by 7–10% per session. Clinically, cool dialysate significantly reduces intradialytic hypotension episodes — KDIGO and ISN guidelines support this as standard practice. No impact on Kt/V or HD dose.',
+                impact: 'Dual benefit: Energy + Fewer IDH events', impactCls: 'impact-high'
+            },
+            {
+                icon: '💨', iconBg: '#dcfce7',
+                title: 'Prescribe minimum Qb that achieves target Kt/V — avoid over-pumping',
+                body: 'Running blood flow at 350 mL/min when your membrane (KoA) and session time achieve target Kt/V at 260 mL/min wastes pump energy and increases recirculation risk. Use monthly Kt/V data to find the minimum Qb adequate for each patient\'s access and membrane combination.',
+                impact: 'Medium Impact', impactCls: 'impact-medium'
+            },
+        ],
+        Water: [
+            {
+                icon: '💧', iconBg: '#dbeafe',
+                title: 'Reduce dialysate flow rate (Qd) from 500 to 300 mL/min',
+                body: 'For high-flux membranes, Qd 300 mL/min delivers >92% of the urea clearance of Qd 500 mL/min (diminishing returns above 300). The saving is 200 mL/min × 240 min = 48 litres of ultrapure water per session — meaningful at scale. Verify Kt/V ≥1.4 over the first month after switching. If clearance is marginal, consider adding 15 minutes to session time rather than reverting Qd.',
+                impact: 'High Impact', impactCls: 'impact-high'
+            },
+            {
+                icon: '🔧', iconBg: '#f1f5f9',
+                title: 'Standardise saline prime and rinse-back volume — avoid over-flush',
+                body: 'Many units over-prime out of habit, using 1.5–2× the machine minimum. Standardise to protocol minimum (~500 mL prime, 200 mL rinse-back). Also avoids unnecessary extra saline bag consumption per session.',
+                impact: 'Low Impact', impactCls: 'impact-low'
+            },
+            {
+                icon: '🔬', iconBg: '#ede9fe',
+                title: 'For HDF: prefer post-dilution online HDF over pre-dilution',
+                body: 'Pre-dilution HDF requires 50–80 L of substitution fluid per session; post-dilution online HDF achieves similar middle-molecule clearance with 15–25 L/session (70% less ultrapure water). Post-dilution HDF also delivers better Kt/V per litre of substitution fluid due to undiluted blood passing the membrane. Where access recirculation is <15%, post-dilution is the clinically and environmentally preferred mode.',
+                impact: 'High Impact for HDF patients', impactCls: 'impact-high'
+            },
+        ],
+        Waste: [
+            {
+                icon: '🔁', iconBg: '#dcfce7',
+                title: 'Dialyser reuse programme — target 4 reuses per dialyser (peracetic acid)',
+                body: 'High-flux dialysers reprocessed with 3.5% peracetic acid are safe for 3–5 reuses in HBsAg/HCV/HIV-negative patients (CPCB Biomedical Waste Rules 2016 compliant). Monitor total cell volume (TCV) — discard if TCV <80% of original or if any visible clotting. 4 reuses per dialyser = 75% reduction in dialyser waste and ordering volume.',
+                impact: 'High Impact', impactCls: 'impact-high'
+            },
+            {
+                icon: '👔', iconBg: '#fef3c7',
+                title: 'Replace single-use gowns and drapes with washable cotton alternatives',
+                body: 'Cotton staff gowns and cotton draw-sheets laundered after each use produce approximately 10% of the lifetime carbon of equivalent disposables. Switch standard dialysis shifts to CSSD-washable cotton gowns and cotton draw-sheets. Retain single-use disposable gowns only for infectious precaution sessions (HBsAg+, known sepsis). For drapes, cotton mackintosh-backed sheets are standard practice in government nephrology units across Maharashtra.',
+                impact: 'High Impact', impactCls: 'impact-high'
+            },
+            {
+                icon: '🗑️', iconBg: '#fee2e2',
+                title: 'Tighten red-bag segregation — most packaging does not belong there',
+                body: 'Outer packaging of saline bags, dry tubing wrappers, paper waste, and unused dry consumables are routinely discarded in red bags across Indian HD units. Only fluid-contaminated or sharps waste is correctly classified as Category 1 red-bag waste. Correct segregation alone typically halves incinerated waste weight with no change in clinical practice.',
+                impact: 'High Impact', impactCls: 'impact-high'
+            },
+        ],
+        Consumables: [
+            {
+                icon: '📊', iconBg: '#f3e8ff',
+                title: 'Monthly Kt/V review — optimise HD prescription without reducing dose',
+                body: 'If delivered single-pool Kt/V is consistently ≥1.7 in 3×/week patients, the prescription is providing more clearance than the KDIGO minimum adequate dose (spKt/V ≥1.4). A modest Qb reduction (e.g., 300→260 mL/min) or 10-minute session-time reduction conserves pump wear, reduces saline usage, and lowers per-session energy — without compromising dialysis dose. For 2×/week patients, target spKt/V ≥1.6 before considering any reduction.',
+                impact: 'Medium Impact', impactCls: 'impact-medium'
+            },
+            {
+                icon: '💉', iconBg: '#dbeafe',
+                title: 'Consolidate ESA to once-monthly Mircera for eligible stable patients',
+                body: 'Weekly short-acting EPO = 52 injections, vials, cold-chain deliveries per patient per year. Once-monthly Mircera = 12 prefilled syringes per patient per year — a 77% reduction in injection events, sharps waste, and packaging. Suitable for stable maintenance patients with Hb 10–12 g/dL; titrate dose at initiation.',
+                impact: 'High Impact', impactCls: 'impact-high'
+            },
+            {
+                icon: '🔁', iconBg: '#dcfce7',
+                title: 'Dialyser reuse directly cuts consumable carbon — the single largest lever',
+                body: 'If dialysers are your top consumable cost centre, reuse is the most impactful single change available without infrastructure investment. 4 reuses = ordering and disposing 75% fewer dialysers per month. The reprocessing chemicals (peracetic acid) add a small fraction back in carbon.',
+                impact: 'High Impact', impactCls: 'impact-high'
+            },
+            {
+                icon: '🩸', iconBg: '#fce7f3',
+                title: 'HDF: audit whether all patients on HDF require it vs. would do as well on HFHD',
+                body: 'HDF provides meaningful additional clearance of β₂-microglobulin and other middle molecules, but clinical outcome benefit over high-flux HD (HFHD) is marginal in well-dialysed patients (ESHOL, Turkish Online HDF trials). For patients where HDF was started for a specific indication now resolved, a structured switch to HFHD saves the HDF bloodline set (0.80 kg CO₂e/set) and 15–80 L substitution water per session with no loss of standard adequacy targets.',
+                impact: 'Medium Impact for HDF patients', impactCls: 'impact-medium'
+            },
+        ],
+        Travel: [
+            {
+                icon: '🏍️', iconBg: '#dcfce7',
+                title: 'Encourage two-wheeler commute for staff over four-wheelers',
+                body: 'Two-wheelers emit 0.06 kg CO₂e/km vs. 0.17 for cars — nearly 3× lower. For staff with a choice, this is the simplest travel reduction. Provide secure covered parking to make two-wheelers more practical year-round.',
+                impact: 'Low Impact', impactCls: 'impact-low'
+            },
+        ],
+    };
+
+    function renderRecommendations(breakdown, perSession) {
+        // Find benchmark tier
+        const tier = BENCH.find(b => perSession <= b.max) || BENCH[BENCH.length - 1];
+
+        // Benchmark needle position (0–18 kg mapped to 0–100%)
+        const needlePct = Math.min((perSession / 18) * 100, 100);
+        document.getElementById('benchmarkNeedle').style.left = needlePct + '%';
+        document.getElementById('benchmarkStatus').innerHTML =
+            `<span class="benchmark-status ${tier.cls}">${tier.label}: ${perSession.toFixed(1)} kg CO₂e / session</span>
+             <div style="font-size:0.75rem; color:var(--text-muted); margin-top:8px;">${tier.msg}</div>`;
+
+        // Only show recommendations if above "Good" threshold
+        const recSection = document.getElementById('recSection');
+        if (perSession <= 8) {
+            recSection.style.display = 'none';
+            return;
+        }
+        recSection.style.display = 'block';
+
+        // Rank categories by contribution, pick top 2
+        const ranked = Object.entries(breakdown)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2)
+            .map(([cat]) => cat);
+
+        // Build recommendation cards — 2 recs per top category
+        const cards = ranked.flatMap(cat => (RECS[cat] || []).slice(0, 2));
+
+        document.getElementById('recCards').innerHTML = cards.map(r => `
+            <div class="rec-card">
+                <div class="rec-icon" style="background:${r.iconBg}">${r.icon}</div>
+                <div class="rec-body">
+                    <strong>${r.title}</strong>
+                    <p>${r.body}</p>
+                    <span class="rec-impact ${r.impactCls}">${r.impact}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function toggleAdvanced() {
+        const box = document.getElementById('advancedConsumables');
+        const icon = document.getElementById('advIcon');
+        const lbl = document.getElementById('advLabel');
+        const open = box.style.display === 'none';
+        box.style.display = open ? 'block' : 'none';
+        icon.innerText = open ? 'expand_less' : 'expand_more';
+        lbl.innerText = open ? 'Hide additional consumables' : 'Show additional consumables';
+    }
 
     updateLabels();
 </script>
