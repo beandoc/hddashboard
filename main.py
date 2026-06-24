@@ -339,6 +339,17 @@ def _resolve_user_identity(user_type: str, username: str) -> object | dict | Non
     if cached and now < cached[1]:
         return cached[0]
 
+    # Special handling for ecogreen user
+    if user_type == "ecogreen" or username == "ecogreen":
+        identity = {
+            "username": "ecogreen",
+            "full_name": "EcoGreen Calculator User",
+            "role": "ecogreen",
+            "id": 999999,
+        }
+        _USER_IDENTITY_CACHE[username] = (identity, now + _USER_IDENTITY_CACHE_TTL)
+        return identity
+
     db = SessionLocal()
     try:
         if user_type == "staff":
@@ -402,6 +413,28 @@ async def auth_middleware(request: Request, call_next):
                 user = _resolve_user_identity(user_type, username)
                 if user:
                     request.state.user = user
+                    
+                    # Restrict ecogreen role from accessing non-sustainability routes
+                    role = getattr(user, "role", None) if not isinstance(user, dict) else user.get("role", "")
+                    if role == "ecogreen":
+                        allowed_prefixes = (
+                            "/analytics/sustainability",
+                            "/static",
+                            "/logout",
+                            "/auth/ping",
+                            "/api/v1/me",
+                            "/api/me",
+                            "/login",
+                            "/api/login"
+                        )
+                        path = request.url.path
+                        if not any(path.startswith(prefix) for prefix in allowed_prefixes):
+                            if "text/html" in request.headers.get("accept", ""):
+                                return RedirectResponse(url="/analytics/sustainability", status_code=302)
+                            else:
+                                from fastapi.responses import JSONResponse
+                                return JSONResponse(status_code=403, content={"detail": "Access denied for EcoGreen Calculator user"})
+
                     if request.url.path not in _AUTH_PATHS:
                         new_token = serializer.dumps(
                             f"{user_type}:{username}:{int(time.time())}"
@@ -574,6 +607,8 @@ async def dashboard_index(request: Request, month: Optional[str] = None, db: Ses
     user = get_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
+    if getattr(user, "role", None) == "ecogreen" or (isinstance(user, dict) and user.get("role") == "ecogreen"):
+        return RedirectResponse(url="/analytics/sustainability", status_code=302)
     if getattr(user, "role", None) == "patient" or (isinstance(user, dict) and user.get("role") == "patient"):
         return RedirectResponse(url="/patient/dashboard", status_code=302)
 

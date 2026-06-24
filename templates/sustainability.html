@@ -303,6 +303,38 @@
         }
         .btn-primary:active { transform: none; box-shadow: none; }
 
+        .btn-save {
+            background: #4b5563;
+            color: white;
+            border: none;
+            padding: 15px 24px;
+            border-radius: 11px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            letter-spacing: 0.01em;
+            box-shadow: 0 4px 14px rgba(75,85,99,0.2);
+            transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+        }
+        .btn-save:hover:not(:disabled) {
+            background: #374151;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(75,85,99,0.3);
+        }
+        .btn-save:active:not(:disabled) { transform: none; box-shadow: none; }
+        .btn-save:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #9ca3af;
+            box-shadow: none;
+        }
+
         .btn-toggle {
             background: none;
             border: 1.5px dashed var(--border);
@@ -738,6 +770,165 @@
         @media (prefers-reduced-motion: reduce) {
             .benchmark-needle, .breakdown-fill, .btn-primary { transition: none; }
         }
+
+        /* ── What If? Simulation Panel ─────────────────────────────────────── */
+        .whatif-section {
+            margin-top: 22px;
+            border: 2px solid #0891b2;
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .whatif-header {
+            background: linear-gradient(135deg, #0c4a6e 0%, #0e2b1e 100%);
+            padding: 16px 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            color: white;
+        }
+        .whatif-header-icon { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+        .whatif-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #7dd3fc;
+            letter-spacing: -0.01em;
+        }
+        .whatif-subtitle { font-size: 0.72rem; color: rgba(255,255,255,0.55); margin-top: 3px; line-height: 1.5; }
+        .whatif-disclaimer {
+            background: #fef3c7;
+            border-left: 4px solid #d97706;
+            padding: 9px 16px;
+            font-size: 0.72rem;
+            color: #78350f;
+            line-height: 1.5;
+        }
+        .lever-card {
+            padding: 13px 18px;
+            border-bottom: 1px solid var(--border);
+            background: var(--cream);
+        }
+        .lever-card:nth-child(even) { background: var(--cloud); }
+        .lever-card:last-child { border-bottom: none; }
+        .lever-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            margin-bottom: 9px;
+        }
+        .lever-icon { font-size: 1.25rem; flex-shrink: 0; width: 30px; text-align: center; line-height: 1.4; }
+        .lever-info { flex: 1; min-width: 0; }
+        .lever-title { font-size: 0.84rem; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+        .lever-desc { font-size: 0.70rem; color: var(--mist); line-height: 1.45; }
+        .lever-save-badge {
+            flex-shrink: 0;
+            padding: 3px 9px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: #dcfce7;
+            color: #166534;
+            white-space: nowrap;
+            min-width: 88px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            transition: background 0.2s, color 0.2s;
+        }
+        .lever-save-badge.zero { background: #f1f5f9; color: #94a3b8; }
+        .lever-control { padding-left: 41px; }
+        .lever-control > label {
+            font-size: 0.74rem;
+            color: var(--text);
+            display: block;
+            margin-bottom: 6px;
+        }
+        .lever-control label strong { color: #0891b2; font-variant-numeric: tabular-nums; }
+        .whatif-slider {
+            width: 100%;
+            height: 5px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--border);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+        .whatif-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            background: #0891b2;
+            cursor: pointer;
+            box-shadow: 0 1px 5px rgba(8,145,178,0.5);
+            transition: transform 0.1s;
+        }
+        .whatif-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        .whatif-slider::-moz-range-thumb {
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            background: #0891b2;
+            cursor: pointer;
+            border: none;
+        }
+        .lever-scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.60rem;
+            color: var(--mist);
+            margin-top: 3px;
+            padding: 0 2px;
+        }
+        .whatif-summary {
+            background: #e0f2fe;
+            padding: 14px 18px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            border-top: 2px solid #0891b2;
+        }
+        @media (max-width: 640px) { .whatif-summary { grid-template-columns: 1fr 1fr; } }
+        .wf-result-box {
+            text-align: center;
+            padding: 10px 8px;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #bae6fd;
+        }
+        .wf-result-label {
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #0369a1;
+            margin-bottom: 4px;
+        }
+        .wf-result-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.55rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            transition: color 0.3s;
+        }
+        .wf-result-value.saving { color: #059669; }
+        .wf-result-unit { font-size: 0.62rem; color: var(--mist); margin-top: 3px; }
+        .whatif-bar-row { padding: 10px 18px 12px; background: var(--cream); border-top: 1px solid var(--border); }
+        .whatif-bar-label { font-size: 0.67rem; color: var(--mist); margin-bottom: 3px; font-weight: 600; }
+        .whatif-bar-track { height: 9px; background: var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 7px; }
+        .whatif-bar-fill { height: 100%; border-radius: 5px; transition: width 0.35s ease; }
+        .whatif-footer {
+            padding: 8px 18px 10px;
+            background: #f0fdf4;
+            font-size: 0.65rem;
+            color: var(--mist);
+            display: flex;
+            align-items: flex-start;
+            gap: 5px;
+            border-top: 1px solid var(--border);
+            line-height: 1.5;
+        }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -843,14 +1034,14 @@
                     <div class="form-group">
                         <label>Electricity</label>
                         <div class="input-wrapper">
-                            <input type="number" id="elecQty" min="0" value="0">
+                            <input type="number" id="elecQty" min="0" value="{{ record.electricity_kwh if record else 0 }}">
                             <span class="unit">kWh</span>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Water</label>
                         <div class="input-wrapper">
-                            <input type="number" id="waterQty" min="0" value="0">
+                            <input type="number" id="waterQty" min="0" value="{{ record.water_m3 if record else 0 }}">
                             <span class="unit">m³</span>
                         </div>
                     </div>
@@ -867,7 +1058,7 @@
                     <div class="form-group">
                         <label>Yellow Bag — Incinerated</label>
                         <div class="input-wrapper">
-                            <input type="number" id="wasteYellowQty" min="0" value="0">
+                            <input type="number" id="wasteYellowQty" min="0" value="{{ record.biomedical_waste_kg if record else 0 }}">
                             <span class="unit">kg</span>
                         </div>
                         <small style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; display:block;">Anatomical, soiled dressings, expired pharma (1100°C incinerator)</small>
@@ -875,7 +1066,7 @@
                     <div class="form-group">
                         <label>Red Bag — Autoclaved</label>
                         <div class="input-wrapper">
-                            <input type="number" id="wasteRedQty" min="0" value="0">
+                            <input type="number" id="wasteRedQty" min="0" value="{{ record.general_waste_kg if record else 0 }}">
                             <span class="unit">kg</span>
                         </div>
                         <small style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; display:block;">Contaminated plastics — tubing, dialysers, bloodlines (CBWTF steam autoclave per BMWM Rules 2016)</small>
@@ -1049,9 +1240,14 @@
                 </div>
             </div>
 
-            <button class="btn-primary" onclick="calculateCF()">
-                <i class="material-icons">analytics</i> Generate Sustainability Report
-            </button>
+            <div style="display: flex; gap: 12px; margin-top: 15px;">
+                <button class="btn-primary" onclick="calculateCF()" style="flex: 2;">
+                    <i class="material-icons">analytics</i> Generate Sustainability Report
+                </button>
+                <button class="btn-save" onclick="saveRecord()" style="flex: 1;" {% if user and user.role == 'ecogreen' %}disabled title="Save disabled (EcoGreen role)"{% endif %}>
+                    <i class="material-icons">save</i> Save Record
+                </button>
+            </div>
         </div>
 
         <!-- Result Column -->
@@ -1116,7 +1312,7 @@
                             <div class="benchmark-needle" id="benchmarkNeedle" style="left:0%"></div>
                         </div>
                         <div class="benchmark-ticks">
-                            <span>0</span><span>7.5 kg</span><span>11 kg</span><span>15.5 kg</span><span>21+ kg</span>
+                            <span>0</span><span>11 kg</span><span>14 kg</span><span>18.5 kg</span><span>24+ kg</span>
                         </div>
                         <div id="benchmarkStatus"></div>
                     </div>
@@ -1132,6 +1328,155 @@
                             <strong>Prioritised for your unit:</strong> savings above are estimated from your entered quantities using the same emission factors as the report. All actions are achievable without capital infrastructure changes.
                         </div>
                     </div>
+
+                    <!-- ── What If? Scenario Simulator ─────────────────────────── -->
+                    <div id="whatIfSection" style="display:none;" class="whatif-section">
+                        <div class="whatif-header">
+                            <div class="whatif-header-icon">🔬</div>
+                            <div>
+                                <div class="whatif-title">What If? — In-Centre Scenario Simulator</div>
+                                <div class="whatif-subtitle">Adjust operational levers below to project carbon savings before implementing any change. Results update live as you move each slider.</div>
+                            </div>
+                        </div>
+                        <div class="whatif-disclaimer">
+                            <strong>⚠️ Clinical Disclaimer:</strong> This is a projection tool only. All changes to dialysis prescription (Qd, temperature, modality) must be decided by the responsible nephrologist based on each patient's clinical status, delivered Kt/V ≥1.4, and informed consent. Do not alter any patient prescription based solely on this simulator output.
+                        </div>
+
+                        <!-- Lever 1: Dialysate Flow Rate -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">💧</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">Dialysate Flow Rate (Qd)</div>
+                                    <div class="lever-desc">Reducing Qd 500→300 mL/min saves 48 L ultrapure water <em>and</em> 0.14 kWh RO electricity per session (measured on Baxter AK98, same unit model). High-flux membranes retain ≥92% urea clearance at Qd 300. Confirm Kt/V ≥1.4 after 4 weeks.</div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-qd">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <label>Target Qd: <strong id="wf-val-qd">500</strong> mL/min <span style="color:var(--mist);font-size:0.67rem;">(current = 500)</span></label>
+                                <input type="range" id="wf-qd" min="250" max="500" step="50" value="500" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>250</span><span>300</span><span>350</span><span>400</span><span>450</span><span>500</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Lever 2: Dialysate Temperature -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">🌡️</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">Dialysate Temperature</div>
+                                    <div class="lever-desc">Reducing from 37°C → 35.5°C cuts machine heater energy 7–10% and significantly reduces intradialytic hypotension episodes. Endorsed by KDIGO and ISN guidelines. Each 1°C reduction saves ~3.5% of dialysis machine electricity (2.2 kWh/session baseline).</div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-temp">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <label>Target temperature: <strong id="wf-val-temp">37.0</strong>°C</label>
+                                <input type="range" id="wf-temp" min="35" max="37" step="0.5" value="37" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>35°C</span><span>35.5°C</span><span>36°C</span><span>36.5°C</span><span>37°C</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Lever 3: Dialyser Reuse -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">🔁</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">Dialyser Reuse Programme</div>
+                                    <div class="lever-desc">Reprocess high-flux dialysers with 3.5% peracetic acid — safe for HBV/HCV/HIV-negative patients; CPCB BMWM Rules 2016 compliant. Monitor TCV; discard if &lt;80% or any visible clotting. LCI factor: 1.35 kg CO₂e/dialyser (Polyflux 210H — polycarbonate + polysulfone housing).</div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-reuse">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <label>Reuses per dialyser: <strong id="wf-val-reuse">1×</strong> (1 = single-use, no saving)</label>
+                                <input type="range" id="wf-reuse" min="1" max="8" step="1" value="1" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>1× (none)</span><span>2×</span><span>3×</span><span>4×</span><span>6×</span><span>8×</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Lever 4: Disposable PPE → Washable -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">👔</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">Disposable Gowns &amp; Drapes → Washable Cotton</div>
+                                    <div class="lever-desc">CSSD-laundered cotton gowns and draw-sheets produce ~10% of the lifetime carbon of equivalent single-use disposables. Retain single-use only for infectious-precaution sessions (HBsAg+, known sepsis). Standard practice in government nephrology units across Maharashtra.</div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-textile">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <label>Gowns / drapes switched to washable cotton: <strong id="wf-val-textile">0</strong>%</label>
+                                <input type="range" id="wf-textile" min="0" max="100" step="10" value="0" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Lever 5: HDF → HD conversion -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">🔄</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">HDF → Standard High-Flux HD Conversion</div>
+                                    <div class="lever-desc">For HDF patients where the original indication has resolved or marginal middle-molecule benefit no longer justifies the extra resources — conversion to high-flux HD saves the HDF set plus the substitution fluid water per session. Clinical benefit of HDF over HFHD is marginal in well-dialysed patients (ESHOL trial, Turkish Online HDF trial).</div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-hdf">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <label>HDF patients converted to standard HD: <strong id="wf-val-hdf">0</strong>%</label>
+                                <input type="range" id="wf-hdf" min="0" max="100" step="10" value="0" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Lever 6: Red-bag segregation -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">🗑️</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">Red-Bag Waste Segregation Improvement</div>
+                                    <div class="lever-desc">Dry outer packaging (saline bag wrappers, tubing boxes, paper) is routinely misclassified as red-bag CBWTF waste across Indian HD units. Correct segregation moves this to dry recycling — reducing autoclave weight, treatment cost, and carbon. Typically halves red-bag weight with no change to clinical practice.</div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-seg">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <label>Red-bag weight reduced by: <strong id="wf-val-seg">0</strong>% (via correct dry-waste segregation)</label>
+                                <input type="range" id="wf-seg" min="0" max="60" step="10" value="0" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>0%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span><span>60%</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Summary -->
+                        <div class="whatif-summary">
+                            <div class="wf-result-box">
+                                <div class="wf-result-label">Current Annual</div>
+                                <div class="wf-result-value" id="wf-current">—</div>
+                                <div class="wf-result-unit">kg CO₂e / year</div>
+                            </div>
+                            <div class="wf-result-box">
+                                <div class="wf-result-label">Projected Annual</div>
+                                <div class="wf-result-value saving" id="wf-projected">—</div>
+                                <div class="wf-result-unit">kg CO₂e / year</div>
+                            </div>
+                            <div class="wf-result-box">
+                                <div class="wf-result-label">Projected Saving</div>
+                                <div class="wf-result-value saving" id="wf-saving">—</div>
+                                <div class="wf-result-unit">kg CO₂e/yr &nbsp;(<span id="wf-pct">—</span>%)</div>
+                            </div>
+                        </div>
+
+                        <!-- Comparison bars -->
+                        <div class="whatif-bar-row">
+                            <div class="whatif-bar-label">Current baseline</div>
+                            <div class="whatif-bar-track"><div class="whatif-bar-fill" id="wf-bar-current" style="background:#ef4444;width:100%;"></div></div>
+                            <div class="whatif-bar-label">Projected (levers applied)</div>
+                            <div class="whatif-bar-track"><div class="whatif-bar-fill" id="wf-bar-projected" style="background:#10b981;width:100%;"></div></div>
+                        </div>
+
+                        <div class="whatif-footer">
+                            <i class="material-icons" style="font-size:13px;flex-shrink:0;margin-top:1px;">info</i>
+                            Savings from each lever are independent and additive. Electricity saving (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Consumable factors from LCI inventory (Tables S5–S6). Actual savings depend on clinical eligibility and implementation fidelity.
+                        </div>
+                    </div>
+                    <!-- ── end What If? ───────────────────────────────────────── -->
 
                     <div class="eco-tip">
                         <i class="material-icons" style="color: #f59e0b;">lightbulb</i>
@@ -1218,7 +1563,7 @@
         // on-site from that same supply. Adding substitution volume on top would double-count
         // the raw H2O mass, so it is NOT re-added here. (RO pump energy is captured by the
         // whole-unit electricity meter above.)
-        const water = v('waterQty') * 0.344 * convertFactor;
+        const water = v('waterQty') * 0.30 * convertFactor;
 
         // Waste — split by BMWM Rules 2016 statutory treatment route:
         //   Yellow bag → 1100°C incineration (IPCC clinical-waste default ~1.85 kg CO2e/kg)
@@ -1237,32 +1582,34 @@
         ) * convertFactor;
 
         // Consumables (kg CO2e per unit)
-        // HDF bloodline set (0.80): heavier than HD tubing (0.60) — extra ports,
-        // thicker walls, dialysate inlet/outlet connectors for substitution fluid.
+        // LCI-validated factors from Barraclough et al. AJKD 2025 (Tables S5-S6).
+        // India-adapted: items manufactured domestically (Baxter Ahmedabad) use ~85% of
+        // the LCA factor; imported items (dialyser from Germany, bloodline from USA) use full LCA factor.
+        // HDF set (0.80): retain pending dedicated LCI data; tubing updated from LCI Novaline inventory.
         const consumables = (
-            v('dialysateAQty') * 1.15 +
-            v('bicarbQty')     * 0.32 +
-            v('dialyserQty') * 0.45 +
-            v('tubingQty')   * 0.60 +
-            v('hdfSetQty')   * 0.80 +
-            v('tpQty')       * 0.015 +
-            v('heparinQty')  * 0.15 +
-            v('avQty')       * 0.03 +
-            v('syringeQty')  * 0.0203 +
-            v('ivQty')       * 0.30 +
-            v('plasmaQty')   * 0.45 +
-            v('salineQty')   * 0.28 +
-            v('testQty')     * 0.102 +
-            v('maskQty')     * 0.0215 +
-            v('gownQty')     * 0.45 +
-            v('sheetQty')    * 0.27 +
-            v('chlorQty')    * 0.15 +
-            v('epoQty')      * 0.50 +
-            v('darboQty')    * 0.50 +
+            v('dialysateAQty') * 1.95 +   // C298 Softpac: PVC + salt chemistry; Baxter India domestic manufacture (Ahmedabad)
+            v('bicarbQty')     * 1.10 +   // Bicart: PP + NaHCO3 + steam sterilisation; Baxter India domestic manufacture
+            v('dialyserQty')   * 1.35 +   // Polyflux 210H: 137.6g PC + 30.3g PSu + Nylon (Germany); India-adapted
+            v('tubingQty')     * 0.85 +   // Bloodline Novaline: 229g PVC + 95g PET; USA sea freight included
+            v('hdfSetQty')     * 0.80 +   // HDF set: retain pending dedicated LCI data
+            v('tpQty')         * 0.015 +
+            v('heparinQty')    * 0.15 +
+            v('avQty')         * 0.03 +
+            v('syringeQty')    * 0.030 +  // 10cc syringe: 6.16g PP × 2 + injection moulding (Table S5)
+            v('ivQty')         * 0.30 +
+            v('plasmaQty')     * 0.45 +
+            v('salineQty')     * 0.30 +   // 1000mL saline: 53g PVC + 12g HDPE; Indian domestic manufacture (Denis Chem, Baxter Ahmedabad)
+            v('testQty')       * 0.102 +
+            v('maskQty')       * 0.0215 +
+            v('gownQty')       * 0.45 +
+            v('sheetQty')      * 0.27 +
+            v('chlorQty')      * 0.15 +
+            v('epoQty')        * 0.50 +
+            v('darboQty')      * 0.50 +
             v('mircera100Qty') * 0.60 +
             v('mircera75Qty')  * 0.60 +
             v('mircera50Qty')  * 0.60 +
-            v('hdQty')       * 0.15
+            v('hdQty')         * 0.15
         ) * convertFactor;
 
         const totalAnnual    = electricity + water + waste + recWaste + travel + consumables;
@@ -1366,6 +1713,10 @@
         document.getElementById('ecoTipText').innerHTML = `<strong>Reduction Tip:</strong> ${tips[topCategory]}`;
 
         renderRecommendations(r.breakdown, r.perSession);
+
+        // Reveal and initialise What If? panel
+        document.getElementById('whatIfSection').style.display = 'block';
+        updateWhatIf();
     }
 
     function updateChart(breakdown, colors) {
@@ -1598,16 +1949,17 @@
     }
 
     // ── Benchmark thresholds: kg CO₂e per HD session, Maharashtra context ──
-    // Calibrated to the thermodynamic floor of an in-centre Indian HD session (~4.8 kg:
-    // consumables + dialysate + machine electricity + RO water, before travel/HVAC) and to
-    // published LCA — global in-centre HD mean ~16.5 kg, hyper-optimised Swedish green units ~8.5 kg.
-    // A sub-4 kg session is physically impossible, so the old <4/<8 bands were removed.
+    // Recalibrated to LCI-corrected consumable factors (Barraclough 2025, Tables S5-S6).
+    // Thermodynamic floor for a single ICHD session: consumables alone ~7-8 kg + electricity
+    // 5.3 kWh × 0.71 = 3.76 kg + water ~0.12 kg = ~11-12 kg before travel and HVAC.
+    // A sub-10 kg session requires solar + dialyser reuse + reduced Qd — physically achievable
+    // but uncommon. The old <7.5 "Excellent" band was calibrated to wrong (pre-LCI) factors.
     const BENCH = [
-        { max: 7.5,  label: 'Excellent',                cls: 'status-green',  msg: 'Benchmark leader — typically requires a solar-tied grid. Among the lowest-impact HD centres globally.' },
-        { max: 11,   label: 'Optimized / Good',         cls: 'status-green',  msg: 'A well-run, optimised unit. Targeted improvements can push this lower still.' },
-        { max: 15.5, label: 'Standard Indian Average',  cls: 'status-amber',  msg: 'The normal zone for an Indian in-centre HD unit. Review the top categories below for gains.' },
-        { max: 21,   label: 'High Impact',              cls: 'status-orange', msg: 'Above normal — usually old/inefficient HVAC or near-total car travel. Structured reduction recommended this quarter.' },
-        { max: 9999, label: 'Action Required',          cls: 'status-red',    msg: 'Significantly above benchmark. Priority action needed — start with the highest category.' },
+        { max: 11,   label: 'Excellent',               cls: 'status-green',  msg: 'Benchmark leader — requires solar-tied grid, dialyser reuse programme, and Qd reduction. Top 5% of Indian units.' },
+        { max: 14,   label: 'Optimized / Good',        cls: 'status-green',  msg: 'Well-optimised unit. Dialyser reuse and Qd protocol in place. Targeted improvements can push into Excellent tier.' },
+        { max: 18.5, label: 'Standard Indian Average', cls: 'status-amber',  msg: 'Normal range for an Indian in-centre HD unit. Review the top contributing categories below.' },
+        { max: 24,   label: 'High Impact',             cls: 'status-orange', msg: 'Above average — usually driven by high transport distances or no consumable reduction measures. Action recommended.' },
+        { max: 9999, label: 'Action Required',         cls: 'status-red',    msg: 'Significantly above benchmark. Priority action plan needed — start with consumables and energy.' },
     ];
 
     // ── Per-category recommendation bank (Maharashtra HD unit — no solar, no patient pooling) ──
@@ -1700,14 +2052,28 @@
                 impact: 'Low Impact', impactCls: 'impact-low'
             },
         ],
+        Frequency: [
+            {
+                icon: '📅', iconBg: '#ede9fe',
+                title: 'Review 3×/week patients with residual renal function for 2×/week adequacy',
+                body: 'LCA data (Barraclough 2025) shows 3×/week ICHD generates 50% more annual CO₂e than 2×/week. For patients with residual GFR ≥3 mL/min/1.73m² or consistently supra-adequate Kt/V (spKt/V ≥1.8 on 3×), a supervised reduction to 2×/week is clinically defensible under KDIGO 2023 guidance. Target: spKt/V ≥1.6 on 2×/week. This requires formal URR and Kt/V monitoring for the first 3 months after any frequency change.',
+                impact: 'Very High Impact (−33% per converted patient)', impactCls: 'impact-high'
+            },
+            {
+                icon: '📋', iconBg: '#f0fdf4',
+                title: 'Audit 4×/week patients — does each still have a current indication?',
+                body: 'Patients on 4×/week generate 2.1× the annual emissions of a 3×/week patient. The LCA shows 4×/week ICHD = ~9,100 kg CO₂e/yr vs 4,300 kg at 3×/week. Common indications (fluid overload, uncontrolled uraemic symptoms, cardiac instability) resolve over time. A quarterly MDT review of 4×/week patients should assess whether the indication persists or whether 3×/week with extended session time (4.5 h) achieves equivalent adequacy at 30% lower footprint.',
+                impact: 'Very High Impact (−50% per converted patient)', impactCls: 'impact-high'
+            },
+        ],
     };
 
     function renderRecommendations(breakdown, perSession) {
         // Find benchmark tier
         const tier = BENCH.find(b => perSession <= b.max) || BENCH[BENCH.length - 1];
 
-        // Benchmark needle position (0–21 kg mapped to 0–100%)
-        const needlePct = Math.min((perSession / 21) * 100, 100);
+        // Benchmark needle position (0–26 kg mapped to 0–100%, LCI-recalibrated scale)
+        const needlePct = Math.min((perSession / 26) * 100, 100);
         document.getElementById('benchmarkNeedle').style.left = needlePct + '%';
         document.getElementById('benchmarkStatus').innerHTML =
             `<span class="benchmark-status ${tier.cls}">${tier.label}: ${perSession.toFixed(1)} kg CO₂e / session</span>
@@ -1794,8 +2160,8 @@
         const sessionsPerYear = (r.hdSessionsPerWeek + r.hdfSessionsPerWeek) * 52;
         const items = [];
 
-        // Dialyser reuse → 75% fewer dialysers (4 reuses)
-        const dialyser = q('dialyserQty') * 0.45 * 0.75 * cf;
+        // Dialyser reuse → 75% fewer dialysers (4 reuses); LCI factor 1.35 kg CO₂e/dialyser
+        const dialyser = q('dialyserQty') * 1.35 * 0.75 * cf;
         if (dialyser > 0) items.push({
             icon: '🔁', title: 'Dialyser reuse programme — target 4 reuses',
             action: 'Reprocess high-flux dialysers with 3.5% peracetic acid for HBV/HCV/HIV-negative patients; monitor TCV, discard if <80% or any clotting.',
@@ -1834,11 +2200,14 @@
             feas: 'Protocol · clinical co-benefit', save: cool, est: true
         });
 
-        // Reduce Qd 500 → 300 mL/min → ~48 L ultrapure water/session
-        const qd = sessionsPerYear * 0.048 * 0.344;
+        // Reduce Qd 500 → 300 mL/min → 48 L ultrapure water + 0.14 kWh RO electricity/session
+        // Electricity component measured on Baxter AK98 (same machine — Table S5, Barraclough 2025)
+        const qdWater = sessionsPerYear * 0.048 * 0.30;
+        const qdElec  = sessionsPerYear * 0.14  * 0.71;
+        const qd = qdWater + qdElec;
         if (qd > 0) items.push({
             icon: '💧', title: 'Reduce dialysate flow (Qd) 500 → 300 mL/min on high-flux',
-            action: 'Saves ~48 L ultrapure water/session at >92% of urea clearance. Confirm Kt/V ≥1.4 after one month before keeping the change.',
+            action: 'Saves ~48 L ultrapure water AND 0.14 kWh RO electricity per session at >92% urea clearance. Confirm Kt/V ≥1.4 after one month.',
             feas: 'Protocol', save: qd, est: true
         });
 
@@ -1985,6 +2354,139 @@
             }
         };
         reader.readAsText(file);
+    }
+
+    // ── What If? Scenario Simulator ────────────────────────────────────────
+    // Each lever computes an independent annual saving from calculationResults.
+    // All factors are LCI-validated (Barraclough 2025, Tables S5-S6).
+    // Savings are additive; the projected total is floor-clamped at 0.
+
+    function setLeverBadge(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (value < 1) {
+            el.textContent = '—';
+            el.className = 'lever-save-badge zero';
+        } else {
+            el.textContent = '+' + Math.round(value).toLocaleString() + ' kg/yr';
+            el.className = 'lever-save-badge';
+        }
+    }
+
+    function updateWhatIf() {
+        const r = calculationResults;
+        if (!r || !r.totalAnnual) return;
+
+        const cf = r.timeframe === 'day' ? 365 : r.timeframe === 'year' ? 1 : 12;
+        const sessionsPerYear = (r.hdSessionsPerWeek + r.hdfSessionsPerWeek) * 52;
+        const q = (id) => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
+        const sl = (id) => { const el = document.getElementById(id); return el ? parseFloat(el.value) : 0; };
+
+        // ── Lever 1: Qd reduction ─────────────────────────────────────────
+        // Per 200 mL/min band reduced: 48 L water + 0.14 kWh RO electricity (Baxter AK98, Table S5)
+        const qd = sl('wf-qd');
+        document.getElementById('wf-val-qd').textContent = qd;
+        const qdBand = (500 - qd) / 200;
+        const qdSavePerSession = qdBand * (0.048 * 0.30 + 0.14 * 0.71);
+        const qdSave = qdSavePerSession * sessionsPerYear;
+        setLeverBadge('wf-badge-qd', qdSave);
+
+        // ── Lever 2: Dialysate temperature ───────────────────────────────
+        // Machine electricity: 2.2 kWh/session; heater fraction ~30% = 0.66 kWh.
+        // Each 1°C reduction saves ~3.5% of heater energy.
+        const temp = sl('wf-temp');
+        document.getElementById('wf-val-temp').textContent = temp.toFixed(1);
+        const tempDelta = 37 - temp;
+        const tempSavePerSession = tempDelta * 0.035 * 0.66 * 0.71;
+        const tempSave = tempSavePerSession * sessionsPerYear;
+        setLeverBadge('wf-badge-temp', tempSave);
+
+        // ── Lever 3: Dialyser reuse ───────────────────────────────────────
+        // LCI factor 1.35 kg CO₂e/dialyser; at N reuses saving = factor × (1 − 1/N)
+        const reuse = sl('wf-reuse');
+        document.getElementById('wf-val-reuse').textContent = reuse + '×';
+        const reuseSave = reuse > 1 ? q('dialyserQty') * 1.35 * cf * (1 - 1 / reuse) : 0;
+        setLeverBadge('wf-badge-reuse', reuseSave);
+
+        // ── Lever 4: Disposable gowns/drapes → washable cotton ────────────
+        // Saving = 90% of current gown + sheet emissions for the fraction switched
+        const textilePct = sl('wf-textile') / 100;
+        document.getElementById('wf-val-textile').textContent = Math.round(textilePct * 100);
+        const textileSave = (q('gownQty') * 0.45 + q('sheetQty') * 0.27) * cf * textilePct * 0.90;
+        setLeverBadge('wf-badge-textile', textileSave);
+
+        // ── Lever 5: HDF → standard HD conversion ─────────────────────────
+        // Saving per converted HDF session:
+        //   Substitution fluid water: hdfSubstVol × 0.001 m³ × 0.344 kg CO₂e/m³
+        //   Substitution fluid RO electricity: hdfSubstVol × (3.1 kWh per 357 L) × 0.71
+        //   = hdfSubstVol × (0.000344 + 0.71 × 0.00869) = hdfSubstVol × 0.006514
+        //   HDF set (0.80) vs HD tubing (0.85): net −0.05 (marginal, included)
+        const hdfConvPct = sl('wf-hdf') / 100;
+        document.getElementById('wf-val-hdf').textContent = Math.round(hdfConvPct * 100);
+        const hdfSubstVol = q('hdfSubstVol');
+        const hdfSessPerYear = r.hdfSessionsPerWeek * 52;
+        const hdfSavePerSess = hdfSubstVol * 0.006514 - 0.05; // subst saving minus tubing delta
+        const hdfSave = hdfConvPct > 0 && hdfSessPerYear > 0
+            ? Math.max(0, hdfConvPct * hdfSessPerYear * hdfSavePerSess)
+            : 0;
+        setLeverBadge('wf-badge-hdf', hdfSave);
+
+        // ── Lever 6: Red-bag segregation improvement ──────────────────────
+        // Correct segregation removes dry packaging from CBWTF autoclave stream.
+        // Saving = wasteRedQty × 0.24 kg CO₂e/kg × reduction fraction
+        const segPct = sl('wf-seg') / 100;
+        document.getElementById('wf-val-seg').textContent = Math.round(segPct * 100);
+        const segSave = q('wasteRedQty') * 0.24 * cf * segPct;
+        setLeverBadge('wf-badge-seg', segSave);
+
+        // ── Summary ───────────────────────────────────────────────────────
+        const totalSave = qdSave + tempSave + reuseSave + textileSave + hdfSave + segSave;
+        const projected  = Math.max(0, r.totalAnnual - totalSave);
+        const pct        = r.totalAnnual > 0 ? (totalSave / r.totalAnnual * 100) : 0;
+
+        document.getElementById('wf-current').textContent   = Math.round(r.totalAnnual).toLocaleString();
+        document.getElementById('wf-projected').textContent = Math.round(projected).toLocaleString();
+        document.getElementById('wf-saving').textContent    = Math.round(totalSave).toLocaleString();
+        document.getElementById('wf-pct').textContent       = pct.toFixed(1);
+
+        // Comparison bars — projected bar shrinks relative to current
+        const projFrac = r.totalAnnual > 0 ? (projected / r.totalAnnual) : 1;
+        document.getElementById('wf-bar-current').style.width   = '100%';
+        document.getElementById('wf-bar-projected').style.width = Math.min(100, Math.max(2, projFrac * 100)) + '%';
+    }
+
+    function saveRecord() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const month_str = urlParams.get('month') || '{{ month_str }}';
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/analytics/sustainability/save';
+        
+        const totalPatients = parseInt(document.getElementById('totalPatients').value) || 0;
+        const patients3x  = parseInt(document.getElementById('patients3x').value)  || 0;
+        const patients2x  = parseInt(document.getElementById('patients2x').value)  || 0;
+        const sessions = (patients3x * 3 + patients2x * 2) * 4.33;
+        
+        const fields = {
+            'month_str': month_str,
+            'electricity': document.getElementById('elecQty').value || 0,
+            'water': document.getElementById('waterQty').value || 0,
+            'bio_waste': document.getElementById('wasteYellowQty').value || 0,
+            'gen_waste': document.getElementById('wasteRedQty').value || 0,
+            'sessions': Math.round(sessions)
+        };
+        
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
     }
 
     updateLabels();

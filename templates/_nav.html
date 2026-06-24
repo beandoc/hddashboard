@@ -14,6 +14,8 @@
 {% endif %}
 {% elif user.role == 'patient' %}
 <link rel="prefetch" href="/patient/dashboard" as="document">
+{% elif user.role == 'ecogreen' %}
+<link rel="prefetch" href="/analytics/sustainability" as="document">
 {% endif %}
 {% endif %}
 
@@ -50,9 +52,18 @@
 {% set _system_active = '/admin/system' in _path or '/analytics/admin' in _path or '/admin/run-migration' in _path %}
 
 <div class="app-nav">
-  <a href="/" class="brand">CH(SC) · Nephrology Unit</a>
+  {% if _cur_role == 'ecogreen' %}
+    <a href="/analytics/sustainability" class="brand">CH(SC) · EcoRenal Calculator</a>
+  {% else %}
+    <a href="/" class="brand">CH(SC) · Nephrology Unit</a>
+  {% endif %}
 
   <div class="nav-links">
+
+    {# ─── ECOGREEN ─── #}
+    {% if _cur_role == 'ecogreen' %}
+      <a href="/analytics/sustainability" class="active">EcoRenal Calculator</a>
+    {% endif %}
 
     {# ─── DOCTOR ─── #}
     {% if _cur_role == 'doctor' %}
@@ -904,6 +915,10 @@
     </div>
     {% endif %}
 
+  {% elif _cur_role == 'ecogreen' %}
+    <a href="/analytics/sustainability" class="{{ 'active' if '/analytics/sustainability' in _path }}">
+      <i class="material-icons">eco</i> EcoRenal Calculator
+    </a>
   {% elif _cur_role == 'patient' %}
     <a href="/patient/dashboard" class="{{ 'active' if '/patient' in _path }}">
       <i class="material-icons">person</i> My Portal

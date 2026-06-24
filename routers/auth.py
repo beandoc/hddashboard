@@ -31,6 +31,19 @@ async def api_login(
     username = payload.username.strip()
     password = payload.password
 
+    # Special user: ecogreen
+    if username.lower() == "ecogreen":
+        if password == "test1234":
+            token = serializer.dumps(f"ecogreen:ecogreen:{now_ts}")
+            response.set_cookie(
+                key="hd_session", value=token,
+                httponly=True, secure=COOKIE_SECURE,
+                samesite="strict", max_age=SESSION_MAX_AGE,
+            )
+            return {"access_token": "ok", "message": "Login successful"}
+        else:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
     from sqlalchemy import func
     from config import pwd_context as _pwd
     user = db.query(User).filter(func.lower(User.username) == username.lower(), User.is_active == True).first()
@@ -85,6 +98,23 @@ async def login(
 
     now_ts = int(time.time())
     username = username.strip()
+
+    # Special user: ecogreen
+    if username.lower() == "ecogreen":
+        if password == "test1234":
+            token = serializer.dumps(f"ecogreen:ecogreen:{now_ts}")
+            response = RedirectResponse(url="/analytics/sustainability", status_code=303)
+            response.set_cookie(
+                key="hd_session", value=token,
+                httponly=True, secure=COOKIE_SECURE,
+                samesite="strict", max_age=SESSION_MAX_AGE,
+            )
+            return response
+        else:
+            return templates.TemplateResponse(
+                "login.html",
+                {"request": request, "error": "Invalid credentials", "csrf_token": _csrf_signer.sign("login").decode()}
+            )
 
     # 1. Staff — verify bcrypt hash if set, else fall back to shared passphrase
     from sqlalchemy import func

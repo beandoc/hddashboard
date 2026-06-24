@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-import logging
 from datetime import datetime
 
 from database import get_db, SustainabilityRecord, MonthlyRecord, Patient
@@ -12,12 +11,12 @@ from dashboard_logic import get_current_month_str, get_month_label
 
 router = APIRouter(prefix="/analytics/sustainability", tags=["sustainability"])
 
-# ICHD India Factors
-CO2E_ELECTRICITY = 0.82  # kg/kWh
-CO2E_WATER = 0.34        # kg/m3
-CO2E_BIO_WASTE = 6.5     # kg/kg
-CO2E_GEN_WASTE = 0.44    # kg/kg
-CO2E_CONS_PER_SESSION = 3.5 # kg/session (Dialyzer, Tubing, Chemicals)
+# ICHD India Factors — aligned with frontend (LCI-validated, Barraclough 2025 + CEA v19)
+CO2E_ELECTRICITY = 0.71   # kg/kWh — CEA CO2 Baseline Database v19 (Dec 2023), national average
+CO2E_WATER = 0.30         # kg/m3 — CPHEEO norms for Indian municipal WTPs
+CO2E_BIO_WASTE = 1.85     # kg/kg — IPCC clinical waste lifecycle (aligned with frontend)
+CO2E_GEN_WASTE = 0.44     # kg/kg
+CO2E_CONS_PER_SESSION = 7.5  # kg/session — LCI-validated (Tables S5-S6, Barraclough AJKD 2025)
 CO2E_TRANS_PER_SESSION = 5.0 # kg/session (Avg patient commute in India)
 
 @router.get("", response_class=HTMLResponse)
@@ -76,6 +75,11 @@ async def save_sustainability(
     sessions: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
+    user = get_user(request)
+    role = getattr(user, "role", None) if not isinstance(user, dict) else user.get("role", "")
+    if role == "ecogreen":
+        raise HTTPException(status_code=403, detail="Save operation disabled for EcoGreen user")
+
     record = db.query(SustainabilityRecord).filter(SustainabilityRecord.record_month == month_str).first()
     if not record:
         record = SustainabilityRecord(record_month=month_str)
