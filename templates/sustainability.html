@@ -930,6 +930,69 @@
             border-top: 1px solid var(--border);
             line-height: 1.5;
         }
+
+        /* ── Field tooltips ─────────────────────────────────────────────────── */
+        .tip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: rgba(148,163,184,0.15);
+            color: #64748b;
+            font-size: 0.60rem;
+            font-style: normal;
+            font-weight: 700;
+            cursor: help;
+            margin-left: 5px;
+            position: relative;
+            vertical-align: middle;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+            user-select: none;
+        }
+        .tip:hover { background: rgba(99,179,237,0.22); color: #7dd3fc; }
+        .tip::before {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(8,16,36,0.97);
+            border: 1px solid rgba(99,179,237,0.25);
+            border-radius: 7px;
+            padding: 9px 11px;
+            font-size: 0.695rem;
+            font-weight: 400;
+            color: #cbd5e1;
+            line-height: 1.50;
+            width: 230px;
+            white-space: normal;
+            z-index: 9900;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.18s;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+            text-align: left;
+        }
+        .tip::after {
+            content: '';
+            position: absolute;
+            bottom: calc(100% + 2px);
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: rgba(8,16,36,0.97);
+            z-index: 9901;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.18s;
+        }
+        .tip:hover::before, .tip:hover::after { opacity: 1; }
+        /* Flip tooltip left when near the right edge of the grid */
+        .tip.tip-left::before { left: auto; right: 0; transform: none; }
+        .tip.tip-left::after  { left: auto; right: 6px; transform: none; }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -1030,6 +1093,89 @@
                 <div class="section-title">
                     <span class="st-pill" style="background:#fef3c7;color:#d97706"><i class="material-icons">bolt</i></span>
                     Energy &amp; Resources
+                </div>
+                <!-- State / Grid EF selector -->
+                <div style="margin-bottom:12px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.25); border-radius:8px; padding:10px 12px;">
+                    <label style="font-size:0.75rem; font-weight:600; color:#d97706; letter-spacing:0.04em; display:flex; align-items:center; gap:5px; margin-bottom:6px;">
+                        <i class="material-icons" style="font-size:14px;">location_on</i>
+                        HD CENTRE LOCATION &nbsp;<span style="font-weight:400; color:var(--text-muted);">— resolves CEA regional grid EF</span>
+                    </label>
+                    <select id="stateGridSel" onchange="onStateChange()" style="width:100%; background:var(--input-bg,#1e293b); color:var(--text-primary,#e2e8f0); border:1px solid rgba(245,158,11,0.40); border-radius:6px; padding:7px 10px; font-size:0.82rem; margin-bottom:5px;">
+                        <option value="0.71">National Average — 0.71 kg/kWh (CEA v19)</option>
+                        <optgroup label="── Western Region (0.803 kg/kWh) — Maharashtra, Gujarat, MP, Chhattisgarh, Goa ──">
+                            <option value="0.803">Pune (Maharashtra)</option>
+                            <option value="0.803">Mumbai (Maharashtra)</option>
+                            <option value="0.803">Nagpur (Maharashtra)</option>
+                            <option value="0.803">Nashik (Maharashtra)</option>
+                            <option value="0.803">Aurangabad (Maharashtra)</option>
+                            <option value="0.803">Ahmedabad (Gujarat)</option>
+                            <option value="0.803">Surat (Gujarat)</option>
+                            <option value="0.803">Vadodara (Gujarat)</option>
+                            <option value="0.803">Indore (Madhya Pradesh)</option>
+                            <option value="0.803">Bhopal (Madhya Pradesh)</option>
+                            <option value="0.803">Raipur (Chhattisgarh)</option>
+                            <option value="0.803">Panaji (Goa)</option>
+                        </optgroup>
+                        <optgroup label="── Northern Region (0.697 kg/kWh) — Delhi, UP, Punjab, Rajasthan, Haryana, HP, UK, J&amp;K ──">
+                            <option value="0.697">New Delhi / NCR</option>
+                            <option value="0.697">Chandigarh</option>
+                            <option value="0.697">Jalandhar (Punjab)</option>
+                            <option value="0.697">Amritsar (Punjab)</option>
+                            <option value="0.697">Lucknow (Uttar Pradesh)</option>
+                            <option value="0.697">Kanpur (Uttar Pradesh)</option>
+                            <option value="0.697">Agra (Uttar Pradesh)</option>
+                            <option value="0.697">Varanasi (Uttar Pradesh)</option>
+                            <option value="0.697">Jaipur (Rajasthan)</option>
+                            <option value="0.697">Jodhpur (Rajasthan)</option>
+                            <option value="0.697">Gurgaon / Gurugram (Haryana)</option>
+                            <option value="0.697">Faridabad (Haryana)</option>
+                            <option value="0.697">Shimla (Himachal Pradesh)</option>
+                            <option value="0.697">Dehradun (Uttarakhand)</option>
+                            <option value="0.697">Udhampur (Jammu &amp; Kashmir)</option>
+                            <option value="0.697">Jammu (Jammu &amp; Kashmir)</option>
+                            <option value="0.697">Srinagar (Jammu &amp; Kashmir)</option>
+                        </optgroup>
+                        <optgroup label="── Southern Region (0.651 kg/kWh) — Karnataka, Tamil Nadu, AP, Telangana, Kerala ──">
+                            <option value="0.651">Bengaluru (Karnataka)</option>
+                            <option value="0.651">Mysuru (Karnataka)</option>
+                            <option value="0.651">Hubballi (Karnataka)</option>
+                            <option value="0.651">Chennai (Tamil Nadu)</option>
+                            <option value="0.651">Coimbatore (Tamil Nadu)</option>
+                            <option value="0.651">Madurai (Tamil Nadu)</option>
+                            <option value="0.651">Hyderabad (Telangana)</option>
+                            <option value="0.651">Visakhapatnam (Andhra Pradesh)</option>
+                            <option value="0.651">Vijayawada (Andhra Pradesh)</option>
+                            <option value="0.651">Thiruvananthapuram (Kerala)</option>
+                            <option value="0.651">Kochi (Kerala)</option>
+                            <option value="0.651">Kozhikode (Kerala)</option>
+                        </optgroup>
+                        <optgroup label="── Eastern Region (0.898 kg/kWh) — West Bengal, Bihar, Jharkhand, Odisha ──">
+                            <option value="0.898">Kolkata (West Bengal)</option>
+                            <option value="0.898">Durgapur (West Bengal)</option>
+                            <option value="0.898">Patna (Bihar)</option>
+                            <option value="0.898">Ranchi (Jharkhand)</option>
+                            <option value="0.898">Jamshedpur (Jharkhand)</option>
+                            <option value="0.898">Bhubaneswar (Odisha)</option>
+                            <option value="0.898">Cuttack (Odisha)</option>
+                        </optgroup>
+                        <optgroup label="── North-Eastern Region (0.468 kg/kWh) — Assam, Meghalaya, Sikkim, Tripura, etc. ──">
+                            <option value="0.468">Guwahati (Assam)</option>
+                            <option value="0.468">Dibrugarh (Assam)</option>
+                            <option value="0.468">Shillong (Meghalaya)</option>
+                            <option value="0.468">Agartala (Tripura)</option>
+                            <option value="0.468">Gangtok (Sikkim)</option>
+                            <option value="0.468">Imphal (Manipur)</option>
+                        </optgroup>
+                        <option value="custom">Other / Custom EF (enter manually)…</option>
+                    </select>
+                    <div id="customEFRow" style="display:none; align-items:center; gap:8px; margin-top:4px;">
+                        <input type="number" id="customGridEF" min="0.10" max="1.50" step="0.01" value="0.71" oninput="onStateChange()" style="width:90px; background:var(--input-bg,#1e293b); color:var(--text-primary,#e2e8f0); border:1px solid #f59e0b; border-radius:6px; padding:6px 8px; font-size:0.85rem;">
+                        <span style="font-size:0.72rem; color:var(--text-muted);">kg CO₂e/kWh &nbsp;(from DISCOM annual report or CEA CO₂ Baseline Database v19/v20 Table 7)</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
+                        <i class="material-icons" style="font-size:13px; color:#d97706;">info</i>
+                        <span id="stateEFBadge" style="font-size:0.70rem; color:var(--text-muted);">Using national average 0.71 kg/kWh — select your HD centre city for a location-accurate calculation</span>
+                    </div>
                 </div>
                 <div class="form-grid">
                     <div class="form-group">
@@ -1172,10 +1318,6 @@
                         <input type="number" id="hdfSetQty" min="0" value="0">
                     </div>
                     <div class="form-group">
-                        <label>Heparin Vial</label>
-                        <input type="number" id="heparinQty" min="0" value="0">
-                    </div>
-                    <div class="form-group">
                         <label>AV Fistula Needle</label>
                         <input type="number" id="avQty" min="0" value="0">
                     </div>
@@ -1184,32 +1326,81 @@
                         <input type="number" id="salineQty" min="0" value="0">
                     </div>
                     <div class="form-group">
-                        <label>EPO Injection</label>
-                        <input type="number" id="epoQty" min="0" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Mircera 100 mcg</label>
-                        <input type="number" id="mircera100Qty" min="0" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Mircera 75 mcg</label>
-                        <input type="number" id="mircera75Qty" min="0" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Mircera 50 mcg</label>
-                        <input type="number" id="mircera50Qty" min="0" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Darbepoetin (Darbo)</label>
-                        <input type="number" id="darboQty" min="0" value="0">
-                    </div>
-                    <div class="form-group">
                         <label>HD Catheter Set</label>
                         <input type="number" id="hdQty" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>Gown/Personal PPE</label>
                         <input type="number" id="gownQty" min="0" value="0">
+                    </div>
+                </div>
+
+                <!-- ── Extended Scope: Medications (ISO 14044 boundary note) ── -->
+                <div id="medsSection" style="margin-top:16px; border:1px solid rgba(239,68,68,0.30); border-radius:8px; overflow:hidden;">
+                    <div style="background:rgba(239,68,68,0.08); padding:10px 14px; display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="toggleMedsSection()">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <i class="material-icons" style="font-size:16px; color:#ef4444;">medication</i>
+                            <span style="font-size:0.80rem; font-weight:600; color:#ef4444; letter-spacing:0.03em;">EXTENDED SCOPE — Medications</span>
+                            <span id="medsBadge" style="font-size:0.65rem; background:#ef4444; color:#fff; border-radius:10px; padding:1px 7px; font-weight:700;">OFF</span>
+                        </div>
+                        <i class="material-icons" id="medsChevron" style="font-size:18px; color:var(--text-muted); transition:transform 0.2s;">expand_more</i>
+                    </div>
+                    <!-- ISO 14044 warning — always visible when section is collapsed/off -->
+                    <div id="medsWarning" style="padding:10px 14px; background:rgba(239,68,68,0.04); border-top:1px solid rgba(239,68,68,0.15);">
+                        <div style="display:flex; gap:10px; align-items:flex-start;">
+                            <i class="material-icons" style="font-size:15px; color:#f59e0b; flex-shrink:0; margin-top:1px;">warning_amber</i>
+                            <div style="font-size:0.72rem; color:var(--text-muted); line-height:1.5;">
+                                <strong style="color:#f59e0b;">ISO 14044 System Boundary:</strong> EPO, darbepoetin, Mircera, and heparin are <em>explicitly excluded</em> from the IITK ICHD system boundary per ISO 14044 LCA allocation guidance — medications are clinical necessities not attributable to the dialysis process itself. Including them overstates the unit's footprint relative to published benchmarks, preventing like-for-like comparison against the IITK tiers (18/22/28/34 kg/session). <strong style="color:#ef4444;">Enable only for internal total cost-of-care analysis — NOT for benchmarking.</strong>
+                                <br><span style="margin-top:4px; display:block;">
+                                    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; margin-top:6px;">
+                                        <input type="checkbox" id="includeMedsToggle" onchange="onMedsToggle()" style="width:15px; height:15px; accent-color:#ef4444;">
+                                        <span style="font-size:0.72rem; color:var(--text-secondary);">Include medications in footprint calculation (ISO 14044 extended scope)</span>
+                                    </label>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Medication fields — hidden by default -->
+                    <div id="medsFields" style="display:none; padding:12px 14px; border-top:1px solid rgba(239,68,68,0.15);">
+                        <div style="font-size:0.70rem; color:#ef4444; font-weight:600; margin-bottom:8px; letter-spacing:0.04em;">
+                            ERYTHROPOIESIS-STIMULATING AGENTS (ESAs) &amp; ANTICOAGULANT
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Heparin Vial</label>
+                                <input type="number" id="heparinQty" min="0" value="0">
+                                <small style="font-size:0.67rem; color:var(--text-muted);">EF: 0.15 kg CO₂e/vial</small>
+                            </div>
+                            <div class="form-group">
+                                <label>EPO Injection (Short-acting)</label>
+                                <input type="number" id="epoQty" min="0" value="0">
+                                <small style="font-size:0.67rem; color:var(--text-muted);">EF: 0.50 kg CO₂e/inj (CHO fermentation)</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Mircera 100 mcg (methoxy-PEG-epo)</label>
+                                <input type="number" id="mircera100Qty" min="0" value="0">
+                                <small style="font-size:0.67rem; color:var(--text-muted);">EF: 0.60 kg CO₂e/syringe</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Mircera 75 mcg</label>
+                                <input type="number" id="mircera75Qty" min="0" value="0">
+                                <small style="font-size:0.67rem; color:var(--text-muted);">EF: 0.60 kg CO₂e/syringe</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Mircera 50 mcg</label>
+                                <input type="number" id="mircera50Qty" min="0" value="0">
+                                <small style="font-size:0.67rem; color:var(--text-muted);">EF: 0.60 kg CO₂e/syringe</small>
+                            </div>
+                            <div class="form-group">
+                                <label>Darbepoetin (Darbo)</label>
+                                <input type="number" id="darboQty" min="0" value="0">
+                                <small style="font-size:0.67rem; color:var(--text-muted);">EF: 0.50 kg CO₂e/inj</small>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px; padding:8px 10px; background:rgba(239,68,68,0.06); border-radius:6px; font-size:0.68rem; color:var(--text-muted);">
+                            <i class="material-icons" style="font-size:12px; vertical-align:middle; color:#ef4444;">info</i>
+                            Medication EFs based on biopharmaceutical manufacturing LCA literature (Kim 2021, Germain 2012). Results with medications enabled will exceed IITK benchmarks — use separate analysis label when reporting.
+                        </div>
                     </div>
                 </div>
 
@@ -1537,8 +1728,8 @@
                                 <tbody>
                                     <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                                         <td style="padding:5px 4px;">Electricity (grid)</td>
-                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#f59e0b; font-weight:600;">0.71 kg/kWh</td>
-                                        <td style="padding:5px 4px;">CEA CO₂ Baseline Database <strong>v19</strong>, Dec 2023 — Ministry of Power, GoI (<em>cea.nic.in</em>). National composite margin; accounts for 51.93% non-fossil installed capacity achieved Dec 2025 (NDC2 target, 5 yr ahead of schedule).</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#f59e0b; font-weight:600;" id="srcElecEFCell">0.71 kg/kWh</td>
+                                        <td style="padding:5px 4px;">CEA CO₂ Baseline Database <strong>v19/v20</strong>, Dec 2023 — Ministry of Power, GoI (<em>cea.nic.in</em>). Regional weighted-average EF resolved from HD centre location; accounts for 51.93% non-fossil installed capacity achieved Dec 2025 (NDC2 target, 5 yr ahead of schedule).</td>
                                     </tr>
                                     <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                                         <td style="padding:5px 4px;">Water purification</td>
@@ -1631,6 +1822,68 @@
         else label.innerText = 'Enter monthly quantities in each section below';
     }
 
+    // ── Grid EF helpers ──────────────────────────────────────────────────────
+    // CEA CO₂ Baseline Database v19 (Dec 2023) — regional weighted-average EFs.
+    // Returns kg CO₂e / kWh for the selected HD centre location.
+    function getGridEF() {
+        const sel = document.getElementById('stateGridSel');
+        if (!sel) return 0.71;
+        const val = sel.value;
+        if (val === 'custom') {
+            const custom = parseFloat(document.getElementById('customGridEF').value);
+            return isNaN(custom) ? 0.71 : custom;
+        }
+        return parseFloat(val) || 0.71;
+    }
+
+    function onStateChange() {
+        const sel = document.getElementById('stateGridSel');
+        const customRow = document.getElementById('customEFRow');
+        const badge = document.getElementById('stateEFBadge');
+        if (!sel) return;
+        const isCustom = sel.value === 'custom';
+        customRow.style.display = isCustom ? 'flex' : 'none';
+        const ef = getGridEF();
+        const selectedText = isCustom
+            ? `Custom EF: ${ef.toFixed(3)} kg CO₂e/kWh`
+            : `${sel.options[sel.selectedIndex].text} — EF: ${ef.toFixed(3)} kg CO₂e/kWh (CEA v19/v20)`;
+        if (badge) badge.textContent = selectedText;
+    }
+
+    // ── Medication scope helpers ──────────────────────────────────────────────
+    function includeMeds() {
+        const toggle = document.getElementById('includeMedsToggle');
+        return toggle ? toggle.checked : false;
+    }
+
+    function toggleMedsSection() {
+        const fields = document.getElementById('medsFields');
+        const chevron = document.getElementById('medsChevron');
+        if (!fields) return;
+        const open = fields.style.display !== 'none';
+        fields.style.display = open ? 'none' : 'block';
+        if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+    }
+
+    function onMedsToggle() {
+        const checked = includeMeds();
+        const badge = document.getElementById('medsBadge');
+        const fields = document.getElementById('medsFields');
+        const chevron = document.getElementById('medsChevron');
+        if (badge) {
+            badge.textContent = checked ? 'ON' : 'OFF';
+            badge.style.background = checked ? '#ef4444' : '#6b7280';
+        }
+        if (fields) fields.style.display = checked ? 'block' : 'none';
+        if (chevron) chevron.style.transform = checked ? 'rotate(180deg)' : '';
+        if (!checked) {
+            ['heparinQty','epoQty','mircera100Qty','mircera75Qty','mircera50Qty','darboQty'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = 0;
+            });
+        }
+    }
+
     function calculateCF() {
         const centre = document.getElementById('centerName').value || '—';
         const timeframe = document.getElementById('timeframe').value;
@@ -1650,8 +1903,9 @@
         const v = (id) => parseFloat(document.getElementById(id).value) || 0;
 
         // India-specific emission factors (kg CO2e per unit)
-        // CEA CO2 Baseline Database v19 (Dec 2023) weighted-average grid EF = 0.71 kg/kWh.
-        const electricity = v('elecQty') * 0.71 * convertFactor;
+        // Grid EF resolved from HD centre location via CEA CO₂ Baseline Database v19/v20.
+        const gridEF = getGridEF();
+        const electricity = v('elecQty') * gridEF * convertFactor;
 
         // Metered water is the unit's utility/intake meter and already captures ALL water
         // drawn through the RO loop — including HDF substitution fluid, which is produced
@@ -1691,6 +1945,7 @@
         // India-adapted: items manufactured domestically (Baxter Ahmedabad) use ~85% of
         // the LCA factor; imported items (dialyser from Germany, bloodline from USA) use full LCA factor.
         // HDF set (0.80): retain pending dedicated LCI data; tubing updated from LCI Novaline inventory.
+        // ISO 14044 ICHD system boundary consumables (medications excluded per LCA standard)
         const consumables = (
             v('dialysateAQty') * 1.95 +   // C298 Softpac: PVC + salt chemistry; Baxter India domestic manufacture (Ahmedabad)
             v('bicarbQty')     * 1.10 +   // Bicart: PP + NaHCO3 + steam sterilisation; Baxter India domestic manufacture
@@ -1698,7 +1953,6 @@
             v('tubingQty')     * 0.85 +   // Bloodline Novaline: 229g PVC + 95g PET; USA sea freight included
             v('hdfSetQty')     * 0.80 +   // HDF set: retain pending dedicated LCI data
             v('tpQty')         * 0.015 +
-            v('heparinQty')    * 0.15 +
             v('avQty')         * 0.03 +
             v('syringeQty')    * 0.030 +  // 10cc syringe: 6.16g PP × 2 + injection moulding (Table S5)
             v('ivQty')         * 0.30 +
@@ -1709,15 +1963,20 @@
             v('gownQty')       * 0.45 +
             v('sheetQty')      * 0.27 +
             v('chlorQty')      * 0.15 +
+            v('hdQty')         * 0.15
+        ) * convertFactor;
+
+        // Extended scope: medications (ISO 14044 excluded; only added when user opts in)
+        const medCarbon = includeMeds() ? (
+            v('heparinQty')    * 0.15 +
             v('epoQty')        * 0.50 +
             v('darboQty')      * 0.50 +
             v('mircera100Qty') * 0.60 +
             v('mircera75Qty')  * 0.60 +
-            v('mircera50Qty')  * 0.60 +
-            v('hdQty')         * 0.15
-        ) * convertFactor;
+            v('mircera50Qty')  * 0.60
+        ) * convertFactor : 0;
 
-        const totalAnnual    = electricity + water + waste + recWaste + travel + supplyChain + consumables;
+        const totalAnnual    = electricity + water + waste + recWaste + travel + supplyChain + consumables + medCarbon;
         const sessionsPerYear = sessionsPerWeek * 52;
         const perSession     = sessionsPerYear > 0 ? (totalAnnual / sessionsPerYear) : 0;
         const perPatient3x   = perSession * 156;
@@ -1758,6 +2017,9 @@
         document.getElementById('emptyResults').style.display = 'none';
         document.getElementById('resultSummary').style.display = 'block';
         document.getElementById('sourcesCard').style.display = 'block';
+        // Update sources card EF cell to reflect selected location
+        const efCell = document.getElementById('srcElecEFCell');
+        if (efCell) efCell.textContent = getGridEF().toFixed(3) + ' kg/kWh';
         
         // Animate the hero number; set others immediately
         animateCount(document.getElementById('resAnnual'), r.totalAnnual, 0, 900);
@@ -1967,7 +2229,7 @@
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(8);
         doc.text('Calculated using EcoRenal: One-stop solution for green dialysis management.', 20, 284);
-        doc.text('EFs: CEA v19 grid 0.71 kg/kWh · BMWM Rules 2016 waste · MoRTH freight · ARAI transport · Barraclough AJKD 2025 consumables · BUR-4 GHG Inventory 2020', 20, 289);
+        doc.text(`EFs: CEA v19/v20 grid ${getGridEF().toFixed(3)} kg/kWh · BMWM Rules 2016 waste · MoRTH freight · ARAI transport · Barraclough AJKD 2025 consumables · BUR-4 GHG Inventory 2020`, 20, 289);
 
         doc.save(`EcoRenal_Report_${r.centre.replace(/\s+/g, '_')}.pdf`);
     }
@@ -2012,7 +2274,7 @@
             `Travel: ${kg(b.Travel)}`,
             `Consumables: ${kg(b.Consumables)}`,
             '',
-            'Emission factors: CEA grid 0.71 kg/kWh (v19, 2023). For academic and quality-improvement purposes only.'
+            `Emission factors: CEA grid ${getGridEF().toFixed(3)} kg/kWh (v19/v20 regional). For academic and quality-improvement purposes only.`
         ].join('\n');
     }
 
@@ -2320,7 +2582,7 @@
         // Reduce Qd 500 → 300 mL/min → 48 L ultrapure water + 0.14 kWh RO electricity/session
         // Electricity component measured on Baxter AK98 (same machine — Table S5, Barraclough 2025)
         const qdWater = sessionsPerYear * 0.048 * 0.30;
-        const qdElec  = sessionsPerYear * 0.14  * 0.71;
+        const qdElec  = sessionsPerYear * 0.14  * getGridEF();
         const qd = qdWater + qdElec;
         if (qd > 0) items.push({
             icon: '💧', title: 'Reduce dialysate flow (Qd) 500 → 300 mL/min on high-flux',
@@ -2507,7 +2769,7 @@
         const qd = sl('wf-qd');
         document.getElementById('wf-val-qd').textContent = qd;
         const qdBand = (500 - qd) / 200;
-        const qdSavePerSession = qdBand * (0.048 * 0.30 + 0.14 * 0.71);
+        const qdSavePerSession = qdBand * (0.048 * 0.30 + 0.14 * getGridEF());
         const qdSave = qdSavePerSession * sessionsPerYear;
         setLeverBadge('wf-badge-qd', qdSave);
 
@@ -2517,7 +2779,7 @@
         const temp = sl('wf-temp');
         document.getElementById('wf-val-temp').textContent = temp.toFixed(1);
         const tempDelta = 37 - temp;
-        const tempSavePerSession = tempDelta * 0.035 * 0.66 * 0.71;
+        const tempSavePerSession = tempDelta * 0.035 * 0.66 * getGridEF();
         const tempSave = tempSavePerSession * sessionsPerYear;
         setLeverBadge('wf-badge-temp', tempSave);
 
@@ -2538,14 +2800,14 @@
         // ── Lever 5: HDF → standard HD conversion ─────────────────────────
         // Saving per converted HDF session:
         //   Substitution fluid water: hdfSubstVol × 0.001 m³ × 0.344 kg CO₂e/m³
-        //   Substitution fluid RO electricity: hdfSubstVol × (3.1 kWh per 357 L) × 0.71
-        //   = hdfSubstVol × (0.000344 + 0.71 × 0.00869) = hdfSubstVol × 0.006514
+        //   Substitution fluid RO electricity: hdfSubstVol × (3.1 kWh per 357 L) × gridEF
+        //   = hdfSubstVol × (0.000344 + gridEF × 0.00869)
         //   HDF set (0.80) vs HD tubing (0.85): net −0.05 (marginal, included)
         const hdfConvPct = sl('wf-hdf') / 100;
         document.getElementById('wf-val-hdf').textContent = Math.round(hdfConvPct * 100);
         const hdfSubstVol = q('hdfSubstVol');
         const hdfSessPerYear = r.hdfSessionsPerWeek * 52;
-        const hdfSavePerSess = hdfSubstVol * 0.006514 - 0.05; // subst saving minus tubing delta
+        const hdfSavePerSess = hdfSubstVol * (0.000344 + getGridEF() * 0.00869) - 0.05; // subst saving minus tubing delta
         const hdfSave = hdfConvPct > 0 && hdfSessPerYear > 0
             ? Math.max(0, hdfConvPct * hdfSessPerYear * hdfSavePerSess)
             : 0;
@@ -2614,6 +2876,89 @@
     }
 
     updateLabels();
+
+    // ── Field tooltips ─────────────────────────────────────────────────────
+    // Lookup table: field id → tooltip text shown on hover of the ⓘ icon.
+    const FIELD_TIPS = {
+        // Configuration
+        centerName:      'Name of your dialysis centre. Appears in all generated reports. E.g. "Govt. Medical College HD Unit, Pune".',
+        timeframe:       'Choose the time period your data covers. All quantity fields below must match this period. Monthly is recommended for routine reporting.',
+
+        // Patient Load
+        totalPatients:   'Count of currently active HD patients on your programme. Used to calculate supply-chain logistics carbon (consumable deliveries per patient per year).',
+        patients3x:      'Patients dialysed 3 sessions per week (Mon/Wed/Fri or Tue/Thu/Sat). Standard frequency for most ESRD patients on dialysis.',
+        patients2x:      'Patients on a twice-weekly schedule. Used for elderly or frail patients, or in resource-constrained settings.',
+        hdfPatients3x:   'On-line HDF patients attending 3× per week. Online HDF requires an ultrapure dialysate system and produces sterile substitution fluid on-site. Enter 0 if not offered.',
+        hdfPatients2x:   'HDF patients on a twice-weekly schedule. Less common — enter 0 if not applicable.',
+        hdfSubstVol:     'Volume of sterile substitution fluid infused per HDF session.\n• Post-dilution mode: 15–25 L typical\n• Pre-dilution mode: 50–80 L typical\nThis drives RO electricity and water use calculations.',
+
+        // Energy & Resources
+        stateGridSel:    'Select the city nearest to your HD centre. This resolves the regional grid emission factor from CEA CO₂ Baseline Database v19/v20 (Ministry of Power, GoI). Grid EF varies from 0.47 kg/kWh (North-East, hydro) to 0.90 kg/kWh (Eastern, coal-heavy).',
+        customGridEF:    'Enter your state or DISCOM-specific grid EF in kg CO₂e per kWh. Find this in your state DISCOM annual report or CEA CO₂ Baseline Database v19 Table 7.',
+        elecQty:         'Total electricity consumed by the dialysis unit in the selected period. Read directly from your DISCOM electricity bill (the kWh figure). Covers dialysis machines, RO plant, HVAC, lighting, and all plug loads within the unit.',
+        waterQty:        'Total water drawn into the unit. Read from the RO plant inlet meter or building water meter (m³). Covers all water used for dialysate preparation and — for HDF — on-site substitution fluid production.',
+
+        // Waste
+        wasteYellowQty:  'Yellow-bag (Category 1 BMW) waste collected for high-temperature incineration (1100°C). Includes soiled dressings, anatomical waste, expired pharmaceuticals, blood bags. Read from CBWTF collection manifests.',
+        wasteRedQty:     'Red-bag (Category 2 BMW) waste autoclaved at a CBWTF. Includes used tubing, dialysers, bloodlines, blood-contaminated plastics. BMWM Rules 2016 compliance. Read from CBWTF manifests.',
+        recWasteQty:     'Clean recyclable waste (cardboard packaging, uncontaminated plastics, office paper). Emission factor = 0 — tracked here for complete mass-balance only.',
+
+        // Travel
+        busQty:          'Total km travelled by all patients using public bus. Estimate: one-way distance × 2 trips/session × sessions in period. Use average patient distance if exact data unavailable. EF = 0.04 kg CO₂e/km (ARAI).',
+        carQty:          'Total km by patients in private cars or hired taxis across the period. Highest transport emission factor. EF = 0.17 kg CO₂e/km (ARAI).',
+        autoQty:         'Total km by auto-rickshaw across all patients. Very common urban transport mode for HD patients. EF = 0.10 kg CO₂e/km (ARAI).',
+        bikeQty:         'Total km by two-wheeler (motorcycle or scooter) across all patients. EF = 0.10 kg CO₂e/km (ARAI). Two-wheelers are often used by younger periurban patients.',
+        supplyChainKm:   'Straight road distance from the nearest HD consumable distributor/warehouse to your centre. Maharashtra default: Nashik (Baxter/Fresenius depot) → Pune ≈ 180 km. Increase to 300–600 km for district or tribal hospitals served by longer supply routes.',
+
+        // Consumables — Dialysate fluids
+        dialysateAQty:   'Number of Part A acid concentrate 5L canisters used in the period. Typical: 1 canister per dialysis session. (Baxter Softpac or equivalent; manufactured domestically in Ahmedabad.)',
+        bicarbQty:       'Number of bicarbonate cartridges (650 g bags) used. Typical: 1 per session. (Baxter Bicart or equivalent. NaHCO₃ content drives manufacturing carbon.)',
+
+        // Consumables — Equipment
+        dialyserQty:     'Total dialyser uses in the period. If reusing dialysers, count actual uses — not units purchased. Example: 52 dialysers reused 3× = 156 uses. (High-flux polysulfone; Polyflux 210H LCI basis.)',
+        tubingQty:       'Blood tubing sets (arterial + venous bloodlines). One new set per session — never reused. Single-use PVC; high cumulative carbon for busy units.',
+        hdfSetQty:       'HDF-specific integrated bloodline sets. Only for HDF sessions — leave 0 if no HDF. Slightly lower LCI than standard HD tubing per set.',
+        avQty:           'AV fistula needle pairs (1 arterial + 1 venous per session). Enter total needles used. For patients on CVC, enter 0 here.',
+        salineQty:       'Normal saline (0.9%, 1L bags) used for circuit priming, post-dialysis rinse-back, and haemostasis. Typically 1–2 bags per session.',
+        hdQty:           'HD catheter sets (tunnelled or non-tunnelled CVCs) inserted or changed in the period. Not the number of catheter sessions — just insertions/changes.',
+        gownQty:         'Disposable gowns and PPE sets used by nursing staff. Typically 1 full PPE set per patient session (gown + gloves + mask). Some units use 2 (dialysis start + end).',
+
+        // Advanced consumables
+        tpQty:           'Blood transfusion packs (PRBC units) administered to dialysis patients in the period. Record only if given in or directly because of the dialysis unit.',
+        syringeQty:      '10 cc disposable syringes used for medication preparation, blood sampling, or injection. Do not count pre-filled drug syringes here.',
+        ivQty:           'IV administration sets used for fluid delivery (separate from saline bags). One set per IV line set-up.',
+        plasmaQty:       'Fresh frozen plasma (FFP) or albumin bags administered within the dialysis unit in the period.',
+        testQty:         'Point-of-care diagnostic test kits — blood glucose strips, lateral flow assay kits, dipstick tests — used in the dialysis unit.',
+        maskQty:         'Surgical / 3-ply face masks worn by staff and patients. Count masks used, not boxes.',
+        sheetQty:        'Disposable bed sheets or draw-sheets. Typically 1 per patient session. Woven PP — lower carbon per unit than PVC items.',
+        chlorQty:        'Chlorine tablets or sodium hypochlorite sachets used for surface disinfection, dialysis machine cleaning, and RO sanitisation.',
+
+        // Medications (extended scope)
+        heparinQty:      'Heparin vials used for circuit anticoagulation. Typically 1 vial (5,000–10,000 IU) per session. ISO 14044 extended scope — included only when the medications toggle is ON. Does not contribute to benchmark comparison.',
+        epoQty:          'Short-acting erythropoietin injections (EPO-alpha / EPO-beta) given intravenously or subcutaneously for anaemia management. Manufacturing carbon is high due to CHO cell bioreactor production and cold-chain distribution.',
+        mircera100Qty:   'Mircera 100 mcg pre-filled syringes (methoxy-PEG-epoetin beta). Long-acting ESA, typically given once monthly. Higher manufacturing EF than short-acting EPO due to PEGylation step.',
+        mircera75Qty:    'Mircera 75 mcg pre-filled syringes. Same long-acting ESA — enter the 75 mcg dose variant separately.',
+        mircera50Qty:    'Mircera 50 mcg pre-filled syringes. Starting dose for dialysis-naïve anaemia correction.',
+        darboQty:        'Darbepoetin alfa injections (Aranesp or biosimilar). Hyperglycosylated long-acting ESA — dosing every 1–4 weeks. Similar manufacturing EF to short-acting EPO.',
+    };
+
+    // Inject ⓘ tooltip icons into labels after DOM is ready
+    (function injectTips() {
+        Object.entries(FIELD_TIPS).forEach(([id, tip]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const grp = el.closest('.form-group') || el.closest('div');
+            if (!grp) return;
+            const label = grp.querySelector('label');
+            if (!label) return;
+            const span = document.createElement('span');
+            span.className = 'tip';
+            span.setAttribute('data-tip', tip);
+            span.setAttribute('aria-label', tip);
+            span.textContent = 'ⓘ';
+            label.appendChild(span);
+        });
+    })();
 </script>
 
 </body>
