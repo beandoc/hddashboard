@@ -772,6 +772,7 @@
         }
 
         /* ── What If? Simulation Panel ─────────────────────────────────────── */
+        #sourcesCard details[open] #srcChevron { transform: rotate(180deg); }
         .whatif-section {
             margin-top: 22px;
             border: 2px solid #0891b2;
@@ -940,7 +941,7 @@
 <header>
     <div class="hdr-badge">🍃 ICHD India &nbsp;·&nbsp; Maharashtra &nbsp;·&nbsp; Carbon Analytics</div>
     <h1>Eco<em>Renal</em></h1>
-    <p class="hdr-sub">Advanced carbon footprint analytics for dialysis units<br>Indian Standard (ICHD) emission factors · CEA grid 0.71 kg/kWh (v19, 2023)</p>
+    <p class="hdr-sub">Advanced carbon footprint analytics for dialysis units<br>Indian Standard (ICHD) emission factors · CEA grid 0.71 kg/kWh (v19, 2023) · Aligned with India's Updated NDC (2022) &amp; Mission LiFE · BUR-4 / National GHG Inventory 2020</p>
 </header>
 
 <div class="container">
@@ -1516,6 +1517,83 @@
                     </div>
                 </div>
 
+                <!-- ── Emission Factor Sources & References ──────────────────── -->
+                <div id="sourcesCard" style="display:none; margin-top:18px;">
+                    <details style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.10); border-radius:10px; padding:0;">
+                        <summary style="padding:12px 16px; cursor:pointer; font-size:0.8rem; font-weight:600; color:var(--text-muted); letter-spacing:0.04em; list-style:none; display:flex; align-items:center; gap:8px; user-select:none;">
+                            <i class="material-icons" style="font-size:15px; color:#10b981;">menu_book</i>
+                            EMISSION FACTOR SOURCES &amp; REGULATORY BASIS
+                            <i class="material-icons" style="font-size:14px; margin-left:auto; transition:transform .2s;" id="srcChevron">expand_more</i>
+                        </summary>
+                        <div style="padding:4px 16px 14px; border-top:1px solid rgba(255,255,255,0.07);">
+                            <table style="width:100%; border-collapse:collapse; font-size:0.72rem; color:var(--text-muted);">
+                                <thead>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.10);">
+                                        <th style="text-align:left; padding:6px 4px; color:var(--text-secondary); font-weight:600; width:28%;">Component</th>
+                                        <th style="text-align:center; padding:6px 4px; color:var(--text-secondary); font-weight:600; width:14%;">EF</th>
+                                        <th style="text-align:left; padding:6px 4px; color:var(--text-secondary); font-weight:600;">Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Electricity (grid)</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#f59e0b; font-weight:600;">0.71 kg/kWh</td>
+                                        <td style="padding:5px 4px;">CEA CO₂ Baseline Database <strong>v19</strong>, Dec 2023 — Ministry of Power, GoI (<em>cea.nic.in</em>). National composite margin; accounts for 51.93% non-fossil installed capacity achieved Dec 2025 (NDC2 target, 5 yr ahead of schedule).</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Water purification</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#0ea5e9; font-weight:600;">0.30 kg/m³</td>
+                                        <td style="padding:5px 4px;">CPHEEO Manual on Water Supply &amp; Treatment, 3rd ed. — Ministry of Urban Development, GoI (<em>cpheeo.gov.in</em>). Energy norms for conventional municipal WTPs.</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Biomedical waste — yellow bag (incineration)</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#ef4444; font-weight:600;">1.85 kg/kg</td>
+                                        <td style="padding:5px 4px;">BMWM Rules 2016, G.S.R. 343(E), 28 Mar 2016 — MoEF&amp;CC (<em>moef.gov.in</em>); CPCB CBWTF Technical Guidelines, revised Apr 2025 (<em>cpcb.nic.in</em>); IPCC Waste Guidelines Vol. 5 (2006).</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Biomedical waste — red bag (CBWTF autoclave)</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#f97316; font-weight:600;">0.24 kg/kg</td>
+                                        <td style="padding:5px 4px;">BMWM Rules 2016, Schedule I Category 2 — MoEF&amp;CC; CPCB CBWTF Guidelines (Apr 2025).</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Medical consumables</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#8b5cf6; font-weight:600;">13.5 kg/session</td>
+                                        <td style="padding:5px 4px;">Barraclough KA et al. <em>AJKD</em> 2025, Table 3 aggregate (14.2 kg AU baseline), India-adjusted −5% for Baxter Ahmedabad / Fresenius Kabi Pune domestic manufacture. Not Tables S5/S6 (those are PD/APD sources).</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Supply chain logistics</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#06b6d4; font-weight:600;">0.08 kg/tonne-km</td>
+                                        <td style="padding:5px 4px;">MoRTH Road Freight Emission Assessment — Ministry of Road Transport &amp; Highways, GoI (<em>morth.gov.in</em>). HCV diesel road freight. IITK India LCA baseline: 998 kg consumables/patient/yr (Lucknow cohort, 2024).</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Patient transport (bus / car / auto / two-wheeler)</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#84cc16; font-weight:600;">0.04–0.17 kg/pkm</td>
+                                        <td style="padding:5px 4px;">ARAI Emission Factors for Indian Vehicles, Project Report AFL/2006-07/IOCL — Automotive Research Association of India (<em>araiindia.com</em>). Bus 0.04 · Auto/2-wheeler 0.10 · Car 0.17 kg CO₂e/passenger-km.</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:5px 4px;">Benchmark tiers (18/22/28/34 kg/session)</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#10b981; font-weight:600;">India LCA</td>
+                                        <td style="padding:5px 4px;">IITK India LCA (26.3 kg/session, Lucknow ICHD, 2024); Barraclough <em>AJKD</em> 2025 (30.9 kg/session, AU). Benchmarks recalibrated from the prior erroneous 11/14/18.5/24 thresholds.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <div style="margin-top:10px; padding:8px 10px; background:rgba(16,185,129,0.07); border-left:3px solid #10b981; border-radius:4px; font-size:0.70rem; color:var(--text-muted); line-height:1.55;">
+                                <strong style="color:var(--text-secondary);">Policy alignment:</strong>
+                                MoEF&amp;CC Annual Report 2025–26, Ch. 8, Table 2 (p. 195) — India's NDC progress: emissions intensity −36% since 2005 (target −45% by 2030); 51.93% non-fossil installed capacity December 2025 (NDC2 achieved 5 yr ahead of schedule).
+                                India's 4th Biennial Update Report (BUR-4), submitted to UNFCCC 30 Dec 2024 — National GHG Inventory 2020: total 2,959 Mt CO₂e excl. LULUCF; energy sector 75.66%; waste 2.56%.
+                                Mission LiFE (Lifestyle for Environment) — MoEF&amp;CC Annual Report 2025–26, §1.1 — institutional mandate: Save Energy · Save Water · Reduce Waste.
+                                NHM PMNDP Operational Guidelines 2016 — programme context for 650+ PPP dialysis centres across India.
+                            </div>
+
+                            <p style="font-size:0.68rem; color:var(--text-muted); margin-top:8px; margin-bottom:0; font-style:italic;">
+                                For quality improvement and academic purposes. EcoRenal methodology paper: <em>EcoRenal_IITK_India_LCA_Paper.md</em> (IIT Kanpur India LCA, June 2026).
+                            </p>
+                        </div>
+                    </details>
+                </div>
+                <!-- ── end Sources card ──────────────────────────────────────── -->
+
                 <div id="emptyResults" class="empty-state">
                     <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="28" cy="28" r="27" stroke="#1A9E6B" stroke-width="2"/>
@@ -1679,6 +1757,7 @@
         const r = calculationResults;
         document.getElementById('emptyResults').style.display = 'none';
         document.getElementById('resultSummary').style.display = 'block';
+        document.getElementById('sourcesCard').style.display = 'block';
         
         // Animate the hero number; set others immediately
         animateCount(document.getElementById('resAnnual'), r.totalAnnual, 0, 900);
@@ -1888,7 +1967,7 @@
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(8);
         doc.text('Calculated using EcoRenal: One-stop solution for green dialysis management.', 20, 284);
-        doc.text('Powered by HD Dashboard Analytics Engine | Optimized for Indian Power Grid (CEA v19 — 0.71 Factor)', 20, 289);
+        doc.text('EFs: CEA v19 grid 0.71 kg/kWh · BMWM Rules 2016 waste · MoRTH freight · ARAI transport · Barraclough AJKD 2025 consumables · BUR-4 GHG Inventory 2020', 20, 289);
 
         doc.save(`EcoRenal_Report_${r.centre.replace(/\s+/g, '_')}.pdf`);
     }
