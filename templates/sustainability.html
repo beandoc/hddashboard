@@ -578,7 +578,7 @@
         .benchmark-bar-wrap {
             position: relative;
             height: 7px;
-            background: linear-gradient(to right, #10b981 0%, #34d399 36%, #fbbf24 52%, #f97316 74%, #ef4444 100%);
+            background: linear-gradient(to right, #10b981 0%, #34d399 53%, #fbbf24 65%, #f97316 82%, #ef4444 100%);
             border-radius: 5px;
             margin-bottom: 4px;
         }
@@ -990,15 +990,15 @@
                 <div class="form-grid" style="margin-bottom:18px;">
                     <div class="form-group">
                         <label>Total HD Patients</label>
-                        <input type="number" id="totalPatients" min="0" value="{{ active_count or 120 }}">
+                        <input type="number" id="totalPatients" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>HD Patients (3×/week)</label>
-                        <input type="number" id="patients3x" min="0" value="{{ (active_count * 0.7)|round|int if active_count else 80 }}">
+                        <input type="number" id="patients3x" min="0" value="0">
                     </div>
                     <div class="form-group">
                         <label>HD Patients (2×/week)</label>
-                        <input type="number" id="patients2x" min="0" value="{{ (active_count * 0.3)|round|int if active_count else 40 }}">
+                        <input type="number" id="patients2x" min="0" value="0">
                     </div>
                 </div>
 
@@ -1114,6 +1114,23 @@
                         <div class="input-wrapper">
                             <input type="number" id="bikeQty" min="0" value="0">
                             <span class="unit">km</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Supply-chain distance — separate from patient travel; drives logistics CO₂ -->
+                <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+                    <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                        <div class="form-group">
+                            <label>Consumable Supply-Chain Distance
+                                <span style="font-size:0.72rem; font-weight:400; color:var(--text-muted);">(nearest HD distributor → centre)</span>
+                            </label>
+                            <div class="input-wrapper">
+                                <input type="number" id="supplyChainKm" min="0" step="10" value="180">
+                                <span class="unit">km</span>
+                            </div>
+                            <small style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; display:block;">
+                                Nashik → Pune ≈ 180 km (Maharashtra default). EF: 998 kg consumables/patient/yr × 0.08 kg CO₂e/tonne-km (MoRTH road freight). For government/district hospitals with longer supply routes, increase accordingly.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -1273,10 +1290,10 @@
                             <div class="ms-val" style="color:var(--accent);" id="resSession">—</div>
                             <div class="ms-unit">kg CO₂e</div>
                         </div>
-                        <div class="mini-stat">
-                            <div class="ms-label">Mature Tree-Years</div>
+                        <div class="mini-stat" title="Range: urban plantation tree ~10 kg CO₂/yr (conservative, high end of range) → mature tropical forest tree ~22 kg CO₂/yr (optimistic, low end). Indian municipal saplings absorb ~1.2 kg/yr with ~52% 3-yr mortality — this figure is mature tree-years of absorption capacity, not saplings to plant." style="cursor:help;">
+                            <div class="ms-label">Mature Tree-Years <span style="font-size:0.68rem; opacity:0.6;">ⓘ</span></div>
                             <div class="ms-val" style="color:#b45309;" id="resTrees">—</div>
-                            <div class="ms-unit">to sequester / yr</div>
+                            <div class="ms-unit">urban → forest range</div>
                         </div>
                         <div class="mini-stat">
                             <div class="ms-label">Patient 3×/wk</div>
@@ -1312,7 +1329,7 @@
                             <div class="benchmark-needle" id="benchmarkNeedle" style="left:0%"></div>
                         </div>
                         <div class="benchmark-ticks">
-                            <span>0</span><span>11 kg</span><span>14 kg</span><span>18.5 kg</span><span>24+ kg</span>
+                            <span>0</span><span>18 kg</span><span>22 kg</span><span>28 kg</span><span>34+ kg</span>
                         </div>
                         <div id="benchmarkStatus"></div>
                     </div>
@@ -1473,7 +1490,7 @@
 
                         <div class="whatif-footer">
                             <i class="material-icons" style="font-size:13px;flex-shrink:0;margin-top:1px;">info</i>
-                            Savings from each lever are independent and additive. Electricity saving (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Consumable factors from LCI inventory (Tables S5–S6). Actual savings depend on clinical eligibility and implementation fidelity.
+                            Savings from each lever are independent and additive. Electricity saving (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Consumable factors from HD LCI inventory (Barraclough Table 1 material weights + Table 3 aggregate carbon; India-adapted for domestic manufacture). Actual savings depend on clinical eligibility and implementation fidelity.
                         </div>
                     </div>
                     <!-- ── end What If? ───────────────────────────────────────── -->
@@ -1577,12 +1594,22 @@
         const travel = (
             v('busQty') * 0.04 +
             v('carQty') * 0.17 +
-            v('autoQty') * 0.08 +
-            v('bikeQty') * 0.06
+            v('autoQty') * 0.10 +
+            v('bikeQty') * 0.10
         ) * convertFactor;
 
+        // Supply-chain logistics — always annual (not scaled by convertFactor).
+        // IITK tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km.
+        // Maharashtra default: Nashik → Pune ≈ 180 km.
+        // User-adjustable via supplyChainKm input (e.g. district hospitals may be 400–600 km).
+        const supplyChainKm = v('supplyChainKm') || 180;
+        const supplyChain = totalPatients * (998 / 1000) * 0.08 * supplyChainKm;  // kg CO₂e/yr
+
         // Consumables (kg CO2e per unit)
-        // LCI-validated factors from Barraclough et al. AJKD 2025 (Tables S5-S6).
+        // LCI factors from Barraclough et al. AJKD 2025 Table 1 (material inventory per item)
+        // and Table 3 (aggregate annual carbon ÷ 156 sessions). Note: Tables S5/S6 are the
+        // LCI for Extraneal icodextrin (PD fluid) and APD supply-chain transport — they do not
+        // contain HD consumable figures and must not be cited here.
         // India-adapted: items manufactured domestically (Baxter Ahmedabad) use ~85% of
         // the LCA factor; imported items (dialyser from Germany, bloodline from USA) use full LCA factor.
         // HDF set (0.80): retain pending dedicated LCI data; tubing updated from LCI Novaline inventory.
@@ -1612,27 +1639,31 @@
             v('hdQty')         * 0.15
         ) * convertFactor;
 
-        const totalAnnual    = electricity + water + waste + recWaste + travel + consumables;
+        const totalAnnual    = electricity + water + waste + recWaste + travel + supplyChain + consumables;
         const sessionsPerYear = sessionsPerWeek * 52;
         const perSession     = sessionsPerYear > 0 ? (totalAnnual / sessionsPerYear) : 0;
         const perPatient3x   = perSession * 156;
         const perPatient2x   = perSession * 104;
 
-        // Sequestration equivalence: a fully mature tropical tree absorbs ~22 kg CO2/year at peak.
-        // Reported as "mature tree-years" — NOT saplings to plant (year-1 saplings absorb ~1.2 kg
-        // and ~52% die within 3 years in Indian municipal drives).
-        const trees = Math.ceil(totalAnnual / 22);
+        // Sequestration equivalence reported as a range, not a point estimate:
+        //   treesLo: optimistic — mature tropical/dense forest tree, ~22 kg CO₂/yr
+        //   treesHi: conservative — Indian urban plantation tree, ~10 kg CO₂/yr
+        // NOT saplings to plant: year-1 municipal saplings absorb ~1.2 kg/yr and
+        // ~52% die within 3 years. This is mature tree-years of absorption capacity.
+        const treesLo = Math.ceil(totalAnnual / 22);
+        const treesHi = Math.ceil(totalAnnual / 10);
 
         calculationResults = {
             centre, timeframe, totalPatients,
             patients3x, patients2x, hdfPts3x, hdfPts2x, hdfSubstVol,
             hdSessionsPerWeek, hdfSessionsPerWeek,
-            totalAnnual, perSession, perPatient3x, perPatient2x, trees,
+            totalAnnual, perSession, perPatient3x, perPatient2x, treesLo, treesHi,
             breakdown: {
                 Energy: electricity,
                 Water: water,
                 Waste: waste + recWaste,
                 Travel: travel,
+                'Supply Chain': supplyChain,
                 Consumables: consumables
             },
             inputs: {
@@ -1653,7 +1684,8 @@
         animateCount(document.getElementById('resAnnual'), r.totalAnnual, 0, 900);
         document.getElementById('resTonnes').innerText = (r.totalAnnual / 1000).toFixed(2);
         document.getElementById('resSession').innerText = r.perSession.toFixed(1);
-        document.getElementById('resTrees').innerText = r.trees.toLocaleString();
+        document.getElementById('resTrees').innerText =
+            r.treesLo.toLocaleString() + '–' + r.treesHi.toLocaleString();
         document.getElementById('resP3x').innerText = r.perPatient3x.toFixed(0);
         document.getElementById('resP2x').innerText = r.perPatient2x.toFixed(0);
 
@@ -1676,6 +1708,7 @@
             Water: '#3b82f6',
             Waste: '#ef4444',
             Travel: '#f59e0b',
+            'Supply Chain': '#06b6d4',
             Consumables: '#8b5cf6'
         };
 
@@ -1707,6 +1740,7 @@
             Water: 'Water treatment is your top cost. Optimising RO recovery rates and reusing dialysate concentrate rinse water can reduce water footprint.',
             Waste: 'Biomedical waste incineration is your dominant source. Segregation and safe recycling of packaging waste can lower this significantly.',
             Travel: 'Transport is your biggest contributor. Grouping patient schedules to reduce individual trip distances can help.',
+            'Supply Chain': 'Supply-chain logistics contribute a fixed load per patient. Sourcing concentrates from Nashik/Pune-based distributors (≤210 km) rather than Ahmedabad (490 km) reduces this component; consolidating deliveries monthly rather than weekly also helps.',
             Consumables: 'Consumables dominate your footprint. Switching to high-flux dialysers with a reuse protocol can reduce this by up to 40%.'
         };
         const topCategory = Object.entries(r.breakdown).sort((a, b) => b[1] - a[1])[0][0];
@@ -1839,7 +1873,7 @@
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.text('1. Consumables represent ' + ((r.breakdown.Consumables/r.totalAnnual)*100).toFixed(0) + '% of your footprint. Evaluate dialyser reuse.', 25, y + 18);
-        doc.text('2. This impact equals ' + r.trees + ' mature tree-years of sequestration (a mature tree absorbs ~22 kg/yr).', 25, y + 24);
+        doc.text('2. Sequestration equivalent: ' + r.treesLo + '–' + r.treesHi + ' mature tree-years (urban 10 kg/yr → forest 22 kg/yr).', 25, y + 24);
 
         // Academic disclaimer
         y += 45;
@@ -1890,7 +1924,7 @@
             `Per Session: ${ses(r.perSession)}`,
             `Per Patient (3x/week): ${yr(r.perPatient3x)}`,
             `Per Patient (2x/week): ${yr(r.perPatient2x)}`,
-            `Sequestration Equivalent: ${r.trees.toLocaleString()} mature tree-years`,
+            `Sequestration Equivalent: ${r.treesLo.toLocaleString()}–${r.treesHi.toLocaleString()} mature tree-years (urban 10 kg/yr → forest 22 kg/yr)`,
             '',
             'Breakdown (Annual)',
             `Electricity: ${kg(b.Energy)}`,
@@ -1949,16 +1983,19 @@
     }
 
     // ── Benchmark thresholds: kg CO₂e per HD session, Maharashtra context ──
-    // Recalibrated to LCI-corrected consumable factors (Barraclough 2025, Tables S5-S6).
+    // Recalibrated against IITK India LCA (26.3 kg/session, Lucknow ICHD) and Barraclough
+    // AJKD 2025 Table 3 (30.9 kg/session, AU baseline). Tables S5/S6 are PD/APD sources
+    // and are not applicable to HD session benchmarking.
     // Thermodynamic floor for a single ICHD session: consumables alone ~7-8 kg + electricity
     // 5.3 kWh × 0.71 = 3.76 kg + water ~0.12 kg = ~11-12 kg before travel and HVAC.
     // A sub-10 kg session requires solar + dialyser reuse + reduced Qd — physically achievable
     // but uncommon. The old <7.5 "Excellent" band was calibrated to wrong (pre-LCI) factors.
+    // Bands recalibrated against IITK India LCA (26.3 kg/session Lucknow ICHD) and Barraclough AJKD 2025
     const BENCH = [
-        { max: 11,   label: 'Excellent',               cls: 'status-green',  msg: 'Benchmark leader — requires solar-tied grid, dialyser reuse programme, and Qd reduction. Top 5% of Indian units.' },
-        { max: 14,   label: 'Optimized / Good',        cls: 'status-green',  msg: 'Well-optimised unit. Dialyser reuse and Qd protocol in place. Targeted improvements can push into Excellent tier.' },
-        { max: 18.5, label: 'Standard Indian Average', cls: 'status-amber',  msg: 'Normal range for an Indian in-centre HD unit. Review the top contributing categories below.' },
-        { max: 24,   label: 'High Impact',             cls: 'status-orange', msg: 'Above average — usually driven by high transport distances or no consumable reduction measures. Action recommended.' },
+        { max: 18,   label: 'Excellent',               cls: 'status-green',  msg: 'Benchmark leader — requires solar-tied grid, dialyser reuse programme, and Qd reduction. Top 10% of Indian units.' },
+        { max: 22,   label: 'Optimised / Good',        cls: 'status-green',  msg: 'Well-optimised unit. Dialyser reuse and/or Qd reduction protocol in place. Targeted improvements can push into Excellent tier.' },
+        { max: 28,   label: 'Standard Indian Average', cls: 'status-amber',  msg: 'Normal range for an Indian in-centre HD unit (IITK reference: 26.3 kg/session). Review the top contributing categories below.' },
+        { max: 34,   label: 'High Impact',             cls: 'status-orange', msg: 'Above Indian average — usually driven by high transport distances or no consumable reduction measures. Action recommended.' },
         { max: 9999, label: 'Action Required',         cls: 'status-red',    msg: 'Significantly above benchmark. Priority action plan needed — start with consumables and energy.' },
     ];
 
@@ -2048,7 +2085,7 @@
             {
                 icon: '🏍️', iconBg: '#dcfce7',
                 title: 'Encourage patients to use shared transport or two-wheelers',
-                body: 'Two-wheelers emit 0.06 kg CO₂e/km vs. 0.17 for cars — nearly 3× lower. Where clinically safe, encourage patients attending 3× weekly to coordinate shared rides or use two-wheelers for routine sessions. Reducing per-trip car use is the most practical patient travel lever.',
+                body: 'Two-wheelers emit 0.10 kg CO₂e/km vs. 0.17 for cars (IITK India data). Where clinically safe, encourage patients attending 3× weekly to coordinate shared rides or use two-wheelers for routine sessions. Reducing per-trip car use is the most practical patient travel lever.',
                 impact: 'Low Impact', impactCls: 'impact-low'
             },
         ],
@@ -2073,7 +2110,8 @@
         const tier = BENCH.find(b => perSession <= b.max) || BENCH[BENCH.length - 1];
 
         // Benchmark needle position (0–26 kg mapped to 0–100%, LCI-recalibrated scale)
-        const needlePct = Math.min((perSession / 26) * 100, 100);
+        // Needle maps linearly against 0–34 kg/session (top of Action Required tier).
+        const needlePct = Math.min((perSession / 34) * 100, 100);
         document.getElementById('benchmarkNeedle').style.left = needlePct + '%';
         document.getElementById('benchmarkStatus').innerHTML =
             `<span class="benchmark-status ${tier.cls}">${tier.label}: ${perSession.toFixed(1)} kg CO₂e / session</span>
@@ -2243,6 +2281,7 @@
         { id: 'wasteYellowQty', label: 'Yellow Bag Waste - Incinerated (kg)' },
         { id: 'wasteRedQty',    label: 'Red Bag Waste - Autoclaved (kg)' },
         { id: 'recWasteQty',    label: 'Recycled Waste (kg)' },
+        { id: 'supplyChainKm',  label: 'Supply-Chain Distance (km, distributor to centre)' },
         { id: 'busQty',         label: 'Patient Bus Travel (km)' },
         { id: 'carQty',         label: 'Patient Car Travel (km)' },
         { id: 'autoQty',        label: 'Patient Auto Rickshaw Travel (km)' },
@@ -2358,7 +2397,9 @@
 
     // ── What If? Scenario Simulator ────────────────────────────────────────
     // Each lever computes an independent annual saving from calculationResults.
-    // All factors are LCI-validated (Barraclough 2025, Tables S5-S6).
+    // Consumable factors: Barraclough AJKD 2025 Table 1 (material weights) + Table 3 (annual
+    // carbon totals). Electricity/water: CEA v19 grid EF + CPHEEO WTP norms. Tables S5/S6
+    // (Extraneal PD fluid LCI and APD logistics) do not apply to HD consumable factors.
     // Savings are additive; the projected total is floor-clamped at 0.
 
     function setLeverBadge(id, value) {
@@ -2463,18 +2504,22 @@
         form.method = 'POST';
         form.action = '/analytics/sustainability/save';
         
-        const totalPatients = parseInt(document.getElementById('totalPatients').value) || 0;
         const patients3x  = parseInt(document.getElementById('patients3x').value)  || 0;
         const patients2x  = parseInt(document.getElementById('patients2x').value)  || 0;
-        const sessions = (patients3x * 3 + patients2x * 2) * 4.33;
-        
+        const hdfPts3x    = parseInt(document.getElementById('hdfPatients3x').value) || 0;
+        const hdfPts2x    = parseInt(document.getElementById('hdfPatients2x').value) || 0;
+        // Include HD + HDF in session count; 4.33 = average weeks per month
+        const sessions = ((patients3x + hdfPts3x) * 3 + (patients2x + hdfPts2x) * 2) * 4.33;
+
         const fields = {
             'month_str': month_str,
             'electricity': document.getElementById('elecQty').value || 0,
             'water': document.getElementById('waterQty').value || 0,
             'bio_waste': document.getElementById('wasteYellowQty').value || 0,
             'gen_waste': document.getElementById('wasteRedQty').value || 0,
-            'sessions': Math.round(sessions)
+            // Only send sessions override when patients are actually entered; sending 0 would
+            // make the backend treat it as "no data" and fall back to the flat multiplier.
+            'sessions': sessions > 0 ? Math.round(sessions) : ''
         };
         
         for (const [key, value] of Object.entries(fields)) {
