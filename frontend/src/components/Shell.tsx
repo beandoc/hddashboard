@@ -27,6 +27,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       .then((data) => {
         if (!data || (!data.logged_in && !data.username)) {
           router.push("/login");
+        } else if (data.role === "ecogreen") {
+          window.location.href = "/analytics/sustainability";
         } else {
           setUser(data);
         }

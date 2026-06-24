@@ -1085,7 +1085,7 @@
             <div class="form-section fs-travel">
                 <div class="section-title">
                     <span class="st-pill" style="background:#ede9fe;color:#8b5cf6"><i class="material-icons">commute</i></span>
-                    Staff &amp; Patient Travel
+                    Patient Travel
                 </div>
                 <div class="form-grid">
                     <div class="form-group">
@@ -1182,6 +1182,10 @@
                         <input type="number" id="mircera50Qty" min="0" value="0">
                     </div>
                     <div class="form-group">
+                        <label>Darbepoetin (Darbo)</label>
+                        <input type="number" id="darboQty" min="0" value="0">
+                    </div>
+                    <div class="form-group">
                         <label>HD Catheter Set</label>
                         <input type="number" id="hdQty" min="0" value="0">
                     </div>
@@ -1230,10 +1234,6 @@
                         <div class="form-group">
                             <label>Chlorine Tablet</label>
                             <input type="number" id="chlorQty" min="0" value="0">
-                        </div>
-                        <div class="form-group">
-                            <label>Darbepoetin (Darbo)</label>
-                            <input type="number" id="darboQty" min="0" value="0">
                         </div>
                         </div>
                     </div>
@@ -2047,8 +2047,8 @@
         Travel: [
             {
                 icon: '🏍️', iconBg: '#dcfce7',
-                title: 'Encourage two-wheeler commute for staff over four-wheelers',
-                body: 'Two-wheelers emit 0.06 kg CO₂e/km vs. 0.17 for cars — nearly 3× lower. For staff with a choice, this is the simplest travel reduction. Provide secure covered parking to make two-wheelers more practical year-round.',
+                title: 'Encourage patients to use shared transport or two-wheelers',
+                body: 'Two-wheelers emit 0.06 kg CO₂e/km vs. 0.17 for cars — nearly 3× lower. Where clinically safe, encourage patients attending 3× weekly to coordinate shared rides or use two-wheelers for routine sessions. Reducing per-trip car use is the most practical patient travel lever.',
                 impact: 'Low Impact', impactCls: 'impact-low'
             },
         ],
@@ -2243,10 +2243,10 @@
         { id: 'wasteYellowQty', label: 'Yellow Bag Waste - Incinerated (kg)' },
         { id: 'wasteRedQty',    label: 'Red Bag Waste - Autoclaved (kg)' },
         { id: 'recWasteQty',    label: 'Recycled Waste (kg)' },
-        { id: 'busQty',         label: 'Bus Travel (km)' },
-        { id: 'carQty',         label: 'Car Travel (km)' },
-        { id: 'autoQty',        label: 'Auto Rickshaw Travel (km)' },
-        { id: 'bikeQty',        label: 'Two-Wheeler Travel (km)' },
+        { id: 'busQty',         label: 'Patient Bus Travel (km)' },
+        { id: 'carQty',         label: 'Patient Car Travel (km)' },
+        { id: 'autoQty',        label: 'Patient Auto Rickshaw Travel (km)' },
+        { id: 'bikeQty',        label: 'Patient Two-Wheeler Travel (km)' },
         { id: 'dialysateAQty',  label: 'Dialysate Part A Acid Concentrate (5L canister)' },
         { id: 'bicarbQty',      label: 'Bicarbonate Cartridge or Bag (650g)' },
         { id: 'dialyserQty',    label: 'Dialyser' },
@@ -2259,6 +2259,7 @@
         { id: 'mircera100Qty',  label: 'Mircera 100 mcg' },
         { id: 'mircera75Qty',   label: 'Mircera 75 mcg' },
         { id: 'mircera50Qty',   label: 'Mircera 50 mcg' },
+        { id: 'darboQty',       label: 'Darbepoetin (Darbo)' },
         { id: 'hdQty',          label: 'HD Catheter Set' },
         { id: 'gownQty',        label: 'Gown / Personal PPE' },
         { id: 'tpQty',          label: 'Transfusion Pack (TP)' },
@@ -2269,7 +2270,6 @@
         { id: 'maskQty',        label: 'Surgical Mask' },
         { id: 'sheetQty',       label: 'Bed Sheet' },
         { id: 'chlorQty',       label: 'Chlorine Tablet' },
-        { id: 'darboQty',       label: 'Darbepoetin (Darbo)' },
     ];
 
     function csvCell(s) {
