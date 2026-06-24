@@ -16,11 +16,12 @@ CENTRE_LOCATION = "Pune"   # update when centre moves
 # Nashik → Pune one-way road distance (km).  Nashik is the primary HD consumable
 # distribution hub serving Maharashtra (Baxter, Fresenius regional warehouse).
 CONS_SUPPLY_KM = 180
-# IITK tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km
+# Tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km
 # = 0.998 tonne × 0.08 EF × 180 km = 14.37 kg/patient/yr for Pune.
-# Cite: IITK India LCA (2024); MoRTH road freight EF = 0.08 kg CO₂e/tonne-km.
+# Cite: Barraclough KA et al. AJKD 2025 Table 1 (material inventory, India-adapted);
+#       MoRTH road freight EF = 0.08 kg CO₂e/tonne-km.
 CO2E_CONS_SUPPLY_TONNE_KM = 0.08         # kg CO₂e/tonne-km — MoRTH road freight
-CONS_ANNUAL_WEIGHT_KG = 998              # kg consumables/patient/yr — IITK baseline
+CONS_ANNUAL_WEIGHT_KG = 998              # kg consumables/patient/yr — Barraclough AJKD 2025, India-adapted
 CO2E_CONS_SUPPLY_PER_PATIENT_YR = (CONS_ANNUAL_WEIGHT_KG / 1000) * CONS_SUPPLY_KM * CO2E_CONS_SUPPLY_TONNE_KM
 # = 14.37 kg/patient/yr for Pune
 

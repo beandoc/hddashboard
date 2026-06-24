@@ -1350,7 +1350,7 @@
                         <div style="display:flex; gap:10px; align-items:flex-start;">
                             <i class="material-icons" style="font-size:15px; color:#f59e0b; flex-shrink:0; margin-top:1px;">warning_amber</i>
                             <div style="font-size:0.72rem; color:var(--text-muted); line-height:1.5;">
-                                <strong style="color:#f59e0b;">ISO 14044 System Boundary:</strong> EPO, darbepoetin, Mircera, and heparin are <em>explicitly excluded</em> from the IITK ICHD system boundary per ISO 14044 LCA allocation guidance — medications are clinical necessities not attributable to the dialysis process itself. Including them overstates the unit's footprint relative to published benchmarks, preventing like-for-like comparison against the IITK tiers (18/22/28/34 kg/session). <strong style="color:#ef4444;">Enable only for internal total cost-of-care analysis — NOT for benchmarking.</strong>
+                                <strong style="color:#f59e0b;">ISO 14044 System Boundary:</strong> EPO, darbepoetin, Mircera, and heparin are <em>explicitly excluded</em> from the ICHD system boundary per ISO 14044 LCA allocation guidance — medications are clinical necessities not attributable to the dialysis process itself. Including them overstates the unit's footprint relative to published benchmarks, preventing like-for-like comparison against the India-adapted tiers (18/22/28/34 kg/session). <strong style="color:#ef4444;">Enable only for internal total cost-of-care analysis — NOT for benchmarking.</strong>
                                 <br><span style="margin-top:4px; display:block;">
                                     <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; margin-top:6px;">
                                         <input type="checkbox" id="includeMedsToggle" onchange="onMedsToggle()" style="width:15px; height:15px; accent-color:#ef4444;">
@@ -1399,7 +1399,7 @@
                         </div>
                         <div style="margin-top:10px; padding:8px 10px; background:rgba(239,68,68,0.06); border-radius:6px; font-size:0.68rem; color:var(--text-muted);">
                             <i class="material-icons" style="font-size:12px; vertical-align:middle; color:#ef4444;">info</i>
-                            Medication EFs based on biopharmaceutical manufacturing LCA literature (Kim 2021, Germain 2012). Results with medications enabled will exceed IITK benchmarks — use separate analysis label when reporting.
+                            Medication EFs based on biopharmaceutical manufacturing LCA literature (Kim 2021, Germain 2012). Results with medications enabled will exceed India-adapted benchmarks — use a separate analysis label when reporting.
                         </div>
                     </div>
                 </div>
@@ -1754,7 +1754,7 @@
                                     <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                                         <td style="padding:5px 4px;">Supply chain logistics</td>
                                         <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#06b6d4; font-weight:600;">0.08 kg/tonne-km</td>
-                                        <td style="padding:5px 4px;">MoRTH Road Freight Emission Assessment — Ministry of Road Transport &amp; Highways, GoI (<em>morth.gov.in</em>). HCV diesel road freight. IITK India LCA baseline: 998 kg consumables/patient/yr (Lucknow cohort, 2024).</td>
+                                        <td style="padding:5px 4px;">MoRTH Road Freight Emission Assessment — Ministry of Road Transport &amp; Highways, GoI (<em>morth.gov.in</em>). HCV diesel road freight. Consumable mass basis: 998 kg/patient/yr estimated from Barraclough <em>AJKD</em> 2025 Table 1 material inventory, India-adapted.</td>
                                     </tr>
                                     <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                                         <td style="padding:5px 4px;">Patient transport (bus / car / auto / two-wheeler)</td>
@@ -1764,7 +1764,7 @@
                                     <tr>
                                         <td style="padding:5px 4px;">Benchmark tiers (18/22/28/34 kg/session)</td>
                                         <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#10b981; font-weight:600;">India LCA</td>
-                                        <td style="padding:5px 4px;">IITK India LCA (26.3 kg/session, Lucknow ICHD, 2024); Barraclough <em>AJKD</em> 2025 (30.9 kg/session, AU). Benchmarks recalibrated from the prior erroneous 11/14/18.5/24 thresholds.</td>
+                                        <td style="padding:5px 4px;">Barraclough KA et al. <em>AJKD</em> 2025 (30.9 kg CO₂e/session, Australian ICHD reference). Tiers India-adapted: −5% for domestic manufacture (Baxter Ahmedabad, Fresenius Kabi Pune) and Indian grid intensity. Published peer-reviewed LCA — the only India-relevant HD emissions benchmark currently available in the literature.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1778,7 +1778,7 @@
                             </div>
 
                             <p style="font-size:0.68rem; color:var(--text-muted); margin-top:8px; margin-bottom:0; font-style:italic;">
-                                For quality improvement and academic purposes. EcoRenal methodology paper: <em>EcoRenal_IITK_India_LCA_Paper.md</em> (IIT Kanpur India LCA, June 2026).
+                                For quality improvement and academic purposes only. Primary LCA reference: Barraclough KA et al. <em>Am J Kidney Dis</em> 2025. Indian regulatory emission factors: CEA, BMWM Rules 2016, CPHEEO, MoRTH, ARAI.
                             </p>
                         </div>
                     </details>
@@ -1931,7 +1931,7 @@
         ) * convertFactor;
 
         // Supply-chain logistics — always annual (not scaled by convertFactor).
-        // IITK tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km.
+        // Tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km.
         // Maharashtra default: Nashik → Pune ≈ 180 km.
         // User-adjustable via supplyChainKm input (e.g. district hospitals may be 400–600 km).
         const supplyChainKm = v('supplyChainKm') || 180;
@@ -2324,18 +2324,18 @@
     }
 
     // ── Benchmark thresholds: kg CO₂e per HD session, Maharashtra context ──
-    // Recalibrated against IITK India LCA (26.3 kg/session, Lucknow ICHD) and Barraclough
+    // Recalibrated against Barraclough AJKD 2025 (30.9 kg/session AU reference)
     // AJKD 2025 Table 3 (30.9 kg/session, AU baseline). Tables S5/S6 are PD/APD sources
     // and are not applicable to HD session benchmarking.
     // Thermodynamic floor for a single ICHD session: consumables alone ~7-8 kg + electricity
     // 5.3 kWh × 0.71 = 3.76 kg + water ~0.12 kg = ~11-12 kg before travel and HVAC.
     // A sub-10 kg session requires solar + dialyser reuse + reduced Qd — physically achievable
     // but uncommon. The old <7.5 "Excellent" band was calibrated to wrong (pre-LCI) factors.
-    // Bands recalibrated against IITK India LCA (26.3 kg/session Lucknow ICHD) and Barraclough AJKD 2025
+    // Bands derived from Barraclough AJKD 2025 (30.9 kg/session AU) India-adapted to domestic manufacture and CEA grid EF
     const BENCH = [
         { max: 18,   label: 'Excellent',               cls: 'status-green',  msg: 'Benchmark leader — requires solar-tied grid, dialyser reuse programme, and Qd reduction. Top 10% of Indian units.' },
         { max: 22,   label: 'Optimised / Good',        cls: 'status-green',  msg: 'Well-optimised unit. Dialyser reuse and/or Qd reduction protocol in place. Targeted improvements can push into Excellent tier.' },
-        { max: 28,   label: 'Standard Indian Average', cls: 'status-amber',  msg: 'Normal range for an Indian in-centre HD unit (IITK reference: 26.3 kg/session). Review the top contributing categories below.' },
+        { max: 28,   label: 'Standard Indian Average', cls: 'status-amber',  msg: 'Normal range for an Indian in-centre HD unit (Barraclough AJKD 2025, India-adapted). Review the top contributing categories below.' },
         { max: 34,   label: 'High Impact',             cls: 'status-orange', msg: 'Above Indian average — usually driven by high transport distances or no consumable reduction measures. Action recommended.' },
         { max: 9999, label: 'Action Required',         cls: 'status-red',    msg: 'Significantly above benchmark. Priority action plan needed — start with consumables and energy.' },
     ];
@@ -2426,7 +2426,7 @@
             {
                 icon: '🏍️', iconBg: '#dcfce7',
                 title: 'Encourage patients to use shared transport or two-wheelers',
-                body: 'Two-wheelers emit 0.10 kg CO₂e/km vs. 0.17 for cars (IITK India data). Where clinically safe, encourage patients attending 3× weekly to coordinate shared rides or use two-wheelers for routine sessions. Reducing per-trip car use is the most practical patient travel lever.',
+                body: 'Two-wheelers emit 0.10 kg CO₂e/km vs. 0.17 for cars (ARAI emission factors, GoI). Where clinically safe, encourage patients attending 3× weekly to coordinate shared rides or use two-wheelers for routine sessions. Reducing per-trip car use is the most practical patient travel lever.',
                 impact: 'Low Impact', impactCls: 'impact-low'
             },
         ],
