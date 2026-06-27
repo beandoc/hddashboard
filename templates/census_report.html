@@ -181,6 +181,64 @@
         <p style="color:#94a3b8; font-style:italic;">No attrition events documented for this period.</p>
         {% endif %}
     </div>
+
+    <!-- HOSPITALIZATIONS -->
+    <div class="card">
+        <h3><i class="material-icons" style="color:#f59e0b">local_hospital</i> Hospitalizations</h3>
+        {% if hosp_events or monthly_only_hosp %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient Name</th>
+                        <th>HID</th>
+                        <th>Admission Date</th>
+                        <th>Discharge Date</th>
+                        <th>LOS (days)</th>
+                        <th>Diagnosis</th>
+                        <th>Severity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in hosp_events %}
+                    {% set p = patient_map.get(ev.patient_id) %}
+                    <tr>
+                        <td data-label="Patient Name">
+                            {% if p %}<a href="/analytics/patients/{{ p.id }}" style="color:inherit;font-weight:600;">{{ p.name }}</a>{% else %}—{% endif %}
+                        </td>
+                        <td data-label="HID">{{ p.hid_no if p else '—' }}</td>
+                        <td data-label="Admission">{{ ev.admission_date.strftime('%d %b %Y') }}</td>
+                        <td data-label="Discharge">{{ ev.discharge_date.strftime('%d %b %Y') if ev.discharge_date else '<span style="color:#94a3b8">Ongoing</span>' | safe }}</td>
+                        <td data-label="LOS">{{ ev.los_days if ev.los_days is not none else '—' }}</td>
+                        <td data-label="Diagnosis">{{ ev.primary_diagnosis or ev.primary_icd or '—' }}</td>
+                        <td data-label="Severity">
+                            {% if ev.severity %}
+                            <span class="badge" style="background:{% if ev.severity == 'Life Threatening' %}#fee2e2;color:#991b1b{% elif ev.severity == 'Critical' %}#fef3c7;color:#92400e{% else %}#e0f2fe;color:#0369a1{% endif %}">{{ ev.severity }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for r in monthly_only_hosp %}
+                    {% set p = patient_map.get(r.patient_id) %}
+                    <tr>
+                        <td data-label="Patient Name">
+                            {% if p %}<a href="/analytics/patients/{{ p.id }}" style="color:inherit;font-weight:600;">{{ p.name }}</a>{% else %}—{% endif %}
+                        </td>
+                        <td data-label="HID">{{ p.hid_no if p else '—' }}</td>
+                        <td data-label="Admission">{{ r.hospitalization_date.strftime('%d %b %Y') if r.hospitalization_date else '—' }}</td>
+                        <td data-label="Discharge">—</td>
+                        <td data-label="LOS">—</td>
+                        <td data-label="Diagnosis">{{ r.hospitalization_diagnosis or r.hospitalization_icd_diagnosis or '—' }}</td>
+                        <td data-label="Severity">—</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color:#94a3b8; font-style:italic;">No hospitalizations documented for this period.</p>
+        {% endif %}
+    </div>
 </div>
 
 </body>

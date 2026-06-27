@@ -93,31 +93,65 @@ async def adherence_report(request: Request, month: Optional[str] = None, db: Se
 @router.get("/census", response_class=HTMLResponse)
 async def census_report(request: Request, month: Optional[str] = None, db: Session = Depends(get_db)):
     _require_analytics_access(request)
+    import calendar as _cal
+    from datetime import date as _date
     from sqlalchemy.orm import joinedload
+    from db.models.clinical import HospitalisationEvent
+
     month_str, _ = get_effective_month(db, month)
+    year, mon = int(month_str[:4]), int(month_str[5:7])
+    first_day = _date(year, mon, 1)
+    last_day = _date(year, mon, _cal.monthrange(year, mon)[1])
 
     # Eager-load outcomes in 2 queries (patients + outcomes IN-batch) to avoid
     # N+1 lazy loads when accessing current_survival_status / date_of_death
     patients = db.query(Patient).options(joinedload(Patient.outcomes)).all()
     active_patients = [p for p in patients if p.is_active]
 
-    new_regs = [p for p in patients if p.created_at and p.created_at.strftime("%Y-%m") == month_str]
+    # New registrations: use hd_wef_date (clinical HD start date), not created_at
+    # which reflects when the DB row was inserted and is wrong for bulk-imported patients.
+    new_regs = [
+        p for p in patients
+        if p.hd_wef_date and first_day <= p.hd_wef_date <= last_day
+    ]
+
     deaths = [
         p for p in patients
         if p.current_survival_status == "Deceased"
         and p.date_of_death
-        and p.date_of_death.strftime("%Y-%m") == month_str
+        and first_day <= p.date_of_death <= last_day
     ]
     transfers = [
         p for p in patients
         if p.current_survival_status == "Transferred"
         and p.date_facility_transfer
-        and p.date_facility_transfer.strftime("%Y-%m") == month_str
+        and first_day <= p.date_facility_transfer <= last_day
     ]
 
+    # Hospitalizations: primary source is HospitalisationEvent (structured per-admission rows).
+    # Fall back to MonthlyRecord.hospitalization_this_month for patients whose admissions
+    # were only recorded there and not yet entered as structured events.
+    hosp_events = (
+        db.query(HospitalisationEvent)
+        .filter(
+            HospitalisationEvent.admission_date >= first_day,
+            HospitalisationEvent.admission_date <= last_day,
+        )
+        .order_by(HospitalisationEvent.admission_date)
+        .all()
+    )
+    structured_pids = {e.patient_id for e in hosp_events}
+
     monthly_recs = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).all()
-    hosp_count = sum(1 for r in monthly_recs if r.hospitalization_diagnosis or r.hospitalization_icd_diagnosis)
-    hosp_rate = (hosp_count / len(active_patients) * 100) if active_patients else 0
+    monthly_only_hosp = [
+        r for r in monthly_recs
+        if r.hospitalization_this_month and r.patient_id not in structured_pids
+    ]
+
+    hosp_count = len(hosp_events) + len(monthly_only_hosp)
+    hosp_rate = round(hosp_count / len(active_patients) * 100, 1) if active_patients else 0
+
+    patient_map = {p.id: p for p in patients}
 
     return templates.TemplateResponse("census_report.html", {
         "request": request,
@@ -128,11 +162,14 @@ async def census_report(request: Request, month: Optional[str] = None, db: Sessi
             "deaths": len(deaths),
             "transfers": len(transfers),
             "hospitalizations": hosp_count,
-            "hosp_rate": round(hosp_rate, 1)
+            "hosp_rate": hosp_rate,
         },
         "new_patients": new_regs,
         "deceased_patients": deaths,
         "transferred_patients": transfers,
+        "hosp_events": hosp_events,
+        "monthly_only_hosp": monthly_only_hosp,
+        "patient_map": patient_map,
         "user": get_user(request)
     })
 

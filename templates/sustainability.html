@@ -128,7 +128,7 @@
         /* ── Config bar ── */
         .config-bar {
             display: grid;
-            grid-template-columns: 1.5fr 1fr;
+            grid-template-columns: 1.3fr 1fr 1fr;
             gap: 16px;
             margin-bottom: 26px;
             padding-bottom: 22px;
@@ -762,6 +762,9 @@
             header h1 { font-size: 2.3rem; }
             .card { padding: 22px; }
         }
+        @media (max-width: 900px) {
+            .config-bar { grid-template-columns: 1fr 1fr; }
+        }
         @media (max-width: 640px) {
             header h1 { font-size: 1.9rem; }
             .config-bar { grid-template-columns: 1fr; }
@@ -1021,6 +1024,85 @@
                     <input type="text" id="centerName" placeholder="Enter centre name" value="CH(SC) Dialysis Unit">
                 </div>
                 <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:5px;">
+                        <i class="material-icons" style="font-size:15px;color:var(--accent);">location_on</i>
+                        HD Centre Location
+                    </label>
+                    <select id="stateGridSel" onchange="onStateChange()" style="width:100%;">
+                        <option value="0.71">National Average — 0.71 kg/kWh</option>
+                        <optgroup label="── Western Region (0.803 kg/kWh) — Maharashtra, Gujarat, MP, Chhattisgarh, Goa ──">
+                            <option value="0.803">Pune (Maharashtra)</option>
+                            <option value="0.803">Mumbai (Maharashtra)</option>
+                            <option value="0.803">Nagpur (Maharashtra)</option>
+                            <option value="0.803">Nashik (Maharashtra)</option>
+                            <option value="0.803">Aurangabad (Maharashtra)</option>
+                            <option value="0.803">Ahmedabad (Gujarat)</option>
+                            <option value="0.803">Surat (Gujarat)</option>
+                            <option value="0.803">Vadodara (Gujarat)</option>
+                            <option value="0.803">Indore (Madhya Pradesh)</option>
+                            <option value="0.803">Bhopal (Madhya Pradesh)</option>
+                            <option value="0.803">Raipur (Chhattisgarh)</option>
+                            <option value="0.803">Panaji (Goa)</option>
+                        </optgroup>
+                        <optgroup label="── Northern Region (0.697 kg/kWh) — Delhi, UP, Punjab, Rajasthan, Haryana, HP, UK, J&amp;K ──">
+                            <option value="0.697">New Delhi / NCR</option>
+                            <option value="0.697">Chandigarh</option>
+                            <option value="0.697">Jalandhar (Punjab)</option>
+                            <option value="0.697">Amritsar (Punjab)</option>
+                            <option value="0.697">Lucknow (Uttar Pradesh)</option>
+                            <option value="0.697">Kanpur (Uttar Pradesh)</option>
+                            <option value="0.697">Agra (Uttar Pradesh)</option>
+                            <option value="0.697">Varanasi (Uttar Pradesh)</option>
+                            <option value="0.697">Jaipur (Rajasthan)</option>
+                            <option value="0.697">Jodhpur (Rajasthan)</option>
+                            <option value="0.697">Gurgaon / Gurugram (Haryana)</option>
+                            <option value="0.697">Faridabad (Haryana)</option>
+                            <option value="0.697">Shimla (Himachal Pradesh)</option>
+                            <option value="0.697">Dehradun (Uttarakhand)</option>
+                            <option value="0.697">Udhampur (Jammu &amp; Kashmir)</option>
+                            <option value="0.697">Jammu (Jammu &amp; Kashmir)</option>
+                            <option value="0.697">Srinagar (Jammu &amp; Kashmir)</option>
+                        </optgroup>
+                        <optgroup label="── Southern Region (0.651 kg/kWh) — Karnataka, Tamil Nadu, AP, Telangana, Kerala ──">
+                            <option value="0.651">Bengaluru (Karnataka)</option>
+                            <option value="0.651">Mysuru (Karnataka)</option>
+                            <option value="0.651">Hubballi (Karnataka)</option>
+                            <option value="0.651">Chennai (Tamil Nadu)</option>
+                            <option value="0.651">Coimbatore (Tamil Nadu)</option>
+                            <option value="0.651">Madurai (Tamil Nadu)</option>
+                            <option value="0.651">Hyderabad (Telangana)</option>
+                            <option value="0.651">Visakhapatnam (Andhra Pradesh)</option>
+                            <option value="0.651">Vijayawada (Andhra Pradesh)</option>
+                            <option value="0.651">Thiruvananthapuram (Kerala)</option>
+                            <option value="0.651">Kochi (Kerala)</option>
+                            <option value="0.651">Kozhikode (Kerala)</option>
+                        </optgroup>
+                        <optgroup label="── Eastern Region (0.898 kg/kWh) — West Bengal, Bihar, Jharkhand, Odisha ──">
+                            <option value="0.898">Kolkata (West Bengal)</option>
+                            <option value="0.898">Durgapur (West Bengal)</option>
+                            <option value="0.898">Patna (Bihar)</option>
+                            <option value="0.898">Ranchi (Jharkhand)</option>
+                            <option value="0.898">Jamshedpur (Jharkhand)</option>
+                            <option value="0.898">Bhubaneswar (Odisha)</option>
+                            <option value="0.898">Cuttack (Odisha)</option>
+                        </optgroup>
+                        <optgroup label="── North-Eastern Region (0.468 kg/kWh) — Assam, Meghalaya, Sikkim, Tripura, etc. ──">
+                            <option value="0.468">Guwahati (Assam)</option>
+                            <option value="0.468">Dibrugarh (Assam)</option>
+                            <option value="0.468">Shillong (Meghalaya)</option>
+                            <option value="0.468">Agartala (Tripura)</option>
+                            <option value="0.468">Gangtok (Sikkim)</option>
+                            <option value="0.468">Imphal (Manipur)</option>
+                        </optgroup>
+                        <option value="custom">Other / Custom EF…</option>
+                    </select>
+                    <div id="customEFRow" style="display:none; align-items:center; gap:6px; margin-top:4px;">
+                        <input type="number" id="customGridEF" min="0.10" max="1.50" step="0.01" value="0.71" oninput="onStateChange()" style="width:80px; border:1px solid #f59e0b; border-radius:6px; padding:5px 7px; font-size:0.82rem;">
+                        <span style="font-size:0.68rem; color:var(--text-muted);">kg CO₂e/kWh</span>
+                    </div>
+                    <small id="stateEFBadge" style="color:var(--accent);font-size:0.70rem;margin-top:3px;display:block;">Grid EF: 0.710 kg CO₂e/kWh (national avg)</small>
+                </div>
+                <div class="form-group">
                     <label>Data Entry Timeframe</label>
                     <select id="timeframe" onchange="updateLabels()">
                         <option value="day">Daily</option>
@@ -1094,88 +1176,10 @@
                     <span class="st-pill" style="background:#fef3c7;color:#d97706"><i class="material-icons">bolt</i></span>
                     Energy &amp; Resources
                 </div>
-                <!-- State / Grid EF selector -->
-                <div style="margin-bottom:12px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.25); border-radius:8px; padding:10px 12px;">
-                    <label style="font-size:0.75rem; font-weight:600; color:#d97706; letter-spacing:0.04em; display:flex; align-items:center; gap:5px; margin-bottom:6px;">
-                        <i class="material-icons" style="font-size:14px;">location_on</i>
-                        HD CENTRE LOCATION &nbsp;<span style="font-weight:400; color:var(--text-muted);">— resolves CEA regional grid EF</span>
-                    </label>
-                    <select id="stateGridSel" onchange="onStateChange()" style="width:100%; background:var(--input-bg,#1e293b); color:var(--text-primary,#e2e8f0); border:1px solid rgba(245,158,11,0.40); border-radius:6px; padding:7px 10px; font-size:0.82rem; margin-bottom:5px;">
-                        <option value="0.71">National Average — 0.71 kg/kWh (CEA v19)</option>
-                        <optgroup label="── Western Region (0.803 kg/kWh) — Maharashtra, Gujarat, MP, Chhattisgarh, Goa ──">
-                            <option value="0.803">Pune (Maharashtra)</option>
-                            <option value="0.803">Mumbai (Maharashtra)</option>
-                            <option value="0.803">Nagpur (Maharashtra)</option>
-                            <option value="0.803">Nashik (Maharashtra)</option>
-                            <option value="0.803">Aurangabad (Maharashtra)</option>
-                            <option value="0.803">Ahmedabad (Gujarat)</option>
-                            <option value="0.803">Surat (Gujarat)</option>
-                            <option value="0.803">Vadodara (Gujarat)</option>
-                            <option value="0.803">Indore (Madhya Pradesh)</option>
-                            <option value="0.803">Bhopal (Madhya Pradesh)</option>
-                            <option value="0.803">Raipur (Chhattisgarh)</option>
-                            <option value="0.803">Panaji (Goa)</option>
-                        </optgroup>
-                        <optgroup label="── Northern Region (0.697 kg/kWh) — Delhi, UP, Punjab, Rajasthan, Haryana, HP, UK, J&amp;K ──">
-                            <option value="0.697">New Delhi / NCR</option>
-                            <option value="0.697">Chandigarh</option>
-                            <option value="0.697">Jalandhar (Punjab)</option>
-                            <option value="0.697">Amritsar (Punjab)</option>
-                            <option value="0.697">Lucknow (Uttar Pradesh)</option>
-                            <option value="0.697">Kanpur (Uttar Pradesh)</option>
-                            <option value="0.697">Agra (Uttar Pradesh)</option>
-                            <option value="0.697">Varanasi (Uttar Pradesh)</option>
-                            <option value="0.697">Jaipur (Rajasthan)</option>
-                            <option value="0.697">Jodhpur (Rajasthan)</option>
-                            <option value="0.697">Gurgaon / Gurugram (Haryana)</option>
-                            <option value="0.697">Faridabad (Haryana)</option>
-                            <option value="0.697">Shimla (Himachal Pradesh)</option>
-                            <option value="0.697">Dehradun (Uttarakhand)</option>
-                            <option value="0.697">Udhampur (Jammu &amp; Kashmir)</option>
-                            <option value="0.697">Jammu (Jammu &amp; Kashmir)</option>
-                            <option value="0.697">Srinagar (Jammu &amp; Kashmir)</option>
-                        </optgroup>
-                        <optgroup label="── Southern Region (0.651 kg/kWh) — Karnataka, Tamil Nadu, AP, Telangana, Kerala ──">
-                            <option value="0.651">Bengaluru (Karnataka)</option>
-                            <option value="0.651">Mysuru (Karnataka)</option>
-                            <option value="0.651">Hubballi (Karnataka)</option>
-                            <option value="0.651">Chennai (Tamil Nadu)</option>
-                            <option value="0.651">Coimbatore (Tamil Nadu)</option>
-                            <option value="0.651">Madurai (Tamil Nadu)</option>
-                            <option value="0.651">Hyderabad (Telangana)</option>
-                            <option value="0.651">Visakhapatnam (Andhra Pradesh)</option>
-                            <option value="0.651">Vijayawada (Andhra Pradesh)</option>
-                            <option value="0.651">Thiruvananthapuram (Kerala)</option>
-                            <option value="0.651">Kochi (Kerala)</option>
-                            <option value="0.651">Kozhikode (Kerala)</option>
-                        </optgroup>
-                        <optgroup label="── Eastern Region (0.898 kg/kWh) — West Bengal, Bihar, Jharkhand, Odisha ──">
-                            <option value="0.898">Kolkata (West Bengal)</option>
-                            <option value="0.898">Durgapur (West Bengal)</option>
-                            <option value="0.898">Patna (Bihar)</option>
-                            <option value="0.898">Ranchi (Jharkhand)</option>
-                            <option value="0.898">Jamshedpur (Jharkhand)</option>
-                            <option value="0.898">Bhubaneswar (Odisha)</option>
-                            <option value="0.898">Cuttack (Odisha)</option>
-                        </optgroup>
-                        <optgroup label="── North-Eastern Region (0.468 kg/kWh) — Assam, Meghalaya, Sikkim, Tripura, etc. ──">
-                            <option value="0.468">Guwahati (Assam)</option>
-                            <option value="0.468">Dibrugarh (Assam)</option>
-                            <option value="0.468">Shillong (Meghalaya)</option>
-                            <option value="0.468">Agartala (Tripura)</option>
-                            <option value="0.468">Gangtok (Sikkim)</option>
-                            <option value="0.468">Imphal (Manipur)</option>
-                        </optgroup>
-                        <option value="custom">Other / Custom EF (enter manually)…</option>
-                    </select>
-                    <div id="customEFRow" style="display:none; align-items:center; gap:8px; margin-top:4px;">
-                        <input type="number" id="customGridEF" min="0.10" max="1.50" step="0.01" value="0.71" oninput="onStateChange()" style="width:90px; background:var(--input-bg,#1e293b); color:var(--text-primary,#e2e8f0); border:1px solid #f59e0b; border-radius:6px; padding:6px 8px; font-size:0.85rem;">
-                        <span style="font-size:0.72rem; color:var(--text-muted);">kg CO₂e/kWh &nbsp;(from DISCOM annual report or CEA CO₂ Baseline Database v19/v20 Table 7)</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
-                        <i class="material-icons" style="font-size:13px; color:#d97706;">info</i>
-                        <span id="stateEFBadge" style="font-size:0.70rem; color:var(--text-muted);">Using national average 0.71 kg/kWh — select your HD centre city for a location-accurate calculation</span>
-                    </div>
+                <!-- Grid EF resolved from HD Centre Location set in config bar above -->
+                <div style="margin-bottom:12px; background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.20); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:7px;">
+                    <i class="material-icons" style="font-size:15px; color:#d97706; flex-shrink:0;">bolt</i>
+                    <span style="font-size:0.72rem; color:var(--text-muted);">Grid emission factor auto-resolved from <strong style="color:#d97706;">HD Centre Location</strong> set above. Change location in the header to update.</span>
                 </div>
                 <div class="form-grid">
                     <div class="form-group">
@@ -1844,10 +1848,13 @@
         const isCustom = sel.value === 'custom';
         customRow.style.display = isCustom ? 'flex' : 'none';
         const ef = getGridEF();
-        const selectedText = isCustom
-            ? `Custom EF: ${ef.toFixed(3)} kg CO₂e/kWh`
-            : `${sel.options[sel.selectedIndex].text} — EF: ${ef.toFixed(3)} kg CO₂e/kWh (CEA v19/v20)`;
-        if (badge) badge.textContent = selectedText;
+        if (badge) {
+            badge.textContent = isCustom
+                ? `Grid EF: ${ef.toFixed(3)} kg CO₂e/kWh (custom)`
+                : `Grid EF: ${ef.toFixed(3)} kg CO₂e/kWh (CEA v19/v20)`;
+        }
+        // Recalculate emissions whenever location changes
+        if (typeof calculate === 'function') calculate();
     }
 
     // ── Medication scope helpers ──────────────────────────────────────────────
