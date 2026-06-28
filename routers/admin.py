@@ -586,6 +586,7 @@ async def admin_activity(
     request: Request,
     days: int = 7,
     filter_user: str = "",
+    log_page: int = 1,
     db: Session = Depends(get_db),
 ):
     """Staff data-entry activity monitor — daily / weekly breakdown by user."""
@@ -713,6 +714,13 @@ async def admin_activity(
     recent_log.sort(key=lambda x: x[1] or datetime.min, reverse=True)
     recent_log = recent_log[:200]
 
+    log_per_page = 50
+    log_total = len(recent_log)
+    log_total_pages = max(1, (log_total + log_per_page - 1) // log_per_page)
+    log_page = max(1, min(log_page, log_total_pages))
+    log_offset = (log_page - 1) * log_per_page
+    recent_log_page = recent_log[log_offset: log_offset + log_per_page]
+
     all_users_list = sorted(all_actors)
 
     return templates.TemplateResponse("admin_activity.html", {
@@ -731,7 +739,11 @@ async def admin_activity(
         "user_summary": user_summary,
         "heatmap": heatmap,
         "type_totals": type_totals,
-        "recent_log": recent_log,
+        "recent_log": recent_log_page,
+        "log_page": log_page,
+        "log_total_pages": log_total_pages,
+        "log_total": log_total,
+        "log_per_page": log_per_page,
         "all_users_list": all_users_list,
         "entry_types": [(label, color) for label, _, color in ENTRY_TYPES],
     })

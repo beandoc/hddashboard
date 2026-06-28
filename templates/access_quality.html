@@ -383,19 +383,30 @@
             <div class="tooltip-box">
                 <div class="tooltip-title">Prevalent AVF Rate</div>
                 % of all active HD patients currently using an AVF as their primary access.
-                KDOQI 2019 target ≥ 90%.
+                <strong>No fixed KDOQI 2019 target</strong> — KDOQI Guideline 1.2 replaced the historical
+                "Fistula First" mandate with individualised ESKD Life-Plans. The 65% floor shown
+                reflects the ERA-EDTA registry median (66–72%) and is an <em>aspirational</em> goal, not a hard standard.
                 <div class="tooltip-need">What drives this:
                     <span>✔ Patient's <strong>access_type</strong> field set to "AVF"</span>
                     <span>✔ Patient is active (is_active = true)</span>
+                    <span>⚠ Real-world HD units range 50–75%; case-mix matters</span>
                 </div>
             </div>
             <div class="stat-lbl">Prevalent AVF Rate</div>
-            <div class="stat-val {{ 'status-ok' if metrics.prevalent_rate >= metrics.target_prevalent else 'status-warning' }}">
+            <div class="stat-val {{
+                'status-ok' if metrics.prevalent_rate >= metrics.target_prevalent
+                else ('status-warning' if metrics.prevalent_rate >= 50
+                else 'status-danger')
+            }}">
                 {{ metrics.prevalent_rate }}%
             </div>
-            <div class="target-lbl">Target: &ge;{{ metrics.target_prevalent }}%</div>
+            <div class="target-lbl">Aspirational goal: &ge;{{ metrics.target_prevalent }}% &nbsp;&middot;&nbsp; <span style="font-style:italic;">No fixed KDOQI mandate</span></div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ metrics.prevalent_rate }}%; background: {{ 'var(--success)' if metrics.prevalent_rate >= metrics.target_prevalent else 'var(--warning)' }}"></div>
+                <div class="indicator-fill" style="width: {{ metrics.prevalent_rate }}%; background: {{
+                    'var(--success)' if metrics.prevalent_rate >= metrics.target_prevalent
+                    else ('var(--warning)' if metrics.prevalent_rate >= 50
+                    else 'var(--danger)')
+                }}"></div>
             </div>
         </div>
 
@@ -405,7 +416,13 @@
             <div class="tooltip-box">
                 <div class="tooltip-title">Incident AVF Rate</div>
                 % of <em>new</em> HD starters in the selected month whose first access was an AVF.
-                KDOQI target ≥ 65% incident AVF.
+                KDOQI 2019 Guideline 2 sets <strong>65% as a minimum aspirational goal</strong> —
+                not a rigid pass/fail. It assumes adequate pre-dialysis infrastructure and planned starts.
+                <div class="tooltip-need">⚠ Case-mix caveats:
+                    <span>• Urgent-start HD: catheter-free rates below 65% are expected &amp; appropriate</span>
+                    <span>• Diabetic / frail / elderly patients may have poor vessel anatomy</span>
+                    <span>• Benchmark against similar-case-mix centres, not a fixed 65% standard</span>
+                </div>
                 <div class="tooltip-need">What drives this:
                     <span>✔ <strong>hd_wef_date</strong> set on Patient</span>
                     <span>✔ <strong>access_type</strong> set at HD start</span>
@@ -413,12 +430,23 @@
                 </div>
             </div>
             <div class="stat-lbl">Incident AVF Rate</div>
-            <div class="stat-val {{ 'status-ok' if metrics.incident_rate >= metrics.target_incident else 'status-warning' }}">
+            <div class="stat-val {{
+                'status-ok' if metrics.incident_rate >= metrics.target_incident
+                else ('status-warning' if metrics.incident_rate >= 40
+                else 'status-danger')
+            }}">
                 {{ metrics.incident_rate }}%
             </div>
-            <div class="target-lbl">Target: &ge;{{ metrics.target_incident }}% &nbsp;·&nbsp; {{ month_str }}</div>
+            <div class="target-lbl">
+                Goal: &ge;{{ metrics.target_incident }}% &nbsp;&middot;&nbsp; {{ month_str }}
+                &nbsp;<span style="font-style:italic; font-size:0.78em;">Case-mix adjusted</span>
+            </div>
             <div class="indicator-bar">
-                <div class="indicator-fill" style="width: {{ metrics.incident_rate }}%; background: {{ 'var(--success)' if metrics.incident_rate >= metrics.target_incident else 'var(--warning)' }}"></div>
+                <div class="indicator-fill" style="width: {{ metrics.incident_rate }}%; background: {{
+                    'var(--success)' if metrics.incident_rate >= metrics.target_incident
+                    else ('var(--warning)' if metrics.incident_rate >= 40
+                    else 'var(--danger)')
+                }}"></div>
             </div>
         </div>
 
@@ -827,11 +855,84 @@
         {% endif %}
     </div>
 
+
     <div class="info-footer">
-        <strong>Access Recirculation (Two-Needle Urea Method):</strong>
-        Calculated as R = [(S - A) / (S - V)] &times; 100.
-        <br/>Normal: &lt;5% | Significant: &gt;10%. Recirculation indicates inadequate blood flow or reversed needles, leading to dialysis of already cleaned blood and significant reduction in Kt/V.
+        <strong>Access Recirculation — Two-Needle Urea Method</strong>
+        <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+
+            <!-- Formula + variable definitions -->
+            <div>
+                <div style="font-size:1.05rem; font-family:monospace; font-weight:700; color:#1e1b4b; margin-bottom:8px;">
+                    R (%) = [(S &minus; A) &divide; (S &minus; V)] &times; 100
+                </div>
+                <table style="font-size:0.82rem; border-collapse:collapse; width:100%;">
+                    <thead>
+                        <tr style="background:#f1f5f9;">
+                            <th style="padding:5px 10px; text-align:left; font-weight:700; color:#475569;">Variable</th>
+                            <th style="padding:5px 10px; text-align:left; font-weight:700; color:#475569;">Sample site</th>
+                            <th style="padding:5px 10px; text-align:left; font-weight:700; color:#475569;">Clinical meaning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:5px 10px; font-weight:700; color:#6366f1;">S</td>
+                            <td style="padding:5px 10px;">Systemic (peripheral) blood</td>
+                            <td style="padding:5px 10px; color:#475569;">Pre-dialysis urea — reference concentration</td>
+                        </tr>
+                        <tr style="background:#f8fafc;">
+                            <td style="padding:5px 10px; font-weight:700; color:#6366f1;">A</td>
+                            <td style="padding:5px 10px;">Arterial needle (access inlet)</td>
+                            <td style="padding:5px 10px; color:#475569;">Blood entering dialyser — elevated if recirculation present</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:5px 10px; font-weight:700; color:#6366f1;">V</td>
+                            <td style="padding:5px 10px;">Venous needle (access outlet)</td>
+                            <td style="padding:5px 10px; color:#475569;">Post-dialyser blood — lowest urea concentration</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="font-size:0.78rem; color:#64748b; margin-top:8px;">
+                    <strong>Alternative notation (BUN-based):</strong> Some protocols write this as
+                    <span style="font-family:monospace;">(BUN<sub>S</sub> &minus; BUN<sub>A</sub>) &divide; (BUN<sub>S</sub> &minus; BUN<sub>V</sub>)</span>
+                    — identical formula, different variable names. Both are correct.
+                </p>
+            </div>
+
+            <!-- Interpretation thresholds + clinical consequence -->
+            <div>
+                <table style="font-size:0.82rem; border-collapse:collapse; width:100%; margin-bottom:10px;">
+                    <thead>
+                        <tr style="background:#f1f5f9;">
+                            <th style="padding:5px 10px; text-align:left; font-weight:700; color:#475569;">R (%)</th>
+                            <th style="padding:5px 10px; text-align:left; font-weight:700; color:#475569;">Interpretation</th>
+                            <th style="padding:5px 10px; text-align:left; font-weight:700; color:#475569;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:5px 10px; font-weight:700; color:#10b981;">&lt; 5%</td>
+                            <td style="padding:5px 10px;">Normal</td>
+                            <td style="padding:5px 10px; color:#475569;">Routine monitoring</td>
+                        </tr>
+                        <tr style="background:#f8fafc;">
+                            <td style="padding:5px 10px; font-weight:700; color:#f59e0b;">5 – 10%</td>
+                            <td style="padding:5px 10px;">Borderline</td>
+                            <td style="padding:5px 10px; color:#475569;">Recheck needle position; repeat measurement</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:5px 10px; font-weight:700; color:#ef4444;">&ge; 10%</td>
+                            <td style="padding:5px 10px;"><strong>Significant</strong></td>
+                            <td style="padding:5px 10px; color:#475569;">Clinical review; consider imaging if persistent over 2 sessions (KDOQI 2019)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="font-size:0.78rem; color:#64748b; line-height:1.5;">
+                    <strong>Why it matters:</strong> Recirculation means dialysed (already-cleaned) blood re-enters the arterial needle before reaching the systemic circulation, diluting the incoming uraemic load. This directly reduces effective Kt/V without changing machine parameters. Common causes: reversed needle position, low access flow (Qa), or juxta-anastomotic stenosis.
+                </p>
+            </div>
+        </div>
     </div>
+
 
     <!-- ══════════════════════════════════════════════════════════════════════
          SECTION: CHARTS & ACCESS SURVEILLANCE
@@ -919,7 +1020,7 @@
                 <i class="material-icons" style="color:var(--success); font-size:1.2rem;">trending_up</i> AVF & TCC Rate Trend — 6 Months
                 {% if avf_trend_json == '[]' %}<span style="font-size:0.68rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;">Needs: hd_wef_date on patients</span>{% endif %}
             </h3>
-            <p style="font-size:0.78rem; color:#94a3b8; margin:0 0 12px;">Fistula-First progress vs catheter burden month-on-month. Target: AVF ≥90%, TCC &lt;10%.</p>
+            <p style="font-size:0.78rem; color:#94a3b8; margin:0 0 12px;">Fistula-First progress vs catheter burden month-on-month. Aspirational goal: AVF &ge;65% (ERA-EDTA median; no fixed KDOQI mandate), TCC &lt;10%.</p>
             <div id="chart-trend" style="height:240px;"></div>
         </div>
     </div>
@@ -944,18 +1045,29 @@
         </div>
     </div>
 
-    <!-- ── KDOQI Rule-Based: Access-Loss Risk Scoring ─────────────────────── -->
+    <!-- ── Access-Loss Clinical Attention Score ───────────────────────────── -->
     <div class="card {{ 'chart-card-live' if access_risk_json != '[]' else 'chart-card-empty' }}">
         <h3 style="margin:0 0 4px; font-family:'Outfit',sans-serif; color:#1e1b4b; font-size:1.2rem; display:flex; align-items:center; gap:10px;">
             <i class="material-icons" style="color:#7c3aed;">rule</i>
-            Access-Loss Risk Scoring
-            <span style="font-size:0.72rem; font-weight:500; background:#ede9fe; color:#6d28d9; padding:3px 10px; border-radius:20px; margin-left:4px;">KDOQI rule-based scoring</span>
+            Access-Loss Clinical Attention Score
+            <span style="font-size:0.72rem; font-weight:500; background:#fef3c7; color:#92400e; padding:3px 10px; border-radius:20px; margin-left:4px;"
+                  title="These weights were assigned by internal clinical consensus and have not been validated in any published study. KDOQI 2019 does not define these numeric weights.">
+                &#9888; Unvalidated clinical attention tool
+            </span>
             {% if access_risk_json == '[]' %}<span style="font-size:0.68rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;">Needs: AccessEpisode records</span>{% endif %}
         </h3>
+        <div style="background:#fffbeb; border:1px solid #fbbf24; border-radius:8px; padding:10px 14px; margin:8px 0 14px; font-size:0.82rem; color:#78350f; line-height:1.5;">
+            <strong>&#9888; Not a validated risk score.</strong>
+            This tool scores each patient across 11 clinical attention factors using internally-assigned weights.
+            <strong>The score index is not a calibrated probability of access loss</strong> and must not replace clinical judgement.
+            It surfaces patients warranting closer review — treat it as a weighted clinical checklist.
+            KDOQI 2019 does not define these weights or thresholds.
+        </div>
         <p style="font-size:0.85rem; color:#64748b; margin:4px 0 20px; line-height:1.6;">
-            Each patient's current access episode is scored across 11 clinical risk factors (thrombosis history, Qa decline, recirculation, steal grade, cannulation failure rate, KDOQI 1-2-3 rule breaches, and more).
-            Score is normalized to a 0–100% risk index. Patients are ranked by risk — top at-risk patients surface here for proactive intervention.
+            Each patient's current access episode is scored across 11 clinical attention factors (thrombosis history, Qa decline, recirculation, steal grade, cannulation failure rate, KDOQI 1-2-3 rule breaches, and more).
+            The score index (0–100, not a %) reflects the fraction of maximum possible weighted score. Patients are ranked to surface those warranting proactive clinical review.
         </p>
+
 
         <!-- Risk score bar chart -->
         <div id="chart-risk" style="height:300px; margin-bottom:24px;"></div>
@@ -968,9 +1080,9 @@
                     <tr>
                         <th>Patient</th>
                         <th>Access</th>
-                        <th>Risk Level</th>
-                        <th style="min-width:160px;">Risk Score</th>
-                        <th>Top Risk Factors</th>
+                        <th>Attention Level</th>
+                        <th style="min-width:160px;">Score Index <span style="font-weight:400; font-size:0.75em; color:#94a3b8;">(/100, not a %)</span></th>
+                        <th>Active Attention Factors</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -1001,8 +1113,9 @@
                                     background:{{ '#ef4444' if row.risk_level == 'High' else '#f59e0b' if row.risk_level == 'Moderate' else '#10b981' }};"></div>
                             </div>
                             <span style="font-size:0.82rem; font-weight:700; white-space:nowrap;
-                                color:{{ '#ef4444' if row.risk_level == 'High' else '#f59e0b' if row.risk_level == 'Moderate' else '#10b981' }};">
-                                {{ row.risk_pct }}%
+                                color:{{ '#ef4444' if row.risk_level == 'High' else '#f59e0b' if row.risk_level == 'Moderate' else '#10b981' }};"
+                                title="Score index: {{ row.risk_pct }}/100. This is NOT a probability of access loss.">
+                                {{ row.risk_pct }}<span style="font-size:0.7em; font-weight:400; color:#94a3b8;">/100</span>
                             </span>
                         </div>
                     </td>
@@ -1031,10 +1144,12 @@
         </div>
         {% endif %}
 
-        <div style="margin-top:16px; padding:12px 16px; background:#f5f3ff; border-radius:10px; font-size:0.78rem; color:#5b21b6; line-height:1.6;">
-            <strong>Model notes:</strong>
-            Weights: Thrombosis ×3.0 · Steal Gr3 ×4.0 · Qa below threshold ×2.5 · Qa declining ×2.0 · High recirculation ×2.0 · Cannulation failure ×1.5 · Bedside exam ×1.5 · Excess interventions ×2.0 · Maturation delay ×1.0 · TCC duration ×1.5 · No succession plan ×0.5.
-            Risk index = weighted score ÷ max possible score × 100. High ≥32%, Moderate ≥16%, Low &lt;16%.
+        <div style="margin-top:16px; padding:14px 18px; background:#fffbeb; border:1px solid #fbbf24; border-radius:10px; font-size:0.78rem; color:#78350f; line-height:1.7;">
+            <strong>&#9888; Score methodology — unvalidated clinical attention tool:</strong><br>
+            Factors and internally-assigned weights (not from KDOQI or any published study):
+            Thrombosis history ×3.0 · Steal Gr3 ×4.0 · Qa below threshold ×2.5 · Qa declining ×2.0 · High recirculation ×2.0 · Cannulation failure ×1.5 · Bedside exam abnormal ×1.5 · Excess interventions ×2.0 · Maturation delay ×1.0 · TCC duration ×1.5 · No succession plan ×0.5.<br>
+            <strong>Score index</strong> = weighted score &divide; max possible score &times; 100 (displayed as /100, not a probability).<br>
+            <strong>Attention levels:</strong> High = raw score &ge;6.0 · Moderate = &ge;3.0 · Low = &lt;3.0 (raw score thresholds, not calibrated probabilities).
         </div>
     </div>
 
@@ -1110,13 +1225,13 @@ const GRID_COLOR   = '#f1f5f9';
         xaxis: { showgrid: false, zeroline: false },
         yaxis: { gridcolor: GRID_COLOR, zeroline: false, title: '%', range: [0, 100] },
         shapes: [
-            { type: 'line', y0: 90, y1: 90, x0: months[0], x1: months[months.length - 1],
+            { type: 'line', y0: 65, y1: 65, x0: months[0], x1: months[months.length - 1],
               line: { color: '#10b981', width: 1, dash: 'dot' } },
             { type: 'line', y0: 10, y1: 10, x0: months[0], x1: months[months.length - 1],
               line: { color: '#ef4444', width: 1, dash: 'dot' } },
         ],
         annotations: [
-            { x: months[months.length - 1], y: 90, text: 'AVF target 90%', showarrow: false,
+            { x: months[months.length - 1], y: 65, text: 'AVF goal 65% (ERA-EDTA)', showarrow: false,
               font: { size: 10, color: '#10b981' }, xanchor: 'right' },
             { x: months[months.length - 1], y: 10, text: 'TCC ceiling 10%', showarrow: false,
               font: { size: 10, color: '#ef4444' }, xanchor: 'right' },
@@ -1190,7 +1305,7 @@ const GRID_COLOR   = '#f1f5f9';
     }, PLOTLY_CFG);
 })();
 
-// ── Chart 5: KDOQI risk score bar ────────────────────────────────────────────
+// ── Chart 5: Clinical attention score bar (unvalidated — see disclaimer above) ──
 (function() {
     if (!RISK_ROWS.length) return;
     const top = RISK_ROWS.slice(0, 15);
@@ -1198,31 +1313,39 @@ const GRID_COLOR   = '#f1f5f9';
     const pcts   = top.map(d => d.risk_pct);
     const levels = top.map(d => d.risk_level);
     const colors = levels.map(l => l === 'High' ? '#ef4444' : l === 'Moderate' ? '#f59e0b' : '#10b981');
-    const texts  = top.map(d => `${d.risk_pct}% · ${d.access_class}`);
+    // Bar label: show score index /100, NOT as a % — it is not a probability
+    const texts  = top.map(d => `${d.risk_pct}/100 · ${d.access_class}`);
+
+    // Reference lines at the score-index equivalents of the raw thresholds (6.0 and 3.0):
+    // max_score = 25.5  →  High: 6.0/25.5×100 ≈ 23.5  |  Moderate: 3.0/25.5×100 ≈ 11.8
+    // These are NOT probability thresholds — they are raw-score boundaries mapped to index space.
+    const highLine = 23.5;
+    const modLine  = 11.8;
 
     Plotly.newPlot('chart-risk', [{
         x: pcts, y: names, type: 'bar', orientation: 'h',
         marker: { color: colors, opacity: 0.85, line: { color: '#fff', width: 1 } },
         text: texts, textposition: 'outside', textfont: { size: 10 },
-        hovertemplate: '<b>%{y}</b><br>Risk index: %{x}%<extra></extra>',
+        hovertemplate: '<b>%{y}</b><br>Attention score: %{x}/100 (not a probability)<extra></extra>',
     }], {
         margin: { l: 130, r: 60, t: 8, b: 40 },
         font: FONT,
-        xaxis: { title: 'Access-loss risk index (%)', range: [0, 110], gridcolor: GRID_COLOR, zeroline: false },
+        xaxis: { title: 'Attention score index (/100 — not a probability)', range: [0, 110], gridcolor: GRID_COLOR, zeroline: false },
         yaxis: { showgrid: false, tickfont: { size: 10 }, autorange: 'reversed' },
         shapes: [
-            { type: 'line', x0: 32, x1: 32, y0: -0.5, y1: top.length - 0.5,
+            { type: 'line', x0: highLine, x1: highLine, y0: -0.5, y1: top.length - 0.5,
               line: { color: '#ef4444', width: 1.5, dash: 'dot' } },
-            { type: 'line', x0: 16, x1: 16, y0: -0.5, y1: top.length - 0.5,
+            { type: 'line', x0: modLine, x1: modLine, y0: -0.5, y1: top.length - 0.5,
               line: { color: '#f59e0b', width: 1, dash: 'dot' } },
         ],
         annotations: [
-            { x: 32, y: -0.5, text: 'High', showarrow: false, font: { size: 9, color: '#ef4444' }, yanchor: 'top' },
-            { x: 16, y: -0.5, text: 'Moderate', showarrow: false, font: { size: 9, color: '#f59e0b' }, yanchor: 'top' },
+            { x: highLine, y: -0.5, text: 'High attention', showarrow: false, font: { size: 9, color: '#ef4444' }, yanchor: 'top' },
+            { x: modLine,  y: -0.5, text: 'Moderate attention', showarrow: false, font: { size: 9, color: '#f59e0b' }, yanchor: 'top' },
         ],
         showlegend: false, paper_bgcolor: 'transparent', plot_bgcolor: '#ffffff',
     }, PLOTLY_CFG);
 })();
+
 } // end _initCharts
 </script>
 <script src="/static/vendor/js/plotly-2.35.2.min.js" onload="_initCharts()"></script>

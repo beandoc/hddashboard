@@ -392,7 +392,7 @@ async def vascular_access_quality(request: Request, month: Optional[str] = None,
             "watchlist_count": len(conversion_watchlist),
             "maturation_failure_count": len(maturation_watchlist),
             "functional_alert_count": len(functional_watchlist),
-            "target_prevalent": 90.0,
+            "target_prevalent": 65.0,  # ERA-EDTA median; KDOQI 2019 mandates no fixed %
             "target_incident": 65.0,
             "action_board_urgent_count": len(action_board_urgent),
             "action_board_this_week_count": len(action_board_this_week),
@@ -1199,7 +1199,7 @@ async def analytics_hub(request: Request, db: Session = Depends(get_db)):
         "total": total,
         "maturation_failures": late_episodes,
         "urgent_cvc": urgent_cvc,
-        "target_prevalent": 90.0,
+        "target_prevalent": 65.0,  # ERA-EDTA median; KDOQI 2019 mandates no fixed %
     }
 
     return templates.TemplateResponse("analytics_hub.html", {
