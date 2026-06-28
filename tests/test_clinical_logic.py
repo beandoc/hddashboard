@@ -680,6 +680,167 @@ def test_esa_modification_date_simulation_merge(db):
     assert merged_asc_b[2]["is_interim"] is True
 
 
+def test_idwg_zero_division_guard(db):
+    """Patient with dry_weight=None must not crash the dashboard (Section 4.2 guard)."""
+    import datetime
+
+    p = Patient(name="NoDryWeight", hid_no="Z001", is_active=True, dry_weight=None)
+    db.add(p)
+    db.commit()
+
+    from database import MonthlyRecord as MR
+    r = MR(
+        patient_id=p.id,
+        record_month="2026-05",
+        idwg=3.5,
+        target_dry_weight=None,  # no dry weight stored anywhere
+    )
+    db.add(r)
+    db.commit()
+
+    # Should not raise ZeroDivisionError or TypeError
+    data = compute_dashboard(db, "2026-05")
+    row = next((x for x in data["patient_rows"] if x["name"] == "NoDryWeight"), None)
+    assert row is not None
+    assert "High IDWG (>5.7%)" not in row.get("adherence_flags", [])
+
+
+def test_usrds_hyperphosphatemia_and_shortened_sessions(db):
+    """Verify hyperphosphatemia (>7.5 mg/dL) and shortened sessions flags."""
+    import datetime
+    from database import SessionRecord
+
+    # Patient with phosphorus > 7.5 → should flag Hyperphosphatemia
+    p_phos = Patient(name="HighPhos", hid_no="P401", is_active=True, hd_frequency=3)
+    db.add(p_phos)
+    db.commit()
+
+    r_phos = MonthlyRecord(
+        patient_id=p_phos.id,
+        record_month="2026-05",
+        phosphorus=8.1,  # above 7.5 threshold
+    )
+    db.add(r_phos)
+
+    # Add enough sessions so no Skipped Sessions flag fires (≥ expected - 3)
+    for day in range(1, 12):  # 11 sessions for 3x/week patient
+        s = SessionRecord(
+            patient_id=p_phos.id,
+            record_month="2026-05",
+            session_date=datetime.date(2026, 5, day),
+            duration_hours=4,
+            duration_minutes=0,
+            scheduled_treatment_duration=240,
+        )
+        db.add(s)
+
+    # Patient whose sessions are consistently shortened by ≥10 min
+    p_short = Patient(name="ShortSessions", hid_no="P402", is_active=True, hd_frequency=3)
+    db.add(p_short)
+    db.commit()
+
+    for day in range(1, 12):
+        s = SessionRecord(
+            patient_id=p_short.id,
+            record_month="2026-05",
+            session_date=datetime.date(2026, 5, day),
+            duration_hours=3,
+            duration_minutes=40,   # 220 min actual vs 240 prescribed → 20 min short
+            scheduled_treatment_duration=240,
+        )
+        db.add(s)
+
+    db.commit()
+
+    data = compute_dashboard(db, "2026-05")
+
+    phos_row = next(r for r in data["patient_rows"] if r["name"] == "HighPhos")
+    assert "Hyperphosphatemia (>7.5)" in phos_row.get("adherence_flags", [])
+    assert "Skipped Sessions" not in phos_row.get("adherence_flags", [])
+
+    short_row = next(r for r in data["patient_rows"] if r["name"] == "ShortSessions")
+    assert "Shortened Sessions" in short_row.get("adherence_flags", [])
+
+
+def test_usrds_schedule_aware_adherence(db):
+    from database import SessionRecord
+    import datetime
+
+    # Scenario 1: Patient on 3x/week schedule (hd_frequency=3).
+    # Month is 2026-05 (31 days).
+    # Expected sessions: 3 * (31 / 7.0) = 13.28 sessions.
+    # Missed limit (Expected - 3) = 10.28 sessions.
+    # Let's log 11 sessions (should not trigger skipped sessions).
+    p1 = Patient(name="Adherent 3x", hid_no="P301", is_active=True, hd_frequency=3)
+    db.add(p1)
+    db.commit()
+
+    for day in range(1, 12):
+        s = SessionRecord(
+            patient_id=p1.id,
+            record_month="2026-05",
+            session_date=datetime.date(2026, 5, day),
+            duration_hours=4.0,
+            duration_minutes=0,
+            scheduled_treatment_duration=240,
+        )
+        db.add(s)
+    
+    # Scenario 2: Patient on 3x/week schedule but logs only 10 sessions (which is < 10.28, so they missed >3).
+    # This patient should trigger skipped sessions.
+    p2 = Patient(name="NonAdherent 3x", hid_no="P302", is_active=True, hd_frequency=3)
+    db.add(p2)
+    db.commit()
+
+    for day in range(1, 11):
+        s = SessionRecord(
+            patient_id=p2.id,
+            record_month="2026-05",
+            session_date=datetime.date(2026, 5, day),
+            duration_hours=4.0,
+            duration_minutes=0,
+            scheduled_treatment_duration=240,
+        )
+        db.add(s)
+
+    # Scenario 3: Patient on 2x/week schedule (hd_frequency=2).
+    # Month is 2026-05 (31 days).
+    # Expected sessions: 2 * (31 / 7.0) = 8.85 sessions.
+    # Missed limit (Expected - 3) = 5.85 sessions.
+    # Let's log 8 sessions (should not trigger skipped sessions, even though it's < 10).
+    p3 = Patient(name="Adherent 2x", hid_no="P201", is_active=True, hd_frequency=2)
+    db.add(p3)
+    db.commit()
+
+    for day in range(1, 9):
+        s = SessionRecord(
+            patient_id=p3.id,
+            record_month="2026-05",
+            session_date=datetime.date(2026, 5, day),
+            duration_hours=4.0,
+            duration_minutes=0,
+            scheduled_treatment_duration=240,
+        )
+        db.add(s)
+
+    db.commit()
+
+    data = compute_dashboard(db, "2026-05")
+    
+    # Verify skipped session alerts
+    # Adherent 3x (11 sessions logged) - Should NOT trigger skipped sessions
+    p1_row = next(r for r in data["patient_rows"] if r["name"] == "Adherent 3x")
+    assert "Skipped Sessions" not in p1_row.get("adherence_flags", [])
+
+    # NonAdherent 3x (10 sessions logged) - Should trigger skipped sessions
+    p2_row = next(r for r in data["patient_rows"] if r["name"] == "NonAdherent 3x")
+    assert "Skipped Sessions" in p2_row.get("adherence_flags", [])
+
+    # Adherent 2x (8 sessions logged) - Should NOT trigger skipped sessions under the new logic
+    p3_row = next(r for r in data["patient_rows"] if r["name"] == "Adherent 2x")
+    assert "Skipped Sessions" not in p3_row.get("adherence_flags", [])
+
+
 
 
 

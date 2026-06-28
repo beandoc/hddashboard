@@ -218,8 +218,10 @@ def compute_dashboard(db: Session, month: str = None):
     # 1. Check Cache — single UNION ALL query instead of 3 separate round-trips
     global _DASHBOARD_CACHE
 
+    import calendar
     try:
         y, m = int(month[:4]), int(month[5:7])
+        days_in_month = calendar.monthrange(y, m)[1]
         start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
         if m == 12:
             next_month_start = datetime.strptime(f"{y+1}-01-01", "%Y-%m-%d").date()
@@ -635,7 +637,12 @@ def compute_dashboard(db: Session, month: str = None):
         # 4. Adherence Monitor (USRDS)
         adherence_flags = []
         pt_sessions = session_by_patient.get(p.id, [])
-        if len(pt_sessions) < 10 and not is_admitted:
+        
+        # USRDS Standard: Missing more than 3 prescribed HD sessions per month.
+        # Compute expected sessions for the patient based on their hd_frequency.
+        patient_frequency = p.hd_frequency or 2  # default to 2x/week if not set
+        expected_sessions = patient_frequency * (days_in_month / 7.0)
+        if len(pt_sessions) < (expected_sessions - 3) and not is_admitted:
              adherence_flags.append("Skipped Sessions")
         
         shortened = False
@@ -649,7 +656,8 @@ def compute_dashboard(db: Session, month: str = None):
             
         if r and r.idwg and (r.target_dry_weight or p.dry_weight):
             dw = r.target_dry_weight or p.dry_weight
-            if (r.idwg / dw * 100) > 5.7: adherence_flags.append("High IDWG (>5.7%)")
+            if dw and dw > 0:
+                if (r.idwg / dw * 100) > 5.7: adherence_flags.append("High IDWG (>5.7%)")
         
         if r and r.phosphorus and r.phosphorus > 7.5: adherence_flags.append("Hyperphosphatemia (>7.5)")
             

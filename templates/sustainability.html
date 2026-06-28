@@ -1657,6 +1657,46 @@
                             </div>
                         </div>
 
+                        <!-- Lever 7: Qb-Matched Dialysate Flow Protocol -->
+                        <div class="lever-card">
+                            <div class="lever-header">
+                                <div class="lever-icon">🔬</div>
+                                <div class="lever-info">
+                                    <div class="lever-title">Qb-Matched Dialysate Flow Protocol</div>
+                                    <div class="lever-desc">
+                                        Instead of a universal 500 mL/min, set Qd per patient based on their blood flow: <strong>Qd = 1.2 × Qb</strong> (clamped 300–800 mL/min). Peer-reviewed evidence shows this ratio maintains <strong>equivalent Kt/V</strong> to fixed 500 mL/min (1.29±0.16 vs. 1.26±0.21, <em>p</em>&nbsp;=&nbsp;0.068) with a potential <strong>20–25% dialysate reduction</strong>. Applicable to any HD machine — nursing staff set Qd each session from the Qb displayed on the machine.
+                                        <br><span style="font-size:0.67rem;color:var(--mist);">⚠ Use as an <em>alternative</em> to Lever 1 (fixed Qd reduction) — activating both simultaneously double-counts the same water saving.</span>
+                                    </div>
+                                </div>
+                                <div class="lever-save-badge zero" id="wf-badge-af">—</div>
+                            </div>
+                            <div class="lever-control">
+                                <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+                                    <span style="font-size:0.72rem;font-weight:700;color:var(--mist);text-transform:uppercase;letter-spacing:.04em;">Qd/Qb ratio:</span>
+                                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.82rem;">
+                                        <input type="radio" name="af-factor" id="wf-af-1_0" value="1.0" onchange="updateWhatIf()">
+                                        <span>1.0×</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.82rem;">
+                                        <input type="radio" name="af-factor" id="wf-af-1_2" value="1.2" onchange="updateWhatIf()" checked>
+                                        <span>1.2× <em style="font-size:0.67rem;color:var(--mist);">(validated minimum — Kult et al. 2007)</em></span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.82rem;">
+                                        <input type="radio" name="af-factor" id="wf-af-1_5" value="1.5" onchange="updateWhatIf()">
+                                        <span>1.5×</span>
+                                    </label>
+                                </div>
+                                <label>Average Qb across unit: <strong id="wf-val-qb">275</strong> mL/min
+                                    <span style="font-size:0.67rem;color:var(--mist);"> → recommended Qd = <strong id="wf-val-eff-qd">330</strong> mL/min</span>
+                                </label>
+                                <input type="range" id="wf-qb" min="150" max="400" step="25" value="275" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>150</span><span>200</span><span>250</span><span>300</span><span>350</span><span>400</span></div>
+                                <label style="margin-top:8px;">Sessions on Qb-matched protocol: <strong id="wf-val-af-pct">0</strong>% of HD sessions</label>
+                                <input type="range" id="wf-af-pct" min="0" max="100" step="10" value="0" class="whatif-slider" oninput="updateWhatIf()">
+                                <div class="lever-scale"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+                            </div>
+                        </div>
+
                         <!-- Summary -->
                         <div class="whatif-summary">
                             <div class="wf-result-box">
@@ -1686,7 +1726,7 @@
 
                         <div class="whatif-footer">
                             <i class="material-icons" style="font-size:13px;flex-shrink:0;margin-top:1px;">info</i>
-                            Savings from each lever are independent and additive. Electricity saving (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Consumable factors from HD LCI inventory (Barraclough Table 1 material weights + Table 3 aggregate carbon; India-adapted for domestic manufacture). Actual savings depend on clinical eligibility and implementation fidelity.
+                            Savings from each lever are independent and additive, <strong>except Levers 1 and 7 which are mutually exclusive</strong> — Lever 1 (fixed Qd reduction) and Lever 7 (Qb-matched protocol) both reduce dialysate from the 500 mL/min baseline; activating both double-counts the same saving. Use whichever reflects your unit's actual protocol. Electricity saving (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Lever 7 clinical basis: Khamis et al. BMC Nephrology (2025) 26:594 — Qd/Qb ≥ 1.2 maintains equivalent Kt/V (p = 0.068). Consumable factors from HD LCI inventory (Barraclough Table 1 + Table 3; India-adapted). Actual savings depend on clinical eligibility and implementation fidelity.
                         </div>
                     </div>
                     <!-- ── end What If? ───────────────────────────────────────── -->
@@ -1764,6 +1804,16 @@
                                         <td style="padding:5px 4px;">Patient transport (bus / car / auto / two-wheeler)</td>
                                         <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#84cc16; font-weight:600;">0.04–0.17 kg/pkm</td>
                                         <td style="padding:5px 4px;">ARAI Emission Factors for Indian Vehicles, Project Report AFL/2006-07/IOCL — Automotive Research Association of India (<em>araiindia.com</em>). Bus 0.04 · Auto/2-wheeler 0.10 · Car 0.17 kg CO₂e/passenger-km.</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                        <td style="padding:5px 4px;">Qb-matched Qd protocol (Lever 7)</td>
+                                        <td style="text-align:center; padding:5px 4px; font-variant-numeric:tabular-nums; color:#10b981; font-weight:600;">20–25% Qd</td>
+                                        <td style="padding:5px 4px;">
+                                            <strong>Primary:</strong> Khamis SSA, Tawfeek AR, Ragab MF, Abd elkhalk HK. <em>Effects of using auto flow factor function on hemodialysis efficacy in regular hemodialysis patients.</em> BMC Nephrology (2025) 26:594. doi:10.1186/s12882-025-04508-2 — Prospective cross-section, 55 ESRD patients; Kt/V 1.29±0.16 (Qb-matched) vs. 1.26±0.21 (fixed 500 mL/min), <em>p</em>&nbsp;=&nbsp;0.068. Formula: Qd = ratio × Qb, bounded 300–800 mL/min.
+                                            <strong>Qd/Qb ≥ 1.2 threshold:</strong> Kult J, Stapf E. <em>J Artif Organs.</em> 2007;30(7):577–82.
+                                            <strong>20–25% dialysate saving:</strong> Mesic E, Bock A, Major L, et al. <em>Hemodial Int.</em> 2011;15(4):522–9.
+                                            <strong>Electricity scaling:</strong> same 0.14 kWh per 48 L saved as Lever 1 (Baxter AK98, Barraclough AJKD 2025 Table S5).
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td style="padding:5px 4px;">Benchmark tiers (18/22/28/34 kg/session)</td>
@@ -2828,8 +2878,29 @@
         const segSave = q('wasteRedQty') * 0.24 * cf * segPct;
         setLeverBadge('wf-badge-seg', segSave);
 
+        // ── Lever 7: Qb-Matched Dialysate Flow Protocol ───────────────────
+        // Formula: Qd = ratio × Qb, clamped [300, 800] mL/min
+        // Clinical basis: Khamis SSA et al. BMC Nephrology (2025) 26:594
+        //   No significant Kt/V difference vs. fixed 500 mL/min (p = 0.068)
+        //   20–25% dialysate saving reported — Mesic E et al. Hemodial Int. 2011;15:522-9
+        // Qd/Qb ≥ 1.2 threshold: Kult J et al. J Artif Organs. 2007;30:577-82
+        // Savings vs. 500 mL/min baseline per 240-min session:
+        //   Water CO₂e  = savedL × 0.001 m³ × 0.30 kg/m³  (CPHEEO WTP norms)
+        //   Electricity = savedL / 48 L × 0.14 kWh × gridEF (Baxter AK98, Barraclough Table S5)
+        const afRatio  = parseFloat((document.querySelector('input[name="af-factor"]:checked') || {value: '1.2'}).value);
+        const avgQb    = sl('wf-qb');
+        const afPct    = sl('wf-af-pct') / 100;
+        document.getElementById('wf-val-qb').textContent = avgQb;
+        document.getElementById('wf-val-af-pct').textContent = Math.round(afPct * 100);
+        const effQd    = Math.max(300, Math.min(800, afRatio * avgQb));
+        document.getElementById('wf-val-eff-qd').textContent = Math.round(effQd);
+        const savedL   = Math.max(0, (500 - effQd) / 1000 * 240); // litres saved per session vs 500 baseline
+        const afSavePerSess = savedL * 0.001 * 0.30 + (savedL / 48) * 0.14 * getGridEF();
+        const afSave   = afSavePerSess * sessionsPerYear * afPct;
+        setLeverBadge('wf-badge-af', afSave);
+
         // ── Summary ───────────────────────────────────────────────────────
-        const totalSave = qdSave + tempSave + reuseSave + textileSave + hdfSave + segSave;
+        const totalSave = qdSave + tempSave + reuseSave + textileSave + hdfSave + segSave + afSave;
         const projected  = Math.max(0, r.totalAnnual - totalSave);
         const pct        = r.totalAnnual > 0 ? (totalSave / r.totalAnnual * 100) : 0;
 

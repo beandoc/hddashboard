@@ -88,6 +88,77 @@
       .adherence-table th, .adherence-table td { padding: 12px 14px; }
       .flag-pill { font-size: 0.68rem; padding: 3px 8px; }
     }
+
+    .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .month-select-container {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: white;
+        padding: 8px 16px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .month-select-container label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #475569;
+    }
+    .month-select-container input[type="month"] {
+        border: none;
+        outline: none;
+        font-family: inherit;
+        font-size: 0.85rem;
+        color: #1e293b;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: white;
+        color: #475569;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.2s;
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.85rem;
+    }
+    .btn-action:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+    }
+    
+    @media print {
+        body { background: white; color: black; }
+        .report-header { background: none; color: black; padding: 20px 0; border-bottom: 2px solid #cbd5e1; }
+        .report-header p { color: #475569; }
+        .toolbar, .btn-back, td:last-child, th:last-child { display: none !important; }
+        .container { margin-top: 0; max-width: 100%; padding: 0; }
+        .adherence-table-wrap { box-shadow: none; border: 1px solid #cbd5e1; border-radius: 0; }
+        .adherence-table th { background: #f1f5f9; color: black; }
+        .adherence-table td { border-bottom: 1px solid #cbd5e1; }
+        .criteria-grid { page-break-inside: avoid; border: 1px solid #cbd5e1; background: none; }
+    }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
@@ -102,9 +173,23 @@
 </div>
 
 <div class="container">
-    <a href="/analytics" class="btn-back">
-        <i class="material-icons">arrow_back</i> Clinical Intelligence Hub
-    </a>
+    <div class="toolbar">
+        <a href="/analytics" class="btn-back" style="margin-bottom: 0;">
+            <i class="material-icons">arrow_back</i> Clinical Intelligence Hub
+        </a>
+        <div class="toolbar-actions">
+            <div class="month-select-container">
+                <label for="month-picker">Period:</label>
+                <input id="month-picker" type="month" value="{{ month_str }}" onchange="location.href='/analytics/adherence?month='+this.value">
+            </div>
+            <button onclick="window.print()" class="btn-action">
+                <i class="material-icons">print</i> Print
+            </button>
+            <button onclick="exportToCSV()" class="btn-action">
+                <i class="material-icons">file_download</i> Export
+            </button>
+        </div>
+    </div>
 
     <div class="stat-summary">
         <div class="stat-card">
@@ -213,6 +298,55 @@
         </div>
     </div>
 </div>
+
+<script>
+function exportToCSV() {
+    const table = document.querySelector('.adherence-table');
+    if (!table) return;
+    
+    let csv = [];
+    
+    // Header
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
+    csv.push(headers.slice(0, 3).join(',')); // Only keep Name, Flags, Severity
+    
+    // Rows
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    rows.forEach(row => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        if (cells.length < 3) return; // skip empty state row
+        
+        // Patient Identification
+        const nameEl = cells[0].querySelector('.patient-name');
+        const hidEl = cells[0].querySelector('.patient-hid');
+        const name = nameEl ? nameEl.innerText.trim() : '';
+        const hid = hidEl ? hidEl.innerText.trim() : '';
+        const pInfo = `"${name} (${hid})"`;
+        
+        // Flags
+        const flags = Array.from(cells[1].querySelectorAll('.flag-pill'))
+            .map(pill => pill.innerText.replace('error_outline', '').trim())
+            .join('; ');
+        const flagsCol = `"${flags}"`;
+        
+        // Severity
+        const severity = cells[2].innerText.trim();
+        const severityCol = `"${severity}"`;
+        
+        csv.push([pInfo, flagsCol, severityCol].join(','));
+    });
+    
+    // Download trigger
+    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Adherence_Report_${document.getElementById('month-picker').value}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
 
 </body>
 </html>
