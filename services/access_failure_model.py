@@ -7,6 +7,15 @@ Reference:
     Hsieh et al. 2023. "IoMT-Based XGBoost Model for Vascular Access Failure
     Prediction in Haemodialysis Patients." (90.7% precision for 90-day failure.)
 
+⚠ VALIDATION DISCLAIMER:
+    The Hsieh 2023 paper was conducted in a Taiwanese IoMT-integrated HD centre.
+    Feature distributions, access management practices, and failure event rates
+    may differ substantially from any given deployment population.
+    This model has NOT been prospectively validated in any other cohort.
+    Cross-validated AUC on small local datasets (≤50 events) is unreliable
+    and MUST NOT be interpreted as a validated discrimination metric.
+    Clinical judgement must take precedence over all model outputs.
+
 Features (12 total, derived from longitudinal access surveillance records):
     Trend features (require ≥ 2 Doppler records):
         qa_latest          — most recent access flow (mL/min)
@@ -34,6 +43,12 @@ Outcome label:
 Model: XGBoost → Calibrated LogisticRegression fallback → threshold heuristic.
 Training trigger: POST /access/train-failure-model (admin only).
 Celery: weekly task_compute_access_failure_risk for patients with ≥ 3 records.
+
+Minimum training requirements (enforced):
+    ≥ 200 labelled samples  (ensures cross-val folds have adequate size)
+    ≥ 50 failure events     (EPV ≥ 4 for 12 features; still conservative)
+    These thresholds are conservative minimums. Reliable discrimination
+    typically requires EPV ≥ 10, i.e. ≥ 120 failure events.
 """
 from __future__ import annotations
 
@@ -75,9 +90,13 @@ _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _MODEL_PATH = os.path.join(_BASE, "access_failure_model.joblib")
 _META_PATH  = os.path.join(_BASE, "access_failure_meta.json")
 
-# KDOQI absolute Qa thresholds (mL/min)
-_QA_AVF_FAIL = 500.0
-_QA_AVG_FAIL = 400.0
+# KDOQI absolute Qa thresholds (mL/min) — used by heuristic fallback and _interpret()
+# AVF: 600 mL/min per KDOQI 2019 Guideline 13.3
+# AVG: 500 mL/min per KDOQI 2019 Guideline 13.3
+# NOTE: The previous value for _QA_AVF_FAIL was 500, which contradicted the 600 mL/min
+# threshold displayed in the UI and the KDOQI standard. Corrected.
+_QA_AVF_FAIL = 600.0   # KDOQI 2019 Guideline 13.3 — corrected from erroneous 500
+_QA_AVG_FAIL = 500.0   # KDOQI 2019 Guideline 13.3
 
 _ACCESS_MODEL       = None
 _ACCESS_MODEL_MTIME = 0
@@ -188,18 +207,32 @@ def compute_access_failure_risk(
     """
     Predict 90-day vascular access failure probability.
 
+    WARNING - VALIDATION STATUS: Experimental, not prospectively validated.
+    The returned probability_90d is a model score, not a calibrated clinical
+    probability. Hsieh 2023 population (Taiwanese IoMT-integrated HD centre)
+    generalisability to other cohorts is unconfirmed. Clinical judgement must
+    take precedence over all model outputs.
+
     Returns dict with:
-        probability_90d   — float 0–1
-        risk_level        — 'Low' | 'Moderate' | 'High'
-        risk_factors      — list of strings
-        method            — 'XGBoost' | 'LogisticRegression' | 'Heuristic'
-        model_trained     — bool
+        probability_90d   -- float 0-1 (model score, NOT a validated probability)
+        risk_level        -- 'Low' | 'Moderate' | 'High'
+        risk_factors      -- list of strings
+        method            -- 'XGBoost (calibrated)' | 'LogisticRegression (calibrated)' | 'Heuristic'
+        model_trained     -- bool
+        model_disclaimer  -- always-present warning string
     """
+    _DISCLAIMER = (
+        "Experimental prediction tool. Output is a model score, not a validated clinical "
+        "probability. Hsieh 2023 population (Taiwanese IoMT-integrated HD centre) may not "
+        "generalise to this cohort. Clinical judgement must take precedence."
+    )
+
     if len(surveillance_records) < 2:
         return {
-            "available":      False,
-            "error":          "Minimum 2 Doppler surveillance records required.",
-            "model_trained":  False,
+            "available":        False,
+            "error":            "Minimum 2 Doppler surveillance records required.",
+            "model_trained":    False,
+            "model_disclaimer": _DISCLAIMER,
         }
 
     feats = build_feature_vector(surveillance_records, access_info, session_stats)
@@ -210,21 +243,29 @@ def compute_access_failure_risk(
         try:
             prob = float(model.predict_proba(x)[0][1])
             risk_level = "High" if prob >= 0.50 else ("Moderate" if prob >= 0.25 else "Low")
+            # Read actual algorithm name from training metadata file
+            method_label = "ML model (trained)"
+            try:
+                if os.path.exists(_META_PATH):
+                    with open(_META_PATH) as _mf:
+                        _meta = json.load(_mf)
+                    method_label = _meta.get("algorithm", method_label)
+            except Exception:
+                pass
             return {
-                "available":      True,
-                "probability_90d": round(prob, 3),
-                "risk_level":     risk_level,
-                "risk_factors":   _interpret(feats, access_info),
-                "method":         "ML model",
-                "model_trained":  True,
+                "available":        True,
+                "probability_90d":  round(prob, 3),
+                "risk_level":       risk_level,
+                "risk_factors":     _interpret(feats, access_info),
+                "method":           method_label,
+                "model_trained":    True,
+                "model_disclaimer": _DISCLAIMER,
             }
         except Exception as exc:
             logger.warning("Access failure model inference failed: %s", exc)
 
-    # ── Heuristic fallback (KDOQI thresholds) ─────────────────────────────────
-    return _heuristic(feats, access_info)
-
-
+    # -- Heuristic fallback (KDOQI thresholds -- no trained model available) ----
+    return _heuristic(feats, access_info, _DISCLAIMER)
 def _interpret(feats: List[float], access_info: dict) -> List[str]:
     factors = []
     is_avf = feats[9] > 0.5
@@ -245,7 +286,13 @@ def _interpret(feats: List[float], access_info: dict) -> List[str]:
     return factors
 
 
-def _heuristic(feats: List[float], access_info: dict) -> Dict:
+def _heuristic(feats: List[float], access_info: dict, disclaimer: str = "") -> Dict:
+    """KDOQI-threshold heuristic fallback when no trained model is available.
+
+    ⚠ This is a structured scoring heuristic, not a calibrated ML model.
+    The output probability_90d is an ordinal score mapped to [0,1] and
+    must not be interpreted as a true failure probability.
+    """
     is_avf = feats[9] > 0.5
     qa_threshold = _QA_AVF_FAIL if is_avf else _QA_AVG_FAIL
     score = 0
@@ -273,12 +320,16 @@ def _heuristic(feats: List[float], access_info: dict) -> Dict:
     risk_level = "High" if prob >= 0.50 else ("Moderate" if prob >= 0.25 else "Low")
 
     return {
-        "available":       True,
-        "probability_90d": round(prob, 3),
-        "risk_level":      risk_level,
-        "risk_factors":    _interpret(feats, access_info),
-        "method":          "Heuristic (KDOQI thresholds — train model for ML prediction)",
-        "model_trained":   False,
+        "available":        True,
+        "probability_90d":  round(prob, 3),
+        "risk_level":       risk_level,
+        "risk_factors":     _interpret(feats, access_info),
+        "method":           "Heuristic (KDOQI thresholds — no trained model available)",
+        "model_trained":    False,
+        "model_disclaimer": disclaimer or (
+            "Heuristic score only — train the ML model for data-driven predictions. "
+            "This score is NOT a validated failure probability."
+        ),
     }
 
 
@@ -389,12 +440,28 @@ def train_access_failure_model(db) -> Dict:
 
     n_samples = len(y)
     n_events  = sum(y)
-    if n_samples < 40 or n_events < 10:
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Minimum evidence floor — rationale:
+    #   12 features require EPV (events per variable) ≥ 10 for reliable estimation,
+    #   meaning ≥ 120 failure events ideally. The floor below (50 events / 200 samples)
+    #   is a conservative practical minimum. Cross-validated AUC below 50 events
+    #   is statistically unreliable regardless of fold count.
+    #   The previous thresholds (10 events / 40 samples) risked severe overfitting
+    #   with XGBoost at 150 estimators — corrected to the values below.
+    # ─────────────────────────────────────────────────────────────────────────────
+    _MIN_SAMPLES = 200
+    _MIN_EVENTS  = 50
+    if n_samples < _MIN_SAMPLES or n_events < _MIN_EVENTS:
         return {
-            "success": False,
+            "success":   False,
             "n_samples": n_samples,
-            "n_events": n_events,
-            "error": f"Insufficient data: {n_events} access failure events (need ≥ 10).",
+            "n_events":  n_events,
+            "error": (
+                f"Insufficient data: {n_events} access failure events in {n_samples} samples. "
+                f"Minimum required: {_MIN_EVENTS} events / {_MIN_SAMPLES} samples. "
+                f"With 12 features, EPV = {n_events/12:.1f} (target ≥10 for reliable estimation). "
+                f"Returning heuristic predictions until sufficient data is available."
+            ),
         }
 
     X_arr = np.array(X, dtype=float)

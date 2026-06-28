@@ -23,7 +23,7 @@ _DEFAULTS: dict[str, Any] = {
     "avf_maturation_delay_days": 42,
     "avg_maturation_delay_days": 21,
     "avf_maturation_failure_days": 180,   # KDOQI Glossary: 6 months
-    "avg_maturation_failure_days": 90,
+    "avg_maturation_failure_days": 42,    # 6 weeks — upper bound of AVG cannulation readiness (KDOQI 2019 Guideline 9.4)
     "qa_absolute_threshold_avf": 600.0,   # mL/min
     "qa_absolute_threshold_avg": 500.0,
     "qa_relative_decline_pct": 25.0,
@@ -38,7 +38,7 @@ _DEFAULTS: dict[str, Any] = {
     "access_review_interval_days": 90,        # KDOQI 1.3
     "av_interventions_establish_max": 2,      # KDOQI Goals Box 3
     "av_interventions_maintain_per_year_max": 3,
-    "qa_baseline_window_sessions": 3,
+    "qa_baseline_window_sessions": 6,   # ≥6 sessions needed to distinguish true decline from ±15–20% measurement noise
 }
 
 _INTERVENTION_ACTIONS = {
@@ -187,10 +187,16 @@ def compute_access_action_items(
     if not episode.first_cannulation_date:
         days_since_creation = (today - episode.creation_date).days
         if days_since_creation > failure_days:
+            # AVF: KDOQI Glossary — 6 months (180 days) without first cannulation = failure
+            # AVG: KDOQI 2019 Guideline 9.4 — conventional AVG ready in 2–6 weeks;
+            #      42 days (6 weeks) used as failure threshold to catch non-maturing grafts early.
             add(
                 "urgent",
                 "maturation",
-                f"{ac} maturation failure threshold reached: {days_since_creation} days, never successfully cannulated (KDOQI threshold {failure_days} days)",
+                f"{ac} maturation failure: {days_since_creation} days since creation, "
+                f"never successfully cannulated "
+                f"(KDOQI threshold {failure_days} days — "
+                f"{'6 months per KDOQI Glossary' if ac == 'AVF' else '6 weeks per KDOQI 2019 Guideline 9.4'})",
             )
 
     # AV intervention rate — 1-2-3 rule (KDOQI Goals Box 3)
@@ -210,15 +216,20 @@ def compute_access_action_items(
             f"Qa below absolute threshold ({recent_qa[0]:.0f} mL/min, threshold {qa_threshold:.0f}) on last 2 measurements — clinical review + consider imaging",
         )
 
-    # Qa relative decline
     baseline_window = _cfg(config, "qa_baseline_window_sessions")
     qa_decline_pct = _cfg(config, "qa_relative_decline_pct")
-    relative_decline = _compute_qa_relative_decline(db, patient_id, int(baseline_window), sessions_list=recent_sessions)
+    relative_decline, qa_baseline = _compute_qa_relative_decline(
+        db, patient_id, int(baseline_window), sessions_list=recent_sessions
+    )
     if relative_decline is not None and relative_decline >= qa_decline_pct:
         add(
             "this_week",
             "qa_flow",
-            f"Qa relative decline {relative_decline:.0f}% from rolling baseline (threshold {qa_decline_pct:.0f}%) — clinical review + consider imaging",
+            f"Qa persistent decline {relative_decline:.0f}% below {window}-session baseline "
+            f"({qa_baseline:.0f} mL/min) — all 3 most recent readings confirm trend "
+            f"(threshold {qa_decline_pct:.0f}%) — clinical review + consider imaging".replace(
+                f"{window}-session", f"{int(baseline_window)}-session"
+            ),
         )
 
     # Recirculation
@@ -394,9 +405,26 @@ def _get_recent_qa(db: Session, patient_id: int, n: int, sessions_list: list = N
         return [s.access_flow_qa for s in sessions_list if s.access_flow_qa is not None][:n]
 
 
-def _compute_qa_relative_decline(db: Session, patient_id: int, window: int, sessions_list: list = None) -> float | None:
-    """Return % decline from rolling baseline to most recent Qa, or None."""
+def _compute_qa_relative_decline(
+    db: Session, patient_id: int, window: int, sessions_list: list = None
+) -> tuple[float | None, float | None]:
+    """Return (decline_pct, baseline_qa) from rolling baseline to the most recent Qa, or (None, None).
+
+    KDOQI 2019 Guideline 13.3 requires decline to be *persistent* across multiple
+    readings before it is considered clinically significant. A single outlier low
+    session (e.g. from malpositioning, patient movement) must not trigger an alert.
+
+    Logic:
+      - Fetch the last (window + 3) Qa values (oldest-to-newest after sort).
+      - Compute a rolling baseline from the oldest `window` readings.
+      - Require that the 3 most recent readings are ALL below the baseline before
+        returning a non-zero decline. If fewer than 3 recent readings exist below
+        baseline, the decline is suppressed (returns (None, None)).
+      - The reported decline % is from baseline to the single latest reading.
+    """
     from db.models.sessions import SessionRecord
+
+    n_needed = window + 3   # baseline window + 3 persistence readings
 
     if sessions_list is None:
         rows = (
@@ -406,21 +434,35 @@ def _compute_qa_relative_decline(db: Session, patient_id: int, window: int, sess
                 SessionRecord.access_flow_qa.isnot(None),
             )
             .order_by(SessionRecord.session_date.desc())
-            .limit(window + 1)
+            .limit(n_needed)
             .all()
         )
-        values = [r[0] for r in rows]
+        values = [r[0] for r in rows]   # newest first
     else:
-        values = [s.access_flow_qa for s in sessions_list if s.access_flow_qa is not None][:window + 1]
+        values = [s.access_flow_qa for s in sessions_list if s.access_flow_qa is not None][:n_needed]
 
     if len(values) < window + 1:
-        return None
-    latest = values[0]
-    baseline = sum(values[1:window + 1]) / window
+        return None, None
+
+    # newest first → values[0] is latest, values[-window:] are the oldest (baseline)
+    recent_readings = values[:3]          # up to 3 most recent
+    baseline_readings = values[3:3 + window] if len(values) >= 3 + window else values[len(recent_readings):]
+
+    if not baseline_readings:
+        return None, None
+
+    baseline = sum(baseline_readings) / len(baseline_readings)
     if baseline <= 0:
-        return None
-    decline = (baseline - latest) / baseline * 100
-    return max(decline, 0.0)
+        return None, None
+
+    # Persistence gate: require ALL available recent readings to be below baseline
+    # (minimum 1, ideally 3 — enforces KDOQI "persistent" criterion)
+    if not recent_readings or not all(q < baseline for q in recent_readings):
+        return None, None
+
+    latest = recent_readings[0]
+    decline = max((baseline - latest) / baseline * 100, 0.0)
+    return decline, round(baseline, 0)
 
 
 def _get_recent_recirculation(db: Session, patient_id: int, n: int, sessions_list: list = None) -> list[float]:
@@ -443,27 +485,42 @@ def _get_recent_recirculation(db: Session, patient_id: int, n: int, sessions_lis
 
 
 def _compute_cannulation_failure_rate(db: Session, patient_id: int, n: int, sessions_list: list = None) -> float | None:
+    """Return cannulation failure rate (%) over the last *n* sessions in the window.
+
+    ⚠ Denominator contract:
+        The denominator is always the total number of sessions in the requested
+        window (n), NOT only sessions where cannulation_difficulty was documented.
+        Using documented-only as the denominator inflates the rate whenever nurses
+        chart only difficult events and omit routine ones — a common documentation
+        pattern that would produce false-positive alerts at the 5% threshold.
+
+    Returns None when fewer than 1 session exists in the window (no data at all).
+    Sessions in the window where cannulation_difficulty is NULL are counted as
+    non-failure (i.e. presumed routine) so the denominator remains stable.
+    """
     from db.models.sessions import SessionRecord
 
     if sessions_list is None:
+        # Fetch the n most-recent sessions, regardless of documentation status.
+        # We need the full row to count total sessions; filter for documented
+        # failures separately.
         rows = (
             db.query(SessionRecord.cannulation_difficulty)
-            .filter(
-                SessionRecord.patient_id == patient_id,
-                SessionRecord.cannulation_difficulty.isnot(None),
-            )
+            .filter(SessionRecord.patient_id == patient_id)
             .order_by(SessionRecord.session_date.desc())
             .limit(n)
             .all()
         )
-        vals = [r[0] for r in rows]
+        total = len(rows)                                     # true denominator
+        failed = sum(1 for r in rows if r[0] == "failed")
     else:
-        vals = [s.cannulation_difficulty for s in sessions_list if s.cannulation_difficulty is not None][:n]
+        window = sessions_list[:n]                            # honour the n-session limit
+        total = len(window)                                   # true denominator
+        failed = sum(1 for s in window if s.cannulation_difficulty == "failed")
 
-    if not vals:
+    if total == 0:
         return None
-    failed = sum(1 for v in vals if v == "failed")
-    return failed / len(vals) * 100
+    return failed / total * 100
 
 
 def _compute_crbsi_rate_3m(db: Session, patient_id: int, today: date, all_episodes_list: list = None, all_events_list: list = None) -> float | None:
@@ -583,12 +640,15 @@ def compute_unit_benchmarks(
         }
 
     # 1. Prevalent AVF rate
+    # NOTE: KDOQI 2019 Guideline 1.2 abandoned prescriptive AVF% targets in favour of
+    # individualised ESKD Life-Plans. The 65% floor reflects the ERA-EDTA registry
+    # median (66–72%) and is a defensible aspirational threshold, not a hard mandate.
     avf_patients = [p for p in active_patients if _is_access_class(p, "AVF")]
     results.append(bench(
         "Prevalent AVF Rate", "AVF",
-        len(avf_patients), total, 90.0, True,
+        len(avf_patients), total, 65.0, True,
         "Active patients at month-end",
-        "% active patients on AVF",
+        "Aspirational goal (ERA-EDTA median 66–72%). KDOQI 2019 mandates no fixed % target.",
     ))
 
     # 2. Prevalent AVG rate
@@ -610,6 +670,10 @@ def compute_unit_benchmarks(
     ))
 
     # 4. Incident AVF rate (new HD starts this month on AVF)
+    # NOTE: KDOQI 2019 expresses 65% as a minimum aspirational threshold for centres with
+    # adequate pre-dialysis infrastructure, not a universal pass/fail. Units with high
+    # urgent-start HD populations, elderly/frail patients, or those with diabetes-related
+    # poor vessel anatomy may legitimately score below 65% without representing poor care.
     new_starts = [p for p in active_patients if p.hd_wef_date and p.hd_wef_date >= month_start and p.hd_wef_date <= month_end]
     new_avf_starts = [p for p in new_starts if _is_access_class(p, "AVF")]
     if new_starts:
@@ -617,7 +681,8 @@ def compute_unit_benchmarks(
             "Incident AVF Rate", "AVF",
             len(new_avf_starts), len(new_starts), 65.0, True,
             "New HD starts in month",
-            "% new HD patients starting on AVF",
+            "Minimum aspirational goal (KDOQI 2019). May be lower in urgent-start, elderly, "
+            "diabetic or frail populations — case-mix adjustment required before benchmarking.",
         ))
 
     # 5. AVF maturation failure rate (6-month cohort, KDOQI)
@@ -651,9 +716,28 @@ def compute_unit_benchmarks(
         })
 
     # 6. Thrombosis rate (per 100 patient-months, separately for AVF and AVG)
+    # KDOQI 2019 Goals Box targets (episodes/patient-year → /100 patient-months):
+    #   AVF: <0.25/pt-year  = 0.25/12 × 100 = 2.08 per 100 pt-months
+    #   AVG: <0.50/pt-year  = 0.50/12 × 100 = 4.17 per 100 pt-months
+    # The former code used 0.5 for both, which equals 6/pt-year — 12× too permissive for AVF.
+    _THROMBOSIS_TARGETS = {"AVF": 2.08, "AVG": 4.17}
     for ac_label in ("AVF", "AVG"):
         ac_patients = [p for p in active_patients if _is_access_class(p, ac_label)]
-        thrombosis_events = (
+
+        # ── 4.3 FIX: robust thrombosis numerator ────────────────────────────────
+        # The AccessEvent.access_class field is denormalised from the episode at
+        # event-creation time (analytics router lines 623-628). However events
+        # created via legacy routes, direct DB inserts, or migration scripts may
+        # have access_class = NULL, causing a silent zero rate that appears green.
+        #
+        # Query strategy: count events that match EITHER
+        #   (a) AccessEvent.access_class == ac_label  (populated correctly), OR
+        #   (b) AccessEvent.access_class IS NULL but the linked episode has
+        #       access_class == ac_label  (fallback for legacy/migration rows).
+        #
+        # This is implemented as two separate counts unioned in Python to avoid a
+        # complex ORM outer-join that differs between SQLite and PostgreSQL.
+        thrombosis_events_direct = (
             db.query(AccessEvent)
             .filter(
                 AccessEvent.access_class == ac_label,
@@ -664,19 +748,59 @@ def compute_unit_benchmarks(
             )
             .count()
         )
+        # Fallback: null access_class — join through episode
+        thrombosis_events_via_episode = (
+            db.query(AccessEvent)
+            .join(AccessEpisode, AccessEvent.episode_id == AccessEpisode.id)
+            .filter(
+                AccessEvent.access_class.is_(None),
+                AccessEpisode.access_class == ac_label,
+                AccessEvent.event_type == "thrombosis",
+                AccessEvent.status == "confirmed",
+                AccessEvent.event_date >= month_start,
+                AccessEvent.event_date <= month_end,
+            )
+            .count()
+        )
+        thrombosis_events = thrombosis_events_direct + thrombosis_events_via_episode
+        # ── end 4.3 FIX ─────────────────────────────────────────────────────────
+
         patient_months = len(ac_patients)  # 1 month
+        thr_target = _THROMBOSIS_TARGETS[ac_label]
         if patient_months:
             thr_rate = round(thrombosis_events / patient_months * 100, 2)
+
+            # Data-quality guard: a zero thrombosis rate in an active unit with
+            # multiple patients on AVF/AVG is clinically implausible and more
+            # likely reflects missing event documentation than a true zero.
+            # Log a warning so the discrepancy is surfaced in server logs.
+            if thrombosis_events == 0 and len(ac_patients) >= 5:
+                logger.warning(
+                    "compute_unit_benchmarks: %s thrombosis rate is 0 for %d patients "
+                    "in %s–%s. Verify that thrombosis events are being logged and that "
+                    "AccessEvent.access_class is populated correctly.",
+                    ac_label, len(ac_patients), month_start, month_end,
+                )
+
             results.append({
                 "name": f"{ac_label} Thrombosis Rate",
                 "access_class": ac_label,
                 "numerator": thrombosis_events,
                 "denominator": patient_months,
                 "rate": thr_rate,
-                "target": 0.5,
-                "rag": rag(thr_rate, 0.5, False),
-                "denominator_label": f"100 {ac_label} patient-months",
-                "notes": "Confirmed thrombosis events only",
+                "target": thr_target,
+                "rag": rag(thr_rate, thr_target, False),
+                "denominator_label": (
+                    f"100 {ac_label} patient-months "
+                    f"(KDOQI target <{thr_target}/100 pt-months = "
+                    f"<{round(thr_target / 100 * 12, 2)}/pt-year)"
+                ),
+                "notes": (
+                    f"Confirmed thrombosis events only. "
+                    f"KDOQI target: <{thr_target} per 100 {ac_label} patient-months "
+                    f"({'0.25' if ac_label == 'AVF' else '0.50'} episodes/patient-year). "
+                    f"{'⚠ Rate is 0 — verify event documentation completeness.' if thrombosis_events == 0 else ''}"
+                ).strip(),
             })
 
     # 7. CRBSI rate per 1000 catheter-days (TCC only)
@@ -741,30 +865,180 @@ def compute_unit_benchmarks(
     return results
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Legacy access-type normalisation
+# ─────────────────────────────────────────────────────────────────────────────
+# Canonical access classes (exactly as stored in AccessEpisode.access_class):
+#   AVF | AVG | TCC | NON_TUNNELLED
+#
+# The legacy PatientVascularAccess.access_type field is a free-text string
+# imported from spreadsheets and entered by different operators over time.
+# Substring matching against free text is fragile:
+#   - "Left IJV Permcath" should be TCC, but "TEMP" does not appear in it.
+#   - "AV Graft" contains neither "AVG" nor "GRAFT" (exact) in all variants.
+#   - A string like "AVF + TCC bridge" would match both AVF and TCC.
+#
+# Fix: an explicit canonical lookup table. All known legacy strings are mapped
+# to exactly one class. Unknown strings → None (logged, never double-counted).
+# The table must be extended if new legacy values are discovered — see the
+# warning log that fires for unrecognised strings.
+# ─────────────────────────────────────────────────────────────────────────────
+_LEGACY_ACCESS_TYPE_TO_CLASS: dict[str, str] = {
+    # AVF variants
+    "AVF":                          "AVF",
+    "AV FISTULA":                   "AVF",
+    "ARTERIOVENOUS FISTULA":        "AVF",
+    "RC AVF":                       "AVF",
+    "RADIOCEPHALIC AVF":            "AVF",
+    "BC AVF":                       "AVF",
+    "BRACHIOCEPHALIC AVF":          "AVF",
+    "BB AVF":                       "AVF",
+    "BRACHIOBASILIC AVF":           "AVF",
+    "LEFT AVF":                     "AVF",
+    "RIGHT AVF":                    "AVF",
+    "LT AVF":                       "AVF",
+    "RT AVF":                       "AVF",
+    "AVF LT":                       "AVF",
+    "AVF RT":                       "AVF",
+    "FISTULA":                      "AVF",
+    # AVG variants
+    "AVG":                          "AVG",
+    "AV GRAFT":                     "AVG",
+    "ARTERIOVENOUS GRAFT":          "AVG",
+    "GORE-TEX GRAFT":               "AVG",
+    "PTFE GRAFT":                   "AVG",
+    "SYNTHETIC GRAFT":              "AVG",
+    "LOOP GRAFT":                   "AVG",
+    "GRAFT":                        "AVG",
+    # TCC — tunnelled/permanent CVC variants
+    "TCC":                          "TCC",
+    "PERMCATH":                     "TCC",
+    "PERM CATH":                    "TCC",
+    "PERMANENT CATHETER":           "TCC",
+    "TUNNELLED CVC":                "TCC",
+    "TUNNELED CVC":                 "TCC",
+    "TUNNELLED CATHETER":           "TCC",
+    "TUNNELED CATHETER":            "TCC",
+    "LONG-TERM CVC":                "TCC",
+    "LONG TERM CVC":                "TCC",
+    "PERM CVC":                     "TCC",
+    "PERMANENT CVC":                "TCC",
+    "IJV PERMCATH":                 "TCC",
+    "LEFT IJV PERMCATH":            "TCC",
+    "RIGHT IJV PERMCATH":           "TCC",
+    "LT IJV PERMCATH":              "TCC",
+    "RT IJV PERMCATH":              "TCC",
+    "HICKMAN":                      "TCC",
+    "TESIO":                        "TCC",
+    "SPLIT CATH":                   "TCC",
+    "MAHURKAR (PERM)":              "TCC",
+    "MAHURKAR PERM":                "TCC",
+    # NON_TUNNELLED variants
+    "NON_TUNNELLED":                "NON_TUNNELLED",
+    "NON TUNNELLED":                "NON_TUNNELLED",
+    "NON-TUNNELLED":                "NON_TUNNELLED",
+    "TEMP CVC":                     "NON_TUNNELLED",
+    "TEMPORARY CVC":                "NON_TUNNELLED",
+    "DLJC":                         "NON_TUNNELLED",
+    "DOUBLE LUMEN JUGULAR CATHETER":"NON_TUNNELLED",
+    "MAHURKAR":                     "NON_TUNNELLED",
+    "MAHURKAR (TEMP)":              "NON_TUNNELLED",
+    "MAHURKAR TEMP":                "NON_TUNNELLED",
+    "VASCATH":                      "NON_TUNNELLED",
+    "TEMPORARY CATHETER":           "NON_TUNNELLED",
+    "TEMP CATHETER":                "NON_TUNNELLED",
+    "SHALDON":                      "NON_TUNNELLED",
+}
+
+
+def _normalise_legacy_access_type(raw: str) -> str | None:
+    """Map a free-text legacy access_type string to one canonical class.
+
+    Returns one of: 'AVF' | 'AVG' | 'TCC' | 'NON_TUNNELLED' | None.
+    Returns None (never raises) when the string is unrecognised.
+    A warning is logged so unrecognised values can be added to the table.
+
+    ⚠ This function intentionally returns a SINGLE class.  There is no
+    multi-match path — a patient is classified into exactly one category
+    or reported as unknown.  This prevents the double-counting bug that
+    the previous substring-matching fallback was susceptible to.
+    """
+    key = raw.strip().upper()
+    if key in _LEGACY_ACCESS_TYPE_TO_CLASS:
+        return _LEGACY_ACCESS_TYPE_TO_CLASS[key]
+
+    # Second pass: try stripping common site prefixes ("LEFT ", "RIGHT ",
+    # "LT ", "RT ", "BIL ") and re-looking up the remainder.
+    for prefix in ("LEFT ", "RIGHT ", "LT ", "RT ", "BIL ", "L ", "R "):
+        if key.startswith(prefix):
+            trimmed = key[len(prefix):]
+            if trimmed in _LEGACY_ACCESS_TYPE_TO_CLASS:
+                return _LEGACY_ACCESS_TYPE_TO_CLASS[trimmed]
+
+    logger.warning(
+        "access_surveillance: unrecognised legacy access_type %r — "
+        "patient excluded from access-class denominator. "
+        "Add this value to _LEGACY_ACCESS_TYPE_TO_CLASS to resolve.",
+        raw,
+    )
+    return None
+
+
 def _is_access_class(patient: Any, ac: str) -> bool:
-    """Check patient's current access class using AccessEpisode if available,
-    falling back to PatientVascularAccess.access_type string."""
-    # Check AccessEpisode first
+    """Return True iff the patient's current access is classified as *ac*.
+
+    Classification priority (highest wins):
+      1. AccessEpisode.access_class for the row where is_current=True.
+         This is the authoritative source — always preferred.
+      2. _normalise_legacy_access_type() on PatientVascularAccess.access_type
+         when no current AccessEpisode exists.
+         Returns False (not an error) if the legacy string is unrecognised —
+         an unrecognised patient is simply excluded from the denominator
+         rather than silently misclassified into a wrong bucket.
+
+    A patient is NEVER matched to more than one access class (no double-counting).
+    """
+    ac_upper = ac.upper()
+
+    # ── Primary path: current AccessEpisode ──────────────────────────────────
     if hasattr(patient, "access_episodes") and patient.access_episodes:
         current = [e for e in patient.access_episodes if e.is_current]
         if current:
-            return (current[0].access_class or "").upper() == ac.upper()
-    # Fall back to legacy field
-    if patient.vascular_access and patient.vascular_access.access_type:
-        t = patient.vascular_access.access_type.upper()
-        if ac == "AVF":
-            return "AVF" in t
-        if ac == "AVG":
-            return "AVG" in t or "GRAFT" in t
-        if ac == "TCC":
-            return "TCC" in t or ("CVC" in t and "TEMP" not in t and "DLJC" not in t)
-        if ac == "NON_TUNNELLED":
-            return "DLJC" in t or ("TEMP" in t and "CVC" in t)
+            # Take the most recently created current episode if multiple exist.
+            ep = max(current, key=lambda e: e.creation_date or date.min)
+            stored = (ep.access_class or "").upper()
+            # Normalise the stored value: 'NON_TUNNELLED' stored as-is in DB.
+            if stored == "NON_TUNNELLED" and ac_upper in ("NON_TUNNELLED", "NON-TUNNELLED"):
+                return True
+            return stored == ac_upper
+
+    # ── Fallback: legacy PatientVascularAccess.access_type ───────────────────
+    if (
+        hasattr(patient, "vascular_access")
+        and patient.vascular_access
+        and patient.vascular_access.access_type
+    ):
+        canonical = _normalise_legacy_access_type(patient.vascular_access.access_type)
+        if canonical is None:
+            return False   # unrecognised — exclude rather than misclassify
+        return canonical == ac_upper
+
     return False
 
 
 def _unit_catheter_days(db: Session, month_start: date, month_end: date) -> int:
-    """Sum TCC catheter-days for all patients in the given date range."""
+    """Sum TCC catheter-days for all patients in the given date range.
+
+    Convention: EXCLUSIVE end-date (end - start).days, matching the
+    CDC/NHSN device-days methodology used for CRBSI rate calculation.
+    The catheter is counted from its insertion date up to (but not
+    including) its removal/loss date, because a device removed on day N
+    was not present for the entirety of day N.
+
+    ⚠ The previous implementation used (end - start).days + 1 (inclusive
+    end), which inflated the denominator by one day per episode — slightly
+    understating the CRBSI rate. Corrected to exclusive-end.
+    """
     from db.models.clinical import AccessEpisode
 
     tcc_episodes = (
@@ -777,8 +1051,8 @@ def _unit_catheter_days(db: Session, month_start: date, month_end: date) -> int:
         start = max(ep.creation_date, month_start)
         end = ep.loss_date if ep.loss_date else month_end
         end = min(end, month_end)
-        if end >= start:
-            total += (end - start).days + 1
+        if end > start:          # strictly greater: zero-day episodes contribute 0
+            total += (end - start).days
     return total
 
 
@@ -862,6 +1136,11 @@ def compute_catheter_days(db: Session, patient_id: int, month: str) -> int:
 def _unit_catheter_days_for_patient(
     db: Session, patient_id: int, month_start: date, month_end: date
 ) -> int:
+    """Per-patient variant of _unit_catheter_days.
+
+    Uses exclusive end-date convention (CDC/NHSN device-days) — see
+    _unit_catheter_days for the full rationale.
+    """
     from db.models.clinical import AccessEpisode
 
     episodes = (
@@ -877,8 +1156,8 @@ def _unit_catheter_days_for_patient(
         start = max(ep.creation_date, month_start)
         end = ep.loss_date if ep.loss_date else month_end
         end = min(end, month_end)
-        if end >= start:
-            total += (end - start).days + 1
+        if end > start:          # exclusive end — see _unit_catheter_days
+            total += (end - start).days
     return total
 
 
@@ -929,7 +1208,21 @@ def compute_av_intervention_count(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Access-Loss Risk Scoring (unit-level ML prediction)
+# Access-Loss Clinical Attention Score (per-patient)
+#
+# ⚠ IMPORTANT — VALIDATION STATUS:
+# This is an unvalidated, internally-designed clinical attention tool.
+# The weights below were assigned by clinical consensus at development time
+# and have NOT been validated against outcome data or published in any
+# peer-reviewed study. KDOQI 2019 does NOT define these numeric weights.
+#
+# The score MUST NOT be interpreted as a probability of access loss.
+# It is a structured prioritisation aid to surface patients warranting
+# closer clinical attention — equivalent to a weighted checklist.
+#
+# The relative ordering of factors reflects clinical judgement at the time
+# of development. Thrombosis history (3.0) and Steal Gr3 (4.0) weights may
+# require recalibration once outcome data are available.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _RISK_WEIGHTS = {
@@ -946,7 +1239,9 @@ _RISK_WEIGHTS = {
     "life_plan_missing": 0.5,        # succession plan not documented
 }
 
-# Thresholds: score → risk label
+# Thresholds: raw score → attention level label
+# NOTE: These raw score cut-offs (6.0 / 3.0) are arbitrary calibration points,
+# not derived from clinical outcome data.
 _RISK_LEVELS = [(6.0, "High"), (3.0, "Moderate"), (0.0, "Low")]
 
 
@@ -955,9 +1250,13 @@ def compute_access_loss_risk(
     patient_id: int,
     config: dict | None = None,
 ) -> dict:
-    """Rule-weighted access-loss risk score for a single patient.
+    """Compute a weighted clinical attention score for a single patient's current access.
 
-    Returns: {risk_level, score, max_score, factors, episode_id, access_class}
+    Returns a structured dict indicating which risk factors are present and
+    a normalised score index (0–100). This is NOT a calibrated probability
+    of access loss — it is an unvalidated prioritisation aid.
+
+    Returns: {attention_level, score, max_score, risk_score_index, factors, episode_id, access_class}
     """
     if config is None:
         config = _load_config(db)
@@ -1019,7 +1318,7 @@ def compute_access_loss_risk(
     # ── Qa relative decline ───────────────────────────────────────────────────
     baseline_window = int(_cfg(config, "qa_baseline_window_sessions"))
     qa_decline_pct = _cfg(config, "qa_relative_decline_pct")
-    decline = _compute_qa_relative_decline(db, patient_id, baseline_window)
+    decline, _baseline = _compute_qa_relative_decline(db, patient_id, baseline_window)
     if decline is not None and decline >= qa_decline_pct:
         score += _RISK_WEIGHTS["qa_declining"]
         factors.append(f"Qa declining {decline:.0f}% from baseline")
@@ -1094,8 +1393,10 @@ def compute_access_loss_risk(
         factors.append("Succession plan not documented")
 
     max_score = sum(_RISK_WEIGHTS.values())
-    risk_level = next(label for threshold, label in _RISK_LEVELS if score >= threshold)
-    risk_pct = round(score / max_score * 100, 1)
+    attention_level = next(label for threshold, label in _RISK_LEVELS if score >= threshold)
+    # risk_score_index: weighted score as a fraction of max possible, scaled to 0–100.
+    # This is NOT a calibrated probability — do not display with a % sign.
+    risk_score_index = round(score / max_score * 100, 1)
 
     return {
         "available": True,
@@ -1104,8 +1405,10 @@ def compute_access_loss_risk(
         "access_class": ac,
         "score": round(score, 1),
         "max_score": round(max_score, 1),
-        "risk_pct": risk_pct,
-        "risk_level": risk_level,
+        "risk_score_index": risk_score_index,
+        # Backward-compat alias so existing template references still resolve:
+        "risk_pct": risk_score_index,
+        "risk_level": attention_level,
         "factors": factors,
     }
 
@@ -1260,12 +1563,14 @@ def compute_unit_access_risk(
         qa_decline_pct = _cfg(config, "qa_relative_decline_pct")
         if len(qa_vals) >= baseline_window + 1:
             latest_qa = qa_vals[0]
-            baseline = sum(qa_vals[1:baseline_window + 1]) / baseline_window
-            if baseline > 0:
+            baseline = sum(qa_vals[3:3 + baseline_window]) / baseline_window if len(qa_vals) >= 3 + baseline_window else sum(qa_vals[1:]) / (len(qa_vals) - 1)
+            # Persistence gate: all 3 most recent readings must be below baseline
+            recent_3 = qa_vals[:3]
+            if baseline > 0 and all(q < baseline for q in recent_3):
                 decline = max((baseline - latest_qa) / baseline * 100, 0.0)
                 if decline >= qa_decline_pct:
                     score += _RISK_WEIGHTS["qa_declining"]
-                    factors.append(f"Qa declining {decline:.0f}% from baseline")
+                    factors.append(f"Qa declining {decline:.0f}% from baseline (persistent over {len(recent_3)} sessions)")
 
         # High recirculation (last 2 sessions with a reading)
         recirc_threshold = _cfg(config, "recirculation_threshold_pct")
@@ -1329,8 +1634,9 @@ def compute_unit_access_risk(
             factors.append("Succession plan not documented")
 
         max_score = sum(_RISK_WEIGHTS.values())
-        risk_level = next(label for threshold, label in _RISK_LEVELS if score >= threshold)
-        risk_pct = round(score / max_score * 100, 1)
+        attention_level = next(label for threshold, label in _RISK_LEVELS if score >= threshold)
+        # risk_score_index: fraction of max weighted score × 100 — NOT a probability.
+        risk_score_index = round(score / max_score * 100, 1)
 
         results.append({
             "available": True,
@@ -1341,8 +1647,9 @@ def compute_unit_access_risk(
             "access_class": ac,
             "score": round(score, 1),
             "max_score": round(max_score, 1),
-            "risk_pct": risk_pct,
-            "risk_level": risk_level,
+            "risk_score_index": risk_score_index,
+            "risk_pct": risk_score_index,   # backward-compat alias for templates
+            "risk_level": attention_level,
             "factors": factors,
         })
 

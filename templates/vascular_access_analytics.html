@@ -124,14 +124,24 @@
   </div>
   {% if access_failure_risk %}
   {% set risk_level = access_failure_risk.risk_level|default('low')|lower %}
-  {% set risk_prob = (access_failure_risk.risk_probability|default(0) * 100)|round|int %}
-  <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: var(--radius); padding: 14px 20px; border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; gap: 14px;">
-    <div style="width: 12px; height: 12px; border-radius: 50%; background: {% if risk_level == 'high' %}var(--danger){% elif risk_level == 'moderate' %}var(--warning){% else %}var(--success){% endif %}; box-shadow: 0 0 12px {% if risk_level == 'high' %}var(--danger){% elif risk_level == 'moderate' %}var(--warning){% else %}var(--success){% endif %};"></div>
+  {% set risk_prob = (access_failure_risk.probability_90d|default(access_failure_risk.risk_probability|default(0)) * 100)|round|int %}
+  {% set risk_method = access_failure_risk.method|default('Heuristic') %}
+  {% set is_heuristic = 'heuristic' in risk_method|lower %}
+  <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: var(--radius); padding: 14px 20px; border: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; gap: 14px; max-width:260px;"
+       title="{{ access_failure_risk.model_disclaimer|default('Experimental prediction tool. Clinical judgement must take precedence.') }}">
+    <div style="width: 12px; height: 12px; border-radius: 50%; flex-shrink:0; background: {% if risk_level == 'high' %}var(--danger){% elif risk_level == 'moderate' %}var(--warning){% else %}var(--success){% endif %}; box-shadow: 0 0 12px {% if risk_level == 'high' %}var(--danger){% elif risk_level == 'moderate' %}var(--warning){% else %}var(--success){% endif %};"></div>
     <div>
       <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7;">90-Day Failure Risk</div>
       <div style="font-size: 1.25rem; font-weight: 800; font-family: 'Outfit', sans-serif; display: flex; align-items: baseline; gap: 4px;">
         {{ risk_level|title }}
         <span style="font-size: 0.85rem; font-weight: 500; opacity: 0.8;">({{ risk_prob }}%)</span>
+      </div>
+      <!-- Method tag — always shown adjacent to the score -->
+      <div style="font-size: 0.65rem; margin-top: 3px; display:flex; align-items:center; gap:4px;">
+        <span style="background: {% if is_heuristic %}rgba(245,158,11,0.25){% else %}rgba(99,102,241,0.25){% endif %}; color: {% if is_heuristic %}#fbbf24{% else %}#a5b4fc{% endif %}; padding: 1px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.04em;">
+          {% if is_heuristic %}⚙ Heuristic{% else %}🤖 ML Model{% endif %}
+        </span>
+        <span style="opacity:0.55;" title="Experimental tool. Not validated in this cohort.">ⓘ</span>
       </div>
     </div>
   </div>
@@ -148,29 +158,56 @@
       <div class="kpi-value">{{ patency.primary_patency_days }}</div>
       <div class="kpi-sub">days</div>
     </div>
-    <div class="kpi info">
-      <div class="kpi-label">Cumulative Patency</div>
+    <div class="kpi info"
+         title="Cumulative patency (KDOQI 2019 preferred term for 'secondary patency'): time from access creation to permanent abandonment, counting all intervening thrombectomies and revisions. A device that is saved multiple times still accumulates days.">
+      <div class="kpi-label" style="display:flex;align-items:center;gap:4px;">
+        Cumulative Patency
+        <span style="font-size:.62rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-weight:700;white-space:nowrap;">= secondary patency</span>
+      </div>
       <div class="kpi-value">{{ patency.cumulative_patency_days }}</div>
-      <div class="kpi-sub">days since creation</div>
+      <div class="kpi-sub">days · creation → abandonment (interventions included)</div>
     </div>
-    <div class="kpi {{ 'ok' if patency.intervention_count <= 2 else 'warn' if patency.intervention_count <= 3 else 'danger' }}">
-      <div class="kpi-label">Interventions</div>
-      <div class="kpi-value">{{ patency.intervention_count }}</div>
-      <div class="kpi-sub">KDOQI target ≤2 establish, ≤3/yr maintain</div>
+    <!-- 3.3 FIX: replaced single ambiguous KPI with two explicit establish/maintain cards -->
+    <div class="kpi {{ 'ok' if patency.intervention_count <= 2 else 'danger' }}">
+      <div class="kpi-label">Establish Interventions</div>
+      <div class="kpi-value">{{ patency.intervention_count }} <span style="font-size:1rem;font-weight:600;opacity:.6;">/ 2</span></div>
+      <div class="kpi-sub">KDOQI 1-2-3: ≤2 to establish patency</div>
     </div>
     {% endif %}
     {% if intervention_establish %}
-    <div class="kpi {{ 'ok' if not intervention_establish.exceeds else 'danger' }}">
-      <div class="kpi-label">Establish Interventions</div>
-      <div class="kpi-value">{{ intervention_establish.count }} / {{ intervention_establish.threshold }}</div>
-      <div class="kpi-sub">KDOQI 1-2-3 rule</div>
+    <div class="kpi {{ 'ok' if not intervention_establish.exceeds else 'danger' }}"
+         title="KDOQI 1-2-3 rule: ≤{{ intervention_establish.threshold }} interventions to establish patency">
+      <div class="kpi-label">Establish — Interventions</div>
+      <div class="kpi-value">
+        {{ intervention_establish.count }}
+        <span style="font-size:1rem;font-weight:600;opacity:.6;">/ {{ intervention_establish.threshold }}</span>
+      </div>
+      <div class="kpi-sub">
+        KDOQI 1-2-3 establish limit
+        {% if intervention_establish.exceeds %}
+        · <strong style="color:#b91c1c;">EXCEEDED</strong>
+        {% else %}
+        · within target
+        {% endif %}
+      </div>
     </div>
     {% endif %}
     {% if intervention_annual %}
-    <div class="kpi {{ 'ok' if not intervention_annual.exceeds else 'danger' }}">
-      <div class="kpi-label">Annual Maintain Intv.</div>
-      <div class="kpi-value">{{ intervention_annual.count }} / {{ intervention_annual.threshold }}</div>
-      <div class="kpi-sub">past 12 months</div>
+    <div class="kpi {{ 'ok' if not intervention_annual.exceeds else 'danger' }}"
+         title="KDOQI 1-2-3 rule: ≤{{ intervention_annual.threshold }} maintenance interventions per 12 months">
+      <div class="kpi-label">Maintain — 12-Month Intv.</div>
+      <div class="kpi-value">
+        {{ intervention_annual.count }}
+        <span style="font-size:1rem;font-weight:600;opacity:.6;">/ {{ intervention_annual.threshold }}</span>
+      </div>
+      <div class="kpi-sub">
+        KDOQI 1-2-3 maintain limit · past 12 months
+        {% if intervention_annual.exceeds %}
+        · <strong style="color:#b91c1c;">EXCEEDED</strong>
+        {% else %}
+        · within target
+        {% endif %}
+      </div>
     </div>
     {% endif %}
     {% if current_ep %}
@@ -185,10 +222,17 @@
     </div>
     {% endif %}
     {% if surveillance %}
-    <div class="kpi" id="kpi-last-surv">
-      <div class="kpi-label">Last Surveillance</div>
+    <!-- 3.2 FIX: no calendar-based colour threshold — KDOQI 2019 G13.4–13.5 states routine
+         scheduled Doppler surveillance is NOT recommended; imaging is triggered by clinical findings. -->
+    <div class="kpi info" id="kpi-last-surv"
+         title="KDOQI 2019 Guidelines 13.4–13.5: routine scheduled surveillance is not recommended. Imaging should be triggered by clinical findings, not a calendar interval.">
+      <div class="kpi-label" style="display:flex;align-items:center;gap:4px;">
+        Last Surveillance
+        <span style="font-size:.65rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-weight:700;">clinically triggered</span>
+      </div>
       <div class="kpi-value" style="font-size:1.5rem;" id="kpi-surv-days">—</div>
       <div class="kpi-sub">days ago · {{ surveillance[0].surveillance_date.strftime('%d %b %Y') }}</div>
+      <div class="kpi-sub" style="margin-top:3px;font-style:italic;color:#64748b;">Routine calendar intervals not KDOQI-recommended</div>
     </div>
     {% endif %}
   </div>
@@ -340,18 +384,46 @@
 
   <!-- ── VASCULAR ACCESS RISK FACTORS ─────────────────────────────────── -->
   {% if access_failure_risk %}
+  {% set risk_level = access_failure_risk.risk_level|default('low')|lower %}
+  {% set risk_prob = (access_failure_risk.probability_90d|default(access_failure_risk.risk_probability|default(0)) * 100)|round|int %}
+  {% set risk_method = access_failure_risk.method|default('Heuristic') %}
+  {% set is_heuristic = 'heuristic' in risk_method|lower %}
   <div class="card">
-    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
       <span style="display:flex; align-items:center; gap:10px;">
         <i class="material-icons" style="color:var(--warning);">analytics</i>
         90-Day Failure Risk Analysis
       </span>
-      <span class="pill {% if access_failure_risk.risk_level|lower == 'high' %}pill-red{% elif access_failure_risk.risk_level|lower == 'moderate' %}pill-amber{% else %}pill-green{% endif %}">
-        {{ access_failure_risk.risk_level|title }} Risk ({{ (access_failure_risk.risk_probability * 100)|round|int }}%)
+      <span style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <!-- Method pill — distinguishes ML vs Heuristic at a glance -->
+        <span class="pill {% if is_heuristic %}pill-amber{% else %}pill-blue{% endif %}" style="font-size:.7rem;"
+              title="{{ risk_method }}">
+          {% if is_heuristic %}⚙ Heuristic estimate{% else %}🤖 {{ risk_method }}{% endif %}
+        </span>
+        <span class="pill {% if risk_level == 'high' %}pill-red{% elif risk_level == 'moderate' %}pill-amber{% else %}pill-green{% endif %}">
+          {{ risk_level|title }} Risk ({{ risk_prob }}%)
+        </span>
       </span>
     </div>
+
+    <!-- Persistent disclaimer — always visible, regardless of method -->
+    <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:10px 14px; margin-bottom:16px; display:flex; align-items:flex-start; gap:10px; font-size:.8rem; color:#78350f; line-height:1.5;">
+      <i class="material-icons" style="font-size:1.1rem; color:#f59e0b; flex-shrink:0; margin-top:1px;">warning_amber</i>
+      <div>
+        <strong>Experimental prediction tool — not a validated clinical probability.</strong>
+        {% if is_heuristic %}
+          Score derived from KDOQI threshold heuristic; no trained ML model is available yet
+          (requires ≥50 failure events to train). Output is an ordinal risk score, not a calibrated probability.
+        {% else %}
+          Model based on Hsieh 2023 (Taiwanese IoMT-integrated HD centre). Feature distributions and
+          failure rates may differ substantially from this cohort. Cross-validated AUC on small local
+          datasets is unreliable. {% if access_failure_risk.model_disclaimer %}{{ access_failure_risk.model_disclaimer }}{% endif %}
+        {% endif %}
+        <strong>Clinical judgement must take precedence over all model outputs.</strong>
+      </div>
+    </div>
     
-    <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:24px; margin-top:12px;">
+    <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:24px; margin-top:4px;">
       <!-- Risk factors / details list -->
       <div>
         <div style="font-weight:700; font-size:.88rem; color:#475569; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.04em;">Primary Risk Drivers</div>
@@ -373,16 +445,23 @@
       <div style="background:#f8fafc; border-radius:10px; padding:16px 20px; border:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:center;">
         <div style="font-weight:700; font-size:.88rem; color:#1e1b4b; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
           <i class="material-icons" style="font-size:1.15rem; color:var(--primary);">info</i>
-          Clinical Guidance (Hsieh 2023)
+          Clinical Guidance
         </div>
         <p style="font-size:.82rem; color:#475569; margin:0 0 10px; line-height:1.45;">
-          This model uses a weekly XGBoost classifier to analyze trend features from Doppler reports (Qa, stenosis, PSV), historical thrombosis episodes, and session cannulation difficulty.
+          {% if is_heuristic %}
+            Heuristic score based on KDOQI access-flow thresholds (AVF ≥600 mL/min, AVG ≥500 mL/min),
+            recirculation, stenosis, and prior thrombosis events. Train the ML model to enable
+            data-driven predictions (requires ≥50 documented access failure events).
+          {% else %}
+            ML model trained on local access surveillance data, analysing Qa trends, stenosis, PSV,
+            thrombosis history, and cannulation difficulty (Hsieh 2023 feature set).
+          {% endif %}
         </p>
-        {% if access_failure_risk.risk_level|lower == 'high' %}
+        {% if risk_level == 'high' %}
           <div style="background:#fee2e2; border-left:4px solid var(--danger); padding:8px 12px; border-radius:4px; font-size:.8rem; color:#991b1b; font-weight:600;">
             Recommendation: Prioritize urgent referral for duplex ultrasound or fistulogram.
           </div>
-        {% elif access_failure_risk.risk_level|lower == 'moderate' %}
+        {% elif risk_level == 'moderate' %}
           <div style="background:#fef3c7; border-left:4px solid var(--warning); padding:8px 12px; border-radius:4px; font-size:.8rem; color:#92400e; font-weight:600;">
             Recommendation: Increase surveillance frequency and inspect access site before every session.
           </div>
@@ -399,10 +478,13 @@
   <!-- ── CHART 1: Qa + BFR Trend ─────────────────────────────────────── -->
   <div class="card">
     <div class="card-title"><i class="material-icons" style="color:var(--primary);">trending_up</i> Access Flow (Qa) & Blood Flow Rate Trend</div>
-    <p style="font-size:.82rem;color:#64748b;margin:0 0 12px;">
-      Qa &lt;600 mL/min (AVF) or &lt;500 mL/min (AVG) on 2 consecutive sessions triggers clinical review (KDOQI 2019).
-      Doppler Qa measurements are overlaid as diamond markers.
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 4px;">
+      <strong>Two Qa measurements are shown — they are not interchangeable:</strong>
     </p>
+    <ul style="font-size:.82rem;color:#64748b;margin:0 0 12px;padding-left:1.2rem;line-height:1.8;">
+      <li><span style="color:#6366f1;font-weight:700;">&#9644; Session estimate</span> — derived from blood pump speed; high session-to-session variability (±15–20%); <strong>KDOQI thresholds do not apply</strong>.</li>
+      <li><span style="color:#7c3aed;font-weight:700;">&#9670; Doppler / Imaging Qa</span> — direct volumetric measurement; the only modality to which KDOQI 2019 Guideline 13.3 thresholds (AVF ≥600 / AVG ≥500 mL/min) apply.</li>
+    </ul>
     <div class="chart-wrap"><div id="chart-qa" style="height:320px;"></div></div>
   </div>
 
@@ -417,10 +499,20 @@
 
   <!-- ── CHART 3: Bedside Exam Heatmap ───────────────────────────────── -->
   <div class="card">
-    <div class="card-title"><i class="material-icons" style="color:var(--info);">health_and_safety</i> Bedside Exam — Thrill & Bruit Grade per Session</div>
-    <p style="font-size:.82rem;color:#64748b;margin:0 0 12px;">
-      Physical exam is the primary monitoring tool at every session (KDOQI 2019). Consecutive abnormal values generate imaging action items.
+    <div class="card-title"><i class="material-icons" style="color:var(--info);">health_and_safety</i> Bedside Exam — Thrill &amp; Bruit Grade per Session</div>
+    <!-- 3.4 FIX: clarify that the action trigger requires 2 consecutive sessions, not one -->
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 4px;">
+      Physical exam is the primary monitoring tool at every session (KDOQI 2019).
     </p>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.79rem;color:#1e40af;display:flex;align-items:flex-start;gap:8px;">
+      <i class="material-icons" style="font-size:1rem;flex-shrink:0;margin-top:1px;">info</i>
+      <span>
+        <strong>How to read this chart:</strong> A single Reduced or Absent reading does <em>not</em> trigger an action.
+        The dashed line marks the grade at which findings become clinically significant — but
+        an imaging referral is only generated when <strong>2 consecutive sessions</strong> record
+        Reduced or Absent thrill/bruit (KDOQI 2019). Isolated readings may reflect positioning or documentation variation.
+      </span>
+    </div>
     <div class="chart-wrap"><div id="chart-exam" style="height:240px;"></div></div>
   </div>
 
@@ -472,14 +564,19 @@ const SURV       = {{ chart_surveillance_json|safe }};
 const PATIENT_ID = {{ patient.id }};
 
 // ── Days since last surveillance KPI ─────────────────────────────────────────
+// 3.2 FIX: No calendar-based colour threshold applied.
+// KDOQI 2019 Guidelines 13.4–13.5 explicitly state that routine scheduled
+// Doppler surveillance is NOT recommended — imaging must be triggered by
+// clinical findings (abnormal physical exam, unexplained Kt/V drop, etc.).
+// Applying an amber warning at 180 days would imply a calendar obligation
+// that contradicts KDOQI and may drive unnecessary studies.
 (function() {
   const el = document.getElementById('kpi-surv-days');
-  const card = document.getElementById('kpi-last-surv');
   if (!el || !SURV.length) return;
   const lastDate = new Date(SURV[0].date);
   const days = Math.floor((Date.now() - lastDate.getTime()) / 86400000);
   el.textContent = days;
-  if (card) card.classList.add(days <= 180 ? 'ok' : 'warn');
+  // No colour class added — presence of clinical trigger is what matters, not elapsed days.
 })();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -498,26 +595,38 @@ const LAYOUT_BASE = {
   legend: { orientation: 'h', y: -0.18, x: 0, font: { size: 11 } },
 };
 
-// ── Chart 1: Qa + BFR ────────────────────────────────────────────────────────
+// ── Chart 1: Qa + BFR ─────────────────────────────────────────────────────────────
 (function() {
   const dates  = SESSIONS.map(s => s.date);
   const qa     = SESSIONS.map(s => s.qa);
   const bfrAct = SESSIONS.map(s => s.bfr_actual);
   const bfrPre = SESSIONS.map(s => s.bfr_prescribed);
 
-  // Doppler Qa overlays
+  // Doppler Qa overlays — these are the ONLY values subject to KDOQI thresholds
   const survDates = SURV.filter(s => s.qa).map(s => s.date);
   const survQa    = SURV.filter(s => s.qa).map(s => s.qa);
 
+  // Threshold lines span the Doppler x-range only (not the full session timeline)
+  // because KDOQI 600/500 mL/min apply exclusively to instrumented Doppler Qa.
+  const threshX0 = survDates.length ? survDates[0]               : (dates[0] ?? '');
+  const threshX1 = survDates.length ? survDates[survDates.length - 1] : (dates[dates.length - 1] ?? '');
+
   const traces = [
     {
-      x: dates, y: qa, name: 'Qa (session)', type: 'scatter', mode: 'lines+markers',
-      line: { color: '#6366f1', width: 2.5 }, marker: { size: 5, color: '#6366f1' },
+      x: dates, y: qa,
+      name: 'Qa — Session estimate (blood pump speed)',
+      type: 'scatter', mode: 'lines+markers',
+      line: { color: '#6366f1', width: 2, dash: 'dot' },
+      marker: { size: 4, color: '#6366f1', symbol: 'circle-open' },
       connectgaps: true,
+      // Muted styling signals this is NOT the threshold-applicable measurement
     },
     {
-      x: survDates, y: survQa, name: 'Qa (Doppler/imaging)', type: 'scatter', mode: 'markers',
-      marker: { symbol: 'diamond', size: 12, color: '#7c3aed', line: { color: '#fff', width: 2 } },
+      x: survDates, y: survQa,
+      name: 'Qa — Doppler / Imaging (KDOQI-validated)',
+      type: 'scatter', mode: 'markers',
+      marker: { symbol: 'diamond', size: 13, color: '#7c3aed', line: { color: '#fff', width: 2 } },
+      // Diamond markers are distinct from session dots; KDOQI thresholds apply here
     },
     {
       x: dates, y: bfrAct, name: 'Actual BFR', type: 'scatter', mode: 'lines',
@@ -529,25 +638,36 @@ const LAYOUT_BASE = {
     },
   ];
 
-  const shapes = [
-    { type: 'line', y0: 600, y1: 600, x0: dates[0], x1: dates[dates.length - 1],
-      line: { color: '#ef4444', width: 1.5, dash: 'dot' }, name: 'AVF threshold 600' },
-    { type: 'line', y0: 500, y1: 500, x0: dates[0], x1: dates[dates.length - 1],
+  const shapes = survDates.length ? [
+    { type: 'rect',
+      x0: threshX0, x1: threshX1, y0: 0, y1: 1, yref: 'paper',
+      fillcolor: 'rgba(124,58,237,0.04)', line: { width: 0 },
+      layer: 'below' },
+    { type: 'line', y0: 600, y1: 600, x0: threshX0, x1: threshX1,
+      line: { color: '#ef4444', width: 1.5, dash: 'dot' } },
+    { type: 'line', y0: 500, y1: 500, x0: threshX0, x1: threshX1,
       line: { color: '#f59e0b', width: 1.5, dash: 'dot' } },
-  ];
+  ] : [];
+
+  const annotations = survDates.length ? [
+    { x: threshX1, y: 600,
+      text: 'AVF ≥600 (Doppler\u00a0Qa\u00a0only)', showarrow: false,
+      font: { size: 10, color: '#ef4444' }, xanchor: 'right',
+      bgcolor: 'rgba(255,255,255,0.85)', borderpad: 2 },
+    { x: threshX1, y: 500,
+      text: 'AVG ≥500 (Doppler\u00a0Qa\u00a0only)', showarrow: false,
+      font: { size: 10, color: '#f59e0b' }, xanchor: 'right',
+      bgcolor: 'rgba(255,255,255,0.85)', borderpad: 2 },
+  ] : [];
 
   Plotly.newPlot('chart-qa', traces, {
     ...LAYOUT_BASE,
     yaxis: { ...LAYOUT_BASE.yaxis, title: 'mL/min' },
     shapes,
-    annotations: [
-      { x: dates[dates.length - 1], y: 600, text: 'AVF min 600', showarrow: false,
-        font: { size: 10, color: '#ef4444' }, xanchor: 'right' },
-      { x: dates[dates.length - 1], y: 500, text: 'AVG min 500', showarrow: false,
-        font: { size: 10, color: '#f59e0b' }, xanchor: 'right' },
-    ],
+    annotations,
   }, PLOTLY_CONFIG);
 })();
+
 
 // ── Chart 2: Recirculation ───────────────────────────────────────────────────
 (function() {
@@ -612,13 +732,20 @@ const LAYOUT_BASE = {
       tickvals: [0, 1, 2], ticktext: ['Normal', 'Reduced', 'Absent'],
       range: [-0.3, 2.5],
     },
+    // 3.4 FIX: The shape now sits between Reduced (1) and Absent (2) to reflect
+    // that it is the *persistence* of ≥Reduced across 2 sessions that triggers action,
+    // not a single reading. The annotation text is explicit about the 2-session rule.
     shapes: [{
       type: 'line', y0: 1, y1: 1, x0: dates[0], x1: dates[dates.length - 1],
       line: { color: '#f59e0b', width: 1.5, dash: 'dot' },
     }],
     annotations: [{
-      x: dates[dates.length - 1], y: 1, text: 'Action threshold', showarrow: false,
-      font: { size: 10, color: '#f59e0b' }, xanchor: 'right',
+      x: dates[dates.length - 1], y: 1,
+      text: '⚠ Imaging trigger: Reduced or Absent on 2 consecutive sessions',
+      showarrow: false,
+      font: { size: 10, color: '#92400e' }, xanchor: 'right',
+      bgcolor: 'rgba(254,243,199,0.92)', borderpad: 3,
+      bordercolor: '#f59e0b', borderwidth: 1,
     }],
     showlegend: true,
   }, PLOTLY_CONFIG);
