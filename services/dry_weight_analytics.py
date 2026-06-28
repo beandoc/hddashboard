@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+import json as _json
+
 from sqlalchemy.orm import Session
 
 from database import DryWeightAssessment, MonthlyRecord, Patient
+from db.models.research import ResearchRecord
 
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
@@ -84,7 +87,7 @@ def compute_patient_dry_weight_trajectory(
             elif avg_idwg < _IDWG_LOW_KG:
                 suggested_target = round(current_target - _DW_STEP_KG, 1)
 
-    # ── Formal assessments (BIA / IVC) ────────────────────────────────────────
+    # ── Formal assessments (DryWeightAssessment table) ───────────────────────
     assessments_raw: List[DryWeightAssessment] = (
         db.query(DryWeightAssessment)
         .filter(DryWeightAssessment.patient_id == patient_id)
@@ -95,18 +98,74 @@ def compute_patient_dry_weight_trajectory(
     assessments = [
         {
             "date": str(a.assessment_date),
+            "source": "clinical",
             "recommended_dw": a.recommended_dry_weight,
             "bia_fluid_overload_l": a.bia_fluid_overload_litres,
             "bia_overhydration_pct": a.bia_overhydration_percent,
             "bia_phase_angle": a.bia_phase_angle,
+            "bia_tbw_l": a.bia_total_body_water,
             "ivc_diameter_max": a.ivc_diameter_max,
             "ivc_collapsibility": a.ivc_collapsibility_index,
             "nt_probnp": a.nt_probnp,
             "edema_status": a.edema_status,
             "notes": a.assessment_notes,
+            # Research-only fields absent in clinical records
+            "body_fat_mass": None,
+            "fat_free_mass": None,
+            "skeletal_muscle_mass": None,
+            "obesity_degree": None,
+            "pct_body_fat": None,
         }
         for a in assessments_raw
     ]
+
+    # ── BIA records from the Research section (ResearchRecord, test_type BIA) ─
+    research_bia = (
+        db.query(ResearchRecord)
+        .filter(
+            ResearchRecord.patient_id == patient_id,
+            ResearchRecord.test_type.ilike("%BIA%"),
+        )
+        .order_by(ResearchRecord.test_date)
+        .all()
+    )
+
+    for r in research_bia:
+        d: dict = {}
+        if r.data:
+            try:
+                d = _json.loads(r.data)
+            except Exception:
+                pass
+
+        def _f(key: str) -> Optional[float]:
+            v = d.get(key)
+            try:
+                return float(v) if v not in (None, "", "None") else None
+            except (TypeError, ValueError):
+                return None
+
+        assessments.append({
+            "date": str(r.test_date),
+            "source": "research",
+            "recommended_dw": None,
+            "bia_fluid_overload_l": None,
+            "bia_overhydration_pct": None,
+            "bia_phase_angle": _f("phase_angle"),
+            "bia_tbw_l": _f("tbw_liters"),
+            "ivc_diameter_max": None,
+            "ivc_collapsibility": None,
+            "nt_probnp": None,
+            "edema_status": None,
+            "notes": r.notes,
+            "body_fat_mass": _f("body_fat_mass"),
+            "fat_free_mass": _f("fat_free_mass"),
+            "skeletal_muscle_mass": _f("skeletal_muscle_mass"),
+            "obesity_degree": _f("obesity_degree"),
+            "pct_body_fat": _f("percentage_body_fat"),
+        })
+
+    assessments.sort(key=lambda x: x["date"])
 
     return {
         "patient_id": patient_id,

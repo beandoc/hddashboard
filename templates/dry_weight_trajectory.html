@@ -299,10 +299,14 @@
           <thead>
             <tr>
               <th>Date</th>
+              <th>Source</th>
               <th>Rec. DW (kg)</th>
+              <th>Phase Angle</th>
+              <th>TBW (L)</th>
+              <th>Body Fat (kg)</th>
+              <th>Fat-Free (kg)</th>
               <th>BIA Fluid OL (L)</th>
               <th>BIA OH %</th>
-              <th>Phase Angle</th>
               <th>IVC Diam. (mm)</th>
               <th>IVC Collapse %</th>
               <th>NT-proBNP</th>
@@ -313,10 +317,20 @@
             {% for a in t.assessments %}
             <tr>
               <td>{{ a.date }}</td>
+              <td>
+                {% if a.source == 'research' %}
+                  <span style="background:#0e7490;color:#cffafe;font-size:0.72rem;padding:2px 7px;border-radius:999px;font-weight:600;">Research BIA</span>
+                {% else %}
+                  <span style="background:#1e3a5f;color:#bae6fd;font-size:0.72rem;padding:2px 7px;border-radius:999px;font-weight:600;">Clinical</span>
+                {% endif %}
+              </td>
               <td>{{ a.recommended_dw or '—' }}</td>
+              <td>{{ a.bia_phase_angle or '—' }}</td>
+              <td>{{ a.bia_tbw_l or '—' }}</td>
+              <td>{{ a.body_fat_mass or '—' }}</td>
+              <td>{{ a.fat_free_mass or '—' }}</td>
               <td>{{ a.bia_fluid_overload_l or '—' }}</td>
               <td>{{ a.bia_overhydration_pct or '—' }}</td>
-              <td>{{ a.bia_phase_angle or '—' }}</td>
               <td>{{ a.ivc_diameter_max or '—' }}</td>
               <td>{{ a.ivc_collapsibility or '—' }}</td>
               <td>{{ a.nt_probnp or '—' }}</td>
