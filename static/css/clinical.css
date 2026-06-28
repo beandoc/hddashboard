@@ -241,6 +241,9 @@ input, select, textarea { min-height: 40px; }
 .nav-dropdown a.active { color: #7dd3fc; background: rgba(14, 165, 233, 0.16); }
 .nav-dropdown a i.material-icons { font-size: 15px; opacity: 0.6; }
 .nav-dropdown .dd-divider { height: 1px; background: rgba(255, 255, 255, 0.07); margin: 3px 0; }
+.nav-dropdown .dd-section-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(148,163,184,0.55); padding: 8px 14px 3px; pointer-events: none; }
+.nav-dropdown .dd-green { color: #4ade80 !important; }
+.nav-dropdown .dd-green:hover { background: rgba(74,222,128,0.10) !important; }
 .nav-dropdown .dd-highlight              { color: #c4b5fd !important; }
 .nav-dropdown .dd-highlight:hover        { background: rgba(196, 181, 253, 0.10) !important; }
 .nav-dropdown .dd-highlight.active       { background: rgba(196, 181, 253, 0.18) !important; }

@@ -93,7 +93,7 @@
                 <div>
                     <strong>Audit parameters:</strong> Currently showing critical missing data for <strong>{{ selected_patient.name }} (HID: {{ selected_patient.hid_no }})</strong>.
                     <br/>
-                    <em>Note: Analysis is filtered **up to May 2026**. Current month (June 2026) monthly lab data is excluded from the audit.</em>
+                    <em>Note: Analysis is filtered <strong>up to {{ cutoff_label }}</strong>. Current month's data is excluded from the audit.</em>
                 </div>
             </div>
 
@@ -134,7 +134,7 @@
                 <!-- Session Logs -->
                 <div class="card">
                     <h3>
-                        <i class="material-icons">history</i> Dialysis Sessions Audit (up to May 2026)
+                        <i class="material-icons">history</i> Dialysis Sessions Audit (up to {{ cutoff_label }})
                         <span style="margin-left: auto;">
                             <span class="metric-pill">{{ report.total_sessions_checked }} Checked</span>
                             {% if report.session_issues %}
@@ -185,7 +185,7 @@
                 <!-- Monthly Labs -->
                 <div class="card">
                     <h3>
-                        <i class="material-icons">science</i> Monthly Labs Audit (up to May 2026)
+                        <i class="material-icons">science</i> Monthly Labs Audit (up to {{ cutoff_label }})
                         <span style="margin-left: auto;">
                             <span class="metric-pill">{{ report.total_months_checked }} Checked</span>
                             {% if report.monthly_issues %}

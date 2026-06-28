@@ -477,13 +477,19 @@ async def admin_missing_data(
     if patient_id:
         selected_patient = db.query(Patient).filter(Patient.id == patient_id).first()
         if selected_patient:
+            # Dynamic cutoff: exclude the current (in-progress) month
+            _now = datetime.now()
+            _cutoff_dt = (_now.replace(day=1) - timedelta(days=1))  # last day of previous month
+            _cutoff_date = _cutoff_dt.date()
+            _cutoff_month = _cutoff_dt.strftime("%Y-%m")
+
             # 1. Profile fields check
             profile_missing = []
             if not selected_patient.age: profile_missing.append("Age")
             if not selected_patient.height: profile_missing.append("Height")
             if not selected_patient.dry_weight: profile_missing.append("Dry Weight")
             if not selected_patient.hd_wef_date: profile_missing.append("HD Start Date (WEF)")
-            
+
             acc = selected_patient.vascular_access
             if not acc:
                 profile_missing.extend(["Access Type", "Access Date (Surgery)", "First Cannulation Date"])
@@ -491,18 +497,18 @@ async def admin_missing_data(
                 if not acc.access_type: profile_missing.append("Access Type")
                 if not acc.access_date: profile_missing.append("Access Date (Surgery)")
                 if not acc.date_first_cannulation: profile_missing.append("First Cannulation Date")
-                
-            # 2. Dialysis Session fields check up to May 2026
+
+            # 2. Dialysis Session fields check up to end of previous month
             sessions = (
                 db.query(SessionRecord)
                 .filter(
                     SessionRecord.patient_id == patient_id,
-                    SessionRecord.session_date <= date(2026, 5, 31)
+                    SessionRecord.session_date <= _cutoff_date
                 )
                 .order_by(SessionRecord.session_date.desc())
                 .all()
             )
-            
+
             session_issues = []
             for s in sessions:
                 missing_fields = []
@@ -516,20 +522,20 @@ async def admin_missing_data(
                 if s.bp_post_sys is None: missing_fields.append("BP Post-HD Systolic")
                 if s.bp_post_dia is None: missing_fields.append("BP Post-HD Diastolic")
                 if s.bp_nadir_sys is None: missing_fields.append("BP Nadir Systolic")
-                
+
                 if missing_fields:
                     session_issues.append({
                         "id": s.id,
                         "date": s.session_date.strftime('%Y-%m-%d'),
                         "missing": missing_fields
                     })
-                    
-            # 3. Monthly Labs check up to May 2026
+
+            # 3. Monthly Labs check up to end of previous month
             monthly_records = (
                 db.query(MonthlyRecord)
                 .filter(
                     MonthlyRecord.patient_id == patient_id,
-                    MonthlyRecord.record_month <= "2026-05"
+                    MonthlyRecord.record_month <= _cutoff_month
                 )
                 .order_by(MonthlyRecord.record_month.desc())
                 .all()
@@ -558,12 +564,18 @@ async def admin_missing_data(
                 "total_months_checked": len(monthly_records)
             }
             
+    from dashboard_logic import get_current_month_str
+    _cur = get_current_month_str()
+    _cur_dt = datetime.strptime(_cur, "%Y-%m")
+    _prev_label = (_cur_dt.replace(day=1) - timedelta(days=1)).strftime("%B %Y")
+
     return templates.TemplateResponse("admin_missing_data.html", {
         "request": request,
         "user": get_user(request),
         "patients": patients,
         "selected_patient": selected_patient,
-        "report": report
+        "report": report,
+        "cutoff_label": _prev_label,
     })
 
 

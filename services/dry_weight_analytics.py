@@ -38,12 +38,12 @@ def compute_patient_dry_weight_trajectory(
       suggested_target – clinician-aid suggestion (not a prescription)
       assessments    – list of formal DryWeightAssessment records
     """
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient_dw_fallback: Optional[float] = patient.dry_weight if patient else None
+
     records: List[MonthlyRecord] = (
         db.query(MonthlyRecord)
-        .filter(
-            MonthlyRecord.patient_id == patient_id,
-            MonthlyRecord.target_dry_weight.isnot(None),
-        )
+        .filter(MonthlyRecord.patient_id == patient_id)
         .order_by(MonthlyRecord.record_month)
         .all()
     )
@@ -51,11 +51,14 @@ def compute_patient_dry_weight_trajectory(
     history = [
         {
             "month": r.record_month,
-            "target_weight": r.target_dry_weight,
+            # Use explicitly entered monthly target; fall back to patient-level dry_weight
+            "target_weight": r.target_dry_weight if r.target_dry_weight is not None else patient_dw_fallback,
             "idwg": r.idwg,
             "last_prehd_weight": r.last_prehd_weight,
         }
         for r in records
+        if (r.target_dry_weight is not None or patient_dw_fallback is not None
+            or r.idwg is not None or r.last_prehd_weight is not None)
     ]
 
     # ── Drift calculation (last 3 data points) ────────────────────────────────

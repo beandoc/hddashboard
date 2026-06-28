@@ -6,6 +6,7 @@
     <title>Circuit Pressure Trends | HD Dashboard</title>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
     <link rel="stylesheet" href="/static/vendor/fonts/material-icons.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --bg:      #0f172a;
@@ -55,9 +56,11 @@
             padding: 16px 20px;
             display: grid;
             grid-template-columns: 220px 1fr;
-            gap: 20px;
+            grid-template-rows: auto auto;
+            gap: 16px 20px;
             align-items: start;
         }
+        .chart-wrap { grid-column: 1 / -1; }
         .pt-card.risk-alert  { border-left: 4px solid var(--alert); }
         .pt-card.risk-warning{ border-left: 4px solid var(--warn);  }
         .pt-card.risk-ok     { border-left: 4px solid var(--ok);    }
@@ -76,9 +79,9 @@
         .trend-down { color: var(--ok);    }
         .trend-flat { color: var(--muted); }
 
-        /* ── Sparkline (CSS bar chart, 8 sessions) ── */
-        .sparkline { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-top: 8px; }
-        .spark-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 2px; }
+        /* ── Trend chart ── */
+        .chart-wrap { background: rgba(15,23,42,0.5); border-radius: 8px; padding: 14px 16px; }
+        .chart-wrap canvas { max-height: 200px; }
 
         /* ── Flag badges ── */
         .flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; grid-column: 1 / -1; }
@@ -119,6 +122,7 @@
             .pt-card { grid-template-columns: 1fr; }
             .pressure-grid { grid-template-columns: 1fr 1fr; }
             .stat-row { grid-template-columns: repeat(2, 1fr); }
+            .chart-wrap { grid-column: 1 / -1; }
         }
         @media (max-width: 480px) {
             .pressure-grid { grid-template-columns: 1fr; }
@@ -136,23 +140,7 @@
 {# ── Reusable patient card macro — must be defined before first call ───────── #}
 {% macro _render_patient_card(sig) %}
 {% set risk = sig.max_risk %}
-
-{# ── Sparkline helpers: scale values to 0–32px bar height ── #}
-{% macro spark(values, color) %}
-{% if values %}
-{% set vmin = values | min %}
-{% set vmax = values | max %}
-{% set vrange = (vmax - vmin) if vmax != vmin else 1 %}
-<div class="sparkline">
-    {% for v in values %}
-    {% set h = (((v - vmin) / vrange) * 28 + 4) | round | int %}
-    <div class="spark-bar" style="height:{{ h }}px;background:{{ color }};opacity:0.8;"></div>
-    {% endfor %}
-</div>
-{% else %}
-<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">No data</div>
-{% endif %}
-{% endmacro %}
+{% set cid = 'pc_' ~ sig.patient_id %}
 
 <div class="pt-card risk-{{ risk }}">
     <!-- Left: patient info -->
@@ -182,12 +170,12 @@
         </div>
     </div>
 
-    <!-- Right: pressure metrics -->
+    <!-- Right: pressure stat pills -->
     <div class="pressure-grid">
 
         <!-- Arterial -->
         <div class="p-block">
-            <div class="p-label"><span class="dot" style="background:var(--art-col);"></span>Arterial</div>
+            <div class="p-label"><span class="dot" style="background:var(--art-col);"></span>Arterial (mean)</div>
             {% if sig.art_mean is not none %}
             <div class="p-value" style="color:{% if sig.arterial_risk == 'alert' %}var(--alert){% elif sig.arterial_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
                 {{ sig.art_mean | round(0) | int }} mmHg
@@ -197,7 +185,6 @@
                 {% if sig.art_slope < 0 %}↓{% else %}↑{% endif %} {{ sig.art_slope | abs }} mmHg/sess
             </div>
             {% endif %}
-            {{ spark(sig.art_values, 'var(--art-col)') }}
             {% else %}
             <div style="font-size:0.78rem;color:var(--muted);">No data</div>
             {% endif %}
@@ -205,7 +192,7 @@
 
         <!-- Venous -->
         <div class="p-block">
-            <div class="p-label"><span class="dot" style="background:var(--ven-col);"></span>Venous</div>
+            <div class="p-label"><span class="dot" style="background:var(--ven-col);"></span>Venous (mean)</div>
             {% if sig.ven_mean is not none %}
             <div class="p-value" style="color:{% if sig.venous_risk == 'alert' %}var(--alert){% elif sig.venous_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
                 {{ sig.ven_mean | round(0) | int }} mmHg
@@ -215,7 +202,6 @@
                 {% if sig.ven_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.ven_slope | abs }} mmHg/sess
             </div>
             {% endif %}
-            {{ spark(sig.ven_values, 'var(--ven-col)') }}
             {% else %}
             <div style="font-size:0.78rem;color:var(--muted);">No data</div>
             {% endif %}
@@ -223,7 +209,7 @@
 
         <!-- TMP -->
         <div class="p-block">
-            <div class="p-label"><span class="dot" style="background:var(--tmp-col);"></span>TMP</div>
+            <div class="p-label"><span class="dot" style="background:var(--tmp-col);"></span>TMP (mean)</div>
             {% if sig.tmp_mean is not none %}
             <div class="p-value" style="color:{% if sig.tmp_risk == 'alert' %}var(--alert){% elif sig.tmp_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
                 {{ sig.tmp_mean | round(0) | int }} mmHg
@@ -233,13 +219,153 @@
                 {% if sig.tmp_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.tmp_slope | abs }} mmHg/sess
             </div>
             {% endif %}
-            {{ spark(sig.tmp_values, 'var(--tmp-col)') }}
             {% else %}
             <div style="font-size:0.78rem;color:var(--muted);">No data</div>
             {% endif %}
         </div>
 
     </div>
+
+    <!-- Full-width Chart.js line chart -->
+    {% set max_n = [sig.art_values | length, sig.ven_values | length, sig.tmp_values | length] | max %}
+    {% if max_n >= 1 %}
+    <div class="chart-wrap">
+        <canvas id="{{ cid }}"></canvas>
+    </div>
+    <script>
+    (function() {
+        var n = {{ max_n }};
+        var labels = [];
+        for (var i = n; i >= 1; i--) { labels.push(i === 1 ? 'Latest' : '-' + (i-1)); }
+
+        var artVals = {{ sig.art_values | tojson }};
+        var venVals = {{ sig.ven_values | tojson }};
+        var tmpVals = {{ sig.tmp_values | tojson }};
+
+        var datasets = [];
+
+        if (artVals.length) {
+            // Pad front with nulls so all series align to the same x-axis length
+            var artPad = new Array(n - artVals.length).fill(null).concat(artVals);
+            datasets.push({
+                label: 'Arterial (mmHg)',
+                data: artPad,
+                borderColor: '#818cf8',
+                backgroundColor: 'rgba(129,140,248,0.10)',
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: false,
+                tension: 0.35,
+                spanGaps: false,
+            });
+            // Arterial warning threshold
+            datasets.push({
+                label: 'Art Warn (−200)',
+                data: new Array(n).fill(-200),
+                borderColor: 'rgba(245,158,11,0.45)',
+                borderWidth: 1.5,
+                borderDash: [6,4],
+                pointRadius: 0,
+                fill: false,
+            });
+        }
+
+        if (venVals.length) {
+            var venPad = new Array(n - venVals.length).fill(null).concat(venVals);
+            datasets.push({
+                label: 'Venous (mmHg)',
+                data: venPad,
+                borderColor: '#34d399',
+                backgroundColor: 'rgba(52,211,153,0.10)',
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: false,
+                tension: 0.35,
+                spanGaps: false,
+            });
+            // Venous warning threshold
+            datasets.push({
+                label: 'Ven Warn (180)',
+                data: new Array(n).fill(180),
+                borderColor: 'rgba(245,158,11,0.45)',
+                borderWidth: 1.5,
+                borderDash: [6,4],
+                pointRadius: 0,
+                fill: false,
+            });
+        }
+
+        if (tmpVals.length) {
+            var tmpPad = new Array(n - tmpVals.length).fill(null).concat(tmpVals);
+            datasets.push({
+                label: 'TMP (mmHg)',
+                data: tmpPad,
+                borderColor: '#fb923c',
+                backgroundColor: 'rgba(251,146,60,0.10)',
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: false,
+                tension: 0.35,
+                spanGaps: false,
+            });
+        }
+
+        var ctx = document.getElementById('{{ cid }}').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: '#94a3b8',
+                            font: { size: 11 },
+                            boxWidth: 14,
+                            filter: function(item) {
+                                // Hide threshold reference lines from legend
+                                return !item.text.includes('Warn');
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#94a3b8',
+                        callbacks: {
+                            label: function(ctx) {
+                                if (ctx.raw === null) return null;
+                                return ctx.dataset.label + ': ' + ctx.raw + ' mmHg';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#64748b', font: { size: 11 } },
+                        grid: { color: 'rgba(51,65,85,0.5)' },
+                        title: { display: true, text: 'Session (oldest → latest)', color: '#64748b', font: { size: 10 } }
+                    },
+                    y: {
+                        ticks: { color: '#64748b', font: { size: 11 } },
+                        grid: { color: 'rgba(51,65,85,0.5)' },
+                        title: { display: true, text: 'Pressure (mmHg)', color: '#64748b', font: { size: 10 } }
+                    }
+                }
+            }
+        });
+    })();
+    </script>
+    {% endif %}
+
 </div>
 {% endmacro %}
 
