@@ -133,6 +133,116 @@
     <p>Arterial line, venous line, and transmembrane pressure aggregated across recent sessions. Rising or extreme values are an early signal of access stenosis or failure — surfaced here before an acute event occurs.</p>
 </div>
 
+{# ── Reusable patient card macro — must be defined before first call ───────── #}
+{% macro _render_patient_card(sig) %}
+{% set risk = sig.max_risk %}
+
+{# ── Sparkline helpers: scale values to 0–32px bar height ── #}
+{% macro spark(values, color) %}
+{% if values %}
+{% set vmin = values | min %}
+{% set vmax = values | max %}
+{% set vrange = (vmax - vmin) if vmax != vmin else 1 %}
+<div class="sparkline">
+    {% for v in values %}
+    {% set h = (((v - vmin) / vrange) * 28 + 4) | round | int %}
+    <div class="spark-bar" style="height:{{ h }}px;background:{{ color }};opacity:0.8;"></div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">No data</div>
+{% endif %}
+{% endmacro %}
+
+<div class="pt-card risk-{{ risk }}">
+    <!-- Left: patient info -->
+    <div>
+        <div class="pt-name">
+            {{ sig.patient_name }}
+            <span class="risk-badge rb-{{ risk }}">{{ risk | upper }}</span>
+        </div>
+        <div class="pt-meta">{{ sig.sessions_n }} sessions with pressure data</div>
+
+        <!-- Flag badges -->
+        {% if sig.flags %}
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">
+            {% for flag in sig.flags %}
+            <span class="flag-badge {% if 'COMBINED' in flag or 'suspected' in flag %}flag-alert{% else %}flag-warning{% endif %}">
+                <i class="material-icons" style="font-size:0.8rem;">{% if 'COMBINED' in flag %}crisis_alert{% else %}warning{% endif %}</i>
+                {{ flag }}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div style="margin-top:12px;">
+            <a href="/analytics/patients/{{ sig.patient_id }}" style="font-size:0.78rem;color:#818cf8;text-decoration:none;">
+                View Patient Analytics →
+            </a>
+        </div>
+    </div>
+
+    <!-- Right: pressure metrics -->
+    <div class="pressure-grid">
+
+        <!-- Arterial -->
+        <div class="p-block">
+            <div class="p-label"><span class="dot" style="background:var(--art-col);"></span>Arterial</div>
+            {% if sig.art_mean is not none %}
+            <div class="p-value" style="color:{% if sig.arterial_risk == 'alert' %}var(--alert){% elif sig.arterial_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
+                {{ sig.art_mean | round(0) | int }} mmHg
+            </div>
+            {% if sig.art_slope is not none %}
+            <div class="p-trend {% if sig.art_slope < -4 %}trend-up{% elif sig.art_slope > 2 %}trend-down{% else %}trend-flat{% endif %}">
+                {% if sig.art_slope < 0 %}↓{% else %}↑{% endif %} {{ sig.art_slope | abs }} mmHg/sess
+            </div>
+            {% endif %}
+            {{ spark(sig.art_values, 'var(--art-col)') }}
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
+            {% endif %}
+        </div>
+
+        <!-- Venous -->
+        <div class="p-block">
+            <div class="p-label"><span class="dot" style="background:var(--ven-col);"></span>Venous</div>
+            {% if sig.ven_mean is not none %}
+            <div class="p-value" style="color:{% if sig.venous_risk == 'alert' %}var(--alert){% elif sig.venous_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
+                {{ sig.ven_mean | round(0) | int }} mmHg
+            </div>
+            {% if sig.ven_slope is not none %}
+            <div class="p-trend {% if sig.ven_slope > 4 %}trend-up{% elif sig.ven_slope < -2 %}trend-down{% else %}trend-flat{% endif %}">
+                {% if sig.ven_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.ven_slope | abs }} mmHg/sess
+            </div>
+            {% endif %}
+            {{ spark(sig.ven_values, 'var(--ven-col)') }}
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
+            {% endif %}
+        </div>
+
+        <!-- TMP -->
+        <div class="p-block">
+            <div class="p-label"><span class="dot" style="background:var(--tmp-col);"></span>TMP</div>
+            {% if sig.tmp_mean is not none %}
+            <div class="p-value" style="color:{% if sig.tmp_risk == 'alert' %}var(--alert){% elif sig.tmp_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
+                {{ sig.tmp_mean | round(0) | int }} mmHg
+            </div>
+            {% if sig.tmp_slope is not none %}
+            <div class="p-trend {% if sig.tmp_slope > 8 %}trend-up{% elif sig.tmp_slope < -8 %}trend-down{% else %}trend-flat{% endif %}">
+                {% if sig.tmp_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.tmp_slope | abs }} mmHg/sess
+            </div>
+            {% endif %}
+            {{ spark(sig.tmp_values, 'var(--tmp-col)') }}
+            {% else %}
+            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endmacro %}
+
 <div class="container">
     <a href="/analytics" class="btn-back"><i class="material-icons" style="font-size:1rem;">arrow_back</i> Analytics Hub</a>
 
@@ -250,116 +360,6 @@
 
     {% endif %}
 </div>
-
-{# ── Reusable patient card macro ─────────────────────────────────────────── #}
-{% macro _render_patient_card(sig) %}
-{% set risk = sig.max_risk %}
-
-{# ── Sparkline helpers: scale values to 0–32px bar height ── #}
-{% macro spark(values, color) %}
-{% if values %}
-{% set vmin = values | min %}
-{% set vmax = values | max %}
-{% set vrange = (vmax - vmin) if vmax != vmin else 1 %}
-<div class="sparkline">
-    {% for v in values %}
-    {% set h = (((v - vmin) / vrange) * 28 + 4) | round | int %}
-    <div class="spark-bar" style="height:{{ h }}px;background:{{ color }};opacity:0.8;"></div>
-    {% endfor %}
-</div>
-{% else %}
-<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">No data</div>
-{% endif %}
-{% endmacro %}
-
-<div class="pt-card risk-{{ risk }}">
-    <!-- Left: patient info -->
-    <div>
-        <div class="pt-name">
-            {{ sig.patient_name }}
-            <span class="risk-badge rb-{{ risk }}">{{ risk | upper }}</span>
-        </div>
-        <div class="pt-meta">{{ sig.sessions_n }} sessions with pressure data</div>
-
-        <!-- Flag badges -->
-        {% if sig.flags %}
-        <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">
-            {% for flag in sig.flags %}
-            <span class="flag-badge {% if 'COMBINED' in flag or 'suspected' in flag %}flag-alert{% else %}flag-warning{% endif %}">
-                <i class="material-icons" style="font-size:0.8rem;">{% if 'COMBINED' in flag %}crisis_alert{% else %}warning{% endif %}</i>
-                {{ flag }}
-            </span>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <div style="margin-top:12px;">
-            <a href="/analytics/patients/{{ sig.patient_id }}" style="font-size:0.78rem;color:#818cf8;text-decoration:none;">
-                View Patient Analytics →
-            </a>
-        </div>
-    </div>
-
-    <!-- Right: pressure metrics -->
-    <div class="pressure-grid">
-
-        <!-- Arterial -->
-        <div class="p-block">
-            <div class="p-label"><span class="dot" style="background:var(--art-col);"></span>Arterial</div>
-            {% if sig.art_mean is not none %}
-            <div class="p-value" style="color:{% if sig.arterial_risk == 'alert' %}var(--alert){% elif sig.arterial_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
-                {{ sig.art_mean | round(0) | int }} mmHg
-            </div>
-            {% if sig.art_slope is not none %}
-            <div class="p-trend {% if sig.art_slope < -4 %}trend-up{% elif sig.art_slope > 2 %}trend-down{% else %}trend-flat{% endif %}">
-                {% if sig.art_slope < 0 %}↓{% else %}↑{% endif %} {{ sig.art_slope | abs }} mmHg/sess
-            </div>
-            {% endif %}
-            {{ spark(sig.art_values, 'var(--art-col)') }}
-            {% else %}
-            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
-            {% endif %}
-        </div>
-
-        <!-- Venous -->
-        <div class="p-block">
-            <div class="p-label"><span class="dot" style="background:var(--ven-col);"></span>Venous</div>
-            {% if sig.ven_mean is not none %}
-            <div class="p-value" style="color:{% if sig.venous_risk == 'alert' %}var(--alert){% elif sig.venous_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
-                {{ sig.ven_mean | round(0) | int }} mmHg
-            </div>
-            {% if sig.ven_slope is not none %}
-            <div class="p-trend {% if sig.ven_slope > 4 %}trend-up{% elif sig.ven_slope < -2 %}trend-down{% else %}trend-flat{% endif %}">
-                {% if sig.ven_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.ven_slope | abs }} mmHg/sess
-            </div>
-            {% endif %}
-            {{ spark(sig.ven_values, 'var(--ven-col)') }}
-            {% else %}
-            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
-            {% endif %}
-        </div>
-
-        <!-- TMP -->
-        <div class="p-block">
-            <div class="p-label"><span class="dot" style="background:var(--tmp-col);"></span>TMP</div>
-            {% if sig.tmp_mean is not none %}
-            <div class="p-value" style="color:{% if sig.tmp_risk == 'alert' %}var(--alert){% elif sig.tmp_risk == 'warning' %}var(--warn){% else %}var(--text){% endif %};">
-                {{ sig.tmp_mean | round(0) | int }} mmHg
-            </div>
-            {% if sig.tmp_slope is not none %}
-            <div class="p-trend {% if sig.tmp_slope > 8 %}trend-up{% elif sig.tmp_slope < -8 %}trend-down{% else %}trend-flat{% endif %}">
-                {% if sig.tmp_slope > 0 %}↑{% else %}↓{% endif %} {{ sig.tmp_slope | abs }} mmHg/sess
-            </div>
-            {% endif %}
-            {{ spark(sig.tmp_values, 'var(--tmp-col)') }}
-            {% else %}
-            <div style="font-size:0.78rem;color:var(--muted);">No data</div>
-            {% endif %}
-        </div>
-
-    </div>
-</div>
-{% endmacro %}
 
 </body>
 </html>
