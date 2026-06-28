@@ -117,6 +117,19 @@ ERI = `epo_weekly_units / weight_kg / hb_g_dL`
 
 ---
 
+## Adherence Monitor Surveillance Criteria (`dashboard_logic.py`)
+
+Automated tracking of patient compliance based on USRDS criteria:
+- **Skipped Sessions**: Flagged if actual session count in `SessionRecord` is less than `expected_sessions - 3` for the month (excluding active hospital admissions).
+  $$\text{Expected Sessions} = \text{Patient's prescribed weekly frequency (hd\_frequency)} \times \frac{\text{days\_in\_month}}{7.0}$$
+  *(Note: Updated from the old hardcoded limit of <10 sessions to prevent false-positives for 2x/week schedules).*
+- **Shortened Sessions**: Flagged if any session duration falls $\ge 10$ minutes short of prescription.
+- **Excessive IDWG**: Flagged if mean IDWG exceeds 5.7% of dry weight.
+  *(Note: Division logic contains a zero/None guard `dw and dw > 0` to prevent division-by-zero crashes).*
+- **Hyperphosphatemia**: Flagged if monthly serum phosphate level is $> 7.5\text{ mg/dL}$.
+
+---
+
 ## Alert Delivery System
 
 ### WhatsApp (Twilio)
