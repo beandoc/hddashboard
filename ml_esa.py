@@ -378,6 +378,25 @@ def resolve_desidustat_weekly_iu(record: dict) -> Optional[float]:
     return None
 
 
+def resolve_esa_pk_corrected_iu(record: dict) -> Optional[float]:
+    """ESA-only weekly SC IU × pk_correction_factor. Excludes Desidustat.
+
+    This is the ESA half of _resolve_pk_corrected_iu(): the two-compartment ODE
+    now models injectable ESA (this channel) and the oral HIF-PHI Desidustat
+    (resolve_desidustat_weekly_iu) as *separate* stimulation channels so their
+    distinct dose-response and iron dependence are not conflated into one k_epo.
+    """
+    dose_str = record.get("epo_mircera_dose")
+    if dose_str:
+        parsed = normalize_epo_dose(dose_str)
+        if parsed.get("confidence") == "high" and parsed.get("weekly_iu_sc") is not None:
+            return parsed["weekly_iu_sc"] * parsed["pk_correction_factor"]
+    stored = record.get("epo_weekly_units")
+    if stored is not None:
+        return float(stored)
+    return None
+
+
 def detect_epo_hyporesponse(df: List[Dict], hb_meta: Dict = None) -> Dict:  # noqa: ARG001 — hb_meta reserved for future caller context
     """
     Assess ESA (Epoetin / Darbepoetin / Mircera) response quality.

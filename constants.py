@@ -1,7 +1,7 @@
 # Clinical Event Types
 EVENT_TYPES = [
     "Admission", "Infection", "Access Issue", "Cardiovascular", "Surgery", 
-    "Transfusion", "Other", "Mortality", "Transplant", "Transfer"
+    "Transfusion", "Other", "Mortality", "Transplant", "Transfer", "Temporary Leave", "Return from Leave"
 ]
 
 EVENT_TYPE_GROUPS = [
@@ -60,6 +60,8 @@ EVENT_TYPE_GROUPS = [
         "Fall / Injury",
         "Death",
         "Other",
+        "Temporary Leave",
+        "Return from Leave",
     ]),
 ]
 

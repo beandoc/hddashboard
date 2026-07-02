@@ -182,6 +182,17 @@ class ACMRecommendation(Base):
     observed_hb_3mo        = Column(Float, nullable=True)
     hb_prediction_mae_1mo  = Column(Float, nullable=True)         # |predicted - observed|
 
+    # ── SOTA optimizer outputs ────────────────────────────────────────────────
+    method                 = Column(String(24), nullable=True)   # model-optimizer | heuristic-fallback | heuristic
+    prob_in_target         = Column(Float, nullable=True)        # P(Hb in 10–11.5 at horizon)
+    prob_overshoot         = Column(Float, nullable=True)        # P(Hb > 13 at horizon)
+    prob_undershoot        = Column(Float, nullable=True)        # P(Hb < 10 at horizon)
+    eri                    = Column(Float, nullable=True)        # ESA Resistance Index
+    resistance_flag        = Column(Boolean, nullable=True)      # ESA hyporesponse detected
+    optimizer_dose_iu      = Column(Float, nullable=True)        # model-optimal weekly SC IU
+    recommended_iron_mg    = Column(Float, nullable=True)        # quantified IV iron course (mg)
+    hifphi_suggestion      = Column(Text, nullable=True)         # ESA-sparing HIF-PHI note (JSON)
+
     patient = relationship("Patient", foreign_keys=[patient_id])
 
     __table_args__ = (

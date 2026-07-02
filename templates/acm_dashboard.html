@@ -121,7 +121,7 @@
     .form-group { margin-bottom: 12px; }
     .modify-extra { display: none; margin-top: 10px; padding: 14px; background: #f8fafc; border-radius: 8px; }
 
-    #hb-chart, #predict-chart { width: 100%; height: 280px; }
+    #hb-chart, #predict-chart, #dose-chart { width: 100%; height: 280px; }
   </style>
 </head>
 <body>
@@ -229,6 +229,79 @@
     </div>
   </div>
 
+  <!-- ── Model method + target attainment + resistance ────────────────────── -->
+  <div class="grid-3">
+    <!-- Dosing method -->
+    <div class="card">
+      <div class="card-title">Dosing Engine</div>
+      {% set method = recommendation.method or 'heuristic' %}
+      {% if method == 'model-optimizer' %}
+      <div style="font-size:1.05rem; font-weight:800; color:var(--primary);">🎯 Model-Based Optimizer</div>
+      <div style="font-size:0.78rem; color:var(--muted); margin-top:6px;">
+        ESA dose solved from the patient-specific erythropoiesis ODE to reach the target Hb midpoint at +3 mo, with cycling damping.
+      </div>
+      {% else %}
+      <div style="font-size:1.05rem; font-weight:800; color:var(--amber);">📋 Guideline Step Logic</div>
+      <div style="font-size:0.78rem; color:var(--muted); margin-top:6px;">
+        ODE not yet calibrated for this patient (sparse/uniform ESA history) — using KDIGO ±25% step rules until dose-response is identified.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Target attainment -->
+    <div class="card">
+      <div class="card-title">Target Attainment (+3 mo)</div>
+      {% set ta = recommendation.target_attainment %}
+      {% if ta and ta.p_in_target is not none %}
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div style="flex:1; text-align:center;">
+          <div style="font-size:1.5rem; font-weight:800; color:var(--green);">{{ (ta.p_in_target * 100) | round(0) | int }}%</div>
+          <div style="font-size:0.68rem; color:var(--muted);">IN TARGET</div>
+        </div>
+        <div style="flex:1; text-align:center;">
+          <div style="font-size:1.5rem; font-weight:800; color:var(--red);">{{ (ta.p_overshoot * 100) | round(0) | int }}%</div>
+          <div style="font-size:0.68rem; color:var(--muted);">&gt; 13 g/dL</div>
+        </div>
+        <div style="flex:1; text-align:center;">
+          <div style="font-size:1.5rem; font-weight:800; color:var(--amber);">{{ (ta.p_undershoot * 100) | round(0) | int }}%</div>
+          <div style="font-size:0.68rem; color:var(--muted);">&lt; 10 g/dL</div>
+        </div>
+      </div>
+      <div style="font-size:0.72rem; color:var(--muted); margin-top:8px;">On the recommended dose (80% ODE interval).</div>
+      {% else %}
+      <div style="font-size:0.85rem; color:var(--muted);">Attainment probabilities require a calibrated forecast.</div>
+      {% endif %}
+    </div>
+
+    <!-- ESA resistance / ERI -->
+    <div class="card">
+      <div class="card-title">ESA Resistance</div>
+      <div class="metric-row">
+        <span class="metric-large" style="font-size:1.8rem; color:
+          {% if recommendation.resistance_flag %}#dc2626{% else %}#16a34a{% endif %}">
+          {{ recommendation.eri | round(1) if recommendation.eri else '—' }}
+        </span>
+        <span class="metric-unit">ERI</span>
+      </div>
+      <div style="font-size:0.7rem; color:var(--muted);">IU/kg/wk per g/dL</div>
+      <div style="margin-top:8px;">
+        {% if recommendation.resistance_flag %}
+        <span class="hb-badge badge-critical-low">⚠ Hyporesponse Detected</span>
+        {% else %}
+        <span class="hb-badge badge-on-target">✓ Adequate Response</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HIF-PHI (ESA-sparing) suggestion ─────────────────────────────────── -->
+  {% if recommendation.hifphi_suggestion and recommendation.hifphi_suggestion.suggested %}
+  <div class="card" style="margin-bottom:20px; border-left:4px solid #0d9488; background:#f0fdfa;">
+    <div class="card-title" style="color:#0f766e;">💊 HIF-PHI (Desidustat) — ESA-Sparing Option</div>
+    <div style="font-size:0.88rem; color:var(--text);">{{ recommendation.hifphi_suggestion.reason }}</div>
+  </div>
+  {% endif %}
+
   <!-- ── Hb history + prediction chart ────────────────────────────────────── -->
   <div class="card" style="margin-bottom:20px;">
     <div class="card-title">Hb Trend &amp; 3-Month Prediction</div>
@@ -245,6 +318,17 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Dose-response curve ──────────────────────────────────────────────── -->
+  {% if recommendation.dose_response_curve and recommendation.dose_response_curve | length > 0 %}
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title">ESA Dose–Response Curve (projected Hb at +3 mo)</div>
+    <div id="dose-chart"></div>
+    <div style="font-size:0.75rem; color:var(--muted); margin-top:8px;">
+      Patient-specific ODE projection of Hb at +3 months across ESA weekly doses. The marker shows the recommended dose; the green band is the KDIGO target (10.0–11.5 g/dL).
+    </div>
+  </div>
+  {% endif %}
 
   <!-- ── Recommendations ──────────────────────────────────────────────────── -->
   <div class="grid-2">
@@ -322,6 +406,11 @@
             {% else %}Maintain Current Protocol{% endif %}
           </div>
           <div class="rec-detail" style="margin-top:4px;">{{ iron.rationale or '' }}</div>
+          {% if recommendation.recommended_iron_mg %}
+          <div class="rec-detail" style="margin-top:6px;">
+            Suggested course: <strong>{{ recommendation.recommended_iron_mg | int }} mg</strong> IV iron
+          </div>
+          {% endif %}
         </div>
       </div>
       {% endif %}
@@ -444,6 +533,7 @@
 <script>
 const chartData    = {{ chart_data | safe }};
 const predOverlay  = {{ prediction_overlay | safe }};
+const doseCurve    = {{ dose_response_curve | safe }};
 const HB_LOW  = 10.0;
 const HB_HIGH = 11.5;
 
@@ -462,7 +552,18 @@ function renderHbChart() {
   }
 
   if (predOverlay) {
-    const lastMonth = months[months.length - 1] || '';
+    // 80% prediction-interval ribbon (upper then lower with fill)
+    if (predOverlay.pi_upper && predOverlay.pi_lower) {
+      traces.push({
+        x: predOverlay.months, y: predOverlay.pi_upper,
+        mode: 'lines', line: { width: 0 }, showlegend: false, hoverinfo: 'skip',
+      });
+      traces.push({
+        x: predOverlay.months, y: predOverlay.pi_lower,
+        mode: 'lines', line: { width: 0 }, fill: 'tonexty',
+        fillcolor: 'rgba(124,58,237,0.12)', name: '80% interval', hoverinfo: 'skip',
+      });
+    }
     traces.push({
       x: predOverlay.months,
       y: predOverlay.hb_values,
@@ -495,6 +596,44 @@ function renderHbChart() {
 }
 
 renderHbChart();
+
+function renderDoseChart() {
+  if (!doseCurve || !doseCurve.length) return;
+  const el = document.getElementById('dose-chart');
+  if (!el) return;
+  const doses = doseCurve.map(d => d.dose);
+  const hbs   = doseCurve.map(d => d.hb_horizon);
+  const recDose = {{ (recommendation.esa_recommendation.recommended_iu_sc if recommendation.esa_recommendation and recommendation.esa_recommendation.recommended_iu_sc else 0) | float }};
+
+  const traces = [{
+    x: doses, y: hbs, mode: 'lines+markers',
+    name: 'Projected Hb @ +3 mo',
+    line: { color: '#7c3aed', width: 3 }, marker: { size: 5, color: '#7c3aed' },
+  }];
+
+  // Target band
+  traces.push({ x: doses, y: doses.map(() => HB_LOW), mode: 'lines',
+    line: { color: '#16a34a', dash: 'dash', width: 1 }, showlegend: false, hoverinfo: 'skip' });
+  traces.push({ x: doses, y: doses.map(() => HB_HIGH), mode: 'lines',
+    line: { color: '#16a34a', dash: 'dash', width: 1 }, fill: 'tonexty',
+    fillcolor: 'rgba(22,163,74,0.08)', showlegend: false, hoverinfo: 'skip' });
+
+  const layout = {
+    margin: { t: 10, l: 45, r: 10, b: 45 },
+    yaxis: { title: 'Projected Hb (g/dL)', gridcolor: '#f0f0f0' },
+    xaxis: { title: 'ESA dose (IU/week SC)', gridcolor: '#f0f0f0' },
+    plot_bgcolor: 'white', paper_bgcolor: 'white', showlegend: false,
+  };
+  if (recDose > 0) {
+    layout.shapes = [{ type: 'line', x0: recDose, x1: recDose, y0: 0, y1: 1, yref: 'paper',
+      line: { color: '#dc2626', width: 2, dash: 'dot' } }];
+    layout.annotations = [{ x: recDose, y: 1, yref: 'paper', text: 'Recommended',
+      showarrow: false, font: { size: 11, color: '#dc2626' }, yanchor: 'bottom' }];
+  }
+  Plotly.newPlot('dose-chart', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+renderDoseChart();
 
 function toggleModify() {
   const el = document.getElementById('modify-extra');

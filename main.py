@@ -20,13 +20,107 @@ from database import get_db, Patient, SessionLocal, User, create_tables
 from config import templates, serializer, pwd_context, limiter, COOKIE_SECURE, SESSION_MAX_AGE, SESSION_IDLE_TTL
 from dependencies import get_user
 from dashboard_logic import compute_dashboard, get_current_month_str, get_month_label, get_effective_month
+# ── Monkeypatch dashboard_logic.compute_dashboard to bypass Skipped Sessions on Temporary Leave ──
+import dashboard_logic
+import datetime
+import calendar
+from db.models.clinical import ClinicalEvent
+from db.models.sessions import SessionRecord
+
+_orig_compute_dashboard = dashboard_logic.compute_dashboard
+
+def _patched_compute_dashboard(db: Session, month: Optional[str] = None):
+    data = _orig_compute_dashboard(db, month)
+    if not month:
+        from dashboard_logic import get_current_month_str
+        month = get_current_month_str()
+    try:
+        year = int(month[:4])
+        month_num = int(month[5:7])
+        start_date = datetime.date(year, month_num, 1)
+        _, last_day = calendar.monthrange(year, month_num)
+        end_date = datetime.date(year, month_num, last_day)
+
+        for row in data.get("patient_rows", []):
+            pid = row.get("id")
+            if not pid:
+                continue
+
+            # 1. Find the latest "Temporary Leave" event on or before the end of this month
+            latest_leave = db.query(ClinicalEvent).filter(
+                ClinicalEvent.patient_id == pid,
+                ClinicalEvent.event_type == "Temporary Leave",
+                ClinicalEvent.event_date <= end_date
+            ).order_by(ClinicalEvent.event_date.desc(), ClinicalEvent.id.desc()).first()
+
+            if not latest_leave:
+                continue
+
+            # 2. Find any subsequent SessionRecord or return events
+            first_session = db.query(SessionRecord).filter(
+                SessionRecord.patient_id == pid,
+                SessionRecord.session_date > latest_leave.event_date,
+                SessionRecord.session_date <= end_date
+            ).order_by(SessionRecord.session_date.asc()).first()
+
+            return_event = db.query(ClinicalEvent).filter(
+                ClinicalEvent.patient_id == pid,
+                ClinicalEvent.event_type == "Return from Leave",
+                ClinicalEvent.event_date > latest_leave.event_date,
+                ClinicalEvent.event_date <= end_date
+            ).order_by(ClinicalEvent.event_date.asc()).first()
+
+            return_date = None
+            if first_session and return_event:
+                return_date = min(first_session.session_date, return_event.event_date)
+            elif first_session:
+                return_date = first_session.session_date
+            elif return_event:
+                return_date = return_event.event_date
+
+            # 3. Assess if leave is active during this month
+            is_on_leave = False
+            if return_date:
+                # If they returned before the month started, they are no longer on leave in this month
+                if start_date > return_date:
+                    is_on_leave = False
+                else:
+                    # They returned during this month, so they were on leave for at least part of it
+                    is_on_leave = True
+            else:
+                # No return recorded yet, so they are still on leave
+                is_on_leave = True
+
+            if is_on_leave:
+                flags = row.get("adherence_flags", [])
+                if "Skipped Sessions" in flags:
+                    flags.remove("Skipped Sessions")
+                    alerts = row.get("alerts", [])
+                    if "Skipped Sessions" in alerts:
+                        alerts.remove("Skipped Sessions")
+
+                    if not flags:
+                        if pid in data["metrics"]["adherence_risk"]["flags"]:
+                            del data["metrics"]["adherence_risk"]["flags"][pid]
+
+                        p_name = row.get("name")
+                        if p_name in data["metrics"]["adherence_risk"]["names"]:
+                            data["metrics"]["adherence_risk"]["names"].remove(p_name)
+                            data["metrics"]["adherence_risk"]["count"] -= 1
+    except Exception as e:
+        logging.error(f"Error in patched_compute_dashboard: {e}", exc_info=True)
+    return data
+
+dashboard_logic.compute_dashboard = _patched_compute_dashboard
+compute_dashboard = _patched_compute_dashboard
+
 from routers import auth, patients, entry, sessions, analytics, events, variables, admin, patient_portal, schedule, alerts, sustainability, fluid_status, admin_analytics, research, api_v1, ocr, api_next, acm, twin, protocols, clinical_intelligence
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REQUIRED DB SCHEMA VERSION
 # Bump this whenever a new Alembic migration must be applied before boot.
 # ─────────────────────────────────────────────────────────────────────────────
-REQUIRED_DB_VERSION = "g1h2i3j4k5l6"
+REQUIRED_DB_VERSION = "h2i3j4k5l6m7"
 
 
 def _check_schema_version() -> None:

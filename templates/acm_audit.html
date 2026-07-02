@@ -226,6 +226,52 @@
     </div>
   </div>
 
+  <!-- ── SOTA fleet metrics: optimizer mix, resistance, cycling ───────────── -->
+  {% if sota %}
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">Dosing Engine Mix &amp; Acceptance</div>
+      {% if sota.method_rows %}
+      <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+        <thead><tr style="text-align:left; color:var(--muted); font-size:0.72rem;">
+          <th style="padding:4px 0;">METHOD</th><th>N</th><th>ACCEPT %</th></tr></thead>
+        <tbody>
+        {% for row in sota.method_rows %}
+        <tr style="border-top:1px solid var(--border);">
+          <td style="padding:6px 0;">
+            {% if row.method == 'model-optimizer' %}🎯 Optimizer
+            {% elif row.method == 'heuristic-fallback' %}📋 Heuristic (fallback)
+            {% else %}📋 {{ row.method }}{% endif %}
+          </td>
+          <td>{{ row.total }}</td>
+          <td><strong>{{ row.accept_rate }}%</strong></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="color:var(--muted); font-size:0.85rem;">No recommendations yet.</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-title">ESA Resistance Prevalence</div>
+      <div class="kpi-value" style="color:{% if (sota.resistance_pct or 0) > 20 %}#dc2626{% else %}#d97706{% endif %};">
+        {{ sota.resistance_pct or 0 }}<span style="font-size:1.2rem;">%</span>
+      </div>
+      <div class="kpi-sub">{{ sota.resistance_count or 0 }} recommendations flagged hyporesponsive</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Hb Cycling Index</div>
+      <div class="kpi-value" style="color:{% if sota.cycling_index and sota.cycling_index > 0.8 %}#dc2626{% else %}#16a34a{% endif %};">
+        {{ sota.cycling_index if sota.cycling_index is not none else '—' }}
+      </div>
+      <div class="kpi-sub">mean within-patient Hb SD (g/dL) · {{ sota.n_cycling_patients or 0 }} pts · lower is better</div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ── Calibration scatter + ESA response ──────────────────────────────── -->
   {% set has_scatter = scatter_data and scatter_data != '[]' %}
   {% set has_esa     = esa_response_data and esa_response_data != '[]' %}
@@ -370,7 +416,7 @@
     <div class="card">
       <div class="card-title">Fallback Model (MLP)</div>
       <div class="calib-kv"><span class="mk">Feature count</span>
-        <span class="mv">{{ model_status.n_features }} (32-feature clinical vector)</span></div>
+        <span class="mv">{{ model_status.n_features }}-feature clinical vector</span></div>
       <div class="calib-kv"><span class="mk">Fallback pipeline loaded</span>
         <span class="mv" style="color:{% if model_status.available %}#16a34a{% else %}#d97706{% endif %};">
           {% if model_status.available %}✓ Yes{% else %}Not yet trained{% endif %}</span></div>

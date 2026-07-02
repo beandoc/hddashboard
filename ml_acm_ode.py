@@ -90,6 +90,17 @@ _POP_K_PROD  = 0.35    # g/dL/month basal production (endogenous EPO equivalent)
 _POP_K_LOSS  = 0.25    # 25% monthly fractional decay ≈ 120-day RBC lifespan
 _CRP_PENALTY = 0.004   # g/dL per mg/L CRP per month — inflammation suppression
 
+# ── HIF-PHI (Desidustat) channel ─────────────────────────────────────────────
+# Oral HIF prolyl-hydroxylase inhibitors raise endogenous EPO AND mobilise iron
+# (they suppress hepcidin), so their erythropoietic output is *less iron-limited*
+# than injectable ESA. We model Desidustat as a SECOND stimulation channel that
+# shares the patient's fitted k_epo but (a) scales by _HIFPHI_POTENCY and (b) sees
+# an iron-availability floor (_HIFPHI_IRON_FLOOR) reflecting hepcidin suppression.
+# Desidustat IU are already epoetin-equivalent (ml_esa._parse_desidustat_weekly_iu),
+# so potency ≈ 1.0; the clinically meaningful difference is the iron floor.
+_HIFPHI_POTENCY    = 1.0   # relative to epoetin (dose already IU-equivalent)
+_HIFPHI_IRON_FLOOR = 0.60  # min iron-availability fraction seen by the HIF-PHI channel
+
 # ── Reticulocyte compartment ──────────────────────────────────────────────────
 # 10-day maturation delay: k_mat = 1 − exp(−30/10) ≈ 0.95 per monthly step.
 # This represents ~95% of the reticulocyte pool maturing to RBCs within one
@@ -225,13 +236,14 @@ def _r_init(
 
 
 def ode_step_2c(
-    hb_t:       float,
-    r_t:        float,
-    epo_norm:   float,
-    iron_frac:  float,
-    crp:        float,
-    params:     Tuple[float, float, float],
-    step_days:  float = 30.0,
+    hb_t:        float,
+    r_t:         float,
+    epo_norm:    float,
+    iron_frac:   float,
+    crp:         float,
+    params:      Tuple[float, float, float],
+    step_days:   float = 30.0,
+    hifphi_norm: float = 0.0,
 ) -> Tuple[float, float]:
     """
     Single step of the two-compartment erythropoiesis ODE.
@@ -258,13 +270,48 @@ def ode_step_2c(
 
     Returns (hb_next, r_next), both clipped to physiologic bounds.
     """
+    # If step_days is large (e.g. patient went on leave for 1-2 months), use daily
+    # sub-stepping to guarantee numerical stability and prevent negative decay multipliers.
+    if step_days > 31.0:
+        num_steps = int(step_days)
+        curr_hb, curr_r = hb_t, r_t
+        for _ in range(num_steps):
+            curr_hb, curr_r = ode_step_2c(
+                hb_t=curr_hb,
+                r_t=curr_r,
+                epo_norm=epo_norm,
+                iron_frac=iron_frac,
+                crp=crp,
+                params=params,
+                step_days=1.0,
+                hifphi_norm=hifphi_norm,
+            )
+        frac_left = step_days - num_steps
+        if frac_left > 0.0:
+            curr_hb, curr_r = ode_step_2c(
+                hb_t=curr_hb,
+                r_t=curr_r,
+                epo_norm=epo_norm,
+                iron_frac=iron_frac,
+                crp=crp,
+                params=params,
+                step_days=frac_left,
+                hifphi_norm=hifphi_norm,
+            )
+        return curr_hb, curr_r
+
     k_epo, k_prod, k_loss = params
     crp_val = crp if (not math.isnan(crp) and crp >= 0) else 5.0
     frac = step_days / 30.0
     k_mat_step = 1.0 - (1.0 - K_MAT) ** frac   # geometric: exact at 30, ~linear for short steps
 
+    # HIF-PHI (Desidustat) stimulation — second channel, less iron-limited.
+    # Zero for ESA-only patients, so the step reduces exactly to the prior form.
+    hifphi_iron_frac = max(iron_frac, _HIFPHI_IRON_FLOOR) if hifphi_norm > 0.0 else 0.0
+    hifphi_drive = k_epo * _HIFPHI_POTENCY * hifphi_norm * hifphi_iron_frac * frac
+
     r_next = float(np.clip(
-        (1.0 - k_mat_step) * r_t + k_epo * epo_norm * iron_frac * frac,
+        (1.0 - k_mat_step) * r_t + k_epo * epo_norm * iron_frac * frac + hifphi_drive,
         0.0, 10.0,
     ))
     hb_next = float(np.clip(
@@ -294,13 +341,14 @@ def ode_simulate_2c(
     hb, r = hb0, r0
     for inp in inputs:
         hb, r = ode_step_2c(
-            hb_t      = hb,
-            r_t       = r,
-            epo_norm  = inp.get("epo_norm", 0.0),
-            iron_frac = inp.get("iron_frac", 0.75),
-            crp       = inp.get("crp", 5.0),
-            params    = params,
-            step_days = inp.get("step_days", 30.0),   # variable-step support
+            hb_t        = hb,
+            r_t         = r,
+            epo_norm    = inp.get("epo_norm", 0.0),
+            iron_frac   = inp.get("iron_frac", 0.75),
+            crp         = inp.get("crp", 5.0),
+            params      = params,
+            step_days   = inp.get("step_days", 30.0),   # variable-step support
+            hifphi_norm = inp.get("hifphi_norm", 0.0),
         )
         trajectory.append(hb)
     return trajectory
@@ -318,15 +366,20 @@ def _build_inputs_from_records(records: List[Dict]) -> List[Dict]:
     correctly separating Mircera's flat-exposure receptor pharmacology from
     pulsatile epoetin's pulsed stimulation.
     """
-    from ml_esa import _resolve_pk_corrected_iu
+    from ml_esa import resolve_esa_pk_corrected_iu, resolve_desidustat_weekly_iu
     from services.interim_hb_service import _record_date
 
     records_asc = list(reversed(records))   # oldest-first
     inputs = []
     for i, rec in enumerate(records_asc):
         weight   = _safe(rec.get("last_prehd_weight") or rec.get("weight"), 70.0)
-        iu_sc    = _resolve_pk_corrected_iu(rec) or 0.0
-        epo_norm = (iu_sc / weight) if weight > 0 else 0.0
+        # Split injectable ESA (PK-corrected) from oral HIF-PHI (Desidustat) so the
+        # two are modelled as distinct stimulation channels. Desidustat is 0 for the
+        # vast majority of patients, so epo_norm is unchanged for them.
+        esa_iu      = resolve_esa_pk_corrected_iu(rec) or 0.0
+        hifphi_iu   = resolve_desidustat_weekly_iu(rec) or 0.0
+        epo_norm    = (esa_iu / weight) if weight > 0 else 0.0
+        hifphi_norm = (hifphi_iu / weight) if weight > 0 else 0.0
         tsat     = _safe(rec.get("tsat"))
         ferritin = _safe(rec.get("serum_ferritin"))
         crp      = _safe(rec.get("crp"), 5.0)
@@ -349,10 +402,11 @@ def _build_inputs_from_records(records: List[Dict]) -> List[Dict]:
             step_days = 30.0  # last record: no successor
 
         inputs.append({
-            "epo_norm":  epo_norm,
-            "iron_frac": _iron_factor(tsat, ferritin),
-            "crp":       crp if not math.isnan(crp) else 5.0,
-            "step_days": step_days,
+            "epo_norm":    epo_norm,
+            "hifphi_norm": hifphi_norm,
+            "iron_frac":   _iron_factor(tsat, ferritin),
+            "crp":         crp if not math.isnan(crp) else 5.0,
+            "step_days":   step_days,
         })
     return inputs
 
@@ -565,25 +619,27 @@ def get_or_fit_patient_params(patient_id: int, records: List[Dict]) -> Dict:
 # ── ODE forward prediction ────────────────────────────────────────────────────
 
 def ode_predict_trajectory(
-    patient_id:    int,
-    records:       List[Dict],
-    esa_scenario:  Optional[float] = None,
-    iron_scenario: Optional[float] = None,
-    horizon:       int = 3,
+    patient_id:      int,
+    records:         List[Dict],
+    esa_scenario:    Optional[float] = None,
+    iron_scenario:   Optional[float] = None,
+    horizon:         int = 3,
+    hifphi_scenario: Optional[float] = None,
 ) -> Dict:
     """
     Predict Hb trajectory using the patient-specific ODE.
 
     Args:
-        patient_id:    Patient PK (for parameter cache).
-        records:       Monthly records newest-first.
-        esa_scenario:  Proposed weekly IU SC dose. None = keep current.
-        iron_scenario: Proposed TSAT %. None = keep current.
-        horizon:       Months ahead.
+        patient_id:      Patient PK (for parameter cache).
+        records:         Monthly records newest-first.
+        esa_scenario:    Proposed injectable-ESA weekly SC IU dose. None = keep current.
+        iron_scenario:   Proposed TSAT %. None = keep current.
+        horizon:         Months ahead.
+        hifphi_scenario: Proposed HIF-PHI (Desidustat) weekly IU-equivalent. None = keep current.
 
     Returns ODE prediction dict with calibration metadata.
     """
-    from ml_esa import _resolve_pk_corrected_iu
+    from ml_esa import resolve_esa_weekly_iu, resolve_esa_pk_corrected_iu, resolve_desidustat_weekly_iu
 
     if not records or _safe(records[0].get("hb")) != _safe(records[0].get("hb")):
         return {"available": False, "error": "No baseline Hb"}
@@ -595,13 +651,21 @@ def ode_predict_trajectory(
     hb0    = _safe(rec.get("hb"))
     weight = _safe(rec.get("last_prehd_weight") or rec.get("weight"), 70.0)
 
-    # Scenario inputs — use PK-corrected IU so the ODE trajectory correctly
-    # reflects the drug's actual monthly AUC, not a flat weekly-IU proxy.
-    # esa_scenario is a raw weekly IU change; the PK factor from the current
-    # drug type is preserved when computing the scenario norm.
-    curr_iu   = _resolve_pk_corrected_iu(rec) or 0.0
-    scen_iu   = esa_scenario if esa_scenario is not None else curr_iu
-    scen_norm = (scen_iu / weight) if weight > 0 else 0.0
+    # ── ESA channel (PK-corrected) ──────────────────────────────────────────────
+    # esa_scenario is a raw weekly SC IU dose; convert it onto the PK-corrected
+    # scale k_epo was fitted on, using the current drug's PK factor.
+    curr_esa_pk  = resolve_esa_pk_corrected_iu(rec) or 0.0
+    curr_esa_raw = resolve_esa_weekly_iu(rec) or 0.0
+    esa_pk_ratio = (curr_esa_pk / curr_esa_raw) if curr_esa_raw > 0 else 1.0
+    scen_esa_pk  = (esa_scenario * esa_pk_ratio) if esa_scenario is not None else curr_esa_pk
+    base_norm    = (curr_esa_pk / weight) if weight > 0 else 0.0
+    scen_norm    = (scen_esa_pk / weight) if weight > 0 else 0.0
+
+    # ── HIF-PHI (Desidustat) channel ────────────────────────────────────────────
+    curr_hifphi   = resolve_desidustat_weekly_iu(rec) or 0.0
+    scen_hifphi   = hifphi_scenario if hifphi_scenario is not None else curr_hifphi
+    base_hif_norm = (curr_hifphi / weight) if weight > 0 else 0.0
+    scen_hif_norm = (scen_hifphi / weight) if weight > 0 else 0.0
 
     tsat     = _safe(rec.get("tsat"))
     ferritin = _safe(rec.get("serum_ferritin"))
@@ -610,24 +674,23 @@ def ode_predict_trajectory(
     crp       = _safe(rec.get("crp"), 5.0)
 
     # Also simulate baseline (no change) for comparison
-    base_norm  = (curr_iu / weight) if weight > 0 else 0.0
     base_ifrac = _iron_factor(tsat, ferritin)
 
     future_inputs_scen = [
-        {"epo_norm": scen_norm, "iron_frac": iron_frac,  "crp": crp}
+        {"epo_norm": scen_norm, "hifphi_norm": scen_hif_norm, "iron_frac": iron_frac,  "crp": crp}
         for _ in range(horizon)
     ]
     future_inputs_base = [
-        {"epo_norm": base_norm, "iron_frac": base_ifrac, "crp": crp}
+        {"epo_norm": base_norm, "hifphi_norm": base_hif_norm, "iron_frac": base_ifrac, "crp": crp}
         for _ in range(horizon)
     ]
 
     # Initialise reticulocyte pool.  When reticulocyte_count (%) is available it
     # is blended with the steady-state estimate via _r_init, making k_epo better
-    # identified.  Scenario and baseline differ only in their epo_norm/iron_frac.
+    # identified.  Both stimulation channels contribute to steady-state R.
     retic_pct = _safe(rec.get("reticulocyte_count"))
-    r0_scen = _r_init(ode_params[0], scen_norm, iron_frac, hb0, retic_pct)
-    r0_base = _r_init(ode_params[0], base_norm, base_ifrac, hb0, retic_pct)
+    r0_scen = _r_init(ode_params[0], scen_norm + _HIFPHI_POTENCY * scen_hif_norm, iron_frac, hb0, retic_pct)
+    r0_base = _r_init(ode_params[0], base_norm + _HIFPHI_POTENCY * base_hif_norm, base_ifrac, hb0, retic_pct)
 
     traj_scen = ode_simulate_2c(hb0, r0_scen, future_inputs_scen, ode_params)
     traj_base = ode_simulate_2c(hb0, r0_base, future_inputs_base, ode_params)
@@ -897,12 +960,13 @@ def residual_correction(feats: np.ndarray) -> float:
 # ── Hybrid ODE + residual MLP prediction ─────────────────────────────────────
 
 def hybrid_predict_trajectory(
-    patient_id:    int,
-    records:       List[Dict],
-    patient_meta:  Optional[Dict] = None,
-    esa_scenario:  Optional[float] = None,
-    iron_scenario: Optional[float] = None,
-    horizon:       int = 3,
+    patient_id:      int,
+    records:         List[Dict],
+    patient_meta:    Optional[Dict] = None,
+    esa_scenario:    Optional[float] = None,
+    iron_scenario:   Optional[float] = None,
+    horizon:         int = 3,
+    hifphi_scenario: Optional[float] = None,
 ) -> Dict:
     """
     Full hybrid prediction: ODE(patient-specific) + residual MLP(population).
@@ -913,11 +977,12 @@ def hybrid_predict_trajectory(
 
     # 1. ODE trajectory
     ode_result = ode_predict_trajectory(
-        patient_id    = patient_id,
-        records       = records,
-        esa_scenario  = esa_scenario,
-        iron_scenario = iron_scenario,
-        horizon       = horizon,
+        patient_id      = patient_id,
+        records         = records,
+        esa_scenario    = esa_scenario,
+        iron_scenario   = iron_scenario,
+        horizon         = horizon,
+        hifphi_scenario = hifphi_scenario,
     )
 
     if not ode_result.get("available"):

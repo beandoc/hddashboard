@@ -148,6 +148,14 @@ ACM_FEATURE_NAMES = [
     #                          strongest single ESA-resistance predictor; free from existing labs
     # ── ESA pharmacokinetics ─────────────────────────────────────────────────
     "epo_pk_factor",     # 32  PK AUC correction vs weekly-epoetin ref (1.0=epo, ~5.45=Mircera)
+    # ── SOTA extensions (appended; all optional / median-imputed) ─────────────
+    # Indices ≥33 are appended so existing feature positions 0–32 stay stable and
+    # older saved models keep predicting on the unchanged prefix.
+    "eri",               # 33  ESA Resistance Index (weekly IU/kg per g/dL Hb)
+    "il6",               # 34  interleukin-6 pg/mL (rarely collected → usually imputed)
+    "tnf_alpha",         # 35  TNF-α pg/mL (rarely collected → usually imputed)
+    "mis_score",         # 36  Malnutrition-Inflammation Score
+    "hospitalization_120d", # 37  count of hospitalized months in 120-day window
 ]
 
 # ── Singleton model store ─────────────────────────────────────────────────────
@@ -210,11 +218,42 @@ def _esa_history(records: List[Dict]) -> Dict:
     }
 
 
+def _parse_record_date(rec: Dict) -> Optional[datetime.date]:
+    from datetime import date
+    if rec.get("lab_date"):
+        ld = rec["lab_date"]
+        if isinstance(ld, date):
+            return ld
+        if isinstance(ld, str):
+            try:
+                return date.fromisoformat(ld[:10])
+            except ValueError:
+                pass
+    rd = rec.get("record_date")
+    if rd:
+        try:
+            return date.fromisoformat(str(rd)[:10])
+        except ValueError:
+            pass
+    ym = rec.get("record_month")
+    if ym and len(ym) >= 7:
+        try:
+            year, month = int(ym[:4]), int(ym[5:7])
+            # Use day 28 — safe for all months
+            return date(year, month, 28)
+        except (ValueError, OverflowError):
+            pass
+    return None
+
+
 def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = None) -> Optional[np.ndarray]:
     """
-    Extract full 32-feature ACM vector from newest-first monthly record dicts.
-    Returns None only if the latest record has no Hb at all.
-    All other missing values are encoded as NaN and median-imputed in the pipeline.
+    Extract the full ACM feature vector (len == len(ACM_FEATURE_NAMES)) from
+    newest-first monthly record dicts. Returns None only if the latest record has
+    no Hb at all. All other missing values are encoded as NaN and median-imputed
+    in the pipeline. Feature positions 0–32 are stable; SOTA extensions are
+    appended at indices ≥33 so previously-trained residual models keep predicting
+    on the unchanged prefix until retrained.
     """
     if not records:
         return None
@@ -224,12 +263,55 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
     if math.isnan(hb):
         return None
 
-    # Hb history stats (120-day / 4-month window)
-    hb_1mo = _to_float(records[1].get("hb")) if len(records) > 1 else float("nan")
-    hb_3mo = _to_float(records[3].get("hb")) if len(records) > 3 else float("nan")
+    date0 = _parse_record_date(rec)
+
+    # ── Time-aware sliding window selection ──────────────────────────────────
+    if date0 is not None:
+        records_120d = []
+        records_140d = []
+        for r_other in records:
+            d_other = _parse_record_date(r_other)
+            if d_other is None:
+                continue
+            delta_days = (date0 - d_other).days
+            if 0 <= delta_days <= 120:
+                records_120d.append(r_other)
+            if 0 <= delta_days <= 140:
+                records_140d.append(r_other)
+
+        # 1-month and 3-month lookbacks (find records closest to 30 and 90 days ago)
+        hb_1mo = float("nan")
+        hb_3mo = float("nan")
+        best_diff_1mo = float("inf")
+        best_diff_3mo = float("inf")
+        for r_other in records[1:]:
+            d_other = _parse_record_date(r_other)
+            if d_other is None:
+                continue
+            delta_days = (date0 - d_other).days
+            if 15 <= delta_days <= 45:
+                diff = abs(delta_days - 30)
+                if diff < best_diff_1mo:
+                    val = _to_float(r_other.get("hb"))
+                    if not math.isnan(val):
+                        hb_1mo = val
+                        best_diff_1mo = diff
+            elif 60 <= delta_days <= 120:
+                diff = abs(delta_days - 90)
+                if diff < best_diff_3mo:
+                    val = _to_float(r_other.get("hb"))
+                    if not math.isnan(val):
+                        hb_3mo = val
+                        best_diff_3mo = diff
+    else:
+        records_120d = records[:4]
+        records_140d = records[:5]
+        hb_1mo = _to_float(records[1].get("hb")) if len(records) > 1 else float("nan")
+        hb_3mo = _to_float(records[3].get("hb")) if len(records) > 3 else float("nan")
+
     delta_1 = (hb - hb_1mo) if not math.isnan(hb_1mo) else float("nan")
     delta_3 = (hb - hb_3mo) if not math.isnan(hb_3mo) else float("nan")
-    hb_stat = _hb_stats(records)
+    hb_stat = _hb_stats(records_120d)
 
     # Iron
     ferritin = _to_float(rec.get("serum_ferritin"))
@@ -253,7 +335,7 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
     ktv = _to_float(rec.get("single_pool_ktv"))
     iu_sc    = _resolve_weekly_iu_sc(rec)
     epo_norm = (iu_sc / dry_wt) if (iu_sc is not None and not math.isnan(dry_wt) and dry_wt > 0) else float("nan")
-    esa_hist = _esa_history(records)
+    esa_hist = _esa_history(records_140d)
 
     # Demographics — from patient_meta dict if provided
     pm       = patient_meta or {}
@@ -264,7 +346,7 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
     # Transfusion history (120-day window, ≈4 months)
     transfusion_120d = sum(
         (_to_float(r.get("transfusion_units"), default=0.0) or 0.0)
-        for r in records[:4]
+        for r in records_120d
     )
 
     # Reticulocyte % — most-recent value; NaN when lab not ordered
@@ -285,6 +367,19 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
     _parsed   = normalize_epo_dose(_dose_str) if _dose_str else {}
     epo_pk_factor = float(_parsed.get("pk_correction_factor") or 1.0)
 
+    # ── SOTA extensions (all optional; NaN → median-imputed downstream) ─────────
+    # ERI = ESA Resistance Index = (weekly SC IU / kg) / Hb. Undefined without an
+    # ESA dose or weight → NaN (imputed), never blocks.
+    _eri_wt = dry_wt if (not math.isnan(dry_wt) and dry_wt > 0) else pre_wt
+    eri = ((iu_sc / _eri_wt) / hb) if (iu_sc is not None and iu_sc > 0 and
+                                       not math.isnan(_eri_wt) and _eri_wt > 0 and hb > 0) else float("nan")
+    il6       = _to_float(rec.get("il6"))
+    tnf_alpha = _to_float(rec.get("tnf_alpha"))
+    mis_score = _to_float(rec.get("mis_score"))
+    hospitalization_120d = float(sum(
+        1 for r in records_120d if bool(r.get("hospitalization_this_month"))
+    ))
+
     return np.array([
         # Hb history
         hb, delta_1, delta_3,
@@ -304,6 +399,8 @@ def _extract_acm_features(records: List[Dict], patient_meta: Optional[Dict] = No
         reticulocyte_pct,
         # Hepcidin proxy + ESA PK
         hepcidin_proxy, epo_pk_factor,
+        # SOTA extensions (indices 33–37)
+        eri, il6, tnf_alpha, mis_score, hospitalization_120d,
     ])
 
 
@@ -388,6 +485,11 @@ def _row_to_dict(rec) -> Dict:
         "iv_iron_dose":        rec.iv_iron_dose,
         "transfusion_units":    getattr(rec, "blood_transfusion_units", None),
         "reticulocyte_count":   getattr(rec, "reticulocyte_count", None),
+        # SOTA extensions — optional inflammation/resistance + outcome signals.
+        "il6":                  getattr(rec, "il6", None),
+        "tnf_alpha":            getattr(rec, "tnf_alpha", None),
+        "mis_score":            getattr(rec, "mis_score", None),
+        "hospitalization_this_month": getattr(rec, "hospitalization_this_month", None),
         "record_month":         rec.record_month,
     }
 
@@ -961,24 +1063,51 @@ def generate_acm_recommendation(
         traj.get("params",     {}).get("k_epo_near_zero")
     )
 
-    # ESA recommendation
-    esa_rec = _esa_recommendation(
-        current_hb          = current_hb,
-        pred_1mo            = pred_1mo,
-        pred_3mo            = pred_3mo,
+    # ── Resistance / ERI (needs no inflammation labs) ──────────────────────────
+    from services.acm_optimizer import compute_eri, optimize_esa, optimize_iron, hifphi_switch
+    weight_kg = _to_float(latest.get("last_prehd_weight") or latest.get("weight") or
+                          latest.get("target_dry_weight"))
+    weight_kg = weight_kg if not math.isnan(weight_kg) else None
+    eri = compute_eri(current_iu, weight_kg, current_hb)
+
+    resistance_flag = False
+    try:
+        from ml_esa import detect_epo_hyporesponse
+        _hypo = detect_epo_hyporesponse(records)
+        resistance_flag = bool(_hypo.get("data", {}).get("hypo_response"))
+    except Exception:
+        _hypo = {}
+
+    # ── ESA recommendation — model-based optimizer (heuristic fallback inside) ──
+    esa_rec = optimize_esa(
+        patient_id          = patient_id,
+        records             = records,
         current_iu_sc       = current_iu,
         ferritin            = ferritin_f,
         tsat                = tsat_f,
         crp                 = crp_f,
         forecast_confidence = _forecast_confidence,
         k_epo_near_zero     = _k_epo_near_zero,
+        hb_target           = (HB_TARGET_LOW, HB_TARGET_HIGH),
+        horizon             = horizon_months,
+        patient_meta        = patient_meta,
     )
 
-    # Iron recommendation
-    iron_rec = _iron_recommendation(
+    # ── Iron recommendation — quantified repletion dose ────────────────────────
+    iron_rec = optimize_iron(
         ferritin = ferritin_f,
         tsat     = tsat_val if (tsat_val is not None and not math.isnan(tsat_val)) else None,
         crp      = crp_f,
+    )
+
+    # ── HIF-PHI (Desidustat) ESA-sparing suggestion ────────────────────────────
+    hifphi_suggestion = hifphi_switch(
+        records         = records,
+        eri             = eri,
+        resistance_flag = resistance_flag,
+        current_esa_iu  = current_iu,
+        ferritin        = ferritin_f,
+        tsat            = tsat_f,
     )
 
     # Safety classification
@@ -1014,6 +1143,14 @@ def generate_acm_recommendation(
         "current_iu_sc":   current_iu,
         "safety_flags":    all_safety,
         "confidence":      traj.get("confidence", "heuristic"),
+        # ── SOTA additions ────────────────────────────────────────────────────
+        "method":            esa_rec.get("method", "heuristic"),
+        "eri":               eri,
+        "resistance_flag":   resistance_flag,
+        "target_attainment": esa_rec.get("target_attainment"),
+        "dose_response_curve": esa_rec.get("dose_response_curve", []),
+        "hifphi_suggestion": hifphi_suggestion,
+        "recommended_iron_mg": iron_rec.get("recommended_mg"),
     }
 
 

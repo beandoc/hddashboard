@@ -15,7 +15,7 @@ router = APIRouter(prefix="/analytics/sustainability", tags=["sustainability"])
 # ── Centre location — drives supply-chain logistics EF ───────────────────────
 CENTRE_LOCATION = "Pune"   # update when centre moves
 # Nashik → Pune one-way road distance (km).  Nashik is the primary HD consumable
-# distribution hub serving Maharashtra (Baxter, Fresenius regional warehouse).
+# distribution hub serving Western/National region (Baxter, Fresenius regional warehouse).
 CONS_SUPPLY_KM = 180
 # Tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km
 # = 0.998 tonne × 0.08 EF × 180 km = 14.37 kg/patient/yr for Pune.

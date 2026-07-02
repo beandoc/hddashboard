@@ -172,6 +172,9 @@ async def acm_audit(request: Request, db: Session = Depends(get_db), train: Opti
         for r in esa_rows
     ]
 
+    # ── SOTA fleet metrics: method mix, resistance, Hb cycling ─────────────────
+    sota = _compute_sota_audit(db)
+
     return templates.TemplateResponse("acm_audit.html", {
         "request":          request,
         "user":             user,
@@ -183,7 +186,56 @@ async def acm_audit(request: Request, db: Session = Depends(get_db), train: Opti
         "scatter_data":     json.dumps(scatter_data),
         "esa_response_data":json.dumps(esa_response_data),
         "train_status":     train,
+        "sota":             sota,
     })
+
+
+def _compute_sota_audit(db: Session) -> dict:
+    """Fleet-level SOTA metrics: optimizer-vs-heuristic mix + acceptance,
+    ESA-resistance prevalence, and a Hb-cycling index (mean within-patient Hb SD)."""
+    from collections import defaultdict
+    import statistics
+
+    out = {
+        "method_rows": [], "resistance_count": 0, "resistance_pct": 0,
+        "cycling_index": None, "n_cycling_patients": 0,
+    }
+    try:
+        recs = db.query(ACMRecommendation).all()
+        # Method mix + per-method acceptance
+        by_method = defaultdict(lambda: {"total": 0, "accept": 0})
+        for r in recs:
+            m = r.method or "heuristic"
+            by_method[m]["total"] += 1
+            if r.clinician_decision == "accept":
+                by_method[m]["accept"] += 1
+        out["method_rows"] = [
+            {"method": m, "total": v["total"], "accept": v["accept"],
+             "accept_rate": round(v["accept"] / v["total"] * 100) if v["total"] else 0}
+            for m, v in sorted(by_method.items(), key=lambda x: -x[1]["total"])
+        ]
+        res = sum(1 for r in recs if r.resistance_flag)
+        out["resistance_count"] = res
+        out["resistance_pct"] = round(res / len(recs) * 100, 1) if recs else 0
+
+        # Hb-cycling index: mean of per-patient Hb SD over recent months.
+        rows = (
+            db.query(MonthlyRecord.patient_id, MonthlyRecord.hb)
+            .filter(MonthlyRecord.hb.isnot(None))
+            .order_by(MonthlyRecord.record_month.desc())
+            .all()
+        )
+        by_patient = defaultdict(list)
+        for pid, hb in rows:
+            if len(by_patient[pid]) < 6:
+                by_patient[pid].append(hb)
+        sds = [statistics.pstdev(v) for v in by_patient.values() if len(v) >= 3]
+        if sds:
+            out["cycling_index"] = round(sum(sds) / len(sds), 3)
+            out["n_cycling_patients"] = len(sds)
+    except Exception as e:
+        logger.warning(f"SOTA audit metrics failed: {e}")
+    return out
 
 
 # ── Clinical Concordance Dashboard ───────────────────────────────────────────
@@ -386,21 +438,23 @@ async def acm_patient_dashboard(
     # Generate a fresh recommendation if none exists or last one is from a prior month
     from dashboard_logic import get_current_month_str
     current_month = get_current_month_str()
-    need_fresh = (
-        stored_rec is None or
-        stored_rec.recommendation_month != current_month
-    )
+    # Always generate a fresh recommendation for display (read-only here) so the
+    # dose-response curve, attainment probabilities and HIF-PHI suggestion are
+    # live. Persistence happens in the POST /generate endpoint. Falls back to the
+    # stored row's reconstruction if generation fails.
     fresh_rec = None
-    if need_fresh and records:
+    if records:
         try:
             fresh_rec = generate_acm_recommendation(patient_id, records, patient_meta=_patient_meta(patient))
+            if not fresh_rec.get("available"):
+                fresh_rec = None
         except Exception as e:
             logger.warning(f"ACM generation failed for patient {patient_id}: {e}")
 
     # Historical Hb chart data
     chart_data = _hb_chart_data(records)
 
-    # Prediction overlay — build from stored or fresh rec
+    # Prediction overlay — build from fresh or stored rec
     prediction_overlay = None
     rec_to_show = fresh_rec or (
         {
@@ -425,6 +479,18 @@ async def acm_patient_dashboard(
             "safety_flags": json.loads(stored_rec.safety_flags_json or "[]"),
             "confidence": stored_rec.confidence,
             "recommendation_month": stored_rec.recommendation_month,
+            # SOTA fields reconstructed from the stored row
+            "method": getattr(stored_rec, "method", None),
+            "eri": getattr(stored_rec, "eri", None),
+            "resistance_flag": getattr(stored_rec, "resistance_flag", None),
+            "recommended_iron_mg": getattr(stored_rec, "recommended_iron_mg", None),
+            "target_attainment": {
+                "p_in_target":  getattr(stored_rec, "prob_in_target", None),
+                "p_overshoot":  getattr(stored_rec, "prob_overshoot", None),
+                "p_undershoot": getattr(stored_rec, "prob_undershoot", None),
+            } if getattr(stored_rec, "prob_in_target", None) is not None else None,
+            "hifphi_suggestion": json.loads(stored_rec.hifphi_suggestion) if getattr(stored_rec, "hifphi_suggestion", None) else None,
+            "dose_response_curve": [],
         } if stored_rec else None
     )
 
@@ -437,6 +503,11 @@ async def acm_patient_dashboard(
                 rec_to_show.get("predicted_hb_3mo"),
             ],
         }
+        # Prediction interval ribbon (scenario) from the hybrid trajectory
+        _traj = rec_to_show.get("hb_trajectory") or {}
+        if _traj.get("pi_lower_scenario") and _traj.get("pi_upper_scenario"):
+            prediction_overlay["pi_lower"] = _traj["pi_lower_scenario"]
+            prediction_overlay["pi_upper"] = _traj["pi_upper_scenario"]
 
     return templates.TemplateResponse("acm_dashboard.html", {
         "request":            request,
@@ -446,6 +517,7 @@ async def acm_patient_dashboard(
         "stored_rec":         stored_rec,
         "chart_data":         json.dumps(chart_data),
         "prediction_overlay": json.dumps(prediction_overlay) if prediction_overlay else "null",
+        "dose_response_curve": json.dumps(rec_to_show.get("dose_response_curve", []) if rec_to_show else []),
         "current_month":      current_month,
     })
 
@@ -485,6 +557,9 @@ async def acm_generate(
 
     esa = rec.get("esa_recommendation", {})
     iron = rec.get("iron_recommendation", {})
+    attain = rec.get("target_attainment") or {}
+    hifphi = rec.get("hifphi_suggestion")
+    hifphi_json = json.dumps(hifphi) if hifphi else None
 
     if existing:
         # Refresh — preserve clinician decision if already made
@@ -502,6 +577,16 @@ async def acm_generate(
         existing.iron_rationale       = iron.get("rationale")
         existing.safety_flags_json    = json.dumps(rec.get("safety_flags", []))
         existing.generated_at         = datetime.utcnow()
+        # SOTA optimizer outputs
+        existing.method               = rec.get("method")
+        existing.prob_in_target       = attain.get("p_in_target")
+        existing.prob_overshoot       = attain.get("p_overshoot")
+        existing.prob_undershoot      = attain.get("p_undershoot")
+        existing.eri                  = rec.get("eri")
+        existing.resistance_flag      = rec.get("resistance_flag")
+        existing.optimizer_dose_iu    = esa.get("recommended_iu_sc") if rec.get("method") == "model-optimizer" else None
+        existing.recommended_iron_mg  = rec.get("recommended_iron_mg")
+        existing.hifphi_suggestion    = hifphi_json
     else:
         db_rec = ACMRecommendation(
             patient_id            = patient_id,
@@ -519,6 +604,15 @@ async def acm_generate(
             iron_action           = iron.get("action"),
             iron_rationale        = iron.get("rationale"),
             safety_flags_json     = json.dumps(rec.get("safety_flags", [])),
+            method                = rec.get("method"),
+            prob_in_target        = attain.get("p_in_target"),
+            prob_overshoot        = attain.get("p_overshoot"),
+            prob_undershoot       = attain.get("p_undershoot"),
+            eri                   = rec.get("eri"),
+            resistance_flag       = rec.get("resistance_flag"),
+            optimizer_dose_iu     = esa.get("recommended_iu_sc") if rec.get("method") == "model-optimizer" else None,
+            recommended_iron_mg   = rec.get("recommended_iron_mg"),
+            hifphi_suggestion     = hifphi_json,
         )
         db.add(db_rec)
 

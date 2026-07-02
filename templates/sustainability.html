@@ -1005,7 +1005,7 @@
 {% include "_nav.html" %}
 
 <header>
-    <div class="hdr-badge">🍃 ICHD India &nbsp;·&nbsp; Maharashtra &nbsp;·&nbsp; Carbon Analytics</div>
+    <div class="hdr-badge">🍃 ICHD India &nbsp;·&nbsp; Carbon Analytics</div>
     <h1>Eco<em>Renal</em></h1>
     <p class="hdr-sub">Advanced carbon footprint analytics for dialysis units<br>Indian Standard (ICHD) emission factors · CEA grid 0.71 kg/kWh (v19, 2023) · Aligned with India's Updated NDC (2022) &amp; Mission LiFE · BUR-4 / National GHG Inventory 2020<br><span style="font-size:0.78em;opacity:0.7;">Evidence base: Backston et al. <em>Hemodialysis International</em> 2025;29:463–471 · Barraclough et al. <em>AJKD</em> 2025 · Khamis et al. <em>BMC Nephrology</em> 2025</span></p>
 </header>
@@ -1280,7 +1280,7 @@
                                 <span class="unit">km</span>
                             </div>
                             <small style="font-size:0.68rem; color:var(--text-muted); margin-top:4px; display:block;">
-                                Nashik → Pune ≈ 180 km (Maharashtra default). EF: 998 kg consumables/patient/yr × 0.08 kg CO₂e/tonne-km (MoRTH road freight). For government/district hospitals with longer supply routes, increase accordingly.
+                                Nashik → Pune ≈ 180 km (Standard default). EF: 998 kg consumables/patient/yr × 0.08 kg CO₂e/tonne-km (MoRTH road freight). For government/district hospitals with longer supply routes, increase accordingly.
                             </small>
                         </div>
                     </div>
@@ -1523,7 +1523,7 @@
 
                     <!-- Benchmark + Recommendations -->
                     <div class="benchmark-block">
-                        <div class="benchmark-label">Per-Session Emissions — Maharashtra HD Benchmark</div>
+                        <div class="benchmark-label">Per-Session Emissions — India HD Benchmark</div>
                         <div class="benchmark-bar-wrap">
                             <div class="benchmark-needle" id="benchmarkNeedle" style="left:0%"></div>
                         </div>
@@ -1615,7 +1615,7 @@
                                 <div class="lever-icon">👔</div>
                                 <div class="lever-info">
                                     <div class="lever-title">Disposable Gowns &amp; Drapes → Washable Cotton</div>
-                                    <div class="lever-desc">CSSD-laundered cotton gowns and draw-sheets produce ~10% of the lifetime carbon of equivalent single-use disposables. Retain single-use only for infectious-precaution sessions (HBsAg+, known sepsis). Standard practice in government nephrology units across Maharashtra.</div>
+                                    <div class="lever-desc">CSSD-laundered cotton gowns and draw-sheets produce ~10% of the lifetime carbon of equivalent single-use disposables. Retain single-use only for infectious-precaution sessions (HBsAg+, known sepsis). Standard practice in government nephrology units across India.</div>
                                 </div>
                                 <div class="lever-save-badge zero" id="wf-badge-textile">—</div>
                             </div>
@@ -2137,7 +2137,7 @@
 
         // Supply-chain logistics — always annual (not scaled by convertFactor).
         // Tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km.
-        // Maharashtra default: Nashik → Pune ≈ 180 km.
+        // Standard default: Nashik → Pune ≈ 180 km.
         // User-adjustable via supplyChainKm input (e.g. district hospitals may be 400–600 km).
         const supplyPatients = totalPatients || (patients3x + patients2x + hdfPts3x + hdfPts2x);
         const supplyChainKm = v('supplyChainKm') || 180;
@@ -2531,7 +2531,7 @@
         flashReportStatus('Text report downloaded.', true);
     }
 
-    // ── Benchmark thresholds: kg CO₂e per HD session, Maharashtra context ──
+    // ── Benchmark thresholds: kg CO₂e per HD session, India context ──
     // Recalibrated against Barraclough AJKD 2025 (30.9 kg/session AU reference)
     // AJKD 2025 Table 3 (30.9 kg/session, AU baseline). Tables S5/S6 are PD/APD sources
     // and are not applicable to HD session benchmarking.
@@ -2548,7 +2548,7 @@
         { max: 9999, label: 'Action Required',         cls: 'status-red',    msg: 'Significantly above benchmark. Priority action plan needed — start with consumables and energy.' },
     ];
 
-    // ── Per-category recommendation bank (Maharashtra HD unit — no solar, no patient pooling) ──
+    // ── Per-category recommendation bank (Indian HD unit — no solar, no patient pooling) ──
     const RECS = {
         Energy: [
             {
@@ -2594,7 +2594,7 @@
             {
                 icon: '👔', iconBg: '#fef3c7',
                 title: 'Replace single-use gowns and drapes with washable cotton alternatives',
-                body: 'Cotton staff gowns and cotton draw-sheets laundered after each use produce approximately 10% of the lifetime carbon of equivalent disposables. Switch standard dialysis shifts to CSSD-washable cotton gowns and cotton draw-sheets. Retain single-use disposable gowns only for infectious precaution sessions (HBsAg+, known sepsis). For drapes, cotton mackintosh-backed sheets are standard practice in government nephrology units across Maharashtra.',
+                body: 'Cotton staff gowns and cotton draw-sheets laundered after each use produce approximately 10% of the lifetime carbon of equivalent disposables. Switch standard dialysis shifts to CSSD-washable cotton gowns and cotton draw-sheets. Retain single-use disposable gowns only for infectious precaution sessions (HBsAg+, known sepsis). For drapes, cotton mackintosh-backed sheets are standard practice in government nephrology units across India.',
                 impact: 'High Impact', impactCls: 'impact-high'
             },
             {
@@ -3223,7 +3223,7 @@
         carQty:          'Total km by patients in private cars or hired taxis across the period. Highest transport emission factor. EF = 0.17 kg CO₂e/km (ARAI).',
         autoQty:         'Total km by auto-rickshaw across all patients. Very common urban transport mode for HD patients. EF = 0.10 kg CO₂e/km (ARAI).',
         bikeQty:         'Total km by two-wheeler (motorcycle or scooter) across all patients. EF = 0.10 kg CO₂e/km (ARAI). Two-wheelers are often used by younger periurban patients.',
-        supplyChainKm:   'Straight road distance from the nearest HD consumable distributor/warehouse to your centre. Maharashtra default: Nashik (Baxter/Fresenius depot) → Pune ≈ 180 km. Increase to 300–600 km for district or tribal hospitals served by longer supply routes.',
+        supplyChainKm:   'Straight road distance from the nearest HD consumable distributor/warehouse to your centre. Standard default: Nashik (Baxter/Fresenius depot) → Pune ≈ 180 km. Increase to 300–600 km for district or tribal hospitals served by longer supply routes.',
 
         // Consumables — Dialysate fluids
         dialysateAQty:   'Number of Part A acid concentrate 5L canisters used in the period. Typical: 1 canister per dialysis session. (Baxter Softpac or equivalent; manufactured domestically in Ahmedabad.)',
