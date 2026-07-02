@@ -92,6 +92,9 @@ def test_ecogreen_save_blocked(client):
     token = serializer.dumps(f"ecogreen:ecogreen:{int(time.time())}")
     client.cookies.set("hd_session", token)
     
+    from config import _csrf_signer
+    csrf_token = _csrf_signer.sign("sustainability").decode()
+    
     # Attempting to save sustainability parameters should fail with 403
     response = client.post(
         "/analytics/sustainability/save",
@@ -100,11 +103,12 @@ def test_ecogreen_save_blocked(client):
             "electricity": 1200,
             "water": 45,
             "bio_waste": 150,
-            "gen_waste": 80
+            "gen_waste": 80,
+            "csrf_token": csrf_token
         }
     )
     assert response.status_code == 403
-    assert "Save operation disabled" in response.text
+    assert "Save disabled" in response.text
 
 def test_ecogreen_sustainability_page_accessible(client):
     # Log in as ecogreen

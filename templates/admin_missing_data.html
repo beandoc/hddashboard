@@ -49,9 +49,40 @@
         .blocked-model-card h4 { margin: 0 0 4px 0; color: #5b21b6; font-size: 0.92rem; font-weight: 700; }
         .blocked-model-card p { margin: 0; color: #6d28d9; font-size: 0.8rem; line-height: 1.4; }
 
+        /* Gap chips (field-level) */
+        .gap-chip { display:inline-block; padding:3px 9px; border-radius:6px; font-size:0.78em; font-weight:600; margin:0 5px 5px 0; }
+        .gap-required { background:#fee2e2; color:#991b1b; }
+        .gap-recommended { background:#fef3c7; color:#92400e; }
+        .sec-icon { font-size:1.05rem; vertical-align:middle; margin-right:6px; color:var(--text-muted); }
+        .sec-ok { color:var(--success); font-weight:600; font-size:0.88em; }
+
+        /* Cohort summary stat strip */
+        .stat-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:24px; }
+        .stat-box { background:#fff; border:1px solid #e2e8f0; border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow-md); }
+        .stat-box .num { font-size:2rem; font-weight:800; font-family:'Outfit',sans-serif; line-height:1; letter-spacing:-0.02em; }
+        .stat-box .lbl { font-size:0.78rem; color:var(--text-muted); margin-top:6px; text-transform:uppercase; letter-spacing:0.03em; }
+        .stat-box.crit .num { color:var(--danger); }
+        .stat-box.warn .num { color:var(--warning); }
+        .stat-box.ok .num { color:var(--success); }
+
+        /* Hot-spot bars */
+        .hs-row { display:grid; grid-template-columns:230px 1fr 52px; align-items:center; gap:12px; margin-bottom:8px; font-size:0.86em; }
+        .hs-lab { text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-main); }
+        .hs-track { height:15px; background:#f1f5f9; border-radius:4px; overflow:hidden; }
+        .hs-fill { height:100%; border-radius:4px; }
+        .hs-fill.required { background:var(--danger); }
+        .hs-fill.recommended { background:var(--warning); }
+        .hs-num { font-weight:700; font-size:0.82em; color:var(--text-muted); text-align:right; font-variant-numeric:tabular-nums; }
+
+        .ov-link { text-decoration:none; color:var(--primary-dark); font-weight:600; font-size:0.82em; white-space:nowrap; }
+        .ov-link:hover { text-decoration:underline; }
+        .count-badge { font-weight:800; font-variant-numeric:tabular-nums; }
+        .count-badge.r { color:var(--danger); } .count-badge.w { color:var(--warning); }
+
         @media (max-width: 768px) {
             header, .page-header { padding: 16px !important; }
             .container { padding: 0 16px 40px; }
+            .hs-row { grid-template-columns:150px 1fr 44px; }
         }
     </style>
     <link rel="stylesheet" href="/static/vendor/fonts/fonts.css"/>
@@ -98,37 +129,53 @@
             </div>
 
             <div class="section-grid">
-                <!-- Profile Data -->
+                <!-- Clinical Profile Completeness (demographics + all 1:1 profile tables) -->
                 <div class="card">
                     <h3>
-                        <i class="material-icons">contact_page</i> Profile Completeness
-                        <span style="margin-left: auto;">
-                            {% if report.profile_missing %}
-                                <span class="metric-pill metric-pill-danger">{{ report.profile_missing|length }} Missing</span>
-                            {% else %}
+                        <i class="material-icons">fact_check</i> Clinical Profile Completeness
+                        <span style="margin-left: auto; display:flex; gap:6px;">
+                            {% if profile_report.req_missing %}
+                                <span class="metric-pill metric-pill-danger">{{ profile_report.req_missing }} required</span>
+                            {% endif %}
+                            {% if profile_report.rec_missing %}
+                                <span class="metric-pill" style="background:#fef3c7;color:#92400e;">{{ profile_report.rec_missing }} recommended</span>
+                            {% endif %}
+                            {% if not profile_report.req_missing and not profile_report.rec_missing %}
                                 <span class="metric-pill metric-pill-success">Complete</span>
                             {% endif %}
                         </span>
                     </h3>
-                    
-                    {% if report.profile_missing %}
-                        <div class="alert-box alert-box-danger" style="margin-bottom: 16px;">
-                            <i class="material-icons">warning</i>
-                            <div>
-                                <strong>Missing fields in patient profile:</strong>
-                                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
-                                    {% for f in report.profile_missing %}
-                                    <li>{{ f }}</li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="alert-box alert-box-success" style="margin-bottom: 16px;">
-                            <i class="material-icons">check_circle</i>
-                            <div>All critical profile fields (Age, Height, Dry Weight, Access Type, Access Dates) are successfully recorded.</div>
-                        </div>
-                    {% endif %}
+                    <div style="overflow-x:auto;">
+                    <table>
+                        <tbody>
+                        {% for label, sec in profile_report.sections.items() %}
+                            {% if label not in ["Monthly Labs", "Session Records"] %}
+                            <tr>
+                                <td style="width:210px; font-weight:600;">
+                                    <i class="material-icons sec-icon">{{ sec.icon }}</i>{{ label }}
+                                </td>
+                                <td>
+                                    {% if sec.row_present == False %}
+                                        <span class="gap-chip gap-{{ sec.row_severity }}">Whole section not recorded</span>
+                                    {% elif sec.missing %}
+                                        {% for m in sec.missing %}
+                                            <span class="gap-chip gap-{{ m.severity }}">{{ m.label }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="sec-ok"><i class="material-icons" style="font-size:1rem;vertical-align:middle;">check_circle</i> Complete</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    </div>
+                    <p style="font-size:0.78rem; color:var(--text-muted); margin:12px 0 0;">
+                        <span class="gap-chip gap-required" style="margin:0 4px 0 0;">red</span> required &nbsp;
+                        <span class="gap-chip gap-recommended" style="margin:0 4px 0 0;">amber</span> recommended.
+                        Booleans set to “No” count as recorded.
+                    </p>
                 </div>
 
                 <!-- Session Logs -->
@@ -273,11 +320,89 @@
                 {% endif %}
             </div>
         {% else %}
-            <!-- Welcome Alert Box -->
-            <div class="alert-box alert-box-info" style="margin-top:20px;">
-                <i class="material-icons">supervisor_account</i>
+            <!-- Cohort Overview -->
+            <div class="stat-strip">
+                <div class="stat-box"><div class="num">{{ overview.total }}</div><div class="lbl">Active patients</div></div>
+                <div class="stat-box ok"><div class="num">{{ overview.fully_complete }}</div><div class="lbl">Fully complete</div></div>
+                <div class="stat-box crit"><div class="num">{{ overview.with_required }}</div><div class="lbl">Missing required data</div></div>
+                <div class="stat-box warn"><div class="num">{{ overview.with_recommended }}</div><div class="lbl">Missing recommended</div></div>
+            </div>
+
+            {% if overview.hotspots %}
+            <div class="card">
+                <h3><i class="material-icons">leaderboard</i> Per-patient gaps — the ones to chase
+                    <span style="margin-left:auto; font-size:0.72rem; color:var(--text-muted); text-transform:none; letter-spacing:0;">latest month: {{ overview.latest_month or '—' }}</span>
+                </h3>
+                <div class="alert-box alert-box-info" style="margin-bottom:18px;">
+                    <i class="material-icons">info</i>
+                    <div>Fields blank for <em>some</em> patients but recorded for others — usually a data-entry oversight worth back-filling. Ranked by patients affected.</div>
+                </div>
+                {% for h in overview.hotspots[:15] %}
+                <div class="hs-row">
+                    <div class="hs-lab">{{ h.label }}</div>
+                    <div class="hs-track"><div class="hs-fill {{ h.severity }}" style="width:{{ (h.n / overview.total * 100)|round(0,'floor') }}%;"></div></div>
+                    <div class="hs-num">{{ h.n }}/{{ overview.total }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if overview.systemic %}
+            <div class="card" style="border-color:#e2e8f0; background:#f8fafc;">
+                <h3><i class="material-icons">tune</i> Systemic gaps — not per-patient</h3>
+                <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">
+                    Blank for <strong>all {{ overview.total }}</strong> patients — that pattern means the field isn't being captured in this deployment's workflow at all (a form/config decision, not a missed entry).
+                </div>
                 <div>
-                    <strong>Welcome to the Missing Data Auditor.</strong> Select an active patient from the dropdown above to audit their profile attributes, dialysis session values, and monthly lab results.
+                    {% for s in overview.systemic %}
+                        <span class="metric-pill">{{ s.label }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Per-patient completeness table -->
+            <div class="card">
+                <h3><i class="material-icons">groups</i> All Active Patients ({{ overview.total }})
+                    <span style="margin-left:auto; font-size:0.72rem; color:var(--text-muted); text-transform:none; letter-spacing:0;">sorted by most-incomplete</span>
+                </h3>
+                <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th style="text-align:center;">Required</th>
+                            <th style="text-align:center;">Recommended</th>
+                            <th>Sections with gaps</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in overview.patients %}
+                        <tr>
+                            <td><strong>{{ p.name }}</strong><br><span style="color:var(--text-muted); font-size:0.8em;">HID: {{ p.hid_no }}</span></td>
+                            <td style="text-align:center;">
+                                {% if p.req_missing %}<span class="count-badge r">{{ p.req_missing }}</span>{% else %}<i class="material-icons" style="color:var(--success); font-size:1.1rem;">check_circle</i>{% endif %}
+                            </td>
+                            <td style="text-align:center;">
+                                {% if p.rec_missing %}<span class="count-badge w">{{ p.rec_missing }}</span>{% else %}<span style="color:var(--text-muted);">0</span>{% endif %}
+                            </td>
+                            <td>
+                                {% for label, sec in p.sections.items() %}
+                                    {% if sec.row_present == False %}
+                                        <span class="gap-chip gap-{{ sec.row_severity }}">{{ label }}: absent</span>
+                                    {% elif sec.missing %}
+                                        {% set has_req = sec.missing | selectattr('severity','equalto','required') | list | length %}
+                                        <span class="gap-chip {{ 'gap-required' if has_req else 'gap-recommended' }}">{{ label }} ({{ sec.missing|length }})</span>
+                                    {% endif %}
+                                {% endfor %}
+                                {% if not p.req_missing and not p.rec_missing %}<span class="sec-ok">All complete</span>{% endif %}
+                            </td>
+                            <td><a class="ov-link" href="/admin/missing-data?patient_id={{ p.id }}">Audit →</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
                 </div>
             </div>
         {% endif %}

@@ -3,9 +3,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
+from itsdangerous import BadData
 
 from database import get_db, SustainabilityRecord, MonthlyRecord, Patient
-from config import templates
+from config import templates, _csrf_signer
 from dependencies import get_user
 from dashboard_logic import get_current_month_str, get_month_label
 
@@ -44,8 +45,7 @@ async def sustainability_dashboard(request: Request, month: Optional[str] = None
     # Note: In a production app, we'd count actual SessionRecords, but we'll approximate 
     # based on patients * frequency or just total active count * 12.
     patient_count = db.query(MonthlyRecord).filter(MonthlyRecord.record_month == month_str).count()
-    # Prefer the frontend's frequency-weighted override; fall back to flat estimate only when absent.
-    # Use `is not None` (not truthiness) so a saved value of 0 still triggers the fallback.
+    # Prefer the frontend's frequency-weighted override; fall back to flat estimate when absent or <= 0.
     _override = record.total_sessions_override if record else None
     session_count = (_override if _override is not None and _override > 0 else (patient_count * 13)) or 1
     
@@ -67,8 +67,8 @@ async def sustainability_dashboard(request: Request, month: Optional[str] = None
             "centre_location": CENTRE_LOCATION,
             "cons_supply_km": CONS_SUPPLY_KM,
             "breakdown": [
-                {"label": "Energy (Electricity)",              "val": round(e,  1), "color": "#f59e0b"},
-                {"label": "Water (Purification)",              "val": round(w,  1), "color": "#0ea5e9"},
+                {"label": "Energy (Electricity)",              "val": round(e,  1), "color": "#10b981"},
+                {"label": "Water (Purification)",              "val": round(w,  1), "color": "#3b82f6"},
                 {"label": "Waste Management",                  "val": round(wt, 1), "color": "#ef4444"},
                 {"label": "Medical Consumables",               "val": round(c,  1), "color": "#8b5cf6"},
                 {"label": f"Supply Chain ({CENTRE_LOCATION})", "val": round(s,  1), "color": "#06b6d4"},
@@ -76,6 +76,8 @@ async def sustainability_dashboard(request: Request, month: Optional[str] = None
         }
 
     active_count = db.query(Patient).filter(Patient.is_active == True).count()
+
+    csrf_token = _csrf_signer.sign("sustainability").decode()
 
     return templates.TemplateResponse("sustainability.html", {
         "request": request,
@@ -85,13 +87,17 @@ async def sustainability_dashboard(request: Request, month: Optional[str] = None
         "session_count": session_count,
         "analysis": analysis,
         "active_count": active_count,
-        "user": get_user(request)
+        "user": get_user(request),
+        "csrf_token": csrf_token,
     })
 
 @router.post("/save")
 async def save_sustainability(
     request: Request,
     month_str: str = Form(...),
+    csrf_token: Optional[str] = Form(None),
+    # The frontend always posts monthly-normalised floats (timeframe conversion
+    # is applied in saveRecord() before submission).
     electricity: float = Form(0),
     water: float = Form(0),
     bio_waste: float = Form(0),
@@ -99,22 +105,48 @@ async def save_sustainability(
     sessions: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
+    # ── CSRF verification (1 h window, same scheme as entry.py) ──────────────
+    try:
+        if not csrf_token:
+            raise BadData("Missing CSRF token")
+        val = _csrf_signer.unsign(csrf_token, max_age=3600)
+        val_str = val.decode() if isinstance(val, bytes) else val
+        if val_str != "sustainability":
+            raise BadData("Scope mismatch")
+    except BadData:
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh and try again.")
+
     user = get_user(request)
     role = getattr(user, "role", None) if not isinstance(user, dict) else user.get("role", "")
     if role == "ecogreen":
-        raise HTTPException(status_code=403, detail="Save operation disabled for EcoGreen user")
+        raise HTTPException(status_code=403, detail="Save disabled for EcoGreen user.")
+
+    actor = (user.get("username") if isinstance(user, dict) else getattr(user, "username", "unknown")) or "unknown"
+
+    # ── Input bounds validation (reject with 400 on failure) ──────────────────
+    if electricity < 0 or electricity > 500000:
+        raise HTTPException(status_code=400, detail="Electricity quantity out of bounds.")
+    if water < 0 or water > 50000:
+        raise HTTPException(status_code=400, detail="Water quantity out of bounds.")
+    if bio_waste < 0 or bio_waste > 100000:
+        raise HTTPException(status_code=400, detail="Biomedical waste quantity out of bounds.")
+    if gen_waste < 0 or gen_waste > 100000:
+        raise HTTPException(status_code=400, detail="General waste quantity out of bounds.")
+    if sessions is not None and not (0 < sessions <= 20000):
+        raise HTTPException(status_code=400, detail="Sessions quantity out of bounds.")
 
     record = db.query(SustainabilityRecord).filter(SustainabilityRecord.record_month == month_str).first()
     if not record:
         record = SustainabilityRecord(record_month=month_str)
         db.add(record)
-    
-    record.electricity_kwh = electricity
-    record.water_m3 = water
-    record.biomedical_waste_kg = bio_waste
-    record.general_waste_kg = gen_waste
-    record.total_sessions_override = sessions
-    record.timestamp = datetime.utcnow()
-    
+
+    record.electricity_kwh          = electricity
+    record.water_m3                 = water
+    record.biomedical_waste_kg      = bio_waste
+    record.general_waste_kg         = gen_waste
+    record.total_sessions_override  = sessions
+    record.timestamp                = datetime.utcnow()
+    record.updated_by               = actor
+
     db.commit()
     return RedirectResponse(url=f"/analytics/sustainability?month={month_str}", status_code=303)

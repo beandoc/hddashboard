@@ -467,16 +467,24 @@ async def admin_missing_data(
     db: Session = Depends(get_db)
 ):
     _require_admin(request)
-    
+
+    from services.data_completeness import scan_cohort, scan_patient
+
     # Get all active patients sorted by name
     patients = db.query(Patient).filter(Patient.is_active == True).order_by(Patient.name).all()
-    
+
+    # Cohort-wide overview: who has gaps, where, and the systemic vs per-patient split.
+    overview = scan_cohort(db)
+
     selected_patient = None
     report = None
-    
+    profile_report = None
+
     if patient_id:
         selected_patient = db.query(Patient).filter(Patient.id == patient_id).first()
         if selected_patient:
+            # Full clinical-profile completeness (demographics + all 1:1 tables + latest labs).
+            profile_report = scan_patient(db, selected_patient)
             # Dynamic cutoff: exclude the current (in-progress) month
             _now = datetime.now()
             _cutoff_dt = (_now.replace(day=1) - timedelta(days=1))  # last day of previous month
@@ -575,6 +583,8 @@ async def admin_missing_data(
         "patients": patients,
         "selected_patient": selected_patient,
         "report": report,
+        "profile_report": profile_report,
+        "overview": overview,
         "cutoff_label": _prev_label,
     })
 

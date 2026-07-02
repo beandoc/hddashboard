@@ -1457,7 +1457,10 @@
                 <button class="btn-primary" onclick="calculateCF()" style="flex: 2;">
                     <i class="material-icons">analytics</i> Generate Sustainability Report
                 </button>
-                <button class="btn-save" onclick="saveRecord()" style="flex: 1;" {% if user and user.role == 'ecogreen' %}disabled title="Save disabled (EcoGreen role)"{% endif %}>
+                <button class="btn-save" id="saveRecordBtn"
+                        data-csrf="{{ csrf_token }}"
+                        onclick="saveRecord()" style="flex: 1;"
+                        {% if user and user.role == 'ecogreen' %}disabled title="Save disabled (EcoGreen role)"{% endif %}>
                     <i class="material-icons">save</i> Save Record
                 </button>
             </div>
@@ -1789,7 +1792,7 @@
 
                         <div class="whatif-footer">
                             <i class="material-icons" style="font-size:13px;flex-shrink:0;margin-top:1px;">info</i>
-                            Savings from each lever are independent and additive, <strong>except Levers 1 and 7 which are mutually exclusive</strong> — Lever 1 (fixed Qd reduction) and Lever 7 (Qb-matched protocol) both reduce dialysate from the 500 mL/min baseline; activating both double-counts the same saving. Use whichever reflects your unit's actual protocol. Electricity savings (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Lever 7 clinical basis: Khamis et al. BMC Nephrology (2025) 26:594. Lever 8 (citrate): van der Meulen KIR 2024 — ~99% reduction vs heparin; Fan &amp; Favaloro Lancet Haematology 2022. Lever 9 (acid delivery): Murcutt et al. J Nephrology 2024 — 33,841 kg CO₂e/yr at 30 beds. Lever 10 (home HD): Connor et al. Hemodial Int 2011; James J Renal Care 2007 — 660–870 kg CO₂e/patient/yr travel savings. Overview: Backston et al. Hemodialysis International 2025;29:463–471. Actual savings depend on clinical eligibility and implementation fidelity.
+                            Savings from each lever are independent and additive, <strong>except Levers 1 and 7 which interact</strong> — Lever 1 (fixed Qd reduction) and Lever 7 (Qb-matched protocol) both reduce dialysate from the 500 mL/min baseline; the calculator automatically scales Lever 1's savings by the share of sessions NOT on the Qb-matched protocol to prevent double counting. Use whichever reflects your unit's actual protocol. Electricity savings (Qd, temperature) validated on Baxter AK98 (Barraclough 2025, Table S5). Lever 7 clinical basis: Khamis et al. BMC Nephrology (2025) 26:594. Lever 8 (citrate): van der Meulen KIR 2024 — ~99% reduction vs heparin; Fan &amp; Favaloro Lancet Haematology 2022. Lever 9 (acid delivery): Murcutt et al. J Nephrology 2024 — 33,841 kg CO₂e/yr at 30 beds. Lever 10 (home HD): Connor et al. Hemodial Int 2011; James J Renal Care 2007 — 660–870 kg CO₂e/patient/yr travel savings. Overview: Backston et al. Hemodialysis International 2025;29:463–471. Actual savings depend on clinical eligibility and implementation fidelity.
                         </div>
                     </div>
                     <!-- ── end What If? ───────────────────────────────────────── -->
@@ -2049,7 +2052,7 @@
                 : `Grid EF: ${ef.toFixed(3)} kg CO₂e/kWh (CEA v19/v20)`;
         }
         // Recalculate emissions whenever location changes
-        if (typeof calculate === 'function') calculate();
+        if (calculationResults) calculateCF();
     }
 
     // ── Medication scope helpers ──────────────────────────────────────────────
@@ -2136,8 +2139,9 @@
         // Tonne-km formula: 998 kg/patient/yr × distance_km × 0.08 kg CO₂e/tonne-km.
         // Maharashtra default: Nashik → Pune ≈ 180 km.
         // User-adjustable via supplyChainKm input (e.g. district hospitals may be 400–600 km).
+        const supplyPatients = totalPatients || (patients3x + patients2x + hdfPts3x + hdfPts2x);
         const supplyChainKm = v('supplyChainKm') || 180;
-        const supplyChain = totalPatients * (998 / 1000) * 0.08 * supplyChainKm;  // kg CO₂e/yr
+        const supplyChain = supplyPatients * (998 / 1000) * 0.08 * supplyChainKm;  // kg CO₂e/yr
 
         // Consumables (kg CO2e per unit)
         // LCI factors from Barraclough et al. AJKD 2025 Table 1 (material inventory per item)
@@ -2193,7 +2197,7 @@
         const treesHi = Math.ceil(totalAnnual / 10);
 
         calculationResults = {
-            centre, timeframe, totalPatients,
+            centre, timeframe, totalPatients: supplyPatients,
             patients3x, patients2x, hdfPts3x, hdfPts2x, hdfSubstVol,
             hdSessionsPerWeek, hdfSessionsPerWeek,
             totalAnnual, perSession, perPatient3x, perPatient2x, treesLo, treesHi,
@@ -2398,7 +2402,7 @@
         doc.setTextColor(30, 41, 59);
 
         for (const [key, val] of Object.entries(r.breakdown)) {
-            const pct = ((val / r.totalAnnual) * 100).toFixed(1);
+            const pct = r.totalAnnual > 0 ? ((val / r.totalAnnual) * 100).toFixed(1) : '0.0';
             doc.text(key, 25, y);
             doc.text(val.toFixed(1), 100, y);
             doc.text(`${pct}%`, 160, y);
@@ -2415,7 +2419,8 @@
         doc.text('Clinical Optimization Recommendations:', 25, y + 10);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
-        doc.text('1. Consumables represent ' + ((r.breakdown.Consumables/r.totalAnnual)*100).toFixed(0) + '% of your footprint. Evaluate dialyser reuse.', 25, y + 18);
+        const consumablesPct = r.totalAnnual > 0 ? ((r.breakdown.Consumables / r.totalAnnual) * 100).toFixed(0) : '0';
+        doc.text('1. Consumables represent ' + consumablesPct + '% of your footprint. Evaluate dialyser reuse.', 25, y + 18);
         doc.text('2. Sequestration equivalent: ' + r.treesLo + '–' + r.treesHi + ' mature tree-years (urban 10 kg/yr → forest 22 kg/yr).', 25, y + 24);
 
         // Academic disclaimer
@@ -2474,6 +2479,7 @@
             `Water: ${kg(b.Water)}`,
             `Waste: ${kg(b.Waste)}`,
             `Travel: ${kg(b.Travel)}`,
+            `Supply Chain: ${kg(b['Supply Chain'])}`,
             `Consumables: ${kg(b.Consumables)}`,
             '',
             `Emission factors: CEA grid ${getGridEF().toFixed(3)} kg/kWh (v19/v20 regional). For academic and quality-improvement purposes only.`
@@ -2965,6 +2971,7 @@
         const sessionsPerYear = (r.hdSessionsPerWeek + r.hdfSessionsPerWeek) * 52;
         const q = (id) => { const el = document.getElementById(id); return el ? (parseFloat(el.value) || 0) : 0; };
         const sl = (id) => { const el = document.getElementById(id); return el ? parseFloat(el.value) : 0; };
+        const afPct = sl('wf-af-pct') / 100;
 
         // ── Lever 1: Qd reduction ─────────────────────────────────────────
         // Per 200 mL/min band reduced: 48 L water + 0.14 kWh RO electricity (Baxter AK98, Table S5)
@@ -2972,7 +2979,8 @@
         document.getElementById('wf-val-qd').textContent = qd;
         const qdBand = (500 - qd) / 200;
         const qdSavePerSession = qdBand * (0.048 * 0.30 + 0.14 * getGridEF());
-        const qdSave = qdSavePerSession * sessionsPerYear;
+        // Manual Qd reduction only applies to sessions not using the Qb-matching protocol (Lever 7)
+        const qdSave = qdSavePerSession * sessionsPerYear * (1 - afPct);
         setLeverBadge('wf-badge-qd', qdSave);
 
         // ── Lever 2: Dialysate temperature ───────────────────────────────
@@ -3001,15 +3009,15 @@
 
         // ── Lever 5: HDF → standard HD conversion ─────────────────────────
         // Saving per converted HDF session:
-        //   Substitution fluid water: hdfSubstVol × 0.001 m³ × 0.344 kg CO₂e/m³
+        //   Substitution fluid water: hdfSubstVol × 0.001 m³ × 0.30 kg CO₂e/m³  (CPHEEO)
         //   Substitution fluid RO electricity: hdfSubstVol × (3.1 kWh per 357 L) × gridEF
-        //   = hdfSubstVol × (0.000344 + gridEF × 0.00869)
+        //   = hdfSubstVol × (0.0003 + gridEF × 0.00869)
         //   HDF set (0.80) vs HD tubing (0.85): net −0.05 (marginal, included)
         const hdfConvPct = sl('wf-hdf') / 100;
         document.getElementById('wf-val-hdf').textContent = Math.round(hdfConvPct * 100);
         const hdfSubstVol = q('hdfSubstVol');
         const hdfSessPerYear = r.hdfSessionsPerWeek * 52;
-        const hdfSavePerSess = hdfSubstVol * (0.000344 + getGridEF() * 0.00869) - 0.05; // subst saving minus tubing delta
+        const hdfSavePerSess = hdfSubstVol * (0.0003 + getGridEF() * 0.00869) - 0.05; // subst saving minus tubing delta
         const hdfSave = hdfConvPct > 0 && hdfSessPerYear > 0
             ? Math.max(0, hdfConvPct * hdfSessPerYear * hdfSavePerSess)
             : 0;
@@ -3034,7 +3042,6 @@
         //   Electricity = savedL / 48 L × 0.14 kWh × gridEF (Baxter AK98, Barraclough Table S5)
         const afRatio  = parseFloat((document.querySelector('input[name="af-factor"]:checked') || {value: '1.2'}).value);
         const avgQb    = sl('wf-qb');
-        const afPct    = sl('wf-af-pct') / 100;
         document.getElementById('wf-val-qb').textContent = avgQb;
         document.getElementById('wf-val-af-pct').textContent = Math.round(afPct * 100);
         const effQd    = Math.max(300, Math.min(800, afRatio * avgQb));
@@ -3051,8 +3058,8 @@
         // If Medications section is populated use that; otherwise assume 1 vial/session baseline.
         const citrPct = sl('wf-citrate') / 100;
         document.getElementById('wf-val-citrate').textContent = Math.round(citrPct * 100);
-        const heparinCarbonTotal = v('heparinQty') > 0
-            ? v('heparinQty') * cf * 0.15          // actual entry (annual-scaled)
+        const heparinCarbonTotal = q('heparinQty') > 0
+            ? q('heparinQty') * cf * 0.15          // actual entry (annual-scaled)
             : sessionsPerYear * 0.15;               // fallback: 1 vial × 0.15 kg per session
         const citrateSave = citrPct * heparinCarbonTotal * 0.99;
         setLeverBadge('wf-badge-citrate', citrateSave);
@@ -3064,18 +3071,22 @@
         const acidSwitch = parseFloat((document.querySelector('input[name="acid-del"]:checked') || {value: '0'}).value);
         const beds = sl('wf-beds') || 30;
         document.getElementById('wf-val-beds').textContent = beds;
-        const acidSave = acidSwitch * beds * (33841 / 30);
+        const maxAcidSaving = q('dialysateAQty') * 1.95 * cf;
+        const acidSave = Math.min(acidSwitch * beds * (33841 / 30), maxAcidSaving);
         setLeverBadge('wf-badge-acid', acidSave);
 
         // ── Lever 10: Home HD conversion ─────────────────────────────────
         // Travel savings 660–870 kg CO₂e/patient/year (midpoint 765 kg)
         // Source: Connor et al. Hemodial Int 2011; James J Renal Care 2007
         // India context: ~60% patients travel >50 km (Bajpai et al. 2024)
+        // Saving cannot exceed the unit's actual calculated travel footprint.
         const homeHDPct = sl('wf-homehd') / 100;
         document.getElementById('wf-val-homehd').textContent = Math.round(homeHDPct * 100);
         const totalHDPts = (parseInt((document.getElementById('patients3x') || {}).value) || 0) +
                            (parseInt((document.getElementById('patients2x') || {}).value) || 0);
-        const homeHDSave = homeHDPct * totalHDPts * 765;
+        const rawHomeHDSave = homeHDPct * totalHDPts * 765;
+        const maxHomeHDSaving = r.breakdown.Travel;
+        const homeHDSave = Math.min(rawHomeHDSave, maxHomeHDSaving);
         setLeverBadge('wf-badge-homehd', homeHDSave);
 
         // ── Summary ───────────────────────────────────────────────────────
@@ -3097,29 +3108,76 @@
     function saveRecord() {
         const urlParams = new URLSearchParams(window.location.search);
         const month_str = urlParams.get('month') || '{{ month_str }}';
-        
+
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = '/analytics/sustainability/save';
-        
-        const patients3x  = parseInt(document.getElementById('patients3x').value)  || 0;
-        const patients2x  = parseInt(document.getElementById('patients2x').value)  || 0;
-        const hdfPts3x    = parseInt(document.getElementById('hdfPatients3x').value) || 0;
-        const hdfPts2x    = parseInt(document.getElementById('hdfPatients2x').value) || 0;
-        // Include HD + HDF in session count; 4.33 = average weeks per month
-        const sessions = ((patients3x + hdfPts3x) * 3 + (patients2x + hdfPts2x) * 2) * 4.33;
+
+        // ── Normalise all quantities to monthly equivalents ────────────────
+        // The backend always stores and analyses monthly figures.  The user
+        // may have entered data for a different timeframe, so we scale here
+        // before posting.  4.33 = average weeks per calendar month.
+        const timeframe = document.getElementById('timeframe').value;
+        const toMonthly = timeframe === 'day'  ? 30.44       // day-entry × 30.44
+                        : timeframe === 'year' ? 1 / 12       // annual  ÷ 12
+                        : 1;                                  // monthly — no-op
+
+        const rawElec  = parseFloat(document.getElementById('elecQty').value)       || 0;
+        const rawWater = parseFloat(document.getElementById('waterQty').value)       || 0;
+        const rawBio   = parseFloat(document.getElementById('wasteYellowQty').value) || 0;
+        const rawGen   = parseFloat(document.getElementById('wasteRedQty').value)    || 0;
+
+        // ── Front-end bounds check (mirrors backend BOUNDS dict) ──────────────
+        const monthly = {
+            electricity: rawElec  * toMonthly,
+            water:       rawWater * toMonthly,
+            bio_waste:   rawBio   * toMonthly,
+            gen_waste:   rawGen   * toMonthly,
+        };
+        const BOUNDS = {
+            electricity: [0, 500_000, 'kWh/month'],
+            water:       [0, 50_000,  'm³/month'],
+            bio_waste:   [0, 100_000, 'kg/month'],
+            gen_waste:   [0, 100_000, 'kg/month'],
+        };
+        for (const [field, [lo, hi, unit]] of Object.entries(BOUNDS)) {
+            const v = monthly[field];
+            if (v < lo || v > hi) {
+                alert(`⚠️ '${field}' value ${v.toFixed(2)} ${unit} is outside the accepted range [${lo}, ${hi}].\nPlease check your entry and the selected timeframe.`);
+                return;
+            }
+        }
+
+        // ── Session count — always monthly regardless of timeframe ─────────
+        // Patient-count inputs represent the current patient census (not a
+        // timeframe-scaled quantity), so sessions/month is always derived
+        // from census × frequency × 4.33 weeks/month.
+        const patients3x = parseInt(document.getElementById('patients3x').value)    || 0;
+        const patients2x = parseInt(document.getElementById('patients2x').value)    || 0;
+        const hdfPts3x   = parseInt(document.getElementById('hdfPatients3x').value) || 0;
+        const hdfPts2x   = parseInt(document.getElementById('hdfPatients2x').value) || 0;
+        const sessionsPerMonth = ((patients3x + hdfPts3x) * 3 + (patients2x + hdfPts2x) * 2) * 4.33;
+
+        // ── CSRF token ────────────────────────────────────────────────────────
+        // Token is rendered server-side into data-csrf on the save button so
+        // it survives any future restructuring of this function.
+        const csrfToken = (document.getElementById('saveRecordBtn') || {}).dataset.csrf || '';
 
         const fields = {
-            'month_str': month_str,
-            'electricity': document.getElementById('elecQty').value || 0,
-            'water': document.getElementById('waterQty').value || 0,
-            'bio_waste': document.getElementById('wasteYellowQty').value || 0,
-            'gen_waste': document.getElementById('wasteRedQty').value || 0,
-            // Only send sessions override when patients are actually entered; sending 0 would
-            // make the backend treat it as "no data" and fall back to the flat multiplier.
-            'sessions': sessions > 0 ? Math.round(sessions) : ''
+            'month_str':  month_str,
+            'csrf_token': csrfToken,
+            'electricity': monthly.electricity.toFixed(4),
+            'water':       monthly.water.toFixed(4),
+            'bio_waste':   monthly.bio_waste.toFixed(4),
+            'gen_waste':   monthly.gen_waste.toFixed(4)
         };
-        
+
+        // Only append sessions when it is > 0
+        const roundedSessions = Math.round(sessionsPerMonth);
+        if (roundedSessions > 0) {
+            fields['sessions'] = roundedSessions;
+        }
+
         for (const [key, value] of Object.entries(fields)) {
             const input = document.createElement('input');
             input.type = 'hidden';
@@ -3127,7 +3185,7 @@
             input.value = value;
             form.appendChild(input);
         }
-        
+
         document.body.appendChild(form);
         form.submit();
     }
